@@ -40,8 +40,8 @@ for hoja in hojas:
             "inquilino": nombre,
             "local": local,
             "monto_total": monto_total,
-            "numero_recibo": int(numero_recibo) if numero_recibo else None,
-            "fecha": str(fecha)
+            "numero_recibo": str(numero_recibo).strip() if numero_recibo is not None else None,
+            "fecha": str(fecha) if fecha is not None else None
         })
 
 df_locales = pd.DataFrame(sorted(list(locales)), columns=["codigo_local"])
