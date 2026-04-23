@@ -5051,7 +5051,7 @@ function globalSearch(){
               </div>
 
               <div class="docs-uploader-grid">
-                <button class="btn primary" onclick="uploadDocFromDocs()">Subir archivo</button>
+                <button class="btn primary" id="docsUploadBtn" onclick="uploadDocFromDocs()">Subir archivo</button>
                 <button class="btn" onclick="goToRecibosFromLegajo()">Ver recibos</button>
               </div>
 
@@ -5080,8 +5080,11 @@ function globalSearch(){
         sel.appendChild(op);
       }
 
-      if (docsContratoId && [...sel.options].some(o => o.value === docsContratoId)){
+      if (docsContratoId && [...sel.options].some(o => o.value === docsContratoId) && docsContratoId !== '__ALL__'){
         sel.value = docsContratoId;
+      } else if (sel.options.length > 1) {
+        sel.value = sel.options[1].value;
+        docsContratoId = sel.value;
       } else {
         docsContratoId = '__ALL__';
         sel.value = '__ALL__';
@@ -5675,6 +5678,7 @@ function globalSearch(){
             <div class="recibos-actions">
               <div class="recibos-action-panel">
                 <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver recibo</button>
+                <button class="btn danger" style="min-width:110px;" onclick="deleteReciboByKey('${getReciboKey(item)}')">Eliminar</button>
                 <details class="recibos-share-menu">
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
@@ -5871,6 +5875,7 @@ function globalSearch(){
 
                   <div class="recibos-side-actions">
                     <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
+                    <button class="btn danger" onclick="deleteReciboByKey('${ultimo.id}')">Eliminar</button>
                     <button class="btn" onclick="shareReciboByEmail('${ultimo.id}')">Email + PDF</button>
                     <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
                     <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
@@ -7133,10 +7138,34 @@ function globalSearch(){
     function clearDocsFilters(){
       if ($('docsSearch')) $('docsSearch').value = '';
       if ($('docsFiltroTipo')) $('docsFiltroTipo').value = 'TODOS';
-      if ($('docsContratoSel')) $('docsContratoSel').value = '__ALL__';
-      docsContratoId = '__ALL__';
+
+      const sel = $('docsContratoSel');
+      if (sel && sel.options.length > 1){
+        sel.value = sel.options[1].value;
+        docsContratoId = sel.value;
+      } else {
+        docsContratoId = '__ALL__';
+        if (sel) sel.value = '__ALL__';
+      }
+
       updateDocsSidePanel();
       loadDocsForSelected();
+    }
+
+    function syncDocsUploadAvailability(){
+      const value = $('docsContratoSel')?.value || docsContratoId || '__ALL__';
+      const disabled = !value || value === '__ALL__';
+
+      if ($('docsTipo')) $('docsTipo').disabled = disabled;
+      if ($('docsFile')) $('docsFile').disabled = disabled;
+
+      const uploadBtn = document.getElementById('docsUploadBtn');
+      if (uploadBtn){
+        uploadBtn.disabled = disabled;
+        uploadBtn.style.opacity = disabled ? '.6' : '1';
+        uploadBtn.style.cursor = disabled ? 'not-allowed' : 'pointer';
+        uploadBtn.title = disabled ? 'Elegí una unidad puntual para cargar documentación.' : 'Subir archivo al legajo';
+      }
     }
 
     function updateDocsSidePanel(){
@@ -7150,13 +7179,15 @@ function globalSearch(){
       const label = sel?.selectedOptions?.[0]?.textContent || 'Todos los contratos';
       if (value === '__ALL__'){
         currentName.textContent = 'Todos los legajos';
-        currentHint.textContent = '';
-        uploadState.textContent = 'Seleccioná un contrato puntual para cargar documentación.';
+        currentHint.textContent = 'Elegí una unidad para habilitar la carga de documentación.';
+        uploadState.textContent = 'La carga está deshabilitada hasta seleccionar una unidad puntual.';
       } else {
         currentName.textContent = `Legajo · ${label}`;
-        currentHint.textContent = '';
+        currentHint.textContent = 'Podés adjuntar contrato, anexo u otro archivo administrativo.';
         uploadState.textContent = 'Listo para adjuntar un archivo al legajo de esta unidad.';
       }
+
+      syncDocsUploadAvailability();
     }
 
     function goToRecibosFromLegajo(){
@@ -7467,6 +7498,82 @@ function globalSearch(){
         await loadDocsForSelected();
       } else {
         await loadDetalleDocs();
+      }
+    }
+
+    async function deleteReciboByKey(id){
+      const item = getReciboById(id);
+      if (!item){
+        alert('No se encontró el recibo.');
+        return;
+      }
+
+      const pagoId = item.pago_id || item.id;
+      if (!pagoId){
+        alert('Este recibo no tiene un pago asociado para eliminar.');
+        return;
+      }
+
+      if (!askConfirm(`¿Eliminar el recibo ${item.numero_recibo || ''}? Esta acción borrará el pago asociado.`)) return;
+
+      const msgEl = $('recibosMsg');
+      if (msgEl) msgEl.textContent = 'Eliminando recibo...';
+
+      try {
+        const docsRes = await sb
+          .from('documentos')
+          .select('id, path')
+          .eq('pago_id', pagoId);
+
+        if (docsRes.error) throw docsRes.error;
+
+        const docs = docsRes.data || [];
+        const docPaths = docs.map(d => d.path).filter(Boolean);
+
+        if (docPaths.length){
+          const rm = await sb.storage.from('documentos').remove(docPaths);
+          if (rm.error) throw rm.error;
+        }
+
+        if (docs.length){
+          const docIds = docs.map(d => d.id);
+          const delDocs = await sb.from('documentos').delete().in('id', docIds);
+          if (delDocs.error) throw delDocs.error;
+        }
+
+        const delPago = await sb.from('pagos').delete().eq('id', pagoId);
+        if (delPago.error) throw delPago.error;
+
+        const reciboKey = getReciboKey(item);
+        recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
+        saveReceiptsCache();
+
+        const manualReceipts = loadManualReceipts().filter(r => getReciboKey(r) !== reciboKey);
+        saveManualReceipts(manualReceipts);
+
+        if (paymentDescriptionMap){
+          delete paymentDescriptionMap[reciboKey];
+          if (item.numero_recibo) delete paymentDescriptionMap[String(item.numero_recibo)];
+          savePaymentDescriptionMap();
+        }
+
+        if (receiptNumberMap && pagoId){
+          delete receiptNumberMap[String(pagoId)];
+          saveReceiptNumberMap();
+        }
+
+        if (reciboActual && getReciboKey(reciboActual) === reciboKey){
+          reciboActual = null;
+          closeReciboModal();
+        }
+
+        await refreshAll();
+        if (route === 'recibos') await renderRecibosPage();
+
+        if ($('recibosMsg')) $('recibosMsg').textContent = 'Recibo eliminado correctamente ✅';
+      } catch (error) {
+        console.error(error);
+        if ($('recibosMsg')) $('recibosMsg').textContent = `Error al eliminar el recibo: ${error.message || error}`;
       }
     }
 
