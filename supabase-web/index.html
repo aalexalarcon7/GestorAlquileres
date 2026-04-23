@@ -2885,7 +2885,7 @@
 <div id="splash" class="splash">
   <div class="splash-card">
     <img src="logosaladita.png" class="splash-logo-img" alt="Logo">
-    <div class="splash-title" id="splashTitle">Gestión de Alquileres</div>
+    <div class="splash-title" id="splashTitle">Gestión de Alquiler</div>
     <div class="splash-sub">Cargando…</div>
   </div>
 </div>
@@ -3415,7 +3415,7 @@
     function defaultSettings(){
       return {
         negocio: {
-          nombre: 'Gestión de Alquileres',
+          nombre: 'Gestión de Alquiler',
           telefono: '',
           email: '',
           direccion: '',
@@ -3610,7 +3610,7 @@
     }
 
     function updateBusinessUI(){
-      const businessName = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const businessName = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
       const shortName = businessName.length > 18 ? businessName.slice(0, 18).trim() : businessName;
       if ($('brandName')) $('brandName').textContent = shortName;
       const initials = businessName.split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA';
@@ -5179,11 +5179,11 @@ function globalSearch(){
     }
 
     function buildEmailSubject(item){
-      return `Recibo ${item?.numero_recibo || 'interno'} · ${appSettings?.negocio?.nombre || 'Gestión de Alquileres'}`;
+      return `Recibo ${item?.numero_recibo || 'interno'} · ${appSettings?.negocio?.nombre || 'Gestión de Alquiler'}`;
     }
 
     function buildEmailBody(item){
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
       const saludo = item?.inquilino_nombre ? `Hola ${item.inquilino_nombre},` : 'Hola,';
       return [
         saludo,
@@ -5395,7 +5395,7 @@ function globalSearch(){
 
     function buildReceiptShareText(item){
       if (!item) return '';
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
       const lines = [
         `${negocio}`,
         `Recibo interno: ${item.numero_recibo || '—'}`,
@@ -5413,7 +5413,7 @@ function globalSearch(){
     }
 
     function buildReceiptPrintHtml(item){
-      const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquileres');
+      const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquiler');
       const initials = escapeHtml((appSettings?.negocio?.nombre || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA');
       const email = escapeHtml(appSettings?.negocio?.email || '—');
       const telefono = escapeHtml(appSettings?.negocio?.telefono || '—');
