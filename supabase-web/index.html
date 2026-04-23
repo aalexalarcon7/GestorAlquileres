@@ -3263,9 +3263,6 @@
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
-    </div>
-  </div>
 
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
@@ -3922,7 +3919,28 @@
       authRecoveryMode = false;
       toggleForgotPassword(false);
       showPasswordRecoveryMode(false);
-      await sb.auth.signOut();
+
+      try {
+        await sb.auth.signOut({ scope: 'local' });
+      } catch (e) {
+        console.warn('Logout local warning:', e);
+        try { await sb.auth.signOut(); } catch (err) { console.warn('Logout warning:', err); }
+      }
+
+      user = null;
+      selected = null;
+      modalContrato = null;
+      reciboActual = null;
+      document.body.classList.remove('nav-open');
+      saveCurrentRoute('inicio');
+
+      if ($('pass')) $('pass').value = '';
+      if ($('newPass')) $('newPass').value = '';
+      if ($('confirmPass')) $('confirmPass').value = '';
+
+      toggle(false, null);
+      setLoginMessage('');
+      updateTopSearchUI();
     }
 
         function isSinAsignarName(name){
