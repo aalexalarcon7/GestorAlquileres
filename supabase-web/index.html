@@ -5422,6 +5422,7 @@ function globalSearch(){
       const fecha = escapeHtml(formatDateDisplay(item.fecha_pago || item.created_at));
       const medio = escapeHtml(item.medio || '—');
       const referencia = escapeHtml(item.referencia || '—');
+      const sourceTag = item.__source === 'historico' ? 'Histórico importado' : 'Recibo actual';
       const impuestoPct = Number(item.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
@@ -5451,6 +5452,7 @@ function globalSearch(){
               <div class="label">Detalle del cobro</div>
               <div class="value">Unidad ${local}</div>
               <div class="recibo-sheet-sub">Medio de pago: ${medio}</div>
+              <div class="recibo-sheet-sub">${sourceTag}</div>
               <div class="recibo-sheet-sub">N° recibo: ${numero}</div>
             </div>
           </div>
@@ -5473,7 +5475,7 @@ function globalSearch(){
 
           <div class="recibo-note">
             ${item.descripcion_pago ? `<div style="margin-bottom:8px;"><strong>Descripción del pago:</strong> ${escapeHtml(item.descripcion_pago)}</div>` : ''}
-            Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
+            ${item.__source === 'historico' ? 'Registro histórico importado desde planillas internas.' : 'Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.'}
           </div>
         </div>
       `;
@@ -5482,6 +5484,8 @@ function globalSearch(){
     async function fetchRecibosInternosData(){
       let pagos = [];
       let pagosError = null;
+      let historicos = [];
+      let historicosError = null;
 
       const tries = [
         () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje').order('fecha_pago', { ascending:false }),
@@ -5499,33 +5503,48 @@ function globalSearch(){
         pagosError = error;
       }
 
-      const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
+      const histRes = await sb
+        .from('pagos_historicos_importados')
+        .select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_total, monto_alquiler, monto_impuesto, impuesto_porcentaje, numero_recibo, year_source, source_note')
+        .order('fecha_pago', { ascending:false });
+
+      if (!histRes.error){
+        historicos = histRes.data || [];
+        historicosError = null;
+      } else {
+        historicosError = histRes.error;
+      }
+
+      const contratoIds = [...new Set([...(pagos || []), ...(historicos || [])].map(x => String(x.contrato_id || '')).filter(Boolean))];
       let contratosMeta = [];
       let contratosError = null;
       if (contratoIds.length){
         const { data, error } = await sb
           .from('contratos')
-          .select('id, locales(codigo), inquilinos(nombre,telefono,email,documento)')
+          .select('id, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
           .in('id', contratoIds);
         contratosMeta = data || [];
         contratosError = error;
       }
 
       const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
+
       const dbRows = (pagos || []).map(item => {
         const meta = metaMap.get(String(item.contrato_id || '')) || {};
         const inq = meta.inquilinos || {};
         const local = meta.locales || {};
         const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
         const paymentKey = String(item.id || item.pago_id || '');
+        const cacheKey = `pago:${paymentKey || buildReciboNumero(item, true)}`;
         return {
           ...item,
+          __source: 'pago',
+          __cache_key: cacheKey,
           monto_total: montoTotal,
           monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
           monto_impuesto: Number(item.monto_impuesto || 0),
           impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || '').trim(),
-          __cache_key: paymentKey || buildReciboNumero(item, true),
+          descripcion_pago: String(paymentDescriptionMap[cacheKey] || paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || '').trim(),
           numero_recibo: buildReciboNumero(item, true),
           inquilino_nombre: inq.nombre || '—',
           telefono: inq.telefono || '',
@@ -5535,11 +5554,36 @@ function globalSearch(){
         };
       });
 
+      const histRows = (historicos || []).map(item => {
+        const meta = metaMap.get(String(item.contrato_id || '')) || {};
+        const inq = meta.inquilinos || {};
+        const local = meta.locales || {};
+        const cacheKey = `hist:${String(item.id || item.numero_recibo || '')}`;
+        const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
+        return {
+          ...item,
+          __source: 'historico',
+          __cache_key: cacheKey,
+          monto_total: montoTotal,
+          monto_alquiler: Number(item.monto_alquiler || item.monto || 0),
+          monto_impuesto: Number(item.monto_impuesto || 0),
+          impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
+          descripcion_pago: String(item.source_note || item.referencia || '').trim(),
+          numero_recibo: String(item.numero_recibo || item.referencia || ''),
+          inquilino_nombre: inq.nombre || item.nombre_raw || '—',
+          telefono: inq.telefono || '',
+          email: inq.email || '',
+          documento: inq.documento || '',
+          local_codigo: local.codigo || item.local_code_raw || '—',
+          medio: item.medio || 'HISTORICO'
+        };
+      });
+
       const manualReceipts = loadManualReceipts();
       const mergedMap = new Map();
-      [...dbRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
+      [...dbRows, ...histRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
         if (!item) return;
-        const key = String(item.id || item.pago_id || item.numero_recibo || item.__cache_key || '');
+        const key = String(item.__cache_key || item.id || item.pago_id || item.numero_recibo || '');
         if (!key) return;
         const previous = mergedMap.get(key) || {};
         mergedMap.set(key, {
@@ -5562,15 +5606,15 @@ function globalSearch(){
         const numB = parseInt(String(b.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
         if (numA !== numB) return numB - numA;
 
-        const keyA = String(a.id || a.pago_id || a.__cache_key || '');
-        const keyB = String(b.id || b.pago_id || b.__cache_key || '');
+        const keyA = String(a.__cache_key || a.id || a.pago_id || '');
+        const keyB = String(b.__cache_key || b.id || b.pago_id || '');
         return keyB.localeCompare(keyA);
       });
+
       recibosInternosCache = rows;
       saveReceiptsCache();
-      saveManualReceipts(rows);
 
-      return { rows, pagosError, contratosError };
+      return { rows, pagosError: pagosError || historicosError, contratosError };
     }
 
     function renderRecibosKPIs(rows){
@@ -5670,7 +5714,7 @@ function globalSearch(){
           </td>
           <td>
             <div class="recibos-cell-title">${formatDateDisplay(item.fecha_pago || item.created_at)}</div>
-            <span class="contact-sub">${escapeHtml(item.medio || '—')}</span>
+            <span class="contact-sub">${escapeHtml(item.medio || '—')}${item.__source === 'historico' ? ' · Histórico' : ''}</span>
           </td>
           <td>
             <div class="recibos-cell-title">${escapeHtml(item.inquilino_nombre)}</div>
@@ -5774,7 +5818,7 @@ function globalSearch(){
                 <div class="section-mini-stat">
                   <div class="label">Recibos generados</div>
                   <div class="value">${summary.total}</div>
-                  <div class="sub">Historial completo</div>
+                  <div class="sub">Actuales + históricos</div>
                 </div>
                 <div class="section-mini-stat">
                   <div class="label">Monto histórico</div>
@@ -5916,7 +5960,7 @@ function globalSearch(){
 
 
     function getReciboKey(item){
-      return String(item?.id || item?.pago_id || item?.numero_recibo || item?.__cache_key || '');
+      return String(item?.__cache_key || item?.id || item?.pago_id || item?.numero_recibo || '');
     }
 
     function getReciboById(id){
@@ -5929,6 +5973,39 @@ function globalSearch(){
         return;
       }
 
+      const reciboKey = getReciboKey(item);
+      const msgEl = $('recibosMsg');
+
+      if (item.__source === 'historico'){
+        if (!askConfirm(`¿Eliminar el recibo histórico ${item.numero_recibo || ''}?`)) return;
+        if (msgEl) msgEl.textContent = 'Eliminando recibo histórico...';
+
+        (async () => {
+          try {
+            const delPago = await sb.from('pagos_historicos_importados').delete().eq('id', item.id);
+            if (delPago.error) throw delPago.error;
+
+            recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
+            saveReceiptsCache();
+
+            const manualReceipts = loadManualReceipts().filter(r => getReciboKey(r) !== reciboKey);
+            saveManualReceipts(manualReceipts);
+
+            if (reciboActual && getReciboKey(reciboActual) === reciboKey){
+              reciboActual = null;
+              closeReciboModal();
+            }
+
+            if (route === 'recibos') await renderRecibosPage();
+            if ($('recibosMsg')) $('recibosMsg').textContent = 'Recibo histórico eliminado correctamente ✅';
+          } catch (error) {
+            console.error(error);
+            if ($('recibosMsg')) $('recibosMsg').textContent = `Error al eliminar el recibo histórico: ${error.message || error}`;
+          }
+        })();
+        return;
+      }
+
       const pagoId = item.pago_id || item.id;
       if (!pagoId){
         alert('Este recibo no tiene un pago asociado para eliminar.');
@@ -5937,7 +6014,6 @@ function globalSearch(){
 
       if (!askConfirm(`¿Eliminar el recibo ${item.numero_recibo || ''}? Esta acción borrará el pago asociado.`)) return;
 
-      const msgEl = $('recibosMsg');
       if (msgEl) msgEl.textContent = 'Eliminando recibo...';
 
       (async () => {
@@ -5966,7 +6042,6 @@ function globalSearch(){
           const delPago = await sb.from('pagos').delete().eq('id', pagoId);
           if (delPago.error) throw delPago.error;
 
-          const reciboKey = getReciboKey(item);
           recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
           saveReceiptsCache();
 
