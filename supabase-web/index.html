@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8"/>
-  <title>Gestión de Alquiler</title>
+  <title>Gestión de Alquileres</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <script>
     (function () {
@@ -482,19 +482,20 @@
       border-radius:18px;
       display:grid;
       place-items:center;
-      padding:8px;
-      background:rgba(255,255,255,.92);
-      border:1px solid var(--border);
-      box-shadow:0 18px 38px rgba(37,99,235,.16);
+      font-weight:900;
+      letter-spacing:.04em;
+      color:#fff;
+      background:linear-gradient(135deg, var(--brand-strong), color-mix(in srgb, var(--brand-strong) 54%, #111827 46%));
+      box-shadow:0 18px 38px rgba(37,99,235,.24);
       flex:0 0 58px;
-      overflow:hidden;
     }
 
-    body.logged-out #loginCard .loginBrandMark img{
+    body.logged-out #loginCard .login-brand-img{
       width:100%;
       height:100%;
       object-fit:contain;
       display:block;
+      border-radius:18px;
     }
 
     body.logged-out #loginCard .loginEyebrow{
@@ -771,6 +772,14 @@
       height:48px;
       border-radius:18px;
       box-shadow:0 16px 30px rgba(37,99,235,.12);
+    }
+
+    .sb-logo-img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      border-radius:18px;
+      display:block;
     }
 
     .sidebar-card{
@@ -2885,7 +2894,7 @@
 <div id="splash" class="splash">
   <div class="splash-card">
     <img src="logosaladita.png" class="splash-logo-img" alt="Logo">
-    <div class="splash-title" id="splashTitle">Gestión de Alquiler</div>
+    <div class="splash-title" id="splashTitle">Gestión de Alquileres</div>
     <div class="splash-sub">Cargando…</div>
   </div>
 </div>
@@ -2895,9 +2904,9 @@
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar-head">
         <div class="sb-brand">
-          <div class="sb-logo" id="brandLogo">GA</div>
+          <div class="sb-logo" id="brandLogo"><img src="logosaladita.png" alt="Logo" class="sb-logo-img"></div>
           <div class="sb-brand-text">
-            <div class="sb-title" id="brandName">Gestión</div>
+            <div class="sb-title" id="brandName">Gestión de Alquiler</div>
             <div class="sb-subtitle" id="userInfo">—</div>
           </div>
         </div>
@@ -2943,11 +2952,11 @@
         <div class="loginShell">
           <div class="loginPanel">
             <div class="loginHeader">
-              <div class="loginBrandMark"><img src="logosaladita.png" alt="Logo"></div>
+              <div class="loginBrandMark"><img src="logosaladita.png" alt="Logo" class="login-brand-img"></div>
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
-                <p class="loginLead"></p>
+                <p class="loginLead">Ingresá para administrar alquileres, pagos, documentos e informes desde un solo lugar.</p>
               </div>
             </div>
 
@@ -3610,11 +3619,9 @@
     }
 
     function updateBusinessUI(){
-      const businessName = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
-      const shortName = businessName.length > 18 ? businessName.slice(0, 18).trim() : businessName;
-      if ($('brandName')) $('brandName').textContent = shortName;
-      const initials = businessName.split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA';
-      if ($('brandLogo')) $('brandLogo').textContent = initials;
+      const businessName = 'Gestión de Alquiler';
+      if ($('brandName')) $('brandName').textContent = businessName;
+      if ($('brandLogo')) $('brandLogo').innerHTML = '<img src="logosaladita.png" alt="Logo" class="sb-logo-img">';
       if ($('splashTitle')) $('splashTitle').textContent = businessName;
       if ($('loginTitle')) $('loginTitle').textContent = `Login · ${businessName}`;
       document.title = businessName;
@@ -5179,11 +5186,11 @@ function globalSearch(){
     }
 
     function buildEmailSubject(item){
-      return `Recibo ${item?.numero_recibo || 'interno'} · ${appSettings?.negocio?.nombre || 'Gestión de Alquiler'}`;
+      return `Recibo ${item?.numero_recibo || 'interno'} · ${appSettings?.negocio?.nombre || 'Gestión de Alquileres'}`;
     }
 
     function buildEmailBody(item){
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
+      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
       const saludo = item?.inquilino_nombre ? `Hola ${item.inquilino_nombre},` : 'Hola,';
       return [
         saludo,
@@ -5223,10 +5230,6 @@ function globalSearch(){
       const startX = (pageWidth - contentWidth) / 2;
 
       const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
-      const negocioDireccion = appSettings?.negocio?.direccion || '';
-      const negocioTelefono = appSettings?.negocio?.telefono || '';
-      const negocioEmail = appSettings?.negocio?.email || '';
-      const cuitNegocio = appSettings?.negocio?.cuit || '—';
 
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
@@ -5306,13 +5309,6 @@ function globalSearch(){
       centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
       centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
 
-      const headerMetaLines = [];
-      const contactLine1 = [negocioDireccion].filter(Boolean).join('');
-      const contactLine2 = [negocioTelefono, negocioEmail].filter(Boolean).join(' · ');
-      if (contactLine1) headerMetaLines.push(contactLine1);
-      if (contactLine2) headerMetaLines.push(contactLine2);
-      headerMetaLines.push(`CUIT / identificación: ${cuitNegocio}`);
-      drawCenteredLines(headerMetaLines.slice(0,3), centerX, headerY + 162, 9.5, 'normal', [203,213,225], 11);
 
       const badgeY = headerY + headerH + 18;
       const badgeW1 = 170;
@@ -5395,7 +5391,7 @@ function globalSearch(){
 
     function buildReceiptShareText(item){
       if (!item) return '';
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquiler';
+      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
       const lines = [
         `${negocio}`,
         `Recibo interno: ${item.numero_recibo || '—'}`,
@@ -5413,12 +5409,8 @@ function globalSearch(){
     }
 
     function buildReceiptPrintHtml(item){
-      const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquiler');
-      const initials = escapeHtml((appSettings?.negocio?.nombre || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA');
-      const email = escapeHtml(appSettings?.negocio?.email || '—');
-      const telefono = escapeHtml(appSettings?.negocio?.telefono || '—');
-      const direccion = escapeHtml(appSettings?.negocio?.direccion || '—');
-      const cuit = escapeHtml(appSettings?.negocio?.cuit || '—');
+      const negocio = 'Gestión de Alquiler';
+      const initials = 'GA';
       const numero = escapeHtml(item.numero_recibo || '—');
       const locatario = escapeHtml(item.inquilino_nombre || '—');
       const documento = escapeHtml(item.documento || '—');
@@ -5439,9 +5431,6 @@ function globalSearch(){
             <div class="recibo-sheet-head-meta">
               <h2 class="recibo-sheet-title">Recibo interno</h2>
               <div class="recibo-sheet-sub">${negocio}</div>
-              <div class="recibo-sheet-sub">${direccion}</div>
-              <div class="recibo-sheet-sub">${telefono} · ${email}</div>
-              <div class="recibo-sheet-sub">CUIT / identificación: ${cuit}</div>
             </div>
             <div class="recibo-sheet-badges">
               <span class="recibo-sheet-badge">N° ${numero}</span>
@@ -7534,7 +7523,7 @@ function globalSearch(){
               <div class="config-stat">
                 <div class="eyebrow">Negocio</div>
                 <div class="value">${escapeHtml(s.negocio.nombre || 'Gestión')}</div>
-                <div class="sub">${escapeHtml(s.negocio.moneda || 'ARS')} · ${escapeHtml(s.negocio.email || 'Sin email')}</div>
+                <div class="sub">${escapeHtml(s.negocio.moneda || 'ARS')} · Sistema</div>
               </div>
               <div class="config-stat">
                 <div class="eyebrow">Próxima numeración</div>
@@ -7563,7 +7552,7 @@ function globalSearch(){
                 <p>Entrá en una sección, editá lo necesario y guardá cuando termines. Todo queda dentro del mismo panel.</p>
               </div>
               <div class="config-tabs">
-                <button type="button" class="config-tab ${tab === 'general' ? 'active' : ''}" onclick="switchConfigTab('general')"><strong>General</strong><span>Marca, contacto, fiscal y moneda.</span></button>
+                <button type="button" class="config-tab ${tab === 'general' ? 'active' : ''}" onclick="switchConfigTab('general')"><strong>General</strong><span>Nombre del sistema y moneda.</span></button>
                 <button type="button" class="config-tab ${tab === 'cobranza' ? 'active' : ''}" onclick="switchConfigTab('cobranza')"><strong>Cobranza</strong><span>Recibos, vencimientos y medios de pago.</span></button>
                 <button type="button" class="config-tab ${tab === 'docs' ? 'active' : ''}" onclick="switchConfigTab('docs')"><strong>Documentos</strong><span>Contratos, adjuntos y reglas de archivo.</span></button>
                 <button type="button" class="config-tab ${tab === 'ui' ? 'active' : ''}" onclick="switchConfigTab('ui')"><strong>Apariencia</strong><span>Tema visual, acento y densidad.</span></button>
@@ -7576,7 +7565,7 @@ function globalSearch(){
                 <div class="config-panel-head">
                   <div>
                     <h3>Datos del negocio</h3>
-                    <p>Información base para identificar la administración y usarla después en recibos, contratos e informes.</p>
+                    <p>Configuración base del sistema y la moneda de trabajo.</p>
                   </div>
                   <div class="config-inline-badges">
                     <span class="badge b-info">General</span>
@@ -7585,11 +7574,7 @@ function globalSearch(){
                 </div>
                 <div class="config-panel-surface">
                   <div class="field-grid">
-                    <div class="setting-field"><label>Nombre del negocio</label><input id="cfgNombre" value="${escapeAttr(s.negocio.nombre)}" placeholder="Ej. Gestión de Alquileres"></div>
-                    <div class="setting-field"><label>Teléfono</label><input id="cfgTelefono" value="${escapeAttr(s.negocio.telefono)}" placeholder="Ej. +54 376 ..."></div>
-                    <div class="setting-field"><label>Email</label><input id="cfgEmail" value="${escapeAttr(s.negocio.email)}" placeholder="admin@correo.com"></div>
-                    <div class="setting-field"><label>CUIT / identificación fiscal</label><input id="cfgCuit" value="${escapeAttr(s.negocio.cuit)}" placeholder="30-00000000-0"></div>
-                    <div class="setting-field"><label>Dirección</label><input id="cfgDireccion" value="${escapeAttr(s.negocio.direccion)}" placeholder="Dirección"></div>
+                    <div class="setting-field"><label>Nombre del sistema</label><input id="cfgNombre" value="Gestión de Alquiler" placeholder="Gestión de Alquiler" readonly></div>
                     <div class="setting-field"><label>Moneda</label><input id="cfgMoneda" value="${escapeAttr(s.negocio.moneda)}" placeholder="ARS"></div>
                   </div>
                 </div>
@@ -7772,11 +7757,11 @@ function globalSearch(){
       });
       return normalizeSettings({
         negocio: {
-          nombre: $('cfgNombre')?.value || '',
-          telefono: $('cfgTelefono')?.value || '',
-          email: $('cfgEmail')?.value || '',
-          direccion: $('cfgDireccion')?.value || '',
-          cuit: $('cfgCuit')?.value || '',
+          nombre: 'Gestión de Alquiler',
+          telefono: '',
+          email: '',
+          direccion: '',
+          cuit: '',
           moneda: $('cfgMoneda')?.value || 'ARS'
         },
         pagos: {
