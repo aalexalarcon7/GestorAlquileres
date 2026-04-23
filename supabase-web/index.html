@@ -482,12 +482,19 @@
       border-radius:18px;
       display:grid;
       place-items:center;
-      font-weight:900;
-      letter-spacing:.04em;
-      color:#fff;
-      background:linear-gradient(135deg, var(--brand-strong), color-mix(in srgb, var(--brand-strong) 54%, #111827 46%));
-      box-shadow:0 18px 38px rgba(37,99,235,.24);
+      padding:8px;
+      background:rgba(255,255,255,.92);
+      border:1px solid var(--border);
+      box-shadow:0 18px 38px rgba(37,99,235,.16);
       flex:0 0 58px;
+      overflow:hidden;
+    }
+
+    body.logged-out #loginCard .loginBrandMark img{
+      width:100%;
+      height:100%;
+      object-fit:contain;
+      display:block;
     }
 
     body.logged-out #loginCard .loginEyebrow{
@@ -2936,7 +2943,7 @@
         <div class="loginShell">
           <div class="loginPanel">
             <div class="loginHeader">
-              <div class="loginBrandMark">GD</div>
+              <div class="loginBrandMark"><img src="logosaladita.png" alt="Logo"></div>
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
