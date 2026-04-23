@@ -3052,7 +3052,7 @@
               <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
-                  <div class="muted"></div>
+                  <div class="muted">Información principal de la unidad, contrato e inquilino.</div>
                 </div>
                 <button class="btn" onclick="openActivoModal()">Editar activo</button>
               </div>
@@ -3062,7 +3062,7 @@
             <div class="row" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
-                <div class="muted"></div>
+                <div class="muted">Seguimiento de vencimientos, pagos y saldo pendiente.</div>
               </div>
             </div>
 
@@ -3088,7 +3088,7 @@
             <div class="row" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Documentos</h3>
-                <div class="muted"></div>
+                <div class="muted">Contrato, anexos y otros archivos administrativos. Los recibos se gestionan desde su módulo.</div>
               </div>
               <button class="btn" onclick="openDocumentosFromDetalle()">Abrir gestor</button>
             </div>
@@ -3306,6 +3306,7 @@
     let route = "inicio";
     let user = null;
     let unidades = [];      // v_deuda_por_contrato
+    let visualUnidadesCache = []; // agrupación visual para evitar duplicados lógicos
     let selected = null;    // fila seleccionada
     let modalContrato = null;
     let recibosInternosCache = [];
@@ -3969,8 +3970,124 @@ function globalSearch(){
       }
     }
 
+    function normalizeTenantName(value){
+      return String(value || '').trim().toUpperCase().replace(/\s+/g, ' ');
+    }
+
+    function normalizeLocalCode(value){
+      let s = String(value || '').trim().toUpperCase();
+      if (!s) return '—';
+
+      s = s.replace(/\s+/g, '');
+      s = s.replace(/^ISL/, 'IS');
+
+      if (/^I\d/.test(s)) s = `IS${s.slice(1)}`;
+      if (/^PTO/.test(s)) return `PTO${s.replace(/^PTO/, '')}`;
+      if (/^PC/.test(s)) return `PC${s.replace(/^PC/, '')}`;
+      if (/^IS/.test(s)) return `IS${s.replace(/^IS/, '')}`;
+      if (/^LC/.test(s)) {
+        let rest = s.replace(/^LC/, '');
+        rest = rest.replace(/^(\d+)Y(\d+)$/, '$1/$2');
+        return `LC${rest}`;
+      }
+      if (/^\d+[A-Z]?$/.test(s)) return `PTO${s}`;
+      return s;
+    }
+
+    function getDisplayLocalCode(row){
+      return normalizeLocalCode(row?.local_codigo || row?.local || row?.codigo || row?.codigo_local || '—');
+    }
+
+    function getVisualContratoStatus(row){
+      if (Array.isArray(row?._groupRows) && row._groupRows.length > 1){
+        const statuses = row._groupRows.map(item => getContratoStatus(item));
+        if (statuses.some(item => item.key === 'ATRASADO')) return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+        if (statuses.some(item => item.key === 'VENCE_PRONTO')) return { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' };
+        return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
+      }
+      return getContratoStatus(row);
+    }
+
+    function shouldPreferVisualRow(candidate, current){
+      if (!current) return true;
+      const cAtrasada = Number(candidate?.deuda_atrasada || 0);
+      const xAtrasada = Number(current?.deuda_atrasada || 0);
+      if (cAtrasada !== xAtrasada) return cAtrasada > xAtrasada;
+
+      const cTotal = Number(candidate?.deuda_total || 0);
+      const xTotal = Number(current?.deuda_total || 0);
+      if (cTotal !== xTotal) return cTotal > xTotal;
+
+      const cMeses = Number(candidate?.meses_adeudados || 0);
+      const xMeses = Number(current?.meses_adeudados || 0);
+      if (cMeses !== xMeses) return cMeses > xMeses;
+
+      const cId = Number(candidate?.contrato_id || 0);
+      const xId = Number(current?.contrato_id || 0);
+      if (Number.isFinite(cId) && Number.isFinite(xId) && cId !== xId) return cId < xId;
+
+      return false;
+    }
+
+    function buildVisualUnidadGroups(rows){
+      const map = new Map();
+
+      for (const raw of (rows || [])){
+        if (!raw) continue;
+        const localKey = getDisplayLocalCode(raw) || `CONTRATO_${raw.contrato_id}`;
+        const tenantName = String(raw.inquilino_nombre || '—').trim() || '—';
+
+        if (!map.has(localKey)){
+          map.set(localKey, {
+            ...raw,
+            local_codigo: localKey,
+            local_codigo_visual: localKey,
+            deuda_total: Number(raw.deuda_total || 0),
+            deuda_atrasada: Number(raw.deuda_atrasada || 0),
+            meses_adeudados: Number(raw.meses_adeudados || 0),
+            _groupKey: localKey,
+            _groupRows: [raw],
+            _groupCount: 1,
+            _groupTenantNames: [tenantName],
+            _primaryRow: raw
+          });
+          continue;
+        }
+
+        const group = map.get(localKey);
+        group._groupRows.push(raw);
+        group._groupCount = group._groupRows.length;
+        group.deuda_total = Number(group.deuda_total || 0) + Number(raw.deuda_total || 0);
+        group.deuda_atrasada = Number(group.deuda_atrasada || 0) + Number(raw.deuda_atrasada || 0);
+        group.meses_adeudados = Number(group.meses_adeudados || 0) + Number(raw.meses_adeudados || 0);
+
+        const knownNames = new Set((group._groupTenantNames || []).map(normalizeTenantName));
+        if (!knownNames.has(normalizeTenantName(tenantName))){
+          group._groupTenantNames.push(tenantName);
+        }
+
+        if (shouldPreferVisualRow(raw, group._primaryRow)){
+          group._primaryRow = raw;
+          group.contrato_id = raw.contrato_id;
+          group.local_codigo_raw = raw.local_codigo;
+        }
+      }
+
+      const list = [...map.values()].map(group => {
+        group.local_codigo = group.local_codigo_visual;
+        group.inquilino_nombre = group._groupTenantNames.length === 1
+          ? group._groupTenantNames[0]
+          : group._groupTenantNames.join(' / ');
+        group._groupHint = group._groupCount > 1 ? `${group._groupCount} variantes visuales unificadas` : '';
+        return group;
+      });
+
+      list.sort((a,b) => Number(b.deuda_total || 0) - Number(a.deuda_total || 0) || String(a.local_codigo_visual || '').localeCompare(String(b.local_codigo_visual || '')));
+      return list;
+    }
+
     function badgeEstado(row){
-      const status = getContratoStatus(row);
+      const status = getVisualContratoStatus(row);
       return `<span class="badge ${status.className}">${status.label}</span>`;
     }
 
@@ -4016,9 +4133,13 @@ function globalSearch(){
     }
 
     async function renderInicio(){
-      const total = unidades.length;
-      const deudaTotal = unidades.reduce((a,r)=>a+Number(r.deuda_total||0),0);
-      const deudaAtrasada = unidades.reduce((a,r)=>a+Number(r.deuda_atrasada||0),0);
+      const visualRows = buildVisualUnidadGroups(unidades);
+      visualUnidadesCache = visualRows;
+
+      const total = visualRows.length;
+      const deudaTotal = visualRows.reduce((a,r)=>a+Number(r.deuda_total||0),0);
+      const deudaAtrasada = visualRows.reduce((a,r)=>a+Number(r.deuda_atrasada||0),0);
+      const variantesUnificadas = visualRows.reduce((acc, row) => acc + Math.max(0, Number(row._groupCount || 1) - 1), 0);
       const ocupados = total;
       const libres = 0;
       const ocupPerc = total ? 100 : 0;
@@ -4042,7 +4163,7 @@ function globalSearch(){
 
       const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto||0),0);
 
-      const top = [...unidades]
+      const top = [...visualRows]
         .filter(r => Number(r.deuda_atrasada||0) > 0)
         .sort((a,b)=>Number(b.deuda_atrasada||0)-Number(a.deuda_atrasada||0))
         .slice(0, 10);
@@ -4055,7 +4176,7 @@ function globalSearch(){
 
         <div class="card">
           <div class="kpis">
-            <div class="kpi"><div class="label">Deuda total</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${total} unidades</div></div>
+            <div class="kpi"><div class="label">Deuda total</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${total} unidades visibles${variantesUnificadas ? ` · ${variantesUnificadas} duplicados visuales unificados` : ''}</div></div>
             <div class="kpi"><div class="label">Deuda atrasada</div><div class="value">${fmtARS.format(deudaAtrasada)}</div><div class="muted">Cuotas vencidas con saldo</div></div>
             <div class="kpi"><div class="label">Ocupación</div><div class="value">${ocupPerc}%</div><div class="muted">Ocupados: ${ocupados} | Libres: ${libres}</div></div>
             <div class="kpi"><div class="label">Recaudado este mes</div><div class="value">${fmtARS.format(recaudado)}</div><div class="muted">Vencen en 7 días: ${(vencen7||[]).length}</div></div>
@@ -4070,14 +4191,17 @@ function globalSearch(){
               <tbody>
                 ${top.map(r=>`
                   <tr>
-                    <td><b>${r.local_codigo}</b></td>
-                    <td>${r.inquilino_nombre}</td>
+                    <td>
+                      <b>${escapeHtml(r.local_codigo_visual || r.local_codigo)}</b>
+                      ${r._groupCount > 1 ? `<div class="muted">${r._groupCount} variantes unificadas</div>` : ''}
+                    </td>
+                    <td>${escapeHtml(r.inquilino_nombre)}</td>
                     <td class="right">${fmtARS.format(Number(r.deuda_total||0))}</td>
                     <td class="right">${fmtARS.format(Number(r.deuda_atrasada||0))}</td>
                     <td class="center">
                       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-                        <button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobrar</button>
-                        <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Ver</button>
+                        <button class="btn primary" onclick="openPagoFromInicio('${r._primaryRow?.contrato_id || r.contrato_id}')">${r._groupCount > 1 ? 'Cobrar principal' : 'Cobrar'}</button>
+                        <button class="btn" onclick="openDetalleFromInicio('${r._primaryRow?.contrato_id || r.contrato_id}')">Ver</button>
                       </div>
                     </td>
                   </tr>
@@ -4089,10 +4213,11 @@ function globalSearch(){
             ${top.map(r=>`
               <article class="mobile-data-card">
                 <div class="mobile-card-top">
-                  <span class="mobile-code">${r.local_codigo}</span>
+                  <span class="mobile-code">${escapeHtml(r.local_codigo_visual || r.local_codigo)}</span>
                   ${badgeEstado(r)}
                 </div>
-                <div class="mobile-tenant">${r.inquilino_nombre}</div>
+                <div class="mobile-tenant">${escapeHtml(r.inquilino_nombre)}</div>
+                ${r._groupCount > 1 ? `<div class="muted" style="margin-bottom:10px;">${r._groupCount} variantes visuales unificadas</div>` : ''}
                 <div class="mobile-meta-grid">
                   <div class="mobile-meta">
                     <div class="label">Deuda total</div>
@@ -4104,8 +4229,8 @@ function globalSearch(){
                   </div>
                 </div>
                 <div class="mobile-actions">
-                  <button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobrar</button>
-                  <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Ver detalle</button>
+                  <button class="btn primary" onclick="openPagoFromInicio('${r._primaryRow?.contrato_id || r.contrato_id}')">${r._groupCount > 1 ? 'Cobrar principal' : 'Cobrar'}</button>
+                  <button class="btn" onclick="openDetalleFromInicio('${r._primaryRow?.contrato_id || r.contrato_id}')">Ver detalle</button>
                 </div>
               </article>
             `).join('')}
@@ -4130,26 +4255,14 @@ function globalSearch(){
     }
 
     function openActiveDetailByContrato(contratoId){
-      const contratoKey = String(contratoId || '').trim();
-      const unidad = unidades.find(x => String(x?.contrato_id || '').trim() === contratoKey);
-
-      if (!unidad){
-        console.warn('Detalle no encontrado para contrato_id:', contratoId, unidades);
-        alert('No hay datos para este activo.');
-        return;
-      }
+      const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
+      if (!unidad) return alert('No hay datos para este activo.');
 
       setRoute('activos');
-
-      if ($('globalSearch')) $('globalSearch').value = unidad.local_codigo || unidad.inquilino_nombre || '';
-      if ($('q')) $('q').value = unidad.local_codigo || unidad.inquilino_nombre || '';
-
+      if ($('globalSearch')) $('globalSearch').value = getDisplayLocalCode(unidad) || unidad.inquilino_nombre || '';
+      if ($('q')) $('q').value = getDisplayLocalCode(unidad) || unidad.inquilino_nombre || '';
       renderUnidades();
       openDetalle(unidad);
-
-      requestAnimationFrame(() => {
-        $('detalleCard')?.scrollIntoView({ behavior:'smooth', block:'start' });
-      });
     }
 
     function openActiveEditByContrato(contratoId){
@@ -4163,20 +4276,26 @@ function globalSearch(){
     function renderUnidades(){
       const q = ($('globalSearch')?.value || '').trim().toLowerCase();
       const filtro = $('filtro').value;
-      let rows = unidades;
+      let rows = buildVisualUnidadGroups(unidades);
 
       if (q){
-        rows = rows.filter(r =>
-          String(r.local_codigo||'').toLowerCase().includes(q) ||
-          String(r.inquilino_nombre||'').toLowerCase().includes(q)
-        );
+        rows = rows.filter(r => {
+          const haystack = [
+            r.local_codigo_visual,
+            r.inquilino_nombre,
+            ...(Array.isArray(r._groupRows) ? r._groupRows.map(item => item.local_codigo) : [])
+          ].join(' ').toLowerCase();
+          return haystack.includes(q);
+        });
       }
 
-      if (filtro === 'ATRASADOS') rows = rows.filter(r => getContratoStatus(r).key === 'ATRASADO');
-      else if (filtro === 'VENCE_PRONTO') rows = rows.filter(r => getContratoStatus(r).key === 'VENCE_PRONTO');
-      else if (filtro === 'AL_DIA') rows = rows.filter(r => getContratoStatus(r).key === 'AL_DIA');
+      if (filtro === 'ATRASADOS') rows = rows.filter(r => getVisualContratoStatus(r).key === 'ATRASADO');
+      else if (filtro === 'VENCE_PRONTO') rows = rows.filter(r => getVisualContratoStatus(r).key === 'VENCE_PRONTO');
+      else if (filtro === 'AL_DIA') rows = rows.filter(r => getVisualContratoStatus(r).key === 'AL_DIA');
 
-      $('unitsCount').textContent = `${rows.length} resultados`;
+      visualUnidadesCache = rows;
+      const variantesUnificadas = rows.reduce((acc, row) => acc + Math.max(0, Number(row._groupCount || 1) - 1), 0);
+      $('unitsCount').textContent = `${rows.length} resultados${variantesUnificadas ? ` · ${variantesUnificadas} unificados` : ''}`;
 
       const tb = $('tbodyUnits');
       const mobileList = $('unitsMobileList');
@@ -4184,18 +4303,22 @@ function globalSearch(){
       if (mobileList) mobileList.innerHTML = '';
 
       rows.forEach(r => {
-        const escaped = JSON.stringify(r).replace(/'/g,"&#39;");
+        const primary = r._primaryRow || r;
+        const escaped = JSON.stringify(primary).replace(/'/g,"&#39;");
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${r.local_codigo}</b></td>
-          <td>${r.inquilino_nombre}</td>
+          <td>
+            <b>${escapeHtml(r.local_codigo_visual || r.local_codigo)}</b>
+            ${r._groupCount > 1 ? `<div class="muted">${r._groupCount} variantes visuales unificadas</div>` : ''}
+          </td>
+          <td>${escapeHtml(r.inquilino_nombre)}</td>
           <td class="right">${fmtARS.format(Number(r.deuda_total||0))}</td>
           <td class="right">${fmtARS.format(Number(r.deuda_atrasada||0))}</td>
           <td class="center">${Number(r.meses_adeudados||0)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
-            <button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>
-            <button class="btn" onclick="openActiveDetailByContrato('${r.contrato_id}')">Detalle</button>
+            <button class="btn primary" onclick='openPagoModal(${escaped})'>${r._groupCount > 1 ? 'Cobrar principal' : 'Cobrar'}</button>
+            <button class="btn" onclick="openActiveDetailByContrato('${primary.contrato_id}')">Detalle</button>
           </td>
         `;
         tb.appendChild(tr);
@@ -4205,10 +4328,11 @@ function globalSearch(){
           card.className = 'mobile-data-card';
           card.innerHTML = `
             <div class="mobile-card-top">
-              <span class="mobile-code">${r.local_codigo}</span>
+              <span class="mobile-code">${escapeHtml(r.local_codigo_visual || r.local_codigo)}</span>
               ${badgeEstado(r)}
             </div>
-            <div class="mobile-tenant">${r.inquilino_nombre}</div>
+            <div class="mobile-tenant">${escapeHtml(r.inquilino_nombre)}</div>
+            ${r._groupCount > 1 ? `<div class="muted" style="margin-bottom:10px;">${r._groupCount} variantes visuales unificadas</div>` : ''}
             <div class="mobile-meta-grid">
               <div class="mobile-meta">
                 <div class="label">Deuda</div>
@@ -4224,12 +4348,12 @@ function globalSearch(){
               </div>
               <div class="mobile-meta">
                 <div class="label">Estado</div>
-                <div class="value">${getContratoStatus(r).label}</div>
+                <div class="value">${getVisualContratoStatus(r).label}</div>
               </div>
             </div>
             <div class="mobile-actions">
-              <button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>
-              <button class="btn" onclick="openActiveDetailByContrato('${r.contrato_id}')">Detalle</button>
+              <button class="btn primary" onclick='openPagoModal(${escaped})'>${r._groupCount > 1 ? 'Cobrar principal' : 'Cobrar'}</button>
+              <button class="btn" onclick="openActiveDetailByContrato('${primary.contrato_id}')">Detalle</button>
             </div>
           `;
           mobileList.appendChild(card);
@@ -4662,7 +4786,7 @@ function globalSearch(){
 
         row.contratos.push({
           contrato_id: c.id,
-          local_codigo: c.locales?.codigo || d?.local_codigo || '—',
+          local_codigo: getDisplayLocalCode({ local_codigo: c.locales?.codigo || d?.local_codigo || '—' }),
           deuda_total,
           deuda_atrasada,
           meses_adeudados,
@@ -4922,9 +5046,9 @@ function globalSearch(){
     }
 
     function contratoLabelById(contratoId){
-      const u = unidades.find(x => x.contrato_id === contratoId);
+      const u = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!u) return contratoId;
-      return `${u.local_codigo} — ${u.inquilino_nombre}`;
+      return `${getDisplayLocalCode(u)} — ${u.inquilino_nombre}`;
     }
 
     function openDocumentosFromDetalle(){
@@ -5515,7 +5639,7 @@ function globalSearch(){
           telefono: inq.telefono || '',
           email: inq.email || '',
           documento: inq.documento || '',
-          local_codigo: local.codigo || '—'
+          local_codigo: getDisplayLocalCode({ local_codigo: local.codigo || '—' })
         };
       });
 
@@ -5535,7 +5659,10 @@ function globalSearch(){
         });
       });
 
-      const rows = [...mergedMap.values()];
+      const rows = [...mergedMap.values()].map(item => ({
+        ...item,
+        local_codigo: getDisplayLocalCode(item)
+      }));
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -5578,7 +5705,7 @@ function globalSearch(){
       const month = String(recibosPageState.month || '');
 
       return (rows || []).filter(item => {
-        if (local !== 'TODOS' && String(item.local_codigo || '') !== local) return false;
+        if (local !== 'TODOS' && getDisplayLocalCode(item) !== local) return false;
         if (month && String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
         if (!query) return true;
         return [
@@ -5586,7 +5713,7 @@ function globalSearch(){
           item.referencia,
           item.inquilino_nombre,
           item.documento,
-          item.local_codigo,
+          getDisplayLocalCode(item),
           item.telefono,
           item.email,
           item.medio
@@ -5624,7 +5751,7 @@ function globalSearch(){
         telefono: inq.telefono || '',
         email: inq.email || '',
         documento: inq.documento || '',
-        local_codigo: modalContrato?.local_codigo || local.codigo || '—'
+        local_codigo: getDisplayLocalCode({ local_codigo: modalContrato?.local_codigo || local.codigo || '—' })
       };
     }
 
@@ -5661,7 +5788,7 @@ function globalSearch(){
             <span class="contact-sub">${escapeHtml(item.documento || 'Sin documento')}</span>
           </td>
           <td>
-            <span class="recibos-chip primary">${escapeHtml(item.local_codigo || '—')}</span>
+            <span class="recibos-chip primary">${escapeHtml(getDisplayLocalCode(item))}</span>
           </td>
           <td class="right">
             <div class="recibos-cell-title">${fmtARS.format(Number(item.monto_alquiler || 0))}</div>
@@ -5740,7 +5867,7 @@ function globalSearch(){
       }
 
       const ultimo = filteredRows[0] || rows[0] || null;
-      const localOptions = [...new Set(rows.map(item => String(item.local_codigo || '—')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+      const localOptions = [...new Set(rows.map(item => getDisplayLocalCode(item)).filter(Boolean))].sort((a,b) => a.localeCompare(b));
 
       el.innerHTML = `
         <div class="section-hero recibos">
@@ -5772,7 +5899,7 @@ function globalSearch(){
                 <div class="section-mini-stat">
                   <div class="label">Último número</div>
                   <div class="value">${summary.ultimoNumero}</div>
-                  <div class="sub">${ultimo ? `${ultimo.inquilino_nombre} · ${ultimo.local_codigo}` : 'Sin movimientos'}</div>
+                  <div class="sub">${ultimo ? `${ultimo.inquilino_nombre} · ${getDisplayLocalCode(ultimo)}` : 'Sin movimientos'}</div>
                 </div>
               </div>
             </div>
@@ -5849,7 +5976,7 @@ function globalSearch(){
                   <div class="recibos-side-head">
                     <div>
                       <h4>${escapeHtml(ultimo.inquilino_nombre)}</h4>
-                      <div class="muted">Local ${escapeHtml(ultimo.local_codigo)} · ${escapeHtml(ultimo.numero_recibo)}</div>
+                      <div class="muted">Local ${escapeHtml(getDisplayLocalCode(ultimo))} · ${escapeHtml(ultimo.numero_recibo)}</div>
                     </div>
                     <span class="badge b-ok">${fmtARS.format(Number(ultimo.monto_total || 0))}</span>
                   </div>
@@ -5955,7 +6082,7 @@ function globalSearch(){
       }
       reciboActual = item;
       $('modalReciboBack').style.display = 'flex';
-      $('reciboModalMeta').textContent = `${item.numero_recibo} · ${item.inquilino_nombre} · ${item.local_codigo}`;
+      $('reciboModalMeta').textContent = `${item.numero_recibo} · ${item.inquilino_nombre} · ${getDisplayLocalCode(item)}`;
       $('reciboPreviewBody').innerHTML = buildReceiptPrintHtml(item);
       if ($('reciboModalMsg')) $('reciboModalMsg').textContent = '';
     }
