@@ -496,6 +496,7 @@
       object-fit:contain;
       display:block;
       border-radius:18px;
+      padding:4px;
     }
 
     body.logged-out #loginCard .loginEyebrow{
@@ -780,6 +781,7 @@
       object-fit:contain;
       border-radius:18px;
       display:block;
+      padding:4px;
     }
 
     .sidebar-card{
@@ -2893,7 +2895,7 @@
 <!-- SPLASH -->
 <div id="splash" class="splash">
   <div class="splash-card">
-    <img src="logosaladita.png" class="splash-logo-img" alt="Logo">
+    <img src="logosaladita_padded.png" class="splash-logo-img" alt="Logo">
     <div class="splash-title" id="splashTitle">Gestión de Alquileres</div>
     <div class="splash-sub">Cargando…</div>
   </div>
@@ -2904,7 +2906,7 @@
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar-head">
         <div class="sb-brand">
-          <div class="sb-logo" id="brandLogo"><img src="logosaladita.png" alt="Logo" class="sb-logo-img"></div>
+          <div class="sb-logo" id="brandLogo"><img src="logosaladita_padded.png" alt="Logo" class="sb-logo-img"></div>
           <div class="sb-brand-text">
             <div class="sb-title" id="brandName">Gestión de Alquiler</div>
             <div class="sb-subtitle" id="userInfo">—</div>
@@ -2952,7 +2954,7 @@
         <div class="loginShell">
           <div class="loginPanel">
             <div class="loginHeader">
-              <div class="loginBrandMark"><img src="logosaladita.png" alt="Logo" class="login-brand-img"></div>
+              <div class="loginBrandMark"><img src="logosaladita_padded.png" alt="Logo" class="login-brand-img"></div>
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
@@ -3621,7 +3623,7 @@
     function updateBusinessUI(){
       const businessName = 'Gestión de Alquiler';
       if ($('brandName')) $('brandName').textContent = businessName;
-      if ($('brandLogo')) $('brandLogo').innerHTML = '<img src="logosaladita.png" alt="Logo" class="sb-logo-img">';
+      if ($('brandLogo')) $('brandLogo').innerHTML = '<img src="logosaladita_padded.png" alt="Logo" class="sb-logo-img">';
       if ($('splashTitle')) $('splashTitle').textContent = businessName;
       if ($('loginTitle')) $('loginTitle').textContent = `Login · ${businessName}`;
       document.title = businessName;
@@ -5701,6 +5703,7 @@ function globalSearch(){
             <div class="recibos-actions">
               <div class="recibos-action-panel">
                 <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver recibo</button>
+                <button class="btn danger" style="min-width:110px;" onclick="deleteReciboByKey('${getReciboKey(item)}')">Eliminar</button>
                 <details class="recibos-share-menu">
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
@@ -5897,6 +5900,7 @@ function globalSearch(){
 
                   <div class="recibos-side-actions">
                     <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
+                    <button class="btn danger" onclick="deleteReciboByKey('${ultimo.id}')">Eliminar</button>
                     <button class="btn" onclick="shareReciboByEmail('${ultimo.id}')">Email + PDF</button>
                     <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
                     <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
@@ -5917,6 +5921,83 @@ function globalSearch(){
 
     function getReciboById(id){
       return recibosInternosCache.find(item => getReciboKey(item) === String(id)) || null;
+    }
+    function deleteReciboByKey(id){
+      const item = getReciboById(id);
+      if (!item){
+        alert('No se encontró el recibo.');
+        return;
+      }
+
+      const pagoId = item.pago_id || item.id;
+      if (!pagoId){
+        alert('Este recibo no tiene un pago asociado para eliminar.');
+        return;
+      }
+
+      if (!askConfirm(`¿Eliminar el recibo ${item.numero_recibo || ''}? Esta acción borrará el pago asociado.`)) return;
+
+      const msgEl = $('recibosMsg');
+      if (msgEl) msgEl.textContent = 'Eliminando recibo...';
+
+      (async () => {
+        try {
+          const docsRes = await sb
+            .from('documentos')
+            .select('id, path')
+            .eq('pago_id', pagoId);
+
+          if (docsRes.error) throw docsRes.error;
+
+          const docs = docsRes.data || [];
+          const docPaths = docs.map(d => d.path).filter(Boolean);
+
+          if (docPaths.length){
+            const rm = await sb.storage.from('documentos').remove(docPaths);
+            if (rm.error) throw rm.error;
+          }
+
+          if (docs.length){
+            const docIds = docs.map(d => d.id);
+            const delDocs = await sb.from('documentos').delete().in('id', docIds);
+            if (delDocs.error) throw delDocs.error;
+          }
+
+          const delPago = await sb.from('pagos').delete().eq('id', pagoId);
+          if (delPago.error) throw delPago.error;
+
+          const reciboKey = getReciboKey(item);
+          recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
+          saveReceiptsCache();
+
+          const manualReceipts = loadManualReceipts().filter(r => getReciboKey(r) !== reciboKey);
+          saveManualReceipts(manualReceipts);
+
+          if (paymentDescriptionMap){
+            delete paymentDescriptionMap[reciboKey];
+            if (item.numero_recibo) delete paymentDescriptionMap[String(item.numero_recibo)];
+            savePaymentDescriptionMap();
+          }
+
+          if (receiptNumberMap && pagoId){
+            delete receiptNumberMap[String(pagoId)];
+            saveReceiptNumberMap();
+          }
+
+          if (reciboActual && getReciboKey(reciboActual) === reciboKey){
+            reciboActual = null;
+            closeReciboModal();
+          }
+
+          await refreshAll();
+          if (route === 'recibos') await renderRecibosPage();
+
+          if ($('recibosMsg')) $('recibosMsg').textContent = 'Recibo eliminado correctamente ✅';
+        } catch (error) {
+          console.error(error);
+          if ($('recibosMsg')) $('recibosMsg').textContent = `Error al eliminar el recibo: ${error.message || error}`;
+        }
+      })();
     }
 
 
