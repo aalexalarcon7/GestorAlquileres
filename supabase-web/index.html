@@ -490,15 +490,6 @@
       flex:0 0 58px;
     }
 
-    body.logged-out #loginCard .login-brand-img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      display:block;
-      border-radius:18px;
-      padding:4px;
-    }
-
     body.logged-out #loginCard .loginEyebrow{
       font-size:11px;
       text-transform:uppercase;
@@ -773,15 +764,6 @@
       height:48px;
       border-radius:18px;
       box-shadow:0 16px 30px rgba(37,99,235,.12);
-    }
-
-    .sb-logo-img{
-      width:100%;
-      height:100%;
-      object-fit:contain;
-      border-radius:18px;
-      display:block;
-      padding:4px;
     }
 
     .sidebar-card{
@@ -1647,90 +1629,6 @@
       box-shadow:0 8px 24px rgba(15,23,42,.06);
       min-height:84px;
     }
-    .detalle-resumen-wrap{
-      margin-top:18px;
-      display:flex;
-      justify-content:center;
-    }
-    .detalle-resumen-card{
-      width:min(100%, 1180px);
-      border:1px solid var(--border);
-      border-radius:24px;
-      padding:18px;
-      background:linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.72));
-      box-shadow:0 12px 32px rgba(15,23,42,.08);
-    }
-    .detalle-resumen-head{
-      text-align:center;
-      margin-bottom:14px;
-    }
-    .detalle-resumen-title{
-      margin:0;
-      font-size:20px;
-      font-weight:900;
-      color:var(--ink);
-    }
-    .detalle-resumen-sub{
-      margin-top:4px;
-      color:var(--muted);
-      font-size:13px;
-      font-weight:700;
-    }
-    .detalle-resumen-grid{
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:14px;
-    }
-    .detalle-resumen-item{
-      border:1px solid var(--border);
-      border-radius:20px;
-      padding:18px 16px;
-      background:#fff;
-      text-align:center;
-      min-height:116px;
-      display:flex;
-      flex-direction:column;
-      justify-content:center;
-      gap:8px;
-    }
-    .detalle-resumen-item.destacado{
-      background:linear-gradient(180deg, rgba(15,23,42,.98), rgba(30,41,59,.96));
-      color:#fff;
-      border-color:rgba(15,23,42,.95);
-    }
-    .detalle-resumen-item.alerta{
-      background:linear-gradient(180deg, rgba(254,242,242,1), rgba(255,255,255,1));
-      border-color:#f2b0b5;
-    }
-    .detalle-resumen-label{
-      font-size:12px;
-      letter-spacing:.08em;
-      text-transform:uppercase;
-      font-weight:900;
-      color:var(--muted);
-    }
-    .detalle-resumen-item.destacado .detalle-resumen-label{
-      color:rgba(255,255,255,.78);
-    }
-    .detalle-resumen-value{
-      font-size:28px;
-      line-height:1.05;
-      font-weight:900;
-      color:var(--ink);
-      word-break:break-word;
-    }
-    .detalle-resumen-item.destacado .detalle-resumen-value{
-      color:#fff;
-    }
-    .detalle-resumen-meta{
-      font-size:13px;
-      color:var(--muted);
-      font-weight:700;
-    }
-    .detalle-resumen-item.destacado .detalle-resumen-meta{
-      color:rgba(255,255,255,.78);
-    }
-
     [data-theme="dark"] .detail-info-item{
       background:linear-gradient(180deg, rgba(15,23,36,.92), rgba(10,17,28,.98));
       box-shadow:0 12px 26px rgba(0,0,0,.22);
@@ -1945,90 +1843,7 @@
       text-align:center !important;
       vertical-align:middle;
     }
-    
-    .detalle-deuda-wrap{
-      max-width:100%;
-      margin:0 auto;
-    }
-    .detalle-deuda-table{
-      width:100%;
-      min-width:980px;
-      table-layout:fixed;
-    }
-    .detalle-deuda-table th,
-    .detalle-deuda-table td,
-    .detalle-deuda-table td.right,
-    .detalle-deuda-table td.center{
-      text-align:center !important;
-      vertical-align:middle;
-    }
-    .detalle-deuda-table th{
-      white-space:nowrap;
-    }
-    .detalle-deuda-table td{
-      font-variant-numeric: tabular-nums;
-    }
-
-    .balance-medios-grid{
-      display:grid;
-      grid-template-columns:1.2fr .8fr;
-      gap:16px;
-      margin-top:16px;
-    }
-    .balance-medios-kpis{
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:12px;
-      margin-top:12px;
-    }
-    .balance-medios-table th,
-    .balance-medios-table td,
-    .balance-medios-table td.right,
-    .balance-medios-table td.center{
-      text-align:center !important;
-      vertical-align:middle;
-    }
-    .balance-medios-table td{
-      font-variant-numeric: tabular-nums;
-    }
-    .balance-chart-card.large{
-      min-height:320px;
-    }
-    .deudores-2025-grid{
-      display:grid;
-      grid-template-columns:repeat(4,minmax(0,1fr));
-      gap:12px;
-      margin-top:12px;
-    }
-    .deudores-2025-table th,
-    .deudores-2025-table td,
-    .deudores-2025-table td.right,
-    .deudores-2025-table td.center{
-      text-align:center !important;
-      vertical-align:middle;
-    }
-    .deudores-2025-table td{
-      font-variant-numeric: tabular-nums;
-    }
-    .deudores-chip{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:11px;
-      font-weight:900;
-      letter-spacing:.04em;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.9);
-      color:var(--ink);
-      white-space:nowrap;
-    }
-    .deudores-chip.alta{background:rgba(254,242,242,1); border-color:#f2b0b5;}
-    .deudores-chip.media{background:rgba(255,251,235,1); border-color:#f0cf84;}
-    .deudores-chip.baja{background:rgba(239,246,255,1); border-color:#93c5fd;}
-
-.balance-table-note{
+    .balance-table-note{
       margin-top:10px;
       font-size:12px;
       color:var(--muted);
@@ -2561,10 +2376,6 @@
       font-weight:700;
     }
     @media (max-width: 1100px){
-      .detalle-resumen-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
-      .balance-medios-grid{grid-template-columns:1fr;}
-      .balance-medios-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
-      .deudores-2025-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
       .recibos-grid,
       .recibo-sheet-grid,
       .recibo-amount-grid,
@@ -2574,10 +2385,6 @@
       .recibos-side-actions{grid-template-columns:1fr}
     }
     @media (max-width: 720px){
-      .detalle-resumen-grid{grid-template-columns:1fr;}
-      .balance-medios-kpis{grid-template-columns:1fr;}
-      .deudores-2025-grid{grid-template-columns:1fr;}
-      .detail-info-grid{grid-template-columns:1fr;}
       .recibos-toolbar-main{grid-template-columns:1fr}
       .recibos-toolbar-actions{width:100%;justify-content:stretch}
       .recibos-toolbar-actions .btn,
@@ -3070,7 +2877,7 @@
 <!-- SPLASH -->
 <div id="splash" class="splash">
   <div class="splash-card">
-    <img src="logosaladita_padded.png" class="splash-logo-img" alt="Logo">
+    <img src="logosaladita.png" class="splash-logo-img" alt="Logo">
     <div class="splash-title" id="splashTitle">Gestión de Alquileres</div>
     <div class="splash-sub">Cargando…</div>
   </div>
@@ -3081,9 +2888,9 @@
     <aside class="sidebar" id="appSidebar">
       <div class="sidebar-head">
         <div class="sb-brand">
-          <div class="sb-logo" id="brandLogo"><img src="logosaladita_padded.png" alt="Logo" class="sb-logo-img"></div>
+          <div class="sb-logo" id="brandLogo">GA</div>
           <div class="sb-brand-text">
-            <div class="sb-title" id="brandName">Gestión de Alquiler</div>
+            <div class="sb-title" id="brandName">Gestión</div>
             <div class="sb-subtitle" id="userInfo">—</div>
           </div>
         </div>
@@ -3101,7 +2908,6 @@
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
         <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos</span></button>
-        <button class="sb-item" data-route="deudores" onclick="setRoute('deudores')"><span class="sb-item-icon">🚨</span><span class="sb-item-label">Deudores</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
         
@@ -3130,7 +2936,7 @@
         <div class="loginShell">
           <div class="loginPanel">
             <div class="loginHeader">
-              <div class="loginBrandMark"><img src="logosaladita_padded.png" alt="Logo" class="login-brand-img"></div>
+              <div class="loginBrandMark">GD</div>
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
@@ -3251,45 +3057,26 @@
                 <button class="btn" onclick="openActivoModal()">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
-
-              <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
-                <div>
-                  <h3 style="margin:0;">Condiciones del alquiler</h3>
-                  <div class="muted">Monto mensual, impuestos, ajuste trimestral, vencimiento, vigencia y notas del contrato.</div>
-                </div>
-                <button class="btn primary" onclick="openActivoModal()">Editar alquiler</button>
-              </div>
-              <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
-
-              <div class="detalle-resumen-wrap">
-                <div class="detalle-resumen-card">
-                  <div class="detalle-resumen-head">
-                    <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
-                    <div class="detalle-resumen-sub"></div>
-                  </div>
-                  <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
-                </div>
-              </div>
             </div>
 
-            <div class="row" style="justify-content:space-between;align-items:end;margin-top:18px;">
+            <div class="row" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
                 <div class="muted">Seguimiento de vencimientos, pagos y saldo pendiente.</div>
               </div>
             </div>
 
-            <div class="tableWrap detalle-deuda-wrap">
-              <table class="detalle-deuda-table">
+            <div class="tableWrap">
+              <table>
                 <thead>
                   <tr>
                     <th>Periodo</th>
                     <th>Vencimiento</th>
-                    <th>Total</th>
-                    <th>Pagado</th>
-                    <th>Saldo</th>
-                    <th>Estado</th>
-                    <th>Días atraso</th>
+                    <th class="right">Total</th>
+                    <th class="right">Pagado</th>
+                    <th class="right">Saldo</th>
+                    <th class="center">Estado</th>
+                    <th class="center">Días atraso</th>
                   </tr>
                 </thead>
                 <tbody id="detalleBody"></tbody>
@@ -3340,7 +3127,6 @@
 
         <section id="viewDocumentos" style="display:none;"></section>
         <section id="viewRecibos" style="display:none;"></section>
-        <section id="viewDeudores" style="display:none;"></section>
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
               </section>
@@ -3438,7 +3224,7 @@
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;" id="activoModalTitle">Editar activo</h3>
-          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad, del inquilino y las condiciones del alquiler.</div>
+          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad y del inquilino.</div>
         </div>
         <button class="btn" onclick="closeActivoModal()">Cerrar</button>
       </div>
@@ -3455,26 +3241,6 @@
         <input id="actDoc" placeholder="Documento" style="width:180px;">
         <input id="actTel" placeholder="Teléfono" style="width:180px;">
         <input id="actEmail" placeholder="Email" style="width:240px;">
-      </div>
-
-      <div class="hr"></div>
-      <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
-
-      <div class="row" style="margin-top:10px;">
-        <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
-        <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
-        <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
-        <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actFechaInicio" type="date" style="width:180px;">
-        <input id="actFechaFin" type="date" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
       </div>
 
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
@@ -3495,6 +3261,9 @@
         <div id="pagoSuccessToastText" style="font-size:12px;color:#64748b;line-height:1.35;overflow-wrap:anywhere;">El pago se guardó correctamente.</div>
       </div>
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
+    </div>
+  </div>
+      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
     </div>
   </div>
 
@@ -3534,33 +3303,17 @@
     const $ = (id) => document.getElementById(id);
     const fmtARS = new Intl.NumberFormat("es-AR", { style:"currency", currency:"ARS", maximumFractionDigits:2 });
 
-    function formatMoneyInput(value){
-      const n = Number(value);
-      return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '';
-    }
-
-    function parseMoneyInput(value){
-      const raw = String(value ?? '').trim();
-      if (!raw) return null;
-      const normalized = raw.replace(/\./g, '').replace(/,/g, '.').replace(/\$/g, '').replace(/\s+/g, '');
-      const num = Number(normalized);
-      return Number.isFinite(num) ? num : null;
-    }
-
-    function formatDateValue(value){
-      return value ? String(value).slice(0,10) : '';
-    }
-
-
     let route = "inicio";
     let user = null;
     let unidades = [];      // v_deuda_por_contrato
+    let manualDebt2026Cache = [];
+    let manualDebt2026LoadError = '';
     let selected = null;    // fila seleccionada
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
-    let balancePageState = { query:'', month:'' };
+    let balancePageState = { query:'' };
     let proximoVencimientoMap = {};
     const VENCE_PRONTO_DIAS = 7;
 
@@ -3613,7 +3366,7 @@
     function loadCurrentRoute(){
       try {
         const saved = localStorage.getItem(ROUTE_STORAGE_KEY);
-        const allowed = new Set(['inicio','activos','documentos','recibos','informes','balance']);
+        const allowed = new Set(['inicio','activos','documentos','recibos','deudores','informes','balance']);
         return allowed.has(saved) ? saved : 'inicio';
       } catch (e){
         return 'inicio';
@@ -3660,7 +3413,7 @@
     function defaultSettings(){
       return {
         negocio: {
-          nombre: 'Gestión de Alquiler',
+          nombre: 'Gestión de Alquileres',
           telefono: '',
           email: '',
           direccion: '',
@@ -3855,9 +3608,11 @@
     }
 
     function updateBusinessUI(){
-      const businessName = 'Gestión de Alquiler';
-      if ($('brandName')) $('brandName').textContent = businessName;
-      if ($('brandLogo')) $('brandLogo').innerHTML = '<img src="logosaladita_padded.png" alt="Logo" class="sb-logo-img">';
+      const businessName = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const shortName = businessName.length > 18 ? businessName.slice(0, 18).trim() : businessName;
+      if ($('brandName')) $('brandName').textContent = shortName;
+      const initials = businessName.split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA';
+      if ($('brandLogo')) $('brandLogo').textContent = initials;
       if ($('splashTitle')) $('splashTitle').textContent = businessName;
       if ($('loginTitle')) $('loginTitle').textContent = `Login · ${businessName}`;
       document.title = businessName;
@@ -4003,12 +3758,11 @@
         activos: 'Buscar unidad, código o inquilino...',
         documentos: 'Buscar contrato o archivo...',
         recibos: 'Buscar recibo, locatario o local...',
-        deudores: 'Buscar deudor, local o tipo...',
         informes: 'Buscar gastos, persona o categoría...',
         balance: 'Buscar en balance...'
       };
 
-      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'deudores', 'informes', 'balance']);
+      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'informes', 'balance']);
       const shouldHideHeader = hideHeaderRoutes.has(route);
 
       document.body.classList.toggle('route-hide-top', shouldHideHeader);
@@ -4020,6 +3774,36 @@
       input.placeholder = placeholders[route] || 'Buscar...';
     }
 
+    function normalizeLocalCode(value){
+      return String(value || '').trim().toUpperCase();
+    }
+
+    async function refreshManualDebt2026Data(){
+      try{
+        const { data, error } = await sb.from('vw_deuda_pagina_manual_2026').select('*');
+        if (error){
+          manualDebt2026Cache = [];
+          manualDebt2026LoadError = error.message || 'No se pudo cargar la deuda manual 2026.';
+          console.warn('vw_deuda_pagina_manual_2026:', manualDebt2026LoadError);
+          return false;
+        }
+        manualDebt2026Cache = Array.isArray(data) ? data : [];
+        manualDebt2026LoadError = '';
+        return true;
+      } catch (e){
+        manualDebt2026Cache = [];
+        manualDebt2026LoadError = String(e?.message || e || 'No se pudo cargar la deuda manual 2026.');
+        console.warn('vw_deuda_pagina_manual_2026:', manualDebt2026LoadError);
+        return false;
+      }
+    }
+
+    function getManualDebtByLocalCode(localCode){
+      const code = normalizeLocalCode(localCode);
+      if (!code) return null;
+      return manualDebt2026Cache.find(row => normalizeLocalCode(row?.local_code_normalized) === code) || null;
+    }
+
     function setRoute(r){
       route = r;
       document.querySelectorAll('.sb-item').forEach(b => b.classList.toggle('active', b.dataset.route === r));
@@ -4028,7 +3812,6 @@
         activos:'viewActivos',
         documentos:'viewDocumentos',
         recibos:'viewRecibos',
-        deudores:'viewDeudores',
         informes:'viewInformes',
         balance:'viewBalance'
       };
@@ -4042,7 +3825,6 @@
 
       if (r === 'documentos') renderDocumentosPage();
       if (r === 'recibos') renderRecibosPage();
-      if (r === 'deudores') renderDeudoresPage();
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
     }
@@ -4172,28 +3954,7 @@
       authRecoveryMode = false;
       toggleForgotPassword(false);
       showPasswordRecoveryMode(false);
-
-      try {
-        await sb.auth.signOut({ scope: 'local' });
-      } catch (e) {
-        console.warn('Logout local warning:', e);
-        try { await sb.auth.signOut(); } catch (err) { console.warn('Logout warning:', err); }
-      }
-
-      user = null;
-      selected = null;
-      modalContrato = null;
-      reciboActual = null;
-      document.body.classList.remove('nav-open');
-      saveCurrentRoute('inicio');
-
-      if ($('pass')) $('pass').value = '';
-      if ($('newPass')) $('newPass').value = '';
-      if ($('confirmPass')) $('confirmPass').value = '';
-
-      toggle(false, null);
-      setLoginMessage('');
-      updateTopSearchUI();
+      await sb.auth.signOut();
     }
 
         function isSinAsignarName(name){
@@ -4252,7 +4013,10 @@ function globalSearch(){
     }
 
     async function refreshAll(){
-      await refreshUnidades();
+      await Promise.all([
+        refreshUnidades(),
+        refreshManualDebt2026Data()
+      ]);
       if (selected?.contrato_id) await loadDetalle(selected);
     }
 
@@ -4401,26 +4165,14 @@ function globalSearch(){
     }
 
     function openActiveDetailByContrato(contratoId){
-      const contratoKey = String(contratoId || '').trim();
-      const unidad = unidades.find(x => String(x?.contrato_id || '').trim() === contratoKey);
-
-      if (!unidad){
-        console.warn('Detalle no encontrado para contrato_id:', contratoId, unidades);
-        alert('No hay datos para este activo.');
-        return;
-      }
+      const unidad = unidades.find(x => x.contrato_id === contratoId);
+      if (!unidad) return alert('No hay datos para este activo.');
 
       setRoute('activos');
-
       if ($('globalSearch')) $('globalSearch').value = unidad.local_codigo || unidad.inquilino_nombre || '';
       if ($('q')) $('q').value = unidad.local_codigo || unidad.inquilino_nombre || '';
-
       renderUnidades();
       openDetalle(unidad);
-
-      requestAnimationFrame(() => {
-        $('detalleCard')?.scrollIntoView({ behavior:'smooth', block:'start' });
-      });
     }
 
     function openActiveEditByContrato(contratoId){
@@ -4521,26 +4273,30 @@ function globalSearch(){
     function renderDetalleInfo(r, cuotasRows=[]){
       const grid = $('detalleInfoGrid');
       const condicionesGrid = $('detalleCondicionesGrid');
+      const resumenWrap = $('detalleResumenWrap');
       const resumenGrid = $('detalleResumenCobro');
       if (!grid) return;
 
-      const contrato = contratosActivos.find(c => String(c.id) === String(r.contrato_id)) || {};
+      const contrato = getContratoActivoRow(r.contrato_id) || {};
       const inq = contrato.inquilinos || {};
       const pendientes = (cuotasRows || []).filter(x => Number(x.saldo || 0) > 0);
       const proximo = pendientes
         .map(x => String(x.vencimiento || '').slice(0,10))
         .filter(Boolean)
         .sort()[0] || '—';
-      const saldoPendiente = pendientes.reduce((acc, x) => acc + Number(x.saldo || 0), 0);
+      const saldoPendienteSistema = pendientes.reduce((acc, x) => acc + Number(x.saldo || 0), 0);
       const estado = getContratoStatus(r).label;
 
-      const montoMensual = Number(contrato?.monto_mensual || 0);
+      const localCode = normalizeLocalCode(contrato?.locales?.codigo || contrato?.locales?.codigo_local || r.local_codigo || '');
+      const manualDebt = getManualDebtByLocalCode(localCode);
+
+      const montoMensual = manualDebt ? Number(manualDebt.monto_sugerido_2026 || 0) : Number(contrato?.monto_mensual || 0);
       const impuestoMensual = Number(contrato?.impuesto_mensual || 0);
       const totalMensual = montoMensual + impuestoMensual;
       const primerTotalCuota = Number((cuotasRows || [])[0]?.total || 0);
       const totalReferencia = totalMensual > 0 ? totalMensual : primerTotalCuota;
       const montoVisible = montoMensual > 0 ? montoMensual : Math.max(totalReferencia - impuestoMensual, 0);
-      const deudaAtrasada = Number(r.deuda_atrasada || 0);
+      const deudaAtrasadaSistema = Number(r.deuda_atrasada || 0);
       const mesesAdeudados = Number(r.meses_adeudados || 0);
       const diaVto = contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido';
 
@@ -4551,13 +4307,29 @@ function globalSearch(){
         { label:'Documento', value:inq.documento || '—', small:true },
         { label:'Teléfono', value:inq.telefono || '—', small:true },
         { label:'Email', value:inq.email || '—', small:true },
-        { label:'Estado actual', value:estado },
+        { label:'Estado actual', value: manualDebt?.situacion_general || estado },
         { label:'Próximo vencimiento', value:proximo },
-        { label:'Meses adeudados', value:String(mesesAdeudados) },
-        { label:'Saldo pendiente', value:fmtARS.format(saldoPendiente) },
-        { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada) },
-        { label:'Cuotas con deuda', value:String(pendientes.length) },
       ];
+
+      if (manualDebt){
+        const arrastre2025 = Number(manualDebt.deuda_arrastre_2025 || 0);
+        const deuda2026 = Number(manualDebt.deuda_total_2026 || 0);
+        const deudaTotal = Number(manualDebt.deuda_total_2025_2026 || 0);
+
+        items.push(
+          { label:'Alquiler actual', value:fmtARS.format(montoVisible) },
+          { label:'Deuda arrastre 2025', value:fmtARS.format(arrastre2025) },
+          { label:'Deuda 2026', value:fmtARS.format(deuda2026) },
+          { label:'Deuda total', value:fmtARS.format(deudaTotal) },
+        );
+      } else {
+        items.push(
+          { label:'Meses adeudados', value:String(mesesAdeudados) },
+          { label:'Saldo pendiente', value:fmtARS.format(saldoPendienteSistema) },
+          { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasadaSistema) },
+          { label:'Cuotas con deuda', value:String(pendientes.length) },
+        );
+      }
 
       const condiciones = [
         { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
@@ -4566,7 +4338,7 @@ function globalSearch(){
         { label:'Día de vencimiento', value: diaVto },
         { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
         { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
-        { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true },
+        { label:'Observaciones', value: contrato?.observaciones || (manualDebt ? 'Deuda manual 2025/2026 aplicada en pantalla.' : 'Sin observaciones'), small:true },
       ];
 
       grid.innerHTML = items.map(item => `
@@ -4585,48 +4357,101 @@ function globalSearch(){
         `).join('');
       }
 
-      if (resumenGrid){
-        const resumen = [
-          {
-            cls:'destacado',
-            label:'Alquiler mensual',
-            value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido',
-            meta: 'Monto base actual del locatario'
-          },
-          {
-            cls:'',
-            label:'Impuesto mensual',
-            value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : (contrato?.impuesto_mensual === 0 ? fmtARS.format(0) : 'No definido'),
-            meta: contrato?.ajuste_porcentaje != null ? `Ajuste: ${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : 'Podés revisarlo y editarlo'
-          },
-          {
-            cls:'',
-            label:'Total mensual',
-            value: totalReferencia > 0 ? fmtARS.format(totalReferencia) : 'No definido',
-            meta: `${diaVto} · Próximo vencimiento: ${proximo}`
-          },
-          {
-            cls: saldoPendiente > 0 ? 'alerta' : '',
-            label:'Deuda pendiente',
-            value: fmtARS.format(saldoPendiente),
-            meta: saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda · atrasada ${fmtARS.format(deudaAtrasada)}` : 'Sin saldo pendiente'
-          }
-        ];
+      if (resumenWrap && resumenGrid){
+        if (manualDebt){
+          const arrastre2025 = Number(manualDebt.deuda_arrastre_2025 || 0);
+          const deuda2026 = Number(manualDebt.deuda_total_2026 || 0);
+          const deudaTotal = Number(manualDebt.deuda_total_2025_2026 || 0);
 
-        resumenGrid.innerHTML = resumen.map(item => `
-          <article class="detalle-resumen-item ${item.cls}">
-            <div class="detalle-resumen-label">${item.label}</div>
-            <div class="detalle-resumen-value">${item.value}</div>
-            <div class="detalle-resumen-meta">${item.meta}</div>
-          </article>
-        `).join('');
+          resumenWrap.style.display = '';
+          const resumen = [
+            {
+              cls:'destacado',
+              label:'Alquiler actual',
+              value: fmtARS.format(montoVisible),
+              meta: 'Monto sugerido 2026 para este activo'
+            },
+            {
+              cls:'',
+              label:'Deuda arrastre 2025',
+              value: fmtARS.format(arrastre2025),
+              meta: 'Saldo pendiente heredado del año anterior'
+            },
+            {
+              cls:'',
+              label:'Deuda 2026',
+              value: fmtARS.format(deuda2026),
+              meta: 'Deuda acumulada hasta abril 2026'
+            },
+            {
+              cls:'alerta',
+              label:'Deuda total',
+              value: fmtARS.format(deudaTotal),
+              meta: `${manualDebt.situacion_general || 'Corrección manual aplicada'} · Prioridad ${manualDebt.prioridad_total || '—'}`
+            }
+          ];
+
+          resumenGrid.innerHTML = resumen.map(item => `
+            <article class="detalle-resumen-item ${item.cls}">
+              <div class="detalle-resumen-label">${item.label}</div>
+              <div class="detalle-resumen-value">${item.value}</div>
+              <div class="detalle-resumen-meta">${item.meta}</div>
+            </article>
+          `).join('');
+        } else {
+          resumenWrap.style.display = '';
+          const resumen = [
+            {
+              cls:'destacado',
+              label:'Alquiler mensual',
+              value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido',
+              meta: 'Monto base actual del locatario'
+            },
+            {
+              cls:'',
+              label:'Impuesto mensual',
+              value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : (contrato?.impuesto_mensual === 0 ? fmtARS.format(0) : 'No definido'),
+              meta: contrato?.ajuste_porcentaje != null ? `Ajuste: ${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : 'Podés revisarlo y editarlo'
+            },
+            {
+              cls:'',
+              label:'Total mensual',
+              value: totalReferencia > 0 ? fmtARS.format(totalReferencia) : 'No definido',
+              meta: `${diaVto} · Próximo vencimiento: ${proximo}`
+            },
+            {
+              cls: saldoPendienteSistema > 0 ? 'alerta' : '',
+              label:'Deuda pendiente',
+              value: fmtARS.format(saldoPendienteSistema),
+              meta: saldoPendienteSistema > 0 ? `${pendientes.length} cuota(s) con deuda · atrasada ${fmtARS.format(deudaAtrasadaSistema)}` : 'Sin saldo pendiente'
+            }
+          ];
+
+          resumenGrid.innerHTML = resumen.map(item => `
+            <article class="detalle-resumen-item ${item.cls}">
+              <div class="detalle-resumen-label">${item.label}</div>
+              <div class="detalle-resumen-value">${item.value}</div>
+              <div class="detalle-resumen-meta">${item.meta}</div>
+            </article>
+          `).join('');
+        }
       }
     }
 
     async function loadDetalle(r){
       $('detalleMsg').textContent = '';
-      $('detalleMeta').textContent = `Contrato: ${r.contrato_id} | Código: ${r.local_codigo} | Inquilino: ${r.inquilino_nombre}`;
-      $('detalleBadge').textContent = `Deuda: ${fmtARS.format(Number(r.deuda_total||0))} | Meses: ${Number(r.meses_adeudados||0)}`;
+      if (!manualDebt2026Cache.length && !manualDebt2026LoadError){
+        await refreshManualDebt2026Data();
+      }
+
+      const contrato = getContratoActivoRow(r.contrato_id) || {};
+      const localCode = normalizeLocalCode(contrato?.locales?.codigo || contrato?.locales?.codigo_local || r.local_codigo || '');
+      const manualDebt = getManualDebtByLocalCode(localCode);
+
+      $('detalleMeta').textContent = `Contrato: ${r.contrato_id} | Código: ${r.local_codigo} | Inquilino: ${r.inquilino_nombre}${manualDebt ? ' | Deuda manual 2025/2026 aplicada' : ''}`;
+      $('detalleBadge').textContent = manualDebt
+        ? `Deuda total: ${fmtARS.format(Number(manualDebt.deuda_total_2025_2026 || 0))} | Prioridad: ${manualDebt.prioridad_total || '—'}`
+        : `Deuda: ${fmtARS.format(Number(r.deuda_total||0))} | Meses: ${Number(r.meses_adeudados||0)}`;
 
       const { data, error } = await sb
         .from('v_cobranzas')
@@ -4660,8 +4485,6 @@ function globalSearch(){
         tb.appendChild(tr);
       });
 
-
-      // cargar documentos del contrato
       await loadDetalleDocs();
     }
 
@@ -4871,14 +4694,6 @@ function globalSearch(){
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
-      $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
-      $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
-      $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
-      $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
-      $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
-      $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
-      $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
-      $('actObservaciones').value = contrato?.observaciones || '';
       $('modalActivoBack').style.display = 'flex';
     }
 
@@ -4901,16 +4716,6 @@ function globalSearch(){
       const documento = ($('actDoc').value || '').trim() || null;
       const telefono = ($('actTel').value || '').trim() || null;
       const email = ($('actEmail').value || '').trim() || null;
-      const montoMensual = parseMoneyInput($('actMontoMensual').value);
-      const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
-      const ajustePct = parseMoneyInput($('actAjustePct').value);
-      const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
-      const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
-      const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
-      const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
-      const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
-      const fechaFin = ($('actFechaFin').value || '').trim() || null;
-      const observaciones = ($('actObservaciones').value || '').trim() || null;
 
       if (!codigo) {
         msg.textContent = 'El código de la unidad es obligatorio.';
@@ -4918,26 +4723,6 @@ function globalSearch(){
       }
       if (!nombre) {
         msg.textContent = 'El nombre del inquilino es obligatorio.';
-        return;
-      }
-      if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
-        msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
-        return;
-      }
-      if ($('actMontoMensual').value.trim() && montoMensual === null) {
-        msg.textContent = 'El monto mensual no tiene un formato válido.';
-        return;
-      }
-      if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
-        msg.textContent = 'El impuesto mensual no tiene un formato válido.';
-        return;
-      }
-      if ($('actAjustePct').value.trim() && ajustePct === null) {
-        msg.textContent = 'El aumento no tiene un formato válido.';
-        return;
-      }
-      if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
-        msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
         return;
       }
 
@@ -4957,18 +4742,10 @@ function globalSearch(){
         tasks.push(sb.from('inquilinos').update({ nombre, documento, telefono, email }).eq('id', contrato.inquilinos.id));
       }
 
-      tasks.push(
-        sb.from('contratos').update({
-          monto_mensual: montoMensual,
-          impuesto_mensual: impuestoMensual,
-          ajuste_porcentaje: ajustePct,
-          ajuste_cada_meses: ajusteMeses || 3,
-          dia_vencimiento: diaVencimiento || 10,
-          fecha_inicio: fechaInicio,
-          fecha_fin: fechaFin,
-          observaciones
-        }).eq('id', selected.contrato_id)
-      );
+      if (!tasks.length) {
+        msg.textContent = 'No encontré registros editables para este activo.';
+        return;
+      }
 
       msg.textContent = 'Guardando cambios...';
       const results = await Promise.all(tasks);
@@ -4998,7 +4775,7 @@ function globalSearch(){
     async function refreshContratosActivos(){
       const { data, error } = await sb
         .from('contratos')
-        .select('id, inquilino_id, monto_mensual, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
+        .select('id, inquilino_id, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
         .eq('estado','ACTIVO');
 
       if (error){
@@ -5583,6 +5360,10 @@ function globalSearch(){
       const startX = (pageWidth - contentWidth) / 2;
 
       const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const negocioDireccion = appSettings?.negocio?.direccion || '';
+      const negocioTelefono = appSettings?.negocio?.telefono || '';
+      const negocioEmail = appSettings?.negocio?.email || '';
+      const cuitNegocio = appSettings?.negocio?.cuit || '—';
 
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
@@ -5662,6 +5443,13 @@ function globalSearch(){
       centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
       centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
 
+      const headerMetaLines = [];
+      const contactLine1 = [negocioDireccion].filter(Boolean).join('');
+      const contactLine2 = [negocioTelefono, negocioEmail].filter(Boolean).join(' · ');
+      if (contactLine1) headerMetaLines.push(contactLine1);
+      if (contactLine2) headerMetaLines.push(contactLine2);
+      headerMetaLines.push(`CUIT / identificación: ${cuitNegocio}`);
+      drawCenteredLines(headerMetaLines.slice(0,3), centerX, headerY + 162, 9.5, 'normal', [203,213,225], 11);
 
       const badgeY = headerY + headerH + 18;
       const badgeW1 = 170;
@@ -5762,8 +5550,12 @@ function globalSearch(){
     }
 
     function buildReceiptPrintHtml(item){
-      const negocio = 'Gestión de Alquiler';
-      const initials = 'GA';
+      const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquileres');
+      const initials = escapeHtml((appSettings?.negocio?.nombre || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA');
+      const email = escapeHtml(appSettings?.negocio?.email || '—');
+      const telefono = escapeHtml(appSettings?.negocio?.telefono || '—');
+      const direccion = escapeHtml(appSettings?.negocio?.direccion || '—');
+      const cuit = escapeHtml(appSettings?.negocio?.cuit || '—');
       const numero = escapeHtml(item.numero_recibo || '—');
       const locatario = escapeHtml(item.inquilino_nombre || '—');
       const documento = escapeHtml(item.documento || '—');
@@ -5773,7 +5565,6 @@ function globalSearch(){
       const fecha = escapeHtml(formatDateDisplay(item.fecha_pago || item.created_at));
       const medio = escapeHtml(item.medio || '—');
       const referencia = escapeHtml(item.referencia || '—');
-      const sourceTag = item.__source === 'historico' ? 'Histórico importado' : 'Recibo actual';
       const impuestoPct = Number(item.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
@@ -5785,6 +5576,9 @@ function globalSearch(){
             <div class="recibo-sheet-head-meta">
               <h2 class="recibo-sheet-title">Recibo interno</h2>
               <div class="recibo-sheet-sub">${negocio}</div>
+              <div class="recibo-sheet-sub">${direccion}</div>
+              <div class="recibo-sheet-sub">${telefono} · ${email}</div>
+              <div class="recibo-sheet-sub">CUIT / identificación: ${cuit}</div>
             </div>
             <div class="recibo-sheet-badges">
               <span class="recibo-sheet-badge">N° ${numero}</span>
@@ -5803,7 +5597,6 @@ function globalSearch(){
               <div class="label">Detalle del cobro</div>
               <div class="value">Unidad ${local}</div>
               <div class="recibo-sheet-sub">Medio de pago: ${medio}</div>
-              <div class="recibo-sheet-sub">${sourceTag}</div>
               <div class="recibo-sheet-sub">N° recibo: ${numero}</div>
             </div>
           </div>
@@ -5826,7 +5619,7 @@ function globalSearch(){
 
           <div class="recibo-note">
             ${item.descripcion_pago ? `<div style="margin-bottom:8px;"><strong>Descripción del pago:</strong> ${escapeHtml(item.descripcion_pago)}</div>` : ''}
-            ${item.__source === 'historico' ? 'Registro histórico importado desde planillas internas.' : 'Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.'}
+            Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
           </div>
         </div>
       `;
@@ -5835,8 +5628,6 @@ function globalSearch(){
     async function fetchRecibosInternosData(){
       let pagos = [];
       let pagosError = null;
-      let historicos = [];
-      let historicosError = null;
 
       const tries = [
         () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje').order('fecha_pago', { ascending:false }),
@@ -5854,48 +5645,33 @@ function globalSearch(){
         pagosError = error;
       }
 
-      const histRes = await sb
-        .from('pagos_historicos_importados')
-        .select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_total, monto_alquiler, monto_impuesto, impuesto_porcentaje, numero_recibo, year_source, source_note')
-        .order('fecha_pago', { ascending:false });
-
-      if (!histRes.error){
-        historicos = histRes.data || [];
-        historicosError = null;
-      } else {
-        historicosError = histRes.error;
-      }
-
-      const contratoIds = [...new Set([...(pagos || []), ...(historicos || [])].map(x => String(x.contrato_id || '')).filter(Boolean))];
+      const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
       let contratosMeta = [];
       let contratosError = null;
       if (contratoIds.length){
         const { data, error } = await sb
           .from('contratos')
-          .select('id, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
+          .select('id, locales(codigo), inquilinos(nombre,telefono,email,documento)')
           .in('id', contratoIds);
         contratosMeta = data || [];
         contratosError = error;
       }
 
       const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
-
       const dbRows = (pagos || []).map(item => {
         const meta = metaMap.get(String(item.contrato_id || '')) || {};
         const inq = meta.inquilinos || {};
         const local = meta.locales || {};
         const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
         const paymentKey = String(item.id || item.pago_id || '');
-        const cacheKey = `pago:${paymentKey || buildReciboNumero(item, true)}`;
         return {
           ...item,
-          __source: 'pago',
-          __cache_key: cacheKey,
           monto_total: montoTotal,
           monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
           monto_impuesto: Number(item.monto_impuesto || 0),
           impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(paymentDescriptionMap[cacheKey] || paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || '').trim(),
+          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || '').trim(),
+          __cache_key: paymentKey || buildReciboNumero(item, true),
           numero_recibo: buildReciboNumero(item, true),
           inquilino_nombre: inq.nombre || '—',
           telefono: inq.telefono || '',
@@ -5905,36 +5681,11 @@ function globalSearch(){
         };
       });
 
-      const histRows = (historicos || []).map(item => {
-        const meta = metaMap.get(String(item.contrato_id || '')) || {};
-        const inq = meta.inquilinos || {};
-        const local = meta.locales || {};
-        const cacheKey = `hist:${String(item.id || item.numero_recibo || '')}`;
-        const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
-        return {
-          ...item,
-          __source: 'historico',
-          __cache_key: cacheKey,
-          monto_total: montoTotal,
-          monto_alquiler: Number(item.monto_alquiler || item.monto || 0),
-          monto_impuesto: Number(item.monto_impuesto || 0),
-          impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(item.source_note || item.referencia || '').trim(),
-          numero_recibo: String(item.numero_recibo || item.referencia || ''),
-          inquilino_nombre: inq.nombre || item.nombre_raw || '—',
-          telefono: inq.telefono || '',
-          email: inq.email || '',
-          documento: inq.documento || '',
-          local_codigo: local.codigo || item.local_code_raw || '—',
-          medio: item.medio || 'HISTORICO'
-        };
-      });
-
       const manualReceipts = loadManualReceipts();
       const mergedMap = new Map();
-      [...dbRows, ...histRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
+      [...dbRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
         if (!item) return;
-        const key = String(item.__cache_key || item.id || item.pago_id || item.numero_recibo || '');
+        const key = String(item.id || item.pago_id || item.numero_recibo || item.__cache_key || '');
         if (!key) return;
         const previous = mergedMap.get(key) || {};
         mergedMap.set(key, {
@@ -5957,15 +5708,15 @@ function globalSearch(){
         const numB = parseInt(String(b.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
         if (numA !== numB) return numB - numA;
 
-        const keyA = String(a.__cache_key || a.id || a.pago_id || '');
-        const keyB = String(b.__cache_key || b.id || b.pago_id || '');
+        const keyA = String(a.id || a.pago_id || a.__cache_key || '');
+        const keyB = String(b.id || b.pago_id || b.__cache_key || '');
         return keyB.localeCompare(keyA);
       });
-
       recibosInternosCache = rows;
       saveReceiptsCache();
+      saveManualReceipts(rows);
 
-      return { rows, pagosError: pagosError || historicosError, contratosError };
+      return { rows, pagosError, contratosError };
     }
 
     function renderRecibosKPIs(rows){
@@ -6065,7 +5816,7 @@ function globalSearch(){
           </td>
           <td>
             <div class="recibos-cell-title">${formatDateDisplay(item.fecha_pago || item.created_at)}</div>
-            <span class="contact-sub">${escapeHtml(item.medio || '—')}${item.__source === 'historico' ? ' · Histórico' : ''}</span>
+            <span class="contact-sub">${escapeHtml(item.medio || '—')}</span>
           </td>
           <td>
             <div class="recibos-cell-title">${escapeHtml(item.inquilino_nombre)}</div>
@@ -6098,7 +5849,6 @@ function globalSearch(){
             <div class="recibos-actions">
               <div class="recibos-action-panel">
                 <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver recibo</button>
-                <button class="btn danger" style="min-width:110px;" onclick="deleteReciboByKey('${getReciboKey(item)}')">Eliminar</button>
                 <details class="recibos-share-menu">
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
@@ -6169,7 +5919,7 @@ function globalSearch(){
                 <div class="section-mini-stat">
                   <div class="label">Recibos generados</div>
                   <div class="value">${summary.total}</div>
-                  <div class="sub">Actuales + históricos</div>
+                  <div class="sub">Historial completo</div>
                 </div>
                 <div class="section-mini-stat">
                   <div class="label">Monto histórico</div>
@@ -6295,7 +6045,6 @@ function globalSearch(){
 
                   <div class="recibos-side-actions">
                     <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
-                    <button class="btn danger" onclick="deleteReciboByKey('${ultimo.id}')">Eliminar</button>
                     <button class="btn" onclick="shareReciboByEmail('${ultimo.id}')">Email + PDF</button>
                     <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
                     <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
@@ -6311,119 +6060,11 @@ function globalSearch(){
 
 
     function getReciboKey(item){
-      return String(item?.__cache_key || item?.id || item?.pago_id || item?.numero_recibo || '');
+      return String(item?.id || item?.pago_id || item?.numero_recibo || item?.__cache_key || '');
     }
 
     function getReciboById(id){
       return recibosInternosCache.find(item => getReciboKey(item) === String(id)) || null;
-    }
-    function deleteReciboByKey(id){
-      const item = getReciboById(id);
-      if (!item){
-        alert('No se encontró el recibo.');
-        return;
-      }
-
-      const reciboKey = getReciboKey(item);
-      const msgEl = $('recibosMsg');
-
-      if (item.__source === 'historico'){
-        if (!askConfirm(`¿Eliminar el recibo histórico ${item.numero_recibo || ''}?`)) return;
-        if (msgEl) msgEl.textContent = 'Eliminando recibo histórico...';
-
-        (async () => {
-          try {
-            const delPago = await sb.from('pagos_historicos_importados').delete().eq('id', item.id);
-            if (delPago.error) throw delPago.error;
-
-            recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
-            saveReceiptsCache();
-
-            const manualReceipts = loadManualReceipts().filter(r => getReciboKey(r) !== reciboKey);
-            saveManualReceipts(manualReceipts);
-
-            if (reciboActual && getReciboKey(reciboActual) === reciboKey){
-              reciboActual = null;
-              closeReciboModal();
-            }
-
-            if (route === 'recibos') await renderRecibosPage();
-            if ($('recibosMsg')) $('recibosMsg').textContent = 'Recibo histórico eliminado correctamente ✅';
-          } catch (error) {
-            console.error(error);
-            if ($('recibosMsg')) $('recibosMsg').textContent = `Error al eliminar el recibo histórico: ${error.message || error}`;
-          }
-        })();
-        return;
-      }
-
-      const pagoId = item.pago_id || item.id;
-      if (!pagoId){
-        alert('Este recibo no tiene un pago asociado para eliminar.');
-        return;
-      }
-
-      if (!askConfirm(`¿Eliminar el recibo ${item.numero_recibo || ''}? Esta acción borrará el pago asociado.`)) return;
-
-      if (msgEl) msgEl.textContent = 'Eliminando recibo...';
-
-      (async () => {
-        try {
-          const docsRes = await sb
-            .from('documentos')
-            .select('id, path')
-            .eq('pago_id', pagoId);
-
-          if (docsRes.error) throw docsRes.error;
-
-          const docs = docsRes.data || [];
-          const docPaths = docs.map(d => d.path).filter(Boolean);
-
-          if (docPaths.length){
-            const rm = await sb.storage.from('documentos').remove(docPaths);
-            if (rm.error) throw rm.error;
-          }
-
-          if (docs.length){
-            const docIds = docs.map(d => d.id);
-            const delDocs = await sb.from('documentos').delete().in('id', docIds);
-            if (delDocs.error) throw delDocs.error;
-          }
-
-          const delPago = await sb.from('pagos').delete().eq('id', pagoId);
-          if (delPago.error) throw delPago.error;
-
-          recibosInternosCache = (recibosInternosCache || []).filter(r => getReciboKey(r) !== reciboKey);
-          saveReceiptsCache();
-
-          const manualReceipts = loadManualReceipts().filter(r => getReciboKey(r) !== reciboKey);
-          saveManualReceipts(manualReceipts);
-
-          if (paymentDescriptionMap){
-            delete paymentDescriptionMap[reciboKey];
-            if (item.numero_recibo) delete paymentDescriptionMap[String(item.numero_recibo)];
-            savePaymentDescriptionMap();
-          }
-
-          if (receiptNumberMap && pagoId){
-            delete receiptNumberMap[String(pagoId)];
-            saveReceiptNumberMap();
-          }
-
-          if (reciboActual && getReciboKey(reciboActual) === reciboKey){
-            reciboActual = null;
-            closeReciboModal();
-          }
-
-          await refreshAll();
-          if (route === 'recibos') await renderRecibosPage();
-
-          if ($('recibosMsg')) $('recibosMsg').textContent = 'Recibo eliminado correctamente ✅';
-        } catch (error) {
-          console.error(error);
-          if ($('recibosMsg')) $('recibosMsg').textContent = `Error al eliminar el recibo: ${error.message || error}`;
-        }
-      })();
     }
 
 
@@ -6647,10 +6288,8 @@ function globalSearch(){
     const GASTOS_STORAGE_KEY = 'ga_gastos_v1';
     const GASTOS_IMPORTED_FLAG = 'ga_gastos_imported_to_supabase_v1';
     let gastosCache = [];
-    let deudores2025Cache = [];
     let gastoEditId = null;
     let informesLoadError = '';
-    let deudores2025LoadError = '';
     let balanceCharts = [];
 
     function legacyGastosRows(){
@@ -6718,100 +6357,7 @@ function globalSearch(){
       };
     }
 
-    
-    async function refreshDeudores2025Data(){
-      const tbody = $('infDeuBody');
-      if (tbody){
-        tbody.innerHTML = `<tr><td colspan="7" class="center">Cargando deudores 2025...</td></tr>`;
-      }
-      if ($('infDeuMsg')) $('infDeuMsg').textContent = '';
-
-      const { data, error } = await sb
-        .from('vw_clasificacion_deudores_2025')
-        .select('*')
-        .order('deuda_total_2025', { ascending:false });
-
-      if (error){
-        deudores2025Cache = [];
-        deudores2025LoadError = error.message || 'Error cargando deudores 2025.';
-        renderDeudores2025Table();
-        return;
-      }
-
-      deudores2025Cache = data || [];
-      deudores2025LoadError = '';
-      renderDeudores2025Table();
-    }
-
-    function getFilteredDeudores2025(){
-      const q = ($('infDeuSearch')?.value || '').trim().toLowerCase();
-      const prioridad = $('infDeuPrioridad')?.value || 'TODAS';
-      const tipo = $('infDeuTipo')?.value || 'TODOS';
-
-      let rows = [...deudores2025Cache];
-      if (prioridad !== 'TODAS') rows = rows.filter(x => String(x.prioridad_deuda || '') === prioridad);
-      if (tipo !== 'TODOS') rows = rows.filter(x => String(x.tipo_deuda || '') === tipo);
-      if (q){
-        rows = rows.filter(x =>
-          String(x.local_code_normalized || '').toLowerCase().includes(q) ||
-          String(x.nombre_raw || '').toLowerCase().includes(q) ||
-          String(x.tipo_deuda || '').toLowerCase().includes(q) ||
-          String(x.prioridad_deuda || '').toLowerCase().includes(q) ||
-          String(x.meses_deuda || '').toLowerCase().includes(q)
-        );
-      }
-      rows.sort((a,b) => Number(b.deuda_total_2025 || 0) - Number(a.deuda_total_2025 || 0));
-      return rows;
-    }
-
-    function computeDeudores2025KPIs(rows){
-      const totalDeuda = rows.reduce((acc, x) => acc + Number(x.deuda_total_2025 || 0), 0);
-      const totalDeudores = rows.length;
-      const altos = rows.filter(x => x.prioridad_deuda === 'ALTA').length;
-      const puntuales = rows.filter(x => x.tipo_deuda === 'PUNTUAL / 1-2 MESES').length;
-      return { totalDeuda, totalDeudores, altos, puntuales };
-    }
-
-    function renderDeudores2025Table(){
-      const rows = getFilteredDeudores2025();
-      const tb = $('infDeuBody');
-      const msg = $('infDeuMsg');
-      if (!tb) return;
-      tb.innerHTML = '';
-
-      const k = computeDeudores2025KPIs(rows);
-      if ($('infDeuKpiTotal')) $('infDeuKpiTotal').textContent = fmtARS.format(k.totalDeuda);
-      if ($('infDeuKpiCount')) $('infDeuKpiCount').textContent = String(k.totalDeudores);
-      if ($('infDeuKpiAlta')) $('infDeuKpiAlta').textContent = String(k.altos);
-      if ($('infDeuKpiPuntual')) $('infDeuKpiPuntual').textContent = String(k.puntuales);
-      if ($('infDeuTotalRows')) $('infDeuTotalRows').textContent = `${rows.length} deudores`;
-
-      if (!rows.length){
-        tb.innerHTML = `<tr><td colspan="7"><div class="docs-empty-state">No hay deudores 2025 para ese filtro.</div></td></tr>`;
-      } else {
-        rows.forEach(x => {
-          const prioridad = String(x.prioridad_deuda || 'BAJA').toLowerCase();
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td><b>${x.local_code_normalized || '—'}</b></td>
-            <td>${x.nombre_raw || '—'}</td>
-            <td><span class="deudores-chip ${prioridad}">${x.prioridad_deuda || '—'}</span></td>
-            <td>${x.tipo_deuda || '—'}</td>
-            <td class="right">${fmtARS.format(Number(x.deuda_total_2025 || 0))}</td>
-            <td class="center">${Number(x.meses_con_deuda || 0)}</td>
-            <td>${x.meses_deuda || '—'}</td>
-          `;
-          tb.appendChild(tr);
-        });
-      }
-
-      if (msg){
-        if (deudores2025LoadError) msg.textContent = deudores2025LoadError;
-        else msg.textContent = rows.length ? '' : 'Sin registros para mostrar.';
-      }
-    }
-
-function getFilteredGastos(){
+    function getFilteredGastos(){
       const q = ($('infSearch')?.value || '').trim().toLowerCase();
       const categoria = $('infCategoria')?.value || 'TODOS';
       const mes = $('infMes')?.value || '';
@@ -6911,89 +6457,7 @@ function getFilteredGastos(){
       if (!opts.keepSuccessMsg && $('gastoMsg')) $('gastoMsg').textContent = '';
     }
 
-    function renderDeudoresPage(){
-      const el = $('viewDeudores');
-      if (!el) return;
-      el.innerHTML = `
-        <div class="section-hero informes">
-          <div class="section-hero-grid">
-            <div>
-              <div class="section-hero-main">
-                <div class="section-hero-icon">🚨</div>
-                <div>
-                  <h2 class="section-hero-title">Deudores 2025</h2>
-                </div>
-              </div>
-              <div class="muted" style="margin-top:8px;">Auditoría de deuda histórica 2025, ordenada por prioridad y tipo de deuda.</div>
-            </div>
-            <div class="section-hero-actions">
-              <button class="btn primary" onclick="refreshDeudores2025Data()">Recargar</button>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
-            <div>
-              <h3 style="margin:0;">Deudores 2025</h3>
-              <div class="muted">Resumen visual de la auditoría 2025, ordenado por prioridad y tipo de deuda.</div>
-            </div>
-            <span class="badge b-bad" id="infDeuTotalRows">0 deudores</span>
-          </div>
-
-          <div class="deudores-2025-grid">
-            <div class="kpi"><div class="label">Deuda total 2025</div><div class="value" id="infDeuKpiTotal">${fmtARS.format(0)}</div><div class="muted">Total del filtro actual</div></div>
-            <div class="kpi"><div class="label">Deudores visibles</div><div class="value" id="infDeuKpiCount">0</div><div class="muted">Cantidad de registros</div></div>
-            <div class="kpi"><div class="label">Prioridad alta</div><div class="value" id="infDeuKpiAlta">0</div><div class="muted">Los más urgentes</div></div>
-            <div class="kpi"><div class="label">Puntuales</div><div class="value" id="infDeuKpiPuntual">0</div><div class="muted">1 o 2 meses</div></div>
-          </div>
-
-          <div class="section-hero-toolbar" style="margin-top:14px;">
-            <button class="btn" onclick="refreshDeudores2025Data()">Recargar deudores</button>
-            <input id="infDeuSearch" placeholder="Buscar local, nombre o tipo..." oninput="renderDeudores2025Table()">
-            <select id="infDeuPrioridad" onchange="renderDeudores2025Table()">
-              <option value="TODAS">Todas las prioridades</option>
-              <option value="ALTA">Alta</option>
-              <option value="MEDIA">Media</option>
-              <option value="BAJA">Baja</option>
-            </select>
-            <select id="infDeuTipo" onchange="renderDeudores2025Table()">
-              <option value="TODOS">Todos los tipos</option>
-              <option value="TODO EL AÑO">Todo el año</option>
-              <option value="DESDE INICIO DE AÑO">Desde inicio de año</option>
-              <option value="MITAD DE AÑO EN ADELANTE">Mitad de año en adelante</option>
-              <option value="FIN DE AÑO">Fin de año</option>
-              <option value="INICIO TARDÍO">Inicio tardío</option>
-              <option value="PUNTUAL / 1-2 MESES">Puntual / 1-2 meses</option>
-              <option value="PARCIAL / MIXTA">Parcial / mixta</option>
-            </select>
-          </div>
-
-          <div class="tableWrap" style="margin-top:12px;">
-            <table class="deudores-2025-table" style="min-width:1180px;">
-              <thead>
-                <tr>
-                  <th>Local</th>
-                  <th>Locatario</th>
-                  <th>Prioridad</th>
-                  <th>Tipo de deuda</th>
-                  <th>Deuda total 2025</th>
-                  <th>Meses con deuda</th>
-                  <th>Meses adeudados</th>
-                </tr>
-              </thead>
-              <tbody id="infDeuBody"></tbody>
-            </table>
-          </div>
-          <div class="toast" id="infDeuMsg"></div>
-        </div>
-      `;
-
-      renderDeudores2025Table();
-      refreshDeudores2025Data();
-    }
-
-function renderInformesPage(){
+    function renderInformesPage(){
       const el = $('viewInformes');
       el.innerHTML = `
         <div class="section-hero informes">
@@ -7358,7 +6822,7 @@ function renderInformesPage(){
 
       const pagosPromise = sb
         .from('pagos')
-        .select('id, contrato_id, fecha_pago, monto, monto_total, medio, referencia, created_at')
+        .select('id, contrato_id, fecha_pago, monto, medio, referencia, created_at')
         .gte('fecha_pago', from)
         .lt('fecha_pago', to);
 
@@ -7378,69 +6842,13 @@ function renderInformesPage(){
       };
     }
 
-    
-    function normalizePaymentMedium(value){
-      const raw = String(value || '').trim().toUpperCase();
-      if (!raw) return 'SIN_MEDIO';
-      if (raw.includes('MERCADO') || raw === 'MP' || raw.includes('M.P')) return 'MERCADO PAGO';
-      if (raw.includes('EFEC')) return 'EFECTIVO';
-      if (raw.includes('TRANS')) return 'TRANSFERENCIA';
-      if (raw.includes('TARJ')) return 'TARJETA';
-      if (raw.includes('DEBI')) return 'DÉBITO';
-      if (raw.includes('CRED')) return 'CRÉDITO';
-      return raw;
-    }
-
-    function buildBalanceIngresosPorMedio(pagos, year, monthIndex){
-      const rowsMap = new Map();
-      const rowsPagos = (pagos || []).filter(item => {
-        const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
-        const itemYear = new Date(item.fecha_pago || item.created_at || today()).getFullYear();
-        return idx === monthIndex && itemYear === year;
-      });
-
-      rowsPagos.forEach(item => {
-        const medio = normalizePaymentMedium(item.medio);
-        const monto = Number(item.monto_total ?? item.monto ?? 0);
-        const prev = rowsMap.get(medio) || { medio, cantidad:0, total:0 };
-        prev.cantidad += 1;
-        prev.total += monto;
-        rowsMap.set(medio, prev);
-      });
-
-      const rows = [...rowsMap.values()].sort((a,b) => b.total - a.total || a.medio.localeCompare(b.medio));
-      const total = rows.reduce((acc, row) => acc + row.total, 0);
-      const cantidad = rows.reduce((acc, row) => acc + row.cantidad, 0);
-      const promedio = cantidad ? total / cantidad : 0;
-      const principal = rows[0]?.medio || '—';
-
-      return {
-        rows: rows.map(row => ({
-          ...row,
-          porcentaje: total > 0 ? (row.total / total) * 100 : 0
-        })),
-        summary: { total, cantidad, promedio, principal }
-      };
-    }
-
-    function buildBalanceMediosTableRows(rows){
-      return rows.map(row => `
-        <tr>
-          <td><b>${escapeHtml(row.medio)}</b></td>
-          <td>${row.cantidad}</td>
-          <td class="right">${fmtARS.format(row.total)}</td>
-          <td class="right">${row.porcentaje.toFixed(2)}%</td>
-        </tr>
-      `).join('');
-    }
-
-function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
+    function buildBalanceYearSummary(year, pagos, gastos){
       const recaudacion = Array(12).fill(0);
       const gastosMes = Array(12).fill(0);
 
       (pagos || []).forEach(item => {
         const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
-        if (idx >= 0) recaudacion[idx] += Number(item.monto_total ?? item.monto ?? 0);
+        if (idx >= 0) recaudacion[idx] += Number(item.monto || 0);
       });
 
       (gastos || []).forEach(item => {
@@ -7461,10 +6869,8 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       const recaudacionSobreSaldo = recaudacion.map((value, idx) => safePercent(value, saldo[idx]));
 
       const now = new Date();
-      const currentMonthIndex = Number.isInteger(selectedMonthIndex) ? selectedMonthIndex : (now.getFullYear() === year ? now.getMonth() : 11);
-      const currentMonthDays = (now.getFullYear() === year && now.getMonth() === currentMonthIndex)
-        ? now.getDate()
-        : daysInMonth(year, currentMonthIndex);
+      const currentMonthIndex = now.getFullYear() === year ? now.getMonth() : 11;
+      const currentMonthDays = now.getFullYear() === year ? now.getDate() : daysInMonth(year, currentMonthIndex);
       const monthTotalDays = daysInMonth(year, currentMonthIndex);
 
       const recMesActual = recaudacion[currentMonthIndex] || 0;
@@ -7473,7 +6879,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       const saldoActual = saldo[currentMonthIndex] || 0;
 
       const proyFactor = currentMonthDays > 0 ? (monthTotalDays / currentMonthDays) : 0;
-      const proyeccion = (now.getFullYear() === year && now.getMonth() === currentMonthIndex) ? {
+      const proyeccion = now.getFullYear() === year ? {
         recaudacion: recMesActual * proyFactor,
         gastos: gastosActual * proyFactor,
         ganancia: gananciaActual * proyFactor
@@ -7510,9 +6916,6 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
     }
 
     function buildBalanceTableRows(rows){
-      if (!rows || !rows.length){
-        return `<tr><td colspan="8"><div class="docs-empty-state">No hay datos para mostrar en el mes seleccionado.</div></td></tr>`;
-      }
       return rows.map(row => `
         <tr>
           <td><b>${row.mes}</b></td>
@@ -7527,7 +6930,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       `).join('');
     }
 
-    function renderBalanceCharts(rows, mediosRows=[]){
+    function renderBalanceCharts(rows){
       if (typeof Chart === 'undefined') return;
 
       destroyBalanceCharts();
@@ -7593,19 +6996,6 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
           maintainAspectRatio: false
         }
       });
-
-      mk('balChartMedios', {
-        type: 'bar',
-        data: {
-          labels: mediosRows.map(r => r.medio),
-          datasets: [{ label: 'Ingresos', data: mediosRows.map(r => Number(r.total.toFixed(2))), borderWidth: 1 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
     }
 
     function handleBalanceSearchInput(){
@@ -7617,18 +7007,12 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       const el = $('viewBalance');
       if (!el) return;
 
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const currentMonth = now.getMonth();
+      const currentYear = new Date().getFullYear();
       balancePageState.query = $('balanceSearch')?.value || balancePageState.query || '';
-      balancePageState.month = $('balanceMonth')?.value || balancePageState.month || String(currentMonth);
       const selectedYear = Number($('balanceYear')?.value || currentYear);
-      const selectedMonth = Number(balancePageState.month || currentMonth);
-
       const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
         .map(year => `<option value="${year}">${year}</option>`)
         .join('');
-      const monthOptions = BALANCE_MONTHS.map((label, idx) => `<option value="${idx}">${label}</option>`).join('');
 
       el.innerHTML = `
         <div class="section-hero balance">
@@ -7642,9 +7026,6 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
               </div>
               <div class="section-hero-toolbar balance">
                 <input id="balanceSearch" placeholder="Buscar en balance..." value="${escapeHtml(balancePageState.query || '')}" oninput="handleBalanceSearchInput()">
-                <select id="balanceMonth" style="width:180px">
-                  ${monthOptions}
-                </select>
                 <select id="balanceYear" style="width:140px">
                   ${yearOptions}
                 </select>
@@ -7657,44 +7038,10 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
 
         <div class="card">
           <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Recaudación bruta del mes</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted">Todo lo cobrado en el mes elegido</div></div>
-            <div class="kpi"><div class="label">Gastos del mes</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted">Egresos cargados en el mes elegido</div></div>
+            <div class="kpi"><div class="label">Recaudación bruta del mes</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted">Todo lo cobrado en el mes</div></div>
+            <div class="kpi"><div class="label">Gastos del mes</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted">Egresos cargados en el mes</div></div>
             <div class="kpi"><div class="label">Ganancia del mes</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted">Recaudación - gastos</div></div>
-            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted">Acumulado hasta el mes elegido</div></div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:end;">
-            <div>
-              <h3 style="margin:0;">Ingresos del mes por medio de pago</h3>
-              <div class="muted">De toda la plata que entró, se separa cuánto fue en efectivo, Mercado Pago, transferencia y demás.</div>
-            </div>
-          </div>
-          <div class="balance-medios-kpis">
-            <div class="kpi"><div class="label">Total ingresado</div><div class="value" id="balMediosTotal">${fmtARS.format(0)}</div><div class="muted">Ingreso del mes seleccionado</div></div>
-            <div class="kpi"><div class="label">Cobros registrados</div><div class="value" id="balMediosCantidad">0</div><div class="muted">Cantidad de movimientos</div></div>
-            <div class="kpi"><div class="label">Promedio por cobro</div><div class="value" id="balMediosPromedio">${fmtARS.format(0)}</div><div class="muted">Promedio del mes</div></div>
-            <div class="kpi"><div class="label">Medio principal</div><div class="value" id="balMediosPrincipal">—</div><div class="muted">El que más dinero movió</div></div>
-          </div>
-          <div class="balance-medios-grid">
-            <div class="tableWrap" style="margin-top:12px;">
-              <table class="balance-table balance-medios-table" style="min-width:760px;">
-                <thead>
-                  <tr>
-                    <th>Medio</th>
-                    <th>Cantidad de cobros</th>
-                    <th>Total ingresado</th>
-                    <th>% del mes</th>
-                  </tr>
-                </thead>
-                <tbody id="balanceMediosBody"></tbody>
-              </table>
-            </div>
-            <div class="card balance-chart-card large">
-              <h3 style="margin-top:0;">Ingresos por medio</h3>
-              <canvas id="balChartMedios"></canvas>
-            </div>
+            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted">Acumulado hasta el mes actual</div></div>
           </div>
         </div>
 
@@ -7716,8 +7063,8 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
         <div class="card">
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
-              <h3 style="margin:0;">Detalle del mes seleccionado</h3>
-              <div class="muted">Se muestra solo el mes elegido para que el balance quede más limpio y se vean mejor los gráficos de abajo.</div>
+              <h3 style="margin:0;">Detalle mensual</h3>
+              <div class="muted">Suma mensual de cobros, gastos, ganancia, saldo y porcentajes de control.</div>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
@@ -7742,19 +7089,19 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
 
         <div class="balance-grid">
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos del mes seleccionado</h3>
+            <h3 style="margin-top:0;">Gastos mes a mes</h3>
             <canvas id="balChartGastosMes"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos sobre facturación del mes</h3>
+            <h3 style="margin-top:0;">Gastos sobre facturación</h3>
             <canvas id="balChartGastosFact"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Utilidad sobre facturación del mes</h3>
+            <h3 style="margin-top:0;">Utilidad sobre facturación</h3>
             <canvas id="balChartUtilidadFact"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Recaudación sobre saldo del mes</h3>
+            <h3 style="margin-top:0;">Recaudación sobre saldo</h3>
             <canvas id="balChartRecaSaldo"></canvas>
           </div>
         </div>
@@ -7767,25 +7114,12 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       }
       if (yearInput) yearInput.value = String(selectedYear);
 
-      const monthInput = $('balanceMonth');
-      if (monthInput && !monthInput.dataset.bound){
-        monthInput.addEventListener('change', () => renderBalancePage());
-        monthInput.dataset.bound = '1';
-      }
-      if (monthInput) monthInput.value = String(selectedMonth);
-
       const year = Number(yearInput?.value || currentYear);
-      const monthIndex = Number(monthInput?.value || currentMonth);
       const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, monthIndex);
-      const medios = buildBalanceIngresosPorMedio(pagos, year, monthIndex);
-      const selectedMonthLabel = BALANCE_MONTHS[monthIndex] || '';
+      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
-
-      let rowsDisplay = rows.filter((row, idx) => idx === monthIndex);
-
       if (balanceQuery){
-        rowsDisplay = rowsDisplay.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
+        rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
       }
 
       if ($('balKpiRecaudacion')) $('balKpiRecaudacion').textContent = fmtARS.format(summary.recMesActual);
@@ -7793,28 +7127,20 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       if ($('balKpiGanancia')) $('balKpiGanancia').textContent = fmtARS.format(summary.gananciaActual);
       if ($('balKpiSaldo')) $('balKpiSaldo').textContent = fmtARS.format(summary.saldoActual);
 
-      if ($('balMediosTotal')) $('balMediosTotal').textContent = fmtARS.format(medios.summary.total);
-      if ($('balMediosCantidad')) $('balMediosCantidad').textContent = String(medios.summary.cantidad);
-      if ($('balMediosPromedio')) $('balMediosPromedio').textContent = fmtARS.format(medios.summary.promedio);
-      if ($('balMediosPrincipal')) $('balMediosPrincipal').textContent = medios.summary.principal;
-      if ($('balanceMediosBody')) $('balanceMediosBody').innerHTML = medios.rows.length
-        ? buildBalanceMediosTableRows(medios.rows)
-        : '<tr><td colspan="4"><div class="docs-empty-state">No hay ingresos cargados para ese mes.</div></td></tr>';
-
       if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
       if ($('balProjGanancia')) $('balProjGanancia').textContent = fmtARS.format(summary.proyeccion.ganancia);
       if ($('balAnnualResult')) $('balAnnualResult').textContent = fmtARS.format(summary.totalAnualGanancia);
-      if ($('balAnnualSub')) $('balAnnualSub').textContent = `${selectedMonthLabel || 'Mes'} elegido · Recaudado anual ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos anuales ${fmtARS.format(summary.totalAnualGastos)}`;
+      if ($('balAnnualSub')) $('balAnnualSub').textContent = `Recaudado ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos ${fmtARS.format(summary.totalAnualGastos)}`;
 
-      if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rowsDisplay);
+      if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rows);
 
       const messages = [];
       if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
 
-      renderBalanceCharts(rowsDisplay, medios.rows);
+      renderBalanceCharts(rows);
     }
 
 
@@ -8345,7 +7671,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
               <div class="config-stat">
                 <div class="eyebrow">Negocio</div>
                 <div class="value">${escapeHtml(s.negocio.nombre || 'Gestión')}</div>
-                <div class="sub">${escapeHtml(s.negocio.moneda || 'ARS')} · Sistema</div>
+                <div class="sub">${escapeHtml(s.negocio.moneda || 'ARS')} · ${escapeHtml(s.negocio.email || 'Sin email')}</div>
               </div>
               <div class="config-stat">
                 <div class="eyebrow">Próxima numeración</div>
@@ -8374,7 +7700,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
                 <p>Entrá en una sección, editá lo necesario y guardá cuando termines. Todo queda dentro del mismo panel.</p>
               </div>
               <div class="config-tabs">
-                <button type="button" class="config-tab ${tab === 'general' ? 'active' : ''}" onclick="switchConfigTab('general')"><strong>General</strong><span>Nombre del sistema y moneda.</span></button>
+                <button type="button" class="config-tab ${tab === 'general' ? 'active' : ''}" onclick="switchConfigTab('general')"><strong>General</strong><span>Marca, contacto, fiscal y moneda.</span></button>
                 <button type="button" class="config-tab ${tab === 'cobranza' ? 'active' : ''}" onclick="switchConfigTab('cobranza')"><strong>Cobranza</strong><span>Recibos, vencimientos y medios de pago.</span></button>
                 <button type="button" class="config-tab ${tab === 'docs' ? 'active' : ''}" onclick="switchConfigTab('docs')"><strong>Documentos</strong><span>Contratos, adjuntos y reglas de archivo.</span></button>
                 <button type="button" class="config-tab ${tab === 'ui' ? 'active' : ''}" onclick="switchConfigTab('ui')"><strong>Apariencia</strong><span>Tema visual, acento y densidad.</span></button>
@@ -8387,7 +7713,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
                 <div class="config-panel-head">
                   <div>
                     <h3>Datos del negocio</h3>
-                    <p>Configuración base del sistema y la moneda de trabajo.</p>
+                    <p>Información base para identificar la administración y usarla después en recibos, contratos e informes.</p>
                   </div>
                   <div class="config-inline-badges">
                     <span class="badge b-info">General</span>
@@ -8396,7 +7722,11 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
                 </div>
                 <div class="config-panel-surface">
                   <div class="field-grid">
-                    <div class="setting-field"><label>Nombre del sistema</label><input id="cfgNombre" value="Gestión de Alquiler" placeholder="Gestión de Alquiler" readonly></div>
+                    <div class="setting-field"><label>Nombre del negocio</label><input id="cfgNombre" value="${escapeAttr(s.negocio.nombre)}" placeholder="Ej. Gestión de Alquileres"></div>
+                    <div class="setting-field"><label>Teléfono</label><input id="cfgTelefono" value="${escapeAttr(s.negocio.telefono)}" placeholder="Ej. +54 376 ..."></div>
+                    <div class="setting-field"><label>Email</label><input id="cfgEmail" value="${escapeAttr(s.negocio.email)}" placeholder="admin@correo.com"></div>
+                    <div class="setting-field"><label>CUIT / identificación fiscal</label><input id="cfgCuit" value="${escapeAttr(s.negocio.cuit)}" placeholder="30-00000000-0"></div>
+                    <div class="setting-field"><label>Dirección</label><input id="cfgDireccion" value="${escapeAttr(s.negocio.direccion)}" placeholder="Dirección"></div>
                     <div class="setting-field"><label>Moneda</label><input id="cfgMoneda" value="${escapeAttr(s.negocio.moneda)}" placeholder="ARS"></div>
                   </div>
                 </div>
@@ -8579,11 +7909,11 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       });
       return normalizeSettings({
         negocio: {
-          nombre: 'Gestión de Alquiler',
-          telefono: '',
-          email: '',
-          direccion: '',
-          cuit: '',
+          nombre: $('cfgNombre')?.value || '',
+          telefono: $('cfgTelefono')?.value || '',
+          email: $('cfgEmail')?.value || '',
+          direccion: $('cfgDireccion')?.value || '',
+          cuit: $('cfgCuit')?.value || '',
           moneda: $('cfgMoneda')?.value || 'ARS'
         },
         pagos: {
