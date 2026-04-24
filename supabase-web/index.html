@@ -3193,7 +3193,7 @@
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
                   <div class="muted">Monto mensual, impuesto, ajuste, vencimiento, vigencia y observaciones.</div>
                 </div>
-                <button class="btn primary" id="detalleCondicionesBtn" onclick="openActivoModal()">Modificar alquiler</button>
+                <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
               </div>
               <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
 
@@ -5125,6 +5125,21 @@ function globalSearch(){
 
     function getContratoActivoRow(contratoId){
       return contratosActivos.find(c => String(c.id) === String(contratoId)) || null;
+    }
+
+
+    function openAlquilerModal(){
+      if (!selected?.contrato_id) {
+        alert('Primero abrí el detalle de un activo.');
+        return;
+      }
+      openActivoModal();
+      setTimeout(() => {
+        try {
+          $('actMontoMensual')?.focus();
+          $('actMontoMensual')?.scrollIntoView({ behavior:'smooth', block:'center' });
+        } catch (e){}
+      }, 50);
     }
 
     function openActivoModal(){
