@@ -4798,7 +4798,21 @@ function globalSearch(){
       const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r) : pendientes.reduce((acc, x) => acc + toNumber(x.saldo), 0);
       const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r) : toNumber(r.deuda_atrasada);
       const montoVisible = getDisplayedRent(r, contrato);
+      const impuestoActual = toNumber(contrato?.impuesto_mensual);
+      const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato.ajuste_porcentaje) : null;
+      const ajusteMesesActual = Number(contrato?.ajuste_cada_meses || 3);
+      const diaVtoLabel = contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido';
       const resumenSub = $('detalleResumenSub');
+      const detalleCondicionesBtn = $('detalleCondicionesBtn');
+
+      if (detalleCondicionesBtn){
+        const canEdit = canUseOperationalContrato(r);
+        detalleCondicionesBtn.disabled = !canEdit;
+        detalleCondicionesBtn.classList.toggle('is-disabled', !canEdit);
+        detalleCondicionesBtn.title = canEdit
+          ? 'Modificar condiciones del alquiler'
+          : 'Este activo no tiene contrato operativo para modificar desde acá.';
+      }
 
       const items = reconstructed ? [
         { label:'Código', value:r.local_codigo || '—' },
