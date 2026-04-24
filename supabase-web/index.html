@@ -1994,6 +1994,40 @@
     .balance-chart-card.large{
       min-height:320px;
     }
+    .deudores-2025-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+    .deudores-2025-table th,
+    .deudores-2025-table td,
+    .deudores-2025-table td.right,
+    .deudores-2025-table td.center{
+      text-align:center !important;
+      vertical-align:middle;
+    }
+    .deudores-2025-table td{
+      font-variant-numeric: tabular-nums;
+    }
+    .deudores-chip{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.04em;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.9);
+      color:var(--ink);
+      white-space:nowrap;
+    }
+    .deudores-chip.alta{background:rgba(254,242,242,1); border-color:#f2b0b5;}
+    .deudores-chip.media{background:rgba(255,251,235,1); border-color:#f0cf84;}
+    .deudores-chip.baja{background:rgba(239,246,255,1); border-color:#93c5fd;}
+
 .balance-table-note{
       margin-top:10px;
       font-size:12px;
@@ -2530,6 +2564,7 @@
       .detalle-resumen-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
       .balance-medios-grid{grid-template-columns:1fr;}
       .balance-medios-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .deudores-2025-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
       .recibos-grid,
       .recibo-sheet-grid,
       .recibo-amount-grid,
@@ -2541,6 +2576,7 @@
     @media (max-width: 720px){
       .detalle-resumen-grid{grid-template-columns:1fr;}
       .balance-medios-kpis{grid-template-columns:1fr;}
+      .deudores-2025-grid{grid-template-columns:1fr;}
       .detail-info-grid{grid-template-columns:1fr;}
       .recibos-toolbar-main{grid-template-columns:1fr}
       .recibos-toolbar-actions{width:100%;justify-content:stretch}
@@ -3065,6 +3101,7 @@
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
         <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos</span></button>
+        <button class="sb-item" data-route="deudores" onclick="setRoute('deudores')"><span class="sb-item-icon">🚨</span><span class="sb-item-label">Deudores</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
         
@@ -3228,7 +3265,7 @@
                 <div class="detalle-resumen-card">
                   <div class="detalle-resumen-head">
                     <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
-                    <div class="detalle-resumen-sub"></div>
+                    <div class="detalle-resumen-sub">Acá se ve mejor definido cuánto está pagando, cuánto vence y qué deuda tiene hoy.</div>
                   </div>
                   <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
                 </div>
@@ -3303,6 +3340,7 @@
 
         <section id="viewDocumentos" style="display:none;"></section>
         <section id="viewRecibos" style="display:none;"></section>
+        <section id="viewDeudores" style="display:none;"></section>
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
               </section>
@@ -3965,11 +4003,12 @@
         activos: 'Buscar unidad, código o inquilino...',
         documentos: 'Buscar contrato o archivo...',
         recibos: 'Buscar recibo, locatario o local...',
+        deudores: 'Buscar deudor, local o tipo...',
         informes: 'Buscar gastos, persona o categoría...',
         balance: 'Buscar en balance...'
       };
 
-      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'informes', 'balance']);
+      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'deudores', 'informes', 'balance']);
       const shouldHideHeader = hideHeaderRoutes.has(route);
 
       document.body.classList.toggle('route-hide-top', shouldHideHeader);
@@ -3989,6 +4028,7 @@
         activos:'viewActivos',
         documentos:'viewDocumentos',
         recibos:'viewRecibos',
+        deudores:'viewDeudores',
         informes:'viewInformes',
         balance:'viewBalance'
       };
@@ -4002,6 +4042,7 @@
 
       if (r === 'documentos') renderDocumentosPage();
       if (r === 'recibos') renderRecibosPage();
+      if (r === 'deudores') renderDeudoresPage();
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
     }
@@ -6606,8 +6647,10 @@ function globalSearch(){
     const GASTOS_STORAGE_KEY = 'ga_gastos_v1';
     const GASTOS_IMPORTED_FLAG = 'ga_gastos_imported_to_supabase_v1';
     let gastosCache = [];
+    let deudores2025Cache = [];
     let gastoEditId = null;
     let informesLoadError = '';
+    let deudores2025LoadError = '';
     let balanceCharts = [];
 
     function legacyGastosRows(){
@@ -6675,7 +6718,100 @@ function globalSearch(){
       };
     }
 
-    function getFilteredGastos(){
+    
+    async function refreshDeudores2025Data(){
+      const tbody = $('infDeuBody');
+      if (tbody){
+        tbody.innerHTML = `<tr><td colspan="7" class="center">Cargando deudores 2025...</td></tr>`;
+      }
+      if ($('infDeuMsg')) $('infDeuMsg').textContent = '';
+
+      const { data, error } = await sb
+        .from('vw_clasificacion_deudores_2025')
+        .select('*')
+        .order('deuda_total_2025', { ascending:false });
+
+      if (error){
+        deudores2025Cache = [];
+        deudores2025LoadError = error.message || 'Error cargando deudores 2025.';
+        renderDeudores2025Table();
+        return;
+      }
+
+      deudores2025Cache = data || [];
+      deudores2025LoadError = '';
+      renderDeudores2025Table();
+    }
+
+    function getFilteredDeudores2025(){
+      const q = ($('infDeuSearch')?.value || '').trim().toLowerCase();
+      const prioridad = $('infDeuPrioridad')?.value || 'TODAS';
+      const tipo = $('infDeuTipo')?.value || 'TODOS';
+
+      let rows = [...deudores2025Cache];
+      if (prioridad !== 'TODAS') rows = rows.filter(x => String(x.prioridad_deuda || '') === prioridad);
+      if (tipo !== 'TODOS') rows = rows.filter(x => String(x.tipo_deuda || '') === tipo);
+      if (q){
+        rows = rows.filter(x =>
+          String(x.local_code_normalized || '').toLowerCase().includes(q) ||
+          String(x.nombre_raw || '').toLowerCase().includes(q) ||
+          String(x.tipo_deuda || '').toLowerCase().includes(q) ||
+          String(x.prioridad_deuda || '').toLowerCase().includes(q) ||
+          String(x.meses_deuda || '').toLowerCase().includes(q)
+        );
+      }
+      rows.sort((a,b) => Number(b.deuda_total_2025 || 0) - Number(a.deuda_total_2025 || 0));
+      return rows;
+    }
+
+    function computeDeudores2025KPIs(rows){
+      const totalDeuda = rows.reduce((acc, x) => acc + Number(x.deuda_total_2025 || 0), 0);
+      const totalDeudores = rows.length;
+      const altos = rows.filter(x => x.prioridad_deuda === 'ALTA').length;
+      const puntuales = rows.filter(x => x.tipo_deuda === 'PUNTUAL / 1-2 MESES').length;
+      return { totalDeuda, totalDeudores, altos, puntuales };
+    }
+
+    function renderDeudores2025Table(){
+      const rows = getFilteredDeudores2025();
+      const tb = $('infDeuBody');
+      const msg = $('infDeuMsg');
+      if (!tb) return;
+      tb.innerHTML = '';
+
+      const k = computeDeudores2025KPIs(rows);
+      if ($('infDeuKpiTotal')) $('infDeuKpiTotal').textContent = fmtARS.format(k.totalDeuda);
+      if ($('infDeuKpiCount')) $('infDeuKpiCount').textContent = String(k.totalDeudores);
+      if ($('infDeuKpiAlta')) $('infDeuKpiAlta').textContent = String(k.altos);
+      if ($('infDeuKpiPuntual')) $('infDeuKpiPuntual').textContent = String(k.puntuales);
+      if ($('infDeuTotalRows')) $('infDeuTotalRows').textContent = `${rows.length} deudores`;
+
+      if (!rows.length){
+        tb.innerHTML = `<tr><td colspan="7"><div class="docs-empty-state">No hay deudores 2025 para ese filtro.</div></td></tr>`;
+      } else {
+        rows.forEach(x => {
+          const prioridad = String(x.prioridad_deuda || 'BAJA').toLowerCase();
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td><b>${x.local_code_normalized || '—'}</b></td>
+            <td>${x.nombre_raw || '—'}</td>
+            <td><span class="deudores-chip ${prioridad}">${x.prioridad_deuda || '—'}</span></td>
+            <td>${x.tipo_deuda || '—'}</td>
+            <td class="right">${fmtARS.format(Number(x.deuda_total_2025 || 0))}</td>
+            <td class="center">${Number(x.meses_con_deuda || 0)}</td>
+            <td>${x.meses_deuda || '—'}</td>
+          `;
+          tb.appendChild(tr);
+        });
+      }
+
+      if (msg){
+        if (deudores2025LoadError) msg.textContent = deudores2025LoadError;
+        else msg.textContent = rows.length ? '' : 'Sin registros para mostrar.';
+      }
+    }
+
+function getFilteredGastos(){
       const q = ($('infSearch')?.value || '').trim().toLowerCase();
       const categoria = $('infCategoria')?.value || 'TODOS';
       const mes = $('infMes')?.value || '';
@@ -6775,7 +6911,89 @@ function globalSearch(){
       if (!opts.keepSuccessMsg && $('gastoMsg')) $('gastoMsg').textContent = '';
     }
 
-    function renderInformesPage(){
+    function renderDeudoresPage(){
+      const el = $('viewDeudores');
+      if (!el) return;
+      el.innerHTML = `
+        <div class="section-hero informes">
+          <div class="section-hero-grid">
+            <div>
+              <div class="section-hero-main">
+                <div class="section-hero-icon">🚨</div>
+                <div>
+                  <h2 class="section-hero-title">Deudores 2025</h2>
+                </div>
+              </div>
+              <div class="muted" style="margin-top:8px;">Auditoría de deuda histórica 2025, ordenada por prioridad y tipo de deuda.</div>
+            </div>
+            <div class="section-hero-actions">
+              <button class="btn primary" onclick="refreshDeudores2025Data()">Recargar</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
+            <div>
+              <h3 style="margin:0;">Deudores 2025</h3>
+              <div class="muted">Resumen visual de la auditoría 2025, ordenado por prioridad y tipo de deuda.</div>
+            </div>
+            <span class="badge b-bad" id="infDeuTotalRows">0 deudores</span>
+          </div>
+
+          <div class="deudores-2025-grid">
+            <div class="kpi"><div class="label">Deuda total 2025</div><div class="value" id="infDeuKpiTotal">${fmtARS.format(0)}</div><div class="muted">Total del filtro actual</div></div>
+            <div class="kpi"><div class="label">Deudores visibles</div><div class="value" id="infDeuKpiCount">0</div><div class="muted">Cantidad de registros</div></div>
+            <div class="kpi"><div class="label">Prioridad alta</div><div class="value" id="infDeuKpiAlta">0</div><div class="muted">Los más urgentes</div></div>
+            <div class="kpi"><div class="label">Puntuales</div><div class="value" id="infDeuKpiPuntual">0</div><div class="muted">1 o 2 meses</div></div>
+          </div>
+
+          <div class="section-hero-toolbar" style="margin-top:14px;">
+            <button class="btn" onclick="refreshDeudores2025Data()">Recargar deudores</button>
+            <input id="infDeuSearch" placeholder="Buscar local, nombre o tipo..." oninput="renderDeudores2025Table()">
+            <select id="infDeuPrioridad" onchange="renderDeudores2025Table()">
+              <option value="TODAS">Todas las prioridades</option>
+              <option value="ALTA">Alta</option>
+              <option value="MEDIA">Media</option>
+              <option value="BAJA">Baja</option>
+            </select>
+            <select id="infDeuTipo" onchange="renderDeudores2025Table()">
+              <option value="TODOS">Todos los tipos</option>
+              <option value="TODO EL AÑO">Todo el año</option>
+              <option value="DESDE INICIO DE AÑO">Desde inicio de año</option>
+              <option value="MITAD DE AÑO EN ADELANTE">Mitad de año en adelante</option>
+              <option value="FIN DE AÑO">Fin de año</option>
+              <option value="INICIO TARDÍO">Inicio tardío</option>
+              <option value="PUNTUAL / 1-2 MESES">Puntual / 1-2 meses</option>
+              <option value="PARCIAL / MIXTA">Parcial / mixta</option>
+            </select>
+          </div>
+
+          <div class="tableWrap" style="margin-top:12px;">
+            <table class="deudores-2025-table" style="min-width:1180px;">
+              <thead>
+                <tr>
+                  <th>Local</th>
+                  <th>Locatario</th>
+                  <th>Prioridad</th>
+                  <th>Tipo de deuda</th>
+                  <th>Deuda total 2025</th>
+                  <th>Meses con deuda</th>
+                  <th>Meses adeudados</th>
+                </tr>
+              </thead>
+              <tbody id="infDeuBody"></tbody>
+            </table>
+          </div>
+          <div class="toast" id="infDeuMsg"></div>
+        </div>
+      `;
+
+      renderDeudores2025Table();
+      refreshDeudores2025Data();
+    }
+
+function renderInformesPage(){
       const el = $('viewInformes');
       el.innerHTML = `
         <div class="section-hero informes">
@@ -7450,7 +7668,7 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
               <h3 style="margin:0;">Ingresos del mes por medio de pago</h3>
-              <div class="muted"></div>
+              <div class="muted">De toda la plata que entró, se separa cuánto fue en efectivo, Mercado Pago, transferencia y demás.</div>
             </div>
           </div>
           <div class="balance-medios-kpis">
