@@ -7292,6 +7292,9 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
     }
 
     function buildBalanceTableRows(rows){
+      if (!rows || !rows.length){
+        return `<tr><td colspan="8"><div class="docs-empty-state">No hay datos para mostrar en el mes seleccionado.</div></td></tr>`;
+      }
       return rows.map(row => `
         <tr>
           <td><b>${row.mes}</b></td>
@@ -7495,8 +7498,8 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
         <div class="card">
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
-              <h3 style="margin:0;">Detalle mensual</h3>
-              <div class="muted">Suma mensual de cobros, gastos, ganancia, saldo y porcentajes de control.</div>
+              <h3 style="margin:0;">Detalle del mes seleccionado</h3>
+              <div class="muted">Se muestra solo el mes elegido para que el balance quede más limpio y se vean mejor los gráficos de abajo.</div>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
@@ -7521,19 +7524,19 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
 
         <div class="balance-grid">
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos mes a mes</h3>
+            <h3 style="margin-top:0;">Gastos del mes seleccionado</h3>
             <canvas id="balChartGastosMes"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos sobre facturación</h3>
+            <h3 style="margin-top:0;">Gastos sobre facturación del mes</h3>
             <canvas id="balChartGastosFact"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Utilidad sobre facturación</h3>
+            <h3 style="margin-top:0;">Utilidad sobre facturación del mes</h3>
             <canvas id="balChartUtilidadFact"></canvas>
           </div>
           <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Recaudación sobre saldo</h3>
+            <h3 style="margin-top:0;">Recaudación sobre saldo del mes</h3>
             <canvas id="balChartRecaSaldo"></canvas>
           </div>
         </div>
@@ -7558,9 +7561,13 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
       let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, monthIndex);
       const medios = buildBalanceIngresosPorMedio(pagos, year, monthIndex);
+      const selectedMonthLabel = BALANCE_MONTHS[monthIndex] || '';
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
+
+      let rowsDisplay = rows.filter((row, idx) => idx === monthIndex);
+
       if (balanceQuery){
-        rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
+        rowsDisplay = rowsDisplay.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
       }
 
       if ($('balKpiRecaudacion')) $('balKpiRecaudacion').textContent = fmtARS.format(summary.recMesActual);
@@ -7580,16 +7587,16 @@ function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
       if ($('balProjGanancia')) $('balProjGanancia').textContent = fmtARS.format(summary.proyeccion.ganancia);
       if ($('balAnnualResult')) $('balAnnualResult').textContent = fmtARS.format(summary.totalAnualGanancia);
-      if ($('balAnnualSub')) $('balAnnualSub').textContent = `Recaudado ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos ${fmtARS.format(summary.totalAnualGastos)}`;
+      if ($('balAnnualSub')) $('balAnnualSub').textContent = `${selectedMonthLabel || 'Mes'} elegido · Recaudado anual ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos anuales ${fmtARS.format(summary.totalAnualGastos)}`;
 
-      if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rows);
+      if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rowsDisplay);
 
       const messages = [];
       if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
 
-      renderBalanceCharts(rows, medios.rows);
+      renderBalanceCharts(rowsDisplay, medios.rows);
     }
 
 
