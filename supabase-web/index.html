@@ -3079,7 +3079,7 @@
               <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
                 <div>
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
-                  <div class="muted">Monto mensual, vencimiento, vigencia y notas del contrato.</div>
+                  <div class="muted">Monto mensual, impuestos, ajuste trimestral, vencimiento, vigencia y notas del contrato.</div>
                 </div>
                 <button class="btn primary" onclick="openActivoModal()">Editar alquiler</button>
               </div>
@@ -3251,7 +3251,7 @@
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;" id="activoModalTitle">Editar activo</h3>
-          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad y del inquilino.</div>
+          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad, del inquilino y las condiciones del alquiler.</div>
         </div>
         <button class="btn" onclick="closeActivoModal()">Cerrar</button>
       </div>
@@ -3276,6 +3276,11 @@
       <div class="row" style="margin-top:10px;">
         <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
         <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
+        <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
+        <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
       </div>
       <div class="row" style="margin-top:10px;">
         <input id="actFechaInicio" type="date" style="width:180px;">
@@ -4355,6 +4360,8 @@ function globalSearch(){
 
       const condiciones = [
         { label:'Monto mensual', value: contrato?.monto_mensual != null ? fmtARS.format(Number(contrato.monto_mensual || 0)) : 'No definido' },
+        { label:'Impuesto mensual', value: contrato?.impuesto_mensual != null ? fmtARS.format(Number(contrato.impuesto_mensual || 0)) : 'No definido' },
+        { label:'Ajuste', value: contrato?.ajuste_porcentaje != null ? `${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : `Cada ${Number(contrato?.ajuste_cada_meses || 3)} mes(es)` },
         { label:'Día de vencimiento', value: contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido' },
         { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
         { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
@@ -4627,6 +4634,9 @@ function globalSearch(){
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
       $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
+      $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
+      $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
+      $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
       $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
       $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
       $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
@@ -4654,6 +4664,10 @@ function globalSearch(){
       const telefono = ($('actTel').value || '').trim() || null;
       const email = ($('actEmail').value || '').trim() || null;
       const montoMensual = parseMoneyInput($('actMontoMensual').value);
+      const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
+      const ajustePct = parseMoneyInput($('actAjustePct').value);
+      const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
+      const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
       const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
       const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
       const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
@@ -4676,6 +4690,18 @@ function globalSearch(){
         msg.textContent = 'El monto mensual no tiene un formato válido.';
         return;
       }
+      if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
+        msg.textContent = 'El impuesto mensual no tiene un formato válido.';
+        return;
+      }
+      if ($('actAjustePct').value.trim() && ajustePct === null) {
+        msg.textContent = 'El aumento no tiene un formato válido.';
+        return;
+      }
+      if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
+        msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
+        return;
+      }
 
       const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
       if (!contrato) {
@@ -4696,6 +4722,9 @@ function globalSearch(){
       tasks.push(
         sb.from('contratos').update({
           monto_mensual: montoMensual,
+          impuesto_mensual: impuestoMensual,
+          ajuste_porcentaje: ajustePct,
+          ajuste_cada_meses: ajusteMeses || 3,
           dia_vencimiento: diaVencimiento || 10,
           fecha_inicio: fechaInicio,
           fecha_fin: fechaFin,
