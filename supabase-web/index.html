@@ -1621,7 +1621,129 @@
   </style>
 
 
-  <style id="detailInfoStyles">
+  
+  <style id="detailDebtSummaryStyles">
+    .detalle-resumen-wrap{
+      margin-top:18px;
+      display:flex;
+      justify-content:center;
+    }
+    .detalle-resumen-card{
+      width:min(100%, 1180px);
+      border:1px solid var(--border);
+      border-radius:24px;
+      padding:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.72));
+      box-shadow:0 12px 32px rgba(15,23,42,.08);
+    }
+    [data-theme="dark"] .detalle-resumen-card{
+      background:linear-gradient(180deg, rgba(15,23,36,.94), rgba(11,18,30,.98));
+      box-shadow:0 14px 34px rgba(0,0,0,.26);
+    }
+    .detalle-resumen-head{
+      text-align:center;
+      margin-bottom:14px;
+    }
+    .detalle-resumen-title{
+      margin:0;
+      font-size:20px;
+      font-weight:900;
+      color:var(--text);
+      letter-spacing:-.02em;
+    }
+    .detalle-resumen-sub{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+    }
+    .detalle-resumen-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+    }
+    .detalle-resumen-item{
+      border:1px solid var(--border);
+      border-radius:20px;
+      padding:18px 16px;
+      background:#fff;
+      text-align:center;
+      min-height:120px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:8px;
+      box-shadow:0 8px 22px rgba(15,23,42,.05);
+    }
+    [data-theme="dark"] .detalle-resumen-item{
+      background:rgba(255,255,255,.04);
+      box-shadow:none;
+    }
+    .detalle-resumen-item.destacado{
+      background:linear-gradient(180deg, #111827, #0f172a);
+      color:#fff;
+      border-color:rgba(15,23,42,.95);
+    }
+    [data-theme="dark"] .detalle-resumen-item.destacado{
+      background:linear-gradient(180deg, #f8fafc, #dce6f2);
+      color:#0f172a;
+      border-color:rgba(255,255,255,.22);
+    }
+    .detalle-resumen-item.alerta{
+      background:linear-gradient(180deg, rgba(254,242,242,1), rgba(255,255,255,1));
+      border-color:#f2b0b5;
+    }
+    [data-theme="dark"] .detalle-resumen-item.alerta{
+      background:linear-gradient(180deg, rgba(127,29,29,.36), rgba(31,41,55,.96));
+      border-color:rgba(248,113,113,.32);
+      color:#fee2e2;
+    }
+    .detalle-resumen-label{
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:900;
+      color:var(--muted);
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-label{
+      color:rgba(255,255,255,.78);
+    }
+    [data-theme="dark"] .detalle-resumen-item.destacado .detalle-resumen-label{
+      color:rgba(15,23,42,.66);
+    }
+    .detalle-resumen-value{
+      font-size:28px;
+      line-height:1.05;
+      font-weight:900;
+      color:var(--text);
+      word-break:break-word;
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-value{
+      color:inherit;
+    }
+    .detalle-resumen-meta{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+      line-height:1.35;
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-meta{
+      color:rgba(255,255,255,.78);
+    }
+    [data-theme="dark"] .detalle-resumen-item.destacado .detalle-resumen-meta{
+      color:rgba(15,23,42,.68);
+    }
+    @media (max-width: 1100px){
+      .detalle-resumen-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+    }
+    @media (max-width: 720px){
+      .detalle-resumen-grid{grid-template-columns:1fr;}
+      .detalle-resumen-item{min-height:auto;}
+    }
+  </style>
+
+
+<style id="detailInfoStyles">
     .detail-info-section{margin:0 0 18px}
     .detail-info-grid{
       display:grid;
@@ -3979,6 +4101,58 @@
       return !!row?.contrato_id && !isSyntheticContratoId(row.contrato_id);
     }
 
+    function unitPreferenceScore(row){
+      let score = 0;
+      if (canUseOperationalContrato(row)) score += 100;
+      if (row?.reconstructed) score += 40;
+      if (row?.manual_override) score += 20;
+      if (toNumber(row?.monto_sugerido_2026) > 0) score += 10;
+      if (toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total) > 0) score += 6;
+      if (String(row?.inquilino_nombre || '').trim()) score += 4;
+      return score;
+    }
+
+    function mergePreferredUnit(primary, secondary){
+      const merged = { ...secondary, ...primary };
+      if (!merged.local_codigo) merged.local_codigo = secondary?.local_codigo || secondary?.local_code_normalized || '';
+      if (!merged.local_code_normalized) merged.local_code_normalized = normLocalCode(merged.local_codigo || secondary?.local_code_normalized);
+      if (!merged.inquilino_nombre) merged.inquilino_nombre = secondary?.inquilino_nombre || '—';
+      if (!toNumber(merged.deuda_total_2025_2026)) merged.deuda_total_2025_2026 = toNumber(primary?.deuda_total_2025_2026 || secondary?.deuda_total_2025_2026);
+      if (!toNumber(merged.deuda_arrastre_2025)) merged.deuda_arrastre_2025 = toNumber(primary?.deuda_arrastre_2025 || secondary?.deuda_arrastre_2025);
+      if (!toNumber(merged.deuda_2026)) merged.deuda_2026 = toNumber(primary?.deuda_2026 || secondary?.deuda_2026);
+      if (!toNumber(merged.monto_sugerido_2026)) merged.monto_sugerido_2026 = toNumber(primary?.monto_sugerido_2026 || secondary?.monto_sugerido_2026);
+      if (!merged.prioridad_total) merged.prioridad_total = primary?.prioridad_total || secondary?.prioridad_total || null;
+      if (!merged.situacion_general) merged.situacion_general = primary?.situacion_general || secondary?.situacion_general || null;
+      if (!merged.tipo_deuda_2025) merged.tipo_deuda_2025 = primary?.tipo_deuda_2025 || secondary?.tipo_deuda_2025 || null;
+      if (!merged.tipo_deuda_2026) merged.tipo_deuda_2026 = primary?.tipo_deuda_2026 || secondary?.tipo_deuda_2026 || null;
+      merged.meses_deuda_2025 = Number(merged.meses_deuda_2025 || primary?.meses_deuda_2025 || secondary?.meses_deuda_2025 || 0);
+      merged.meses_con_deuda_2026 = Number(merged.meses_con_deuda_2026 || primary?.meses_con_deuda_2026 || secondary?.meses_con_deuda_2026 || 0);
+      merged.meses_adeudados = Number(merged.meses_adeudados || primary?.meses_adeudados || secondary?.meses_adeudados || merged.meses_deuda_2025 + merged.meses_con_deuda_2026 || 0);
+      return merged;
+    }
+
+    function dedupeUnitsByLocalCode(rows){
+      const byCode = new Map();
+      (rows || []).forEach((row) => {
+        const key = normLocalCode(row?.local_codigo || row?.local_code_normalized || '');
+        if (!key) return;
+        const current = byCode.get(key);
+        if (!current){
+          byCode.set(key, { ...row, local_codigo: key, local_code_normalized: key });
+          return;
+        }
+        const currentScore = unitPreferenceScore(current);
+        const nextScore = unitPreferenceScore(row);
+        const chooseRow = nextScore > currentScore
+          || (nextScore === currentScore && getDisplayedDebtTotal(row) > getDisplayedDebtTotal(current))
+          ? row
+          : current;
+        const other = chooseRow === row ? current : row;
+        byCode.set(key, mergePreferredUnit({ ...chooseRow, local_codigo: key, local_code_normalized: key }, other));
+      });
+      return [...byCode.values()];
+    }
+
     function getActivosReconstruidosEntryByCode(code){
       return activosReconstruidosMap.get(normLocalCode(code)) || null;
     }
@@ -4327,7 +4501,7 @@ function globalSearch(){
 
       const baseRows = (data || []).filter(r => !isSinAsignarName(r.inquilino_nombre));
       const mergedRows = baseRows.map(applyReconstructedDebtToUnit);
-      const knownCodes = new Set(mergedRows.map(r => normLocalCode(r.local_codigo)));
+      const knownCodes = new Set(mergedRows.map(r => normLocalCode(r.local_codigo || r.local_code_normalized)));
 
       activosReconstruidosMap.forEach((recon, code) => {
         if (knownCodes.has(code)) return;
@@ -4337,7 +4511,8 @@ function globalSearch(){
         mergedRows.push(buildSyntheticReconstructedUnit(recon));
       });
 
-      unidades = mergedRows.sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
+      unidades = dedupeUnitsByLocalCode(mergedRows)
+        .sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
       const realContratoIds = unidades
@@ -4657,12 +4832,14 @@ function globalSearch(){
 
       if (condicionesGrid){
         const condiciones = reconstructed ? [
-          { label:'Alquiler actual sugerido 2026', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
-          { label:'Tipo deuda 2025', value: r.tipo_deuda_2025 || '—' },
-          { label:'Tipo deuda 2026', value: r.tipo_deuda_2026 || '—' },
+          { label:'Código', value: r.local_codigo || '—' },
+          { label:'Inquilino', value: r.inquilino_nombre || inq.nombre || '—', small:true },
+          { label:'Contrato operativo', value: canUseOperationalContrato(r) ? `Sí · ${r.contrato_id}` : 'No vinculado' },
+          { label:'Prioridad', value: r.prioridad_total || '—' },
+          { label:'Tipo deuda 2025', value: r.tipo_deuda_2025 || '—', small:true },
+          { label:'Tipo deuda 2026', value: r.tipo_deuda_2026 || '—', small:true },
           { label:'Meses con deuda 2025', value: String(Number(r.meses_deuda_2025 || 0)) },
-          { label:'Meses con deuda 2026', value: String(Number(r.meses_con_deuda_2026 || 0)) },
-          { label:'Detalle', value: r.situacion_general || 'Deuda reconstruida desde auditoría', small:true }
+          { label:'Meses con deuda 2026', value: String(Number(r.meses_con_deuda_2026 || 0)) }
         ] : [
           { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
           { label:'Impuesto mensual', value: toNumber(contrato?.impuesto_mensual) > 0 ? fmtARS.format(toNumber(contrato?.impuesto_mensual)) : 'No definido' },
@@ -4683,14 +4860,14 @@ function globalSearch(){
       if (resumenGrid){
         if (resumenSub){
           resumenSub.textContent = reconstructed
-            ? `${estado} · ${r.situacion_general || 'Deuda reconstruida'}`
+            ? `${estado} · ${r.situacion_general || 'Deuda reconstruida 2025/2026'}`
             : `${estado}${proximo !== '—' ? ` · Próximo vencimiento: ${proximo}` : ''}`;
         }
         const resumen = reconstructed ? [
           { cls:'destacado', label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto mensual vigente' },
           { cls:'', label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025), meta:`${Number(r.meses_deuda_2025 || 0)} mes(es) con deuda en 2025` },
           { cls:'', label:'Deuda 2026', value:fmtARS.format(deuda2026), meta:`${Number(r.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026` },
-          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:`Estado actual: ${estado}` }
+          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:r.prioridad_total ? `Prioridad ${r.prioridad_total} · ${estado}` : `Estado actual: ${estado}` }
         ] : [
           { cls:'destacado', label:'Alquiler mensual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto base actual del locatario' },
           { cls:'', label:'Próximo vencimiento', value:proximo, meta:`Estado: ${estado}` },
