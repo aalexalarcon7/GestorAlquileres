@@ -1945,7 +1945,30 @@
       text-align:center !important;
       vertical-align:middle;
     }
-    .balance-table-note{
+    
+    .detalle-deuda-wrap{
+      max-width:100%;
+      margin:0 auto;
+    }
+    .detalle-deuda-table{
+      width:100%;
+      min-width:980px;
+      table-layout:fixed;
+    }
+    .detalle-deuda-table th,
+    .detalle-deuda-table td,
+    .detalle-deuda-table td.right,
+    .detalle-deuda-table td.center{
+      text-align:center !important;
+      vertical-align:middle;
+    }
+    .detalle-deuda-table th{
+      white-space:nowrap;
+    }
+    .detalle-deuda-table td{
+      font-variant-numeric: tabular-nums;
+    }
+.balance-table-note{
       margin-top:10px;
       font-size:12px;
       color:var(--muted);
@@ -3176,7 +3199,7 @@
                 <div class="detalle-resumen-card">
                   <div class="detalle-resumen-head">
                     <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
-                    <div class="detalle-resumen-sub">Acá se ve mejor definido cuánto está pagando, cuánto vence y qué deuda tiene hoy.</div>
+                    <div class="detalle-resumen-sub"></div>
                   </div>
                   <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
                 </div>
@@ -3190,17 +3213,17 @@
               </div>
             </div>
 
-            <div class="tableWrap">
-              <table>
+            <div class="tableWrap detalle-deuda-wrap">
+              <table class="detalle-deuda-table">
                 <thead>
                   <tr>
                     <th>Periodo</th>
                     <th>Vencimiento</th>
-                    <th class="right">Total</th>
-                    <th class="right">Pagado</th>
-                    <th class="right">Saldo</th>
-                    <th class="center">Estado</th>
-                    <th class="center">Días atraso</th>
+                    <th>Total</th>
+                    <th>Pagado</th>
+                    <th>Saldo</th>
+                    <th>Estado</th>
+                    <th>Días atraso</th>
                   </tr>
                 </thead>
                 <tbody id="detalleBody"></tbody>
