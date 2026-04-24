@@ -1968,6 +1968,32 @@
     .detalle-deuda-table td{
       font-variant-numeric: tabular-nums;
     }
+
+    .balance-medios-grid{
+      display:grid;
+      grid-template-columns:1.2fr .8fr;
+      gap:16px;
+      margin-top:16px;
+    }
+    .balance-medios-kpis{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:12px;
+      margin-top:12px;
+    }
+    .balance-medios-table th,
+    .balance-medios-table td,
+    .balance-medios-table td.right,
+    .balance-medios-table td.center{
+      text-align:center !important;
+      vertical-align:middle;
+    }
+    .balance-medios-table td{
+      font-variant-numeric: tabular-nums;
+    }
+    .balance-chart-card.large{
+      min-height:320px;
+    }
 .balance-table-note{
       margin-top:10px;
       font-size:12px;
@@ -2502,6 +2528,8 @@
     }
     @media (max-width: 1100px){
       .detalle-resumen-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .balance-medios-grid{grid-template-columns:1fr;}
+      .balance-medios-kpis{grid-template-columns:repeat(2,minmax(0,1fr));}
       .recibos-grid,
       .recibo-sheet-grid,
       .recibo-amount-grid,
@@ -2512,6 +2540,7 @@
     }
     @media (max-width: 720px){
       .detalle-resumen-grid{grid-template-columns:1fr;}
+      .balance-medios-kpis{grid-template-columns:1fr;}
       .detail-info-grid{grid-template-columns:1fr;}
       .recibos-toolbar-main{grid-template-columns:1fr}
       .recibos-toolbar-actions{width:100%;justify-content:stretch}
@@ -3199,7 +3228,7 @@
                 <div class="detalle-resumen-card">
                   <div class="detalle-resumen-head">
                     <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
-                    <div class="detalle-resumen-sub"></div>
+                    <div class="detalle-resumen-sub">Acá se ve mejor definido cuánto está pagando, cuánto vence y qué deuda tiene hoy.</div>
                   </div>
                   <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
                 </div>
@@ -3493,7 +3522,7 @@
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
-    let balancePageState = { query:'' };
+    let balancePageState = { query:'', month:'' };
     let proximoVencimientoMap = {};
     const VENCE_PRONTO_DIAS = 7;
 
@@ -7111,7 +7140,7 @@ function globalSearch(){
 
       const pagosPromise = sb
         .from('pagos')
-        .select('id, contrato_id, fecha_pago, monto, medio, referencia, created_at')
+        .select('id, contrato_id, fecha_pago, monto, monto_total, medio, referencia, created_at')
         .gte('fecha_pago', from)
         .lt('fecha_pago', to);
 
@@ -7131,13 +7160,69 @@ function globalSearch(){
       };
     }
 
-    function buildBalanceYearSummary(year, pagos, gastos){
+    
+    function normalizePaymentMedium(value){
+      const raw = String(value || '').trim().toUpperCase();
+      if (!raw) return 'SIN_MEDIO';
+      if (raw.includes('MERCADO') || raw === 'MP' || raw.includes('M.P')) return 'MERCADO PAGO';
+      if (raw.includes('EFEC')) return 'EFECTIVO';
+      if (raw.includes('TRANS')) return 'TRANSFERENCIA';
+      if (raw.includes('TARJ')) return 'TARJETA';
+      if (raw.includes('DEBI')) return 'DÉBITO';
+      if (raw.includes('CRED')) return 'CRÉDITO';
+      return raw;
+    }
+
+    function buildBalanceIngresosPorMedio(pagos, year, monthIndex){
+      const rowsMap = new Map();
+      const rowsPagos = (pagos || []).filter(item => {
+        const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
+        const itemYear = new Date(item.fecha_pago || item.created_at || today()).getFullYear();
+        return idx === monthIndex && itemYear === year;
+      });
+
+      rowsPagos.forEach(item => {
+        const medio = normalizePaymentMedium(item.medio);
+        const monto = Number(item.monto_total ?? item.monto ?? 0);
+        const prev = rowsMap.get(medio) || { medio, cantidad:0, total:0 };
+        prev.cantidad += 1;
+        prev.total += monto;
+        rowsMap.set(medio, prev);
+      });
+
+      const rows = [...rowsMap.values()].sort((a,b) => b.total - a.total || a.medio.localeCompare(b.medio));
+      const total = rows.reduce((acc, row) => acc + row.total, 0);
+      const cantidad = rows.reduce((acc, row) => acc + row.cantidad, 0);
+      const promedio = cantidad ? total / cantidad : 0;
+      const principal = rows[0]?.medio || '—';
+
+      return {
+        rows: rows.map(row => ({
+          ...row,
+          porcentaje: total > 0 ? (row.total / total) * 100 : 0
+        })),
+        summary: { total, cantidad, promedio, principal }
+      };
+    }
+
+    function buildBalanceMediosTableRows(rows){
+      return rows.map(row => `
+        <tr>
+          <td><b>${escapeHtml(row.medio)}</b></td>
+          <td>${row.cantidad}</td>
+          <td class="right">${fmtARS.format(row.total)}</td>
+          <td class="right">${row.porcentaje.toFixed(2)}%</td>
+        </tr>
+      `).join('');
+    }
+
+function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex){
       const recaudacion = Array(12).fill(0);
       const gastosMes = Array(12).fill(0);
 
       (pagos || []).forEach(item => {
         const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
-        if (idx >= 0) recaudacion[idx] += Number(item.monto || 0);
+        if (idx >= 0) recaudacion[idx] += Number(item.monto_total ?? item.monto ?? 0);
       });
 
       (gastos || []).forEach(item => {
@@ -7158,8 +7243,10 @@ function globalSearch(){
       const recaudacionSobreSaldo = recaudacion.map((value, idx) => safePercent(value, saldo[idx]));
 
       const now = new Date();
-      const currentMonthIndex = now.getFullYear() === year ? now.getMonth() : 11;
-      const currentMonthDays = now.getFullYear() === year ? now.getDate() : daysInMonth(year, currentMonthIndex);
+      const currentMonthIndex = Number.isInteger(selectedMonthIndex) ? selectedMonthIndex : (now.getFullYear() === year ? now.getMonth() : 11);
+      const currentMonthDays = (now.getFullYear() === year && now.getMonth() === currentMonthIndex)
+        ? now.getDate()
+        : daysInMonth(year, currentMonthIndex);
       const monthTotalDays = daysInMonth(year, currentMonthIndex);
 
       const recMesActual = recaudacion[currentMonthIndex] || 0;
@@ -7168,7 +7255,7 @@ function globalSearch(){
       const saldoActual = saldo[currentMonthIndex] || 0;
 
       const proyFactor = currentMonthDays > 0 ? (monthTotalDays / currentMonthDays) : 0;
-      const proyeccion = now.getFullYear() === year ? {
+      const proyeccion = (now.getFullYear() === year && now.getMonth() === currentMonthIndex) ? {
         recaudacion: recMesActual * proyFactor,
         gastos: gastosActual * proyFactor,
         ganancia: gananciaActual * proyFactor
@@ -7219,7 +7306,7 @@ function globalSearch(){
       `).join('');
     }
 
-    function renderBalanceCharts(rows){
+    function renderBalanceCharts(rows, mediosRows=[]){
       if (typeof Chart === 'undefined') return;
 
       destroyBalanceCharts();
@@ -7285,6 +7372,19 @@ function globalSearch(){
           maintainAspectRatio: false
         }
       });
+
+      mk('balChartMedios', {
+        type: 'bar',
+        data: {
+          labels: mediosRows.map(r => r.medio),
+          datasets: [{ label: 'Ingresos', data: mediosRows.map(r => Number(r.total.toFixed(2))), borderWidth: 1 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
     }
 
     function handleBalanceSearchInput(){
@@ -7296,12 +7396,18 @@ function globalSearch(){
       const el = $('viewBalance');
       if (!el) return;
 
-      const currentYear = new Date().getFullYear();
+      const now = new Date();
+      const currentYear = now.getFullYear();
+      const currentMonth = now.getMonth();
       balancePageState.query = $('balanceSearch')?.value || balancePageState.query || '';
+      balancePageState.month = $('balanceMonth')?.value || balancePageState.month || String(currentMonth);
       const selectedYear = Number($('balanceYear')?.value || currentYear);
+      const selectedMonth = Number(balancePageState.month || currentMonth);
+
       const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
         .map(year => `<option value="${year}">${year}</option>`)
         .join('');
+      const monthOptions = BALANCE_MONTHS.map((label, idx) => `<option value="${idx}">${label}</option>`).join('');
 
       el.innerHTML = `
         <div class="section-hero balance">
@@ -7315,6 +7421,9 @@ function globalSearch(){
               </div>
               <div class="section-hero-toolbar balance">
                 <input id="balanceSearch" placeholder="Buscar en balance..." value="${escapeHtml(balancePageState.query || '')}" oninput="handleBalanceSearchInput()">
+                <select id="balanceMonth" style="width:180px">
+                  ${monthOptions}
+                </select>
                 <select id="balanceYear" style="width:140px">
                   ${yearOptions}
                 </select>
@@ -7327,10 +7436,44 @@ function globalSearch(){
 
         <div class="card">
           <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Recaudación bruta del mes</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted">Todo lo cobrado en el mes</div></div>
-            <div class="kpi"><div class="label">Gastos del mes</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted">Egresos cargados en el mes</div></div>
+            <div class="kpi"><div class="label">Recaudación bruta del mes</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted">Todo lo cobrado en el mes elegido</div></div>
+            <div class="kpi"><div class="label">Gastos del mes</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted">Egresos cargados en el mes elegido</div></div>
             <div class="kpi"><div class="label">Ganancia del mes</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted">Recaudación - gastos</div></div>
-            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted">Acumulado hasta el mes actual</div></div>
+            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted">Acumulado hasta el mes elegido</div></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:end;">
+            <div>
+              <h3 style="margin:0;">Ingresos del mes por medio de pago</h3>
+              <div class="muted">De toda la plata que entró, se separa cuánto fue en efectivo, Mercado Pago, transferencia y demás.</div>
+            </div>
+          </div>
+          <div class="balance-medios-kpis">
+            <div class="kpi"><div class="label">Total ingresado</div><div class="value" id="balMediosTotal">${fmtARS.format(0)}</div><div class="muted">Ingreso del mes seleccionado</div></div>
+            <div class="kpi"><div class="label">Cobros registrados</div><div class="value" id="balMediosCantidad">0</div><div class="muted">Cantidad de movimientos</div></div>
+            <div class="kpi"><div class="label">Promedio por cobro</div><div class="value" id="balMediosPromedio">${fmtARS.format(0)}</div><div class="muted">Promedio del mes</div></div>
+            <div class="kpi"><div class="label">Medio principal</div><div class="value" id="balMediosPrincipal">—</div><div class="muted">El que más dinero movió</div></div>
+          </div>
+          <div class="balance-medios-grid">
+            <div class="tableWrap" style="margin-top:12px;">
+              <table class="balance-table balance-medios-table" style="min-width:760px;">
+                <thead>
+                  <tr>
+                    <th>Medio</th>
+                    <th>Cantidad de cobros</th>
+                    <th>Total ingresado</th>
+                    <th>% del mes</th>
+                  </tr>
+                </thead>
+                <tbody id="balanceMediosBody"></tbody>
+              </table>
+            </div>
+            <div class="card balance-chart-card large">
+              <h3 style="margin-top:0;">Ingresos por medio</h3>
+              <canvas id="balChartMedios"></canvas>
+            </div>
           </div>
         </div>
 
@@ -7403,9 +7546,18 @@ function globalSearch(){
       }
       if (yearInput) yearInput.value = String(selectedYear);
 
+      const monthInput = $('balanceMonth');
+      if (monthInput && !monthInput.dataset.bound){
+        monthInput.addEventListener('change', () => renderBalancePage());
+        monthInput.dataset.bound = '1';
+      }
+      if (monthInput) monthInput.value = String(selectedMonth);
+
       const year = Number(yearInput?.value || currentYear);
+      const monthIndex = Number(monthInput?.value || currentMonth);
       const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos);
+      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, monthIndex);
+      const medios = buildBalanceIngresosPorMedio(pagos, year, monthIndex);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
       if (balanceQuery){
         rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
@@ -7415,6 +7567,14 @@ function globalSearch(){
       if ($('balKpiGastos')) $('balKpiGastos').textContent = fmtARS.format(summary.gastosActual);
       if ($('balKpiGanancia')) $('balKpiGanancia').textContent = fmtARS.format(summary.gananciaActual);
       if ($('balKpiSaldo')) $('balKpiSaldo').textContent = fmtARS.format(summary.saldoActual);
+
+      if ($('balMediosTotal')) $('balMediosTotal').textContent = fmtARS.format(medios.summary.total);
+      if ($('balMediosCantidad')) $('balMediosCantidad').textContent = String(medios.summary.cantidad);
+      if ($('balMediosPromedio')) $('balMediosPromedio').textContent = fmtARS.format(medios.summary.promedio);
+      if ($('balMediosPrincipal')) $('balMediosPrincipal').textContent = medios.summary.principal;
+      if ($('balanceMediosBody')) $('balanceMediosBody').innerHTML = medios.rows.length
+        ? buildBalanceMediosTableRows(medios.rows)
+        : '<tr><td colspan="4"><div class="docs-empty-state">No hay ingresos cargados para ese mes.</div></td></tr>';
 
       if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
@@ -7429,7 +7589,7 @@ function globalSearch(){
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
 
-      renderBalanceCharts(rows);
+      renderBalanceCharts(rows, medios.rows);
     }
 
 
