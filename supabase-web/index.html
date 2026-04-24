@@ -3001,7 +3001,7 @@
             <div class="row" style="justify-content:space-between;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
-                <div class="muted"></div>
+                <div class="muted">Listado de unidades. Cobrá, revisá deuda y abrí el detalle completo del activo.</div>
               </div>
               <span class="badge b-info" id="unitsCount">0 resultados</span>
             </div>
@@ -3022,10 +3022,10 @@
               <table>
                 <thead>
                   <tr>
-                    <th style="width:120px;">Local</th>
+                    <th style="width:120px;">Código</th>
                     <th>Inquilino</th>
-                    <th class="right">Deuda</th>
-                    <th class="right">Atrasada</th>
+                    <th class="right">Deuda total</th>
+                    <th class="right">Arrastre 2025</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
@@ -3057,6 +3057,24 @@
                 <button class="btn" onclick="openActivoModal()">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
+
+              <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
+                <div>
+                  <h3 style="margin:0;">Condiciones y desglose</h3>
+                  <div class="muted">Alquiler actual, deuda 2025, deuda 2026 y situación reconstruida.</div>
+                </div>
+              </div>
+              <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
+
+              <div class="detalle-resumen-wrap">
+                <div class="detalle-resumen-card">
+                  <div class="detalle-resumen-head">
+                    <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
+                    <div class="detalle-resumen-sub">Vista reconstruida desde auditoría 2025 / 2026 cuando exista.</div>
+                  </div>
+                  <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
+                </div>
+              </div>
             </div>
 
             <div class="row" style="justify-content:space-between;align-items:end;">
@@ -3306,8 +3324,6 @@
     let route = "inicio";
     let user = null;
     let unidades = [];      // v_deuda_por_contrato
-    let manualDebt2026Cache = [];
-    let manualDebt2026LoadError = '';
     let selected = null;    // fila seleccionada
     let modalContrato = null;
     let recibosInternosCache = [];
@@ -3315,6 +3331,8 @@
     let recibosPageState = { query:'', local:'TODOS', month:'' };
     let balancePageState = { query:'' };
     let proximoVencimientoMap = {};
+    let activosReconstruidosMap = new Map();
+    let activosReconstruidosLoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
     const THEME_KEY = 'ga_theme';
@@ -3712,9 +3730,14 @@
     }
 
     function getContratoStatus(row){
-      const deudaAtrasada = Number(row?.deuda_atrasada || 0);
-      const deudaTotal = Number(row?.deuda_total || 0);
-      if (deudaAtrasada > 0) return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+      const deudaAtrasada = toNumber(row?.deuda_atrasada);
+      const deudaTotal = getDisplayedDebtTotal(row);
+      if (deudaAtrasada > 0 || (row?.reconstructed && deudaTotal > 0)) {
+        const priority = String(row?.prioridad_total || '').toUpperCase();
+        if (priority === 'ALTA') return { key:'ATRASADO', label:'DEUDA ALTA', className:'b-bad' };
+        if (priority === 'MEDIA') return { key:'ATRASADO', label:'DEUDA MEDIA', className:'b-warn' };
+        return { key:'ATRASADO', label:'DEUDA', className:'b-bad' };
+      }
       if (deudaTotal <= 0) return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
 
       const prox = proximoVencimientoMap[String(row?.contrato_id || '')] || null;
@@ -3772,36 +3795,6 @@
       }
 
       input.placeholder = placeholders[route] || 'Buscar...';
-    }
-
-    function normalizeLocalCode(value){
-      return String(value || '').trim().toUpperCase();
-    }
-
-    async function refreshManualDebt2026Data(){
-      try{
-        const { data, error } = await sb.from('vw_deuda_pagina_manual_2026').select('*');
-        if (error){
-          manualDebt2026Cache = [];
-          manualDebt2026LoadError = error.message || 'No se pudo cargar la deuda manual 2026.';
-          console.warn('vw_deuda_pagina_manual_2026:', manualDebt2026LoadError);
-          return false;
-        }
-        manualDebt2026Cache = Array.isArray(data) ? data : [];
-        manualDebt2026LoadError = '';
-        return true;
-      } catch (e){
-        manualDebt2026Cache = [];
-        manualDebt2026LoadError = String(e?.message || e || 'No se pudo cargar la deuda manual 2026.');
-        console.warn('vw_deuda_pagina_manual_2026:', manualDebt2026LoadError);
-        return false;
-      }
-    }
-
-    function getManualDebtByLocalCode(localCode){
-      const code = normalizeLocalCode(localCode);
-      if (!code) return null;
-      return manualDebt2026Cache.find(row => normalizeLocalCode(row?.local_code_normalized) === code) || null;
     }
 
     function setRoute(r){
@@ -3961,6 +3954,310 @@
       return String(name || '').startsWith('SIN ASIGNAR - ');
     }
 
+    function normLocalCode(value){
+      return String(value || '').trim().toUpperCase();
+    }
+
+    function toNumber(value){
+      const n = Number(value);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function makeSyntheticContratoId(code){
+      return `recon-${normLocalCode(code)}`;
+    }
+
+    function isSyntheticContratoId(value){
+      return String(value || '').startsWith('recon-');
+    }
+
+    function canUseOperationalContrato(row){
+      return !!row?.contrato_id && !isSyntheticContratoId(row.contrato_id);
+    }
+
+    function getActivosReconstruidosEntryByCode(code){
+      return activosReconstruidosMap.get(normLocalCode(code)) || null;
+    }
+
+    async function fetchSupabaseRowsSafe(source, columns='*'){
+      try{
+        const { data, error } = await sb.from(source).select(columns);
+        if (error){
+          console.warn(`No se pudo cargar ${source}:`, error.message);
+          return [];
+        }
+        return data || [];
+      } catch (e){
+        console.warn(`No se pudo cargar ${source}:`, e?.message || e);
+        return [];
+      }
+    }
+
+    
+    async function refreshActivosReconstruidosData(){
+      activosReconstruidosLoadError = '';
+
+      const directRows = await fetchSupabaseRowsSafe(
+        'vw_activos_reconstruidos',
+        'local_code_normalized,nombre_raw,monto_sugerido_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,meses_deuda_2025,meses_con_deuda_2026,meses_adeudados_total,tipo_deuda_2025,tipo_deuda_2026,prioridad_total,situacion_general,manual_override'
+      );
+
+      if ((directRows || []).length){
+        const directMap = new Map();
+        (directRows || []).forEach(row => {
+          const key = normLocalCode(row.local_code_normalized);
+          if (!key) return;
+          directMap.set(key, {
+            local_code_normalized: key,
+            nombre_raw: String(row.nombre_raw || '').trim() || '—',
+            monto_sugerido_2026: toNumber(row.monto_sugerido_2026),
+            deuda_arrastre_2025: toNumber(row.deuda_arrastre_2025),
+            deuda_total_2026: toNumber(row.deuda_total_2026),
+            deuda_total_2025_2026: toNumber(row.deuda_total_2025_2026),
+            meses_deuda_2025: Number(row.meses_deuda_2025 || 0),
+            meses_con_deuda_2026: Number(row.meses_con_deuda_2026 || 0),
+            meses_adeudados_total: Number(row.meses_adeudados_total || 0),
+            tipo_deuda_2025: row.tipo_deuda_2025 || null,
+            tipo_deuda_2026: row.tipo_deuda_2026 || null,
+            prioridad_total: row.prioridad_total || null,
+            situacion_general: row.situacion_general || null,
+            manual_override: !!row.manual_override
+          });
+        });
+        activosReconstruidosMap = directMap;
+        return directMap;
+      }
+
+      const [rows25, rows26, rowsMontos, rowsManual] = await Promise.all([
+        fetchSupabaseRowsSafe('vw_clasificacion_deudores_2025', 'local_code_normalized,nombre_raw,meses_con_deuda,deuda_total_2025,tipo_deuda,prioridad_deuda'),
+        fetchSupabaseRowsSafe('vw_clasificacion_deudores_2026_hasta_abril', 'local_code_normalized,nombre_raw,meses_con_deuda_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,tipo_deuda_2025,tipo_deuda_2026,prioridad_deuda_2026,situacion_general'),
+        fetchSupabaseRowsSafe('vw_montos_2026_sugeridos', 'local_code_normalized,nombre_raw,monto_sugerido_2026'),
+        fetchSupabaseRowsSafe('vw_deuda_pagina_manual_2026', 'local_code_normalized,nombre_planilla,monto_sugerido_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,situacion_general,prioridad_total')
+      ]);
+
+      const nextMap = new Map();
+
+      function ensureEntry(code, fallbackName=''){
+        const key = normLocalCode(code);
+        if (!key) return null;
+        if (!nextMap.has(key)){
+          nextMap.set(key, {
+            local_code_normalized: key,
+            nombre_raw: String(fallbackName || '').trim() || '—',
+            monto_sugerido_2026: 0,
+            deuda_arrastre_2025: 0,
+            deuda_total_2026: 0,
+            deuda_total_2025_2026: 0,
+            meses_deuda_2025: 0,
+            meses_con_deuda_2026: 0,
+            meses_adeudados_total: 0,
+            tipo_deuda_2025: null,
+            tipo_deuda_2026: null,
+            prioridad_total: null,
+            situacion_general: null,
+            manual_override: false
+          });
+        }
+        return nextMap.get(key);
+      }
+
+      (rows25 || []).forEach(row => {
+        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
+        if (!entry) return;
+        entry.nombre_raw = entry.nombre_raw === '—' && row.nombre_raw ? row.nombre_raw : entry.nombre_raw;
+        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_total_2025));
+        entry.meses_deuda_2025 = Math.max(entry.meses_deuda_2025, Number(row.meses_con_deuda || 0));
+        entry.tipo_deuda_2025 = row.tipo_deuda || entry.tipo_deuda_2025;
+        entry.prioridad_total = row.prioridad_deuda || entry.prioridad_total;
+      });
+
+      (rows26 || []).forEach(row => {
+        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
+        if (!entry) return;
+        entry.nombre_raw = row.nombre_raw || entry.nombre_raw;
+        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_arrastre_2025));
+        entry.deuda_total_2026 = Math.max(entry.deuda_total_2026, toNumber(row.deuda_total_2026));
+        entry.deuda_total_2025_2026 = Math.max(entry.deuda_total_2025_2026, toNumber(row.deuda_total_2025_2026));
+        entry.meses_con_deuda_2026 = Math.max(entry.meses_con_deuda_2026, Number(row.meses_con_deuda_2026 || 0));
+        entry.tipo_deuda_2025 = row.tipo_deuda_2025 || entry.tipo_deuda_2025;
+        entry.tipo_deuda_2026 = row.tipo_deuda_2026 || entry.tipo_deuda_2026;
+        entry.prioridad_total = row.prioridad_deuda_2026 || entry.prioridad_total;
+        entry.situacion_general = row.situacion_general || entry.situacion_general;
+      });
+
+      (rowsMontos || []).forEach(row => {
+        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
+        if (!entry) return;
+        entry.nombre_raw = entry.nombre_raw === '—' && row.nombre_raw ? row.nombre_raw : entry.nombre_raw;
+        entry.monto_sugerido_2026 = Math.max(entry.monto_sugerido_2026, toNumber(row.monto_sugerido_2026));
+      });
+
+      (rowsManual || []).forEach(row => {
+        const entry = ensureEntry(row.local_code_normalized, row.nombre_planilla);
+        if (!entry) return;
+        entry.nombre_raw = row.nombre_planilla || entry.nombre_raw;
+        entry.monto_sugerido_2026 = Math.max(entry.monto_sugerido_2026, toNumber(row.monto_sugerido_2026));
+        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_arrastre_2025));
+        entry.deuda_total_2026 = Math.max(entry.deuda_total_2026, toNumber(row.deuda_total_2026));
+        entry.deuda_total_2025_2026 = Math.max(entry.deuda_total_2025_2026, toNumber(row.deuda_total_2025_2026));
+        entry.situacion_general = row.situacion_general || entry.situacion_general;
+        entry.prioridad_total = row.prioridad_total || entry.prioridad_total;
+        entry.manual_override = true;
+      });
+
+      nextMap.forEach(entry => {
+        if (!entry.deuda_total_2025_2026){
+          entry.deuda_total_2025_2026 = round2(entry.deuda_arrastre_2025 + entry.deuda_total_2026);
+        }
+        entry.meses_adeudados_total = Number(entry.meses_deuda_2025 || 0) + Number(entry.meses_con_deuda_2026 || 0);
+      });
+
+      activosReconstruidosMap = nextMap;
+      return nextMap;
+    }
+
+
+    function applyReconstructedDebtToUnit(baseRow){
+      const key = normLocalCode(baseRow?.local_codigo || baseRow?.local_code_normalized || '');
+      const recon = getActivosReconstruidosEntryByCode(key);
+      if (!recon) return { ...baseRow, local_code_normalized: key, reconstructed:false };
+
+      const total = toNumber(recon.deuda_total_2025_2026);
+      const months = Number(recon.meses_adeudados_total || 0);
+
+      return {
+        ...baseRow,
+        local_code_normalized: key,
+        inquilino_nombre: recon.nombre_raw || baseRow.inquilino_nombre,
+        deuda_total: total,
+        deuda_atrasada: total,
+        meses_adeudados: months,
+        monto_sugerido_2026: toNumber(recon.monto_sugerido_2026),
+        deuda_arrastre_2025: toNumber(recon.deuda_arrastre_2025),
+        deuda_2026: toNumber(recon.deuda_total_2026),
+        deuda_total_2025_2026: total,
+        prioridad_total: recon.prioridad_total || null,
+        situacion_general: recon.situacion_general || null,
+        tipo_deuda_2025: recon.tipo_deuda_2025 || null,
+        tipo_deuda_2026: recon.tipo_deuda_2026 || null,
+        meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
+        meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
+        manual_override: !!recon.manual_override,
+        reconstructed: true
+      };
+    }
+
+    function buildSyntheticReconstructedUnit(recon){
+      const code = normLocalCode(recon.local_code_normalized);
+      const total = toNumber(recon.deuda_total_2025_2026);
+      return {
+        contrato_id: makeSyntheticContratoId(code),
+        local_codigo: code,
+        local_code_normalized: code,
+        inquilino_nombre: recon.nombre_raw || '—',
+        deuda_total: total,
+        deuda_atrasada: total,
+        meses_adeudados: Number(recon.meses_adeudados_total || 0),
+        monto_sugerido_2026: toNumber(recon.monto_sugerido_2026),
+        deuda_arrastre_2025: toNumber(recon.deuda_arrastre_2025),
+        deuda_2026: toNumber(recon.deuda_total_2026),
+        deuda_total_2025_2026: total,
+        prioridad_total: recon.prioridad_total || null,
+        situacion_general: recon.situacion_general || null,
+        tipo_deuda_2025: recon.tipo_deuda_2025 || null,
+        tipo_deuda_2026: recon.tipo_deuda_2026 || null,
+        meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
+        meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
+        manual_override: !!recon.manual_override,
+        reconstructed: true,
+        synthetic: true
+      };
+    }
+
+    async function fetchDetalleReconstruidoRows(row){
+      const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
+      if (!code) return [];
+
+      const [{ data: rows2025, error: error2025 }, { data: rows2026, error: error2026 }] = await Promise.all([
+        sb.from('vw_revision_cobros_2025_mes')
+          .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2025')
+          .eq('local_code_normalized', code)
+          .order('mes_nro', { ascending:true }),
+        sb.from('vw_revision_cobros_2026_hasta_abril_con_arrastre_2025')
+          .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2026')
+          .eq('local_code_normalized', code)
+          .order('mes_nro', { ascending:true })
+      ]);
+
+      if (error2025) console.warn('Detalle reconstruido 2025:', error2025.message);
+      if (error2026) console.warn('Detalle reconstruido 2026:', error2026.message);
+
+      const detalle2025 = (rows2025 || []).map(item => ({
+        periodo: `2025 - ${item.mes}`,
+        vencimiento: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-01`,
+        total: toNumber(item.costo_mes),
+        pagado: toNumber(item.pagado_slots),
+        saldo: toNumber(item.saldo_planilla),
+        estado_detalle: item.estado_2025 || '—',
+        dias_atraso: 0,
+        sort_key: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}`
+      }));
+
+      const detalle2026 = (rows2026 || []).map(item => ({
+        periodo: `2026 - ${item.mes}`,
+        vencimiento: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-01`,
+        total: toNumber(item.costo_mes),
+        pagado: toNumber(item.pagado_slots),
+        saldo: toNumber(item.saldo_planilla),
+        estado_detalle: item.estado_2026 || '—',
+        dias_atraso: 0,
+        sort_key: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}`
+      }));
+
+      return [...detalle2025, ...detalle2026].sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+    }
+
+    function renderDetalleDebtRows(rows){
+      const tb = $('detalleBody');
+      if (!tb) return;
+      tb.innerHTML = '';
+      if (!(rows || []).length){
+        tb.innerHTML = `<tr><td colspan="7" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        return;
+      }
+
+      rows.forEach(x => {
+        const estado = x.estado_detalle || x.estado || '—';
+        let cls = 'b-info';
+        if (String(estado).includes('ATRASAD') || String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
+        else if (String(estado).includes('PARCIAL')) cls = 'b-warn';
+        else if (String(estado).includes('SALDADA') || String(estado).includes('PAGA')) cls = 'b-ok';
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${String(x.periodo || '—')}</td>
+          <td>${String(x.vencimiento || '—').slice(0,10)}</td>
+          <td class="right">${fmtARS.format(toNumber(x.total))}</td>
+          <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
+          <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
+          <td class="center"><span class="badge ${cls}">${estado}</span></td>
+          <td class="center">${Number(x.dias_atraso || 0)}</td>
+        `;
+        tb.appendChild(tr);
+      });
+    }
+
+    function getDisplayedDebtTotal(row){
+      return toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
+    }
+
+    function getDisplayedRent(row, contrato){
+      const suggested = toNumber(row?.monto_sugerido_2026);
+      if (suggested > 0) return suggested;
+      return toNumber(contrato?.monto_mensual);
+    }
+
+
 function globalSearch(){
       const q = ($('globalSearch')?.value || '').trim();
 
@@ -4013,33 +4310,52 @@ function globalSearch(){
     }
 
     async function refreshAll(){
-      await Promise.all([
-        refreshUnidades(),
-        refreshManualDebt2026Data()
-      ]);
+      await refreshUnidades();
       if (selected?.contrato_id) await loadDetalle(selected);
     }
 
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
+      await refreshActivosReconstruidosData();
+
       const { data, error } = await sb.from('v_deuda_por_contrato').select('*').order('deuda_total', { ascending:false });
       if (error){ $('unitsMsg').textContent = error.message; return; }
-      unidades = (data || []).filter(r => !isSinAsignarName(r.inquilino_nombre));
+
+      const baseRows = (data || []).filter(r => !isSinAsignarName(r.inquilino_nombre));
+      const mergedRows = baseRows.map(applyReconstructedDebtToUnit);
+      const knownCodes = new Set(mergedRows.map(r => normLocalCode(r.local_codigo)));
+
+      activosReconstruidosMap.forEach((recon, code) => {
+        if (knownCodes.has(code)) return;
+        const total = toNumber(recon.deuda_total_2025_2026);
+        const rent = toNumber(recon.monto_sugerido_2026);
+        if (total <= 0 && rent <= 0) return;
+        mergedRows.push(buildSyntheticReconstructedUnit(recon));
+      });
+
+      unidades = mergedRows.sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
-      const { data: vencimientosData, error: vencimientosError } = await sb
-        .from('v_cobranzas')
-        .select('contrato_id, vencimiento, saldo')
-        .gt('saldo', 0)
-        .order('vencimiento', { ascending:true });
+      const realContratoIds = unidades
+        .map(item => item.contrato_id)
+        .filter(id => canUseOperationalContrato({ contrato_id:id }));
 
-      if (!vencimientosError){
-        for (const item of (vencimientosData || [])){
-          const key = String(item.contrato_id || '');
-          const venc = String(item.vencimiento || '').slice(0,10);
-          if (!key || !venc) continue;
-          if (!proximoVencimientoMap[key] || venc < proximoVencimientoMap[key]) {
-            proximoVencimientoMap[key] = venc;
+      if (realContratoIds.length){
+        const { data: vencimientosData, error: vencimientosError } = await sb
+          .from('v_cobranzas')
+          .select('contrato_id, vencimiento, saldo')
+          .in('contrato_id', realContratoIds)
+          .gt('saldo', 0)
+          .order('vencimiento', { ascending:true });
+
+        if (!vencimientosError){
+          for (const item of (vencimientosData || [])){
+            const key = String(item.contrato_id || '');
+            const venc = String(item.vencimiento || '').slice(0,10);
+            if (!key || !venc) continue;
+            if (!proximoVencimientoMap[key] || venc < proximoVencimientoMap[key]) {
+              proximoVencimientoMap[key] = venc;
+            }
           }
         }
       }
@@ -4101,14 +4417,14 @@ function globalSearch(){
           <h3 style="margin-top:0;">Top atrasados</h3>
           <div class="tableWrap desktop-table">
             <table>
-              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda</th><th class="right">Atrasada</th><th class="center">Acción</th></tr></thead>
+              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda</th><th class="right">Arrastre 2025</th><th class="center">Acción</th></tr></thead>
               <tbody>
                 ${top.map(r=>`
                   <tr>
                     <td><b>${r.local_codigo}</b></td>
                     <td>${r.inquilino_nombre}</td>
-                    <td class="right">${fmtARS.format(Number(r.deuda_total||0))}</td>
-                    <td class="right">${fmtARS.format(Number(r.deuda_atrasada||0))}</td>
+                    <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
+                    <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
                     <td class="center">
                       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                         <button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobrar</button>
@@ -4131,11 +4447,11 @@ function globalSearch(){
                 <div class="mobile-meta-grid">
                   <div class="mobile-meta">
                     <div class="label">Deuda total</div>
-                    <div class="value">${fmtARS.format(Number(r.deuda_total||0))}</div>
+                    <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
                   </div>
                   <div class="mobile-meta">
-                    <div class="label">Atrasada</div>
-                    <div class="value">${fmtARS.format(Number(r.deuda_atrasada||0))}</div>
+                    <div class="label">Arrastre 2025</div>
+                    <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
                   </div>
                 </div>
                 <div class="mobile-actions">
@@ -4157,6 +4473,7 @@ function globalSearch(){
     function openPagoFromInicio(contratoId){
       const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!unidad) return alert('No hay datos para este activo.');
+      if (!canUseOperationalContrato(unidad)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar desde acá.');
       openPagoModal(unidad);
     }
 
@@ -4165,7 +4482,7 @@ function globalSearch(){
     }
 
     function openActiveDetailByContrato(contratoId){
-      const unidad = unidades.find(x => x.contrato_id === contratoId);
+      const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!unidad) return alert('No hay datos para este activo.');
 
       setRoute('activos');
@@ -4178,6 +4495,7 @@ function globalSearch(){
     function openActiveEditByContrato(contratoId){
       const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!unidad) return alert('No hay datos para este activo.');
+      if (!canUseOperationalContrato(unidad)) return alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
       selected = unidad;
       setRoute('activos');
       openActivoModal();
@@ -4208,17 +4526,21 @@ function globalSearch(){
 
       rows.forEach(r => {
         const escaped = JSON.stringify(r).replace(/'/g,"&#39;");
+        const payButton = canUseOperationalContrato(r)
+          ? `<button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>`
+          : `<button class="btn" onclick="alert('Este activo viene de auditoría y no tiene contrato operativo vinculado.')">Sin contrato</button>`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${r.local_codigo}</b></td>
           <td>${r.inquilino_nombre}</td>
-          <td class="right">${fmtARS.format(Number(r.deuda_total||0))}</td>
-          <td class="right">${fmtARS.format(Number(r.deuda_atrasada||0))}</td>
+          <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
+          <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
           <td class="center">${Number(r.meses_adeudados||0)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
-            <button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>
-            <button class="btn" onclick="openActiveDetailByContrato('${r.contrato_id}')">Detalle</button>
+            ${payButton}
+            <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
           </td>
         `;
         tb.appendChild(tr);
@@ -4234,25 +4556,25 @@ function globalSearch(){
             <div class="mobile-tenant">${r.inquilino_nombre}</div>
             <div class="mobile-meta-grid">
               <div class="mobile-meta">
-                <div class="label">Deuda</div>
-                <div class="value">${fmtARS.format(Number(r.deuda_total||0))}</div>
+                <div class="label">Deuda total</div>
+                <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
               </div>
               <div class="mobile-meta">
-                <div class="label">Atrasada</div>
-                <div class="value">${fmtARS.format(Number(r.deuda_atrasada||0))}</div>
+                <div class="label">Arrastre 2025</div>
+                <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
+              </div>
+              <div class="mobile-meta">
+                <div class="label">Deuda 2026</div>
+                <div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div>
               </div>
               <div class="mobile-meta">
                 <div class="label">Meses</div>
                 <div class="value">${Number(r.meses_adeudados||0)}</div>
               </div>
-              <div class="mobile-meta">
-                <div class="label">Estado</div>
-                <div class="value">${getContratoStatus(r).label}</div>
-              </div>
             </div>
             <div class="mobile-actions">
-              <button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>
-              <button class="btn" onclick="openActiveDetailByContrato('${r.contrato_id}')">Detalle</button>
+              ${payButton}
+              <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
             </div>
           `;
           mobileList.appendChild(card);
@@ -4273,72 +4595,51 @@ function globalSearch(){
     function renderDetalleInfo(r, cuotasRows=[]){
       const grid = $('detalleInfoGrid');
       const condicionesGrid = $('detalleCondicionesGrid');
-      const resumenWrap = $('detalleResumenWrap');
       const resumenGrid = $('detalleResumenCobro');
       if (!grid) return;
 
-      const contrato = getContratoActivoRow(r.contrato_id) || {};
+      const contrato = contratosActivos.find(c => String(c.id) === String(r.contrato_id)) || {};
       const inq = contrato.inquilinos || {};
-      const pendientes = (cuotasRows || []).filter(x => Number(x.saldo || 0) > 0);
+      const pendientes = (cuotasRows || []).filter(x => toNumber(x.saldo) > 0);
       const proximo = pendientes
         .map(x => String(x.vencimiento || '').slice(0,10))
         .filter(Boolean)
         .sort()[0] || '—';
-      const saldoPendienteSistema = pendientes.reduce((acc, x) => acc + Number(x.saldo || 0), 0);
-      const estado = getContratoStatus(r).label;
 
-      const localCode = normalizeLocalCode(contrato?.locales?.codigo || contrato?.locales?.codigo_local || r.local_codigo || '');
-      const manualDebt = getManualDebtByLocalCode(localCode);
+      const reconstructed = !!r?.reconstructed;
+      const estado = reconstructed ? (r.situacion_general || getContratoStatus(r).label) : getContratoStatus(r).label;
+      const deudaArrastre2025 = toNumber(r.deuda_arrastre_2025);
+      const deuda2026 = toNumber(r.deuda_2026);
+      const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r) : pendientes.reduce((acc, x) => acc + toNumber(x.saldo), 0);
+      const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r) : toNumber(r.deuda_atrasada);
+      const montoVisible = getDisplayedRent(r, contrato);
 
-      const montoMensual = manualDebt ? Number(manualDebt.monto_sugerido_2026 || 0) : Number(contrato?.monto_mensual || 0);
-      const impuestoMensual = Number(contrato?.impuesto_mensual || 0);
-      const totalMensual = montoMensual + impuestoMensual;
-      const primerTotalCuota = Number((cuotasRows || [])[0]?.total || 0);
-      const totalReferencia = totalMensual > 0 ? totalMensual : primerTotalCuota;
-      const montoVisible = montoMensual > 0 ? montoMensual : Math.max(totalReferencia - impuestoMensual, 0);
-      const deudaAtrasadaSistema = Number(r.deuda_atrasada || 0);
-      const mesesAdeudados = Number(r.meses_adeudados || 0);
-      const diaVto = contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido';
-
-      const items = [
+      const items = reconstructed ? [
+        { label:'Código', value:r.local_codigo || '—' },
+        { label:'Referencia', value: canUseOperationalContrato(r) ? `Contrato ${r.contrato_id}` : 'Auditoría 2025/2026' },
+        { label:'Inquilino', value:r.inquilino_nombre || inq.nombre || '—' },
+        { label:'Situación', value:r.situacion_general || '—' },
+        { label:'Prioridad', value:r.prioridad_total || '—' },
+        { label:'Estado actual', value:estado },
+        { label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
+        { label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025) },
+        { label:'Deuda 2026', value:fmtARS.format(deuda2026) },
+        { label:'Deuda total', value:fmtARS.format(saldoPendiente) },
+        { label:'Meses adeudados', value:String(Number(r.meses_adeudados || 0)) },
+        { label:'Fuente', value:r.manual_override ? 'Vista manual 2026' : 'Auditoría reconstruida' }
+      ] : [
         { label:'Código', value:r.local_codigo || '—' },
         { label:'Contrato', value:r.contrato_id || '—' },
         { label:'Inquilino', value:r.inquilino_nombre || inq.nombre || '—' },
         { label:'Documento', value:inq.documento || '—', small:true },
         { label:'Teléfono', value:inq.telefono || '—', small:true },
         { label:'Email', value:inq.email || '—', small:true },
-        { label:'Estado actual', value: manualDebt?.situacion_general || estado },
+        { label:'Estado actual', value:estado },
         { label:'Próximo vencimiento', value:proximo },
-      ];
-
-      if (manualDebt){
-        const arrastre2025 = Number(manualDebt.deuda_arrastre_2025 || 0);
-        const deuda2026 = Number(manualDebt.deuda_total_2026 || 0);
-        const deudaTotal = Number(manualDebt.deuda_total_2025_2026 || 0);
-
-        items.push(
-          { label:'Alquiler actual', value:fmtARS.format(montoVisible) },
-          { label:'Deuda arrastre 2025', value:fmtARS.format(arrastre2025) },
-          { label:'Deuda 2026', value:fmtARS.format(deuda2026) },
-          { label:'Deuda total', value:fmtARS.format(deudaTotal) },
-        );
-      } else {
-        items.push(
-          { label:'Meses adeudados', value:String(mesesAdeudados) },
-          { label:'Saldo pendiente', value:fmtARS.format(saldoPendienteSistema) },
-          { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasadaSistema) },
-          { label:'Cuotas con deuda', value:String(pendientes.length) },
-        );
-      }
-
-      const condiciones = [
-        { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
-        { label:'Impuesto mensual', value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : 'No definido' },
-        { label:'Ajuste', value: contrato?.ajuste_porcentaje != null ? `${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : `Cada ${Number(contrato?.ajuste_cada_meses || 3)} mes(es)` },
-        { label:'Día de vencimiento', value: diaVto },
-        { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
-        { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
-        { label:'Observaciones', value: contrato?.observaciones || (manualDebt ? 'Deuda manual 2025/2026 aplicada en pantalla.' : 'Sin observaciones'), small:true },
+        { label:'Meses adeudados', value:String(Number(r.meses_adeudados || 0)) },
+        { label:'Saldo pendiente', value:fmtARS.format(saldoPendiente) },
+        { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada) },
+        { label:'Cuotas con deuda', value:String(pendientes.length) },
       ];
 
       grid.innerHTML = items.map(item => `
@@ -4349,6 +4650,22 @@ function globalSearch(){
       `).join('');
 
       if (condicionesGrid){
+        const condiciones = reconstructed ? [
+          { label:'Alquiler actual sugerido 2026', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
+          { label:'Tipo deuda 2025', value: r.tipo_deuda_2025 || '—' },
+          { label:'Tipo deuda 2026', value: r.tipo_deuda_2026 || '—' },
+          { label:'Meses con deuda 2025', value: String(Number(r.meses_deuda_2025 || 0)) },
+          { label:'Meses con deuda 2026', value: String(Number(r.meses_con_deuda_2026 || 0)) },
+          { label:'Detalle', value: r.situacion_general || 'Deuda reconstruida desde auditoría', small:true }
+        ] : [
+          { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
+          { label:'Impuesto mensual', value: toNumber(contrato?.impuesto_mensual) > 0 ? fmtARS.format(toNumber(contrato?.impuesto_mensual)) : 'No definido' },
+          { label:'Día de vencimiento', value: contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido' },
+          { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
+          { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
+          { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true }
+        ];
+
         condicionesGrid.innerHTML = condiciones.map(item => `
           <article class="detail-info-item">
             <div class="detail-info-label">${item.label}</div>
@@ -4357,135 +4674,73 @@ function globalSearch(){
         `).join('');
       }
 
-      if (resumenWrap && resumenGrid){
-        if (manualDebt){
-          const arrastre2025 = Number(manualDebt.deuda_arrastre_2025 || 0);
-          const deuda2026 = Number(manualDebt.deuda_total_2026 || 0);
-          const deudaTotal = Number(manualDebt.deuda_total_2025_2026 || 0);
+      if (resumenGrid){
+        const resumen = reconstructed ? [
+          { cls:'destacado', label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto mensual sugerido 2026' },
+          { cls:'', label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025), meta:`Meses 2025: ${Number(r.meses_deuda_2025 || 0)}` },
+          { cls:'', label:'Deuda 2026', value:fmtARS.format(deuda2026), meta:`Meses 2026: ${Number(r.meses_con_deuda_2026 || 0)}` },
+          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:r.situacion_general || 'Auditoría 2025/2026' }
+        ] : [
+          { cls:'destacado', label:'Alquiler mensual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto base actual del locatario' },
+          { cls:'', label:'Próximo vencimiento', value:proximo, meta:`Estado: ${estado}` },
+          { cls:'', label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada), meta:`Meses adeudados: ${Number(r.meses_adeudados || 0)}` },
+          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Saldo pendiente', value:fmtARS.format(saldoPendiente), meta: saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda` : 'Sin saldo pendiente' }
+        ];
 
-          resumenWrap.style.display = '';
-          const resumen = [
-            {
-              cls:'destacado',
-              label:'Alquiler actual',
-              value: fmtARS.format(montoVisible),
-              meta: 'Monto sugerido 2026 para este activo'
-            },
-            {
-              cls:'',
-              label:'Deuda arrastre 2025',
-              value: fmtARS.format(arrastre2025),
-              meta: 'Saldo pendiente heredado del año anterior'
-            },
-            {
-              cls:'',
-              label:'Deuda 2026',
-              value: fmtARS.format(deuda2026),
-              meta: 'Deuda acumulada hasta abril 2026'
-            },
-            {
-              cls:'alerta',
-              label:'Deuda total',
-              value: fmtARS.format(deudaTotal),
-              meta: `${manualDebt.situacion_general || 'Corrección manual aplicada'} · Prioridad ${manualDebt.prioridad_total || '—'}`
-            }
-          ];
-
-          resumenGrid.innerHTML = resumen.map(item => `
-            <article class="detalle-resumen-item ${item.cls}">
-              <div class="detalle-resumen-label">${item.label}</div>
-              <div class="detalle-resumen-value">${item.value}</div>
-              <div class="detalle-resumen-meta">${item.meta}</div>
-            </article>
-          `).join('');
-        } else {
-          resumenWrap.style.display = '';
-          const resumen = [
-            {
-              cls:'destacado',
-              label:'Alquiler mensual',
-              value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido',
-              meta: 'Monto base actual del locatario'
-            },
-            {
-              cls:'',
-              label:'Impuesto mensual',
-              value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : (contrato?.impuesto_mensual === 0 ? fmtARS.format(0) : 'No definido'),
-              meta: contrato?.ajuste_porcentaje != null ? `Ajuste: ${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : 'Podés revisarlo y editarlo'
-            },
-            {
-              cls:'',
-              label:'Total mensual',
-              value: totalReferencia > 0 ? fmtARS.format(totalReferencia) : 'No definido',
-              meta: `${diaVto} · Próximo vencimiento: ${proximo}`
-            },
-            {
-              cls: saldoPendienteSistema > 0 ? 'alerta' : '',
-              label:'Deuda pendiente',
-              value: fmtARS.format(saldoPendienteSistema),
-              meta: saldoPendienteSistema > 0 ? `${pendientes.length} cuota(s) con deuda · atrasada ${fmtARS.format(deudaAtrasadaSistema)}` : 'Sin saldo pendiente'
-            }
-          ];
-
-          resumenGrid.innerHTML = resumen.map(item => `
-            <article class="detalle-resumen-item ${item.cls}">
-              <div class="detalle-resumen-label">${item.label}</div>
-              <div class="detalle-resumen-value">${item.value}</div>
-              <div class="detalle-resumen-meta">${item.meta}</div>
-            </article>
-          `).join('');
-        }
+        resumenGrid.innerHTML = resumen.map(item => `
+          <article class="detalle-resumen-item ${item.cls}">
+            <div class="detalle-resumen-label">${item.label}</div>
+            <div class="detalle-resumen-value">${item.value}</div>
+            <div class="detalle-resumen-meta">${item.meta}</div>
+          </article>
+        `).join('');
       }
     }
 
     async function loadDetalle(r){
       $('detalleMsg').textContent = '';
-      if (!manualDebt2026Cache.length && !manualDebt2026LoadError){
-        await refreshManualDebt2026Data();
+      $('detalleMeta').textContent = `${r.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r.contrato_id || '—'} | Código: ${r.local_codigo} | Inquilino: ${r.inquilino_nombre}`;
+      $('detalleBadge').textContent = `Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))} | Meses: ${Number(r.meses_adeudados||0)}`;
+
+      let rows = [];
+      if (r?.reconstructed){
+        rows = await fetchDetalleReconstruidoRows(r);
+        if (!rows.length && canUseOperationalContrato(r)){
+          const { data, error } = await sb
+            .from('v_cobranzas')
+            .select('*')
+            .eq('contrato_id', r.contrato_id)
+            .order('vencimiento', { ascending:true });
+          if (error){
+            $('detalleMsg').textContent = error.message;
+          } else {
+            rows = data || [];
+          }
+        }
+      } else {
+        const { data, error } = await sb
+          .from('v_cobranzas')
+          .select('*')
+          .eq('contrato_id', r.contrato_id)
+          .order('vencimiento', { ascending:true });
+
+        if (error){
+          $('detalleMsg').textContent = error.message;
+          rows = [];
+        } else {
+          rows = data || [];
+        }
       }
 
-      const contrato = getContratoActivoRow(r.contrato_id) || {};
-      const localCode = normalizeLocalCode(contrato?.locales?.codigo || contrato?.locales?.codigo_local || r.local_codigo || '');
-      const manualDebt = getManualDebtByLocalCode(localCode);
+      renderDetalleInfo(r, rows || []);
+      renderDetalleDebtRows(rows || []);
 
-      $('detalleMeta').textContent = `Contrato: ${r.contrato_id} | Código: ${r.local_codigo} | Inquilino: ${r.inquilino_nombre}${manualDebt ? ' | Deuda manual 2025/2026 aplicada' : ''}`;
-      $('detalleBadge').textContent = manualDebt
-        ? `Deuda total: ${fmtARS.format(Number(manualDebt.deuda_total_2025_2026 || 0))} | Prioridad: ${manualDebt.prioridad_total || '—'}`
-        : `Deuda: ${fmtARS.format(Number(r.deuda_total||0))} | Meses: ${Number(r.meses_adeudados||0)}`;
-
-      const { data, error } = await sb
-        .from('v_cobranzas')
-        .select('*')
-        .eq('contrato_id', r.contrato_id)
-        .order('vencimiento', { ascending:true });
-
-      if (error){ $('detalleMsg').textContent = error.message; return; }
-
-      renderDetalleInfo(r, data || []);
-
-      const tb = $('detalleBody');
-      tb.innerHTML = '';
-      (data||[]).forEach(x => {
-        const estado = x.estado_detalle || x.estado;
-        let cls = 'b-info';
-        if (String(estado).includes('ATRASAD')) cls = 'b-bad';
-        else if (String(estado).includes('PENDIENTE')) cls = 'b-warn';
-        else if (String(estado).includes('PAGA')) cls = 'b-ok';
-
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${String(x.periodo).slice(0,10)}</td>
-          <td>${String(x.vencimiento).slice(0,10)}</td>
-          <td class="right">${fmtARS.format(Number(x.total||0))}</td>
-          <td class="right">${fmtARS.format(Number(x.pagado||0))}</td>
-          <td class="right">${fmtARS.format(Number(x.saldo||0))}</td>
-          <td class="center"><span class="badge ${cls}">${estado}</span></td>
-          <td class="center">${Number(x.dias_atraso||0)}</td>
-        `;
-        tb.appendChild(tr);
-      });
-
-      await loadDetalleDocs();
+      if (canUseOperationalContrato(r)){
+        await loadDetalleDocs();
+      } else {
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Este activo viene de auditoría y no tiene contrato operativo vinculado.</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
+      }
     }
 
     function parseMoneyToNumber(input){
@@ -4524,9 +4779,9 @@ function globalSearch(){
     function openPagoModal(r){
       modalContrato = r;
       $('modalBack').style.display = 'flex';
-      $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(Number(r.deuda_total||0))}`;
+      $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
       $('mFecha').value = today();
-      if ($('mAlquiler')) $('mAlquiler').value = '';
+      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mImpPct')) $('mImpPct').value = '';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
@@ -4678,6 +4933,10 @@ function globalSearch(){
     function openActivoModal(){
       if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
+        return;
+      }
+      if (!canUseOperationalContrato(selected)) {
+        alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
         return;
       }
 
@@ -4873,8 +5132,8 @@ function globalSearch(){
                   <tr>
                     <th>Nombre</th>
                     <th class="center">Unidades</th>
-                    <th class="right">Deuda</th>
-                    <th class="right">Atrasada</th>
+                    <th class="right">Deuda total</th>
+                    <th class="right">Arrastre 2025</th>
                     <th class="center">Estado</th>
                   </tr>
                 </thead>
@@ -4909,8 +5168,8 @@ function globalSearch(){
                 <thead>
                   <tr>
                     <th style="width:110px;">Código</th>
-                    <th class="right">Deuda</th>
-                    <th class="right">Atrasada</th>
+                    <th class="right">Deuda total</th>
+                    <th class="right">Arrastre 2025</th>
                     <th class="center">Meses</th>
                     <th class="center" style="width:220px;">Acciones</th>
                   </tr>
@@ -5006,8 +5265,9 @@ function globalSearch(){
     }
 
     function openPagoByContrato(contratoId){
-      const u = unidades.find(x => x.contrato_id === contratoId);
+      const u = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!u) return alert('No hay datos de deuda para este contrato.');
+      if (!canUseOperationalContrato(u)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar.');
       openPagoModal(u);
     }
 
@@ -5090,7 +5350,10 @@ function globalSearch(){
     }
 
     function openDocumentosFromDetalle(){
-      if (!selected?.contrato_id) return;
+      if (!selected?.contrato_id || !canUseOperationalContrato(selected)) {
+        alert('Este activo viene de auditoría y no tiene contrato operativo vinculado.');
+        return;
+      }
       docsContratoId = selected.contrato_id;
       setRoute('documentos');
     }
@@ -7600,7 +7863,7 @@ function globalSearch(){
 }
 
     async function uploadDocFromDetalle(){
-      if (!selected?.contrato_id) return;
+      if (!selected?.contrato_id || !canUseOperationalContrato(selected)) return;
       const contratoId = selected.contrato_id;
       const tipo = $('detDocTipo')?.value || 'OTRO';
       const file = $('detDocFile')?.files?.[0];
@@ -7612,7 +7875,7 @@ function globalSearch(){
     }
 
     async function loadDetalleDocs(){
-      if (!selected?.contrato_id) return;
+      if (!selected?.contrato_id || !canUseOperationalContrato(selected)) return;
       await loadDocsListInto('detDocsBody', 'detDocsMsg', selected.contrato_id, false);
     }
 
