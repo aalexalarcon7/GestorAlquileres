@@ -3190,9 +3190,10 @@
 
               <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
                 <div>
-                  <h3 style="margin:0;">Condiciones y desglose</h3>
-                  <div class="muted">Alquiler actual, deuda 2025, deuda 2026 y situación reconstruida.</div>
+                  <h3 style="margin:0;">Condiciones del alquiler</h3>
+                  <div class="muted">Monto mensual, impuesto, ajuste, vencimiento, vigencia y observaciones.</div>
                 </div>
+                <button class="btn primary" id="detalleCondicionesBtn" onclick="openActivoModal()">Modificar alquiler</button>
               </div>
               <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
 
@@ -4831,21 +4832,14 @@ function globalSearch(){
       `).join('');
 
       if (condicionesGrid){
-        const condiciones = reconstructed ? [
-          { label:'Código', value: r.local_codigo || '—' },
-          { label:'Inquilino', value: r.inquilino_nombre || inq.nombre || '—', small:true },
-          { label:'Contrato operativo', value: canUseOperationalContrato(r) ? `Sí · ${r.contrato_id}` : 'No vinculado' },
-          { label:'Prioridad', value: r.prioridad_total || '—' },
-          { label:'Tipo deuda 2025', value: r.tipo_deuda_2025 || '—', small:true },
-          { label:'Tipo deuda 2026', value: r.tipo_deuda_2026 || '—', small:true },
-          { label:'Meses con deuda 2025', value: String(Number(r.meses_deuda_2025 || 0)) },
-          { label:'Meses con deuda 2026', value: String(Number(r.meses_con_deuda_2026 || 0)) }
-        ] : [
+        const condiciones = [
           { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
-          { label:'Impuesto mensual', value: toNumber(contrato?.impuesto_mensual) > 0 ? fmtARS.format(toNumber(contrato?.impuesto_mensual)) : 'No definido' },
-          { label:'Día de vencimiento', value: contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido' },
+          { label:'Impuesto mensual', value: impuestoActual > 0 ? fmtARS.format(impuestoActual) : 'No definido' },
+          { label:'Ajuste', value: ajustePctActual != null ? `${ajustePctActual.toFixed(2)}% cada ${ajusteMesesActual} mes(es)` : `Cada ${ajusteMesesActual} mes(es)` },
+          { label:'Día de vencimiento', value: diaVtoLabel },
           { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
           { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
+          { label:'Contrato operativo', value: canUseOperationalContrato(r) ? `Sí · ${r.contrato_id}` : 'No vinculado' },
           { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true }
         ];
 
