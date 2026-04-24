@@ -3075,6 +3075,15 @@
                 <button class="btn" onclick="openActivoModal()">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
+
+              <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
+                <div>
+                  <h3 style="margin:0;">Condiciones del alquiler</h3>
+                  <div class="muted">Monto mensual, vencimiento, vigencia y notas del contrato.</div>
+                </div>
+                <button class="btn primary" onclick="openActivoModal()">Editar alquiler</button>
+              </div>
+              <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
             </div>
 
             <div class="row" style="justify-content:space-between;align-items:end;">
@@ -3261,6 +3270,21 @@
         <input id="actEmail" placeholder="Email" style="width:240px;">
       </div>
 
+      <div class="hr"></div>
+      <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
+
+      <div class="row" style="margin-top:10px;">
+        <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
+        <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="actFechaInicio" type="date" style="width:180px;">
+        <input id="actFechaFin" type="date" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
+      </div>
+
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
         <button class="btn primary" onclick="saveActivoModal()">Guardar cambios</button>
       </div>
@@ -3317,6 +3341,24 @@
 
     const $ = (id) => document.getElementById(id);
     const fmtARS = new Intl.NumberFormat("es-AR", { style:"currency", currency:"ARS", maximumFractionDigits:2 });
+
+    function formatMoneyInput(value){
+      const n = Number(value);
+      return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '';
+    }
+
+    function parseMoneyInput(value){
+      const raw = String(value ?? '').trim();
+      if (!raw) return null;
+      const normalized = raw.replace(/\./g, '').replace(/,/g, '.').replace(/\$/g, '').replace(/\s+/g, '');
+      const num = Number(normalized);
+      return Number.isFinite(num) ? num : null;
+    }
+
+    function formatDateValue(value){
+      return value ? String(value).slice(0,10) : '';
+    }
+
 
     let route = "inicio";
     let user = null;
@@ -4283,6 +4325,7 @@ function globalSearch(){
 
     function renderDetalleInfo(r, cuotasRows=[]){
       const grid = $('detalleInfoGrid');
+      const condicionesGrid = $('detalleCondicionesGrid');
       if (!grid) return;
 
       const contrato = contratosActivos.find(c => String(c.id) === String(r.contrato_id)) || {};
@@ -4310,12 +4353,29 @@ function globalSearch(){
         { label:'Cuotas con deuda', value:String(pendientes.length) },
       ];
 
+      const condiciones = [
+        { label:'Monto mensual', value: contrato?.monto_mensual != null ? fmtARS.format(Number(contrato.monto_mensual || 0)) : 'No definido' },
+        { label:'Día de vencimiento', value: contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido' },
+        { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
+        { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
+        { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true },
+      ];
+
       grid.innerHTML = items.map(item => `
         <article class="detail-info-item">
           <div class="detail-info-label">${item.label}</div>
           <div class="detail-info-value${item.small ? ' small' : ''}">${item.value}</div>
         </article>
       `).join('');
+
+      if (condicionesGrid){
+        condicionesGrid.innerHTML = condiciones.map(item => `
+          <article class="detail-info-item">
+            <div class="detail-info-label">${item.label}</div>
+            <div class="detail-info-value${item.small ? ' small' : ''}">${item.value}</div>
+          </article>
+        `).join('');
+      }
     }
 
     async function loadDetalle(r){
@@ -4566,6 +4626,11 @@ function globalSearch(){
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
+      $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
+      $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
+      $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
+      $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
+      $('actObservaciones').value = contrato?.observaciones || '';
       $('modalActivoBack').style.display = 'flex';
     }
 
@@ -4588,6 +4653,12 @@ function globalSearch(){
       const documento = ($('actDoc').value || '').trim() || null;
       const telefono = ($('actTel').value || '').trim() || null;
       const email = ($('actEmail').value || '').trim() || null;
+      const montoMensual = parseMoneyInput($('actMontoMensual').value);
+      const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
+      const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
+      const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
+      const fechaFin = ($('actFechaFin').value || '').trim() || null;
+      const observaciones = ($('actObservaciones').value || '').trim() || null;
 
       if (!codigo) {
         msg.textContent = 'El código de la unidad es obligatorio.';
@@ -4595,6 +4666,14 @@ function globalSearch(){
       }
       if (!nombre) {
         msg.textContent = 'El nombre del inquilino es obligatorio.';
+        return;
+      }
+      if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
+        msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+        return;
+      }
+      if ($('actMontoMensual').value.trim() && montoMensual === null) {
+        msg.textContent = 'El monto mensual no tiene un formato válido.';
         return;
       }
 
@@ -4614,10 +4693,15 @@ function globalSearch(){
         tasks.push(sb.from('inquilinos').update({ nombre, documento, telefono, email }).eq('id', contrato.inquilinos.id));
       }
 
-      if (!tasks.length) {
-        msg.textContent = 'No encontré registros editables para este activo.';
-        return;
-      }
+      tasks.push(
+        sb.from('contratos').update({
+          monto_mensual: montoMensual,
+          dia_vencimiento: diaVencimiento || 10,
+          fecha_inicio: fechaInicio,
+          fecha_fin: fechaFin,
+          observaciones
+        }).eq('id', selected.contrato_id)
+      );
 
       msg.textContent = 'Guardando cambios...';
       const results = await Promise.all(tasks);
@@ -4647,7 +4731,7 @@ function globalSearch(){
     async function refreshContratosActivos(){
       const { data, error } = await sb
         .from('contratos')
-        .select('id, inquilino_id, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
+        .select('id, inquilino_id, monto_mensual, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
         .eq('estado','ACTIVO');
 
       if (error){
