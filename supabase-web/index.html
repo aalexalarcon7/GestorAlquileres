@@ -164,7 +164,15 @@
     .btn:hover{background:var(--hover)}
     .btn:active{transform:translateY(1px)}
     .btn.primary{background:var(--ok-soft);border-color:var(--ok-border)}
-    .btn.danger{background:var(--bad-soft);border-color:var(--bad-border)}
+    
+    .btn.is-disabled,
+    .btn:disabled{
+      opacity:.68;
+      cursor:not-allowed;
+      transform:none !important;
+      box-shadow:none !important;
+    }
+.btn.danger{background:var(--bad-soft);border-color:var(--bad-border)}
 
     .card{
       background:var(--card);
@@ -3070,7 +3078,7 @@
                 <div class="detalle-resumen-card">
                   <div class="detalle-resumen-head">
                     <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
-                    <div class="detalle-resumen-sub">Vista reconstruida desde auditoría 2025 / 2026 cuando exista.</div>
+                    <div class="detalle-resumen-sub" id="detalleResumenSub"></div>
                   </div>
                   <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
                 </div>
@@ -3732,16 +3740,12 @@
     function getContratoStatus(row){
       const deudaAtrasada = toNumber(row?.deuda_atrasada);
       const deudaTotal = getDisplayedDebtTotal(row);
-      if (deudaAtrasada > 0 || (row?.reconstructed && deudaTotal > 0)) {
-        const priority = String(row?.prioridad_total || '').toUpperCase();
-        if (priority === 'ALTA') return { key:'ATRASADO', label:'DEUDA ALTA', className:'b-bad' };
-        if (priority === 'MEDIA') return { key:'ATRASADO', label:'DEUDA MEDIA', className:'b-warn' };
-        return { key:'ATRASADO', label:'DEUDA', className:'b-bad' };
-      }
-      if (deudaTotal <= 0) return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
-
-      const prox = proximoVencimientoMap[String(row?.contrato_id || '')] || null;
+      const prox = canUseOperationalContrato(row) ? (proximoVencimientoMap[String(row?.contrato_id || '')] || null) : null;
       const dias = prox ? daysBetweenISO(today(), prox) : null;
+
+      if (deudaAtrasada > 0 || (row?.reconstructed && deudaTotal > 0)) {
+        return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+      }
 
       if (dias !== null && dias >= 0 && dias <= VENCE_PRONTO_DIAS) {
         return { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' };
@@ -4427,8 +4431,10 @@ function globalSearch(){
                     <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
                     <td class="center">
                       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-                        <button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobrar</button>
-                        <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Ver</button>
+                        ${canUseOperationalContrato(r)
+                          ? `<button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobro</button>`
+                          : `<button class="btn primary is-disabled" type="button" disabled title="Este activo no tiene contrato operativo para cobrar desde acá.">Cobro</button>`}
+                        <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button>
                       </div>
                     </td>
                   </tr>
@@ -4455,8 +4461,10 @@ function globalSearch(){
                   </div>
                 </div>
                 <div class="mobile-actions">
-                  <button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobrar</button>
-                  <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Ver detalle</button>
+                  ${canUseOperationalContrato(r)
+                    ? `<button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobro</button>`
+                    : `<button class="btn primary is-disabled" type="button" disabled title="Este activo no tiene contrato operativo para cobrar desde acá.">Cobro</button>`}
+                  <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button>
                 </div>
               </article>
             `).join('')}
@@ -4527,8 +4535,8 @@ function globalSearch(){
       rows.forEach(r => {
         const escaped = JSON.stringify(r).replace(/'/g,"&#39;");
         const payButton = canUseOperationalContrato(r)
-          ? `<button class="btn primary" onclick='openPagoModal(${escaped})'>Cobrar</button>`
-          : `<button class="btn" onclick="alert('Este activo viene de auditoría y no tiene contrato operativo vinculado.')">Sin contrato</button>`;
+          ? `<button class="btn primary" onclick='openPagoModal(${escaped})'>Cobro</button>`
+          : `<button class="btn primary is-disabled" type="button" disabled title="Este activo viene de auditoría y no tiene contrato operativo para cobrar desde acá.">Cobro</button>`;
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -4607,25 +4615,23 @@ function globalSearch(){
         .sort()[0] || '—';
 
       const reconstructed = !!r?.reconstructed;
-      const estado = reconstructed ? (r.situacion_general || getContratoStatus(r).label) : getContratoStatus(r).label;
+      const statusInfo = getContratoStatus(r);
+      const estado = statusInfo.label;
       const deudaArrastre2025 = toNumber(r.deuda_arrastre_2025);
       const deuda2026 = toNumber(r.deuda_2026);
       const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r) : pendientes.reduce((acc, x) => acc + toNumber(x.saldo), 0);
       const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r) : toNumber(r.deuda_atrasada);
       const montoVisible = getDisplayedRent(r, contrato);
+      const resumenSub = $('detalleResumenSub');
 
       const items = reconstructed ? [
         { label:'Código', value:r.local_codigo || '—' },
-        { label:'Referencia', value: canUseOperationalContrato(r) ? `Contrato ${r.contrato_id}` : 'Auditoría 2025/2026' },
         { label:'Inquilino', value:r.inquilino_nombre || inq.nombre || '—' },
-        { label:'Situación', value:r.situacion_general || '—' },
-        { label:'Prioridad', value:r.prioridad_total || '—' },
         { label:'Estado actual', value:estado },
-        { label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
-        { label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025) },
-        { label:'Deuda 2026', value:fmtARS.format(deuda2026) },
-        { label:'Deuda total', value:fmtARS.format(saldoPendiente) },
+        { label:'Prioridad', value:r.prioridad_total || '—' },
+        { label:'Situación', value:r.situacion_general || '—' },
         { label:'Meses adeudados', value:String(Number(r.meses_adeudados || 0)) },
+        { label:'Contrato operativo', value:canUseOperationalContrato(r) ? `Sí · ${r.contrato_id}` : 'No vinculado' },
         { label:'Fuente', value:r.manual_override ? 'Vista manual 2026' : 'Auditoría reconstruida' }
       ] : [
         { label:'Código', value:r.local_codigo || '—' },
@@ -4675,11 +4681,16 @@ function globalSearch(){
       }
 
       if (resumenGrid){
+        if (resumenSub){
+          resumenSub.textContent = reconstructed
+            ? `${estado} · ${r.situacion_general || 'Deuda reconstruida'}`
+            : `${estado}${proximo !== '—' ? ` · Próximo vencimiento: ${proximo}` : ''}`;
+        }
         const resumen = reconstructed ? [
-          { cls:'destacado', label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto mensual sugerido 2026' },
-          { cls:'', label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025), meta:`Meses 2025: ${Number(r.meses_deuda_2025 || 0)}` },
-          { cls:'', label:'Deuda 2026', value:fmtARS.format(deuda2026), meta:`Meses 2026: ${Number(r.meses_con_deuda_2026 || 0)}` },
-          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:r.situacion_general || 'Auditoría 2025/2026' }
+          { cls:'destacado', label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto mensual vigente' },
+          { cls:'', label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025), meta:`${Number(r.meses_deuda_2025 || 0)} mes(es) con deuda en 2025` },
+          { cls:'', label:'Deuda 2026', value:fmtARS.format(deuda2026), meta:`${Number(r.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026` },
+          { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:`Estado actual: ${estado}` }
         ] : [
           { cls:'destacado', label:'Alquiler mensual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto base actual del locatario' },
           { cls:'', label:'Próximo vencimiento', value:proximo, meta:`Estado: ${estado}` },
@@ -4699,8 +4710,9 @@ function globalSearch(){
 
     async function loadDetalle(r){
       $('detalleMsg').textContent = '';
+      const statusInfo = getContratoStatus(r);
       $('detalleMeta').textContent = `${r.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r.contrato_id || '—'} | Código: ${r.local_codigo} | Inquilino: ${r.inquilino_nombre}`;
-      $('detalleBadge').textContent = `Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))} | Meses: ${Number(r.meses_adeudados||0)}`;
+      $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r))}`;
 
       let rows = [];
       if (r?.reconstructed){
