@@ -1647,6 +1647,90 @@
       box-shadow:0 8px 24px rgba(15,23,42,.06);
       min-height:84px;
     }
+    .detalle-resumen-wrap{
+      margin-top:18px;
+      display:flex;
+      justify-content:center;
+    }
+    .detalle-resumen-card{
+      width:min(100%, 1180px);
+      border:1px solid var(--border);
+      border-radius:24px;
+      padding:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,.86), rgba(255,255,255,.72));
+      box-shadow:0 12px 32px rgba(15,23,42,.08);
+    }
+    .detalle-resumen-head{
+      text-align:center;
+      margin-bottom:14px;
+    }
+    .detalle-resumen-title{
+      margin:0;
+      font-size:20px;
+      font-weight:900;
+      color:var(--ink);
+    }
+    .detalle-resumen-sub{
+      margin-top:4px;
+      color:var(--muted);
+      font-size:13px;
+      font-weight:700;
+    }
+    .detalle-resumen-grid{
+      display:grid;
+      grid-template-columns:repeat(4,minmax(0,1fr));
+      gap:14px;
+    }
+    .detalle-resumen-item{
+      border:1px solid var(--border);
+      border-radius:20px;
+      padding:18px 16px;
+      background:#fff;
+      text-align:center;
+      min-height:116px;
+      display:flex;
+      flex-direction:column;
+      justify-content:center;
+      gap:8px;
+    }
+    .detalle-resumen-item.destacado{
+      background:linear-gradient(180deg, rgba(15,23,42,.98), rgba(30,41,59,.96));
+      color:#fff;
+      border-color:rgba(15,23,42,.95);
+    }
+    .detalle-resumen-item.alerta{
+      background:linear-gradient(180deg, rgba(254,242,242,1), rgba(255,255,255,1));
+      border-color:#f2b0b5;
+    }
+    .detalle-resumen-label{
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:900;
+      color:var(--muted);
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-label{
+      color:rgba(255,255,255,.78);
+    }
+    .detalle-resumen-value{
+      font-size:28px;
+      line-height:1.05;
+      font-weight:900;
+      color:var(--ink);
+      word-break:break-word;
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-value{
+      color:#fff;
+    }
+    .detalle-resumen-meta{
+      font-size:13px;
+      color:var(--muted);
+      font-weight:700;
+    }
+    .detalle-resumen-item.destacado .detalle-resumen-meta{
+      color:rgba(255,255,255,.78);
+    }
+
     [data-theme="dark"] .detail-info-item{
       background:linear-gradient(180deg, rgba(15,23,36,.92), rgba(10,17,28,.98));
       box-shadow:0 12px 26px rgba(0,0,0,.22);
@@ -2394,6 +2478,7 @@
       font-weight:700;
     }
     @media (max-width: 1100px){
+      .detalle-resumen-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
       .recibos-grid,
       .recibo-sheet-grid,
       .recibo-amount-grid,
@@ -2403,6 +2488,8 @@
       .recibos-side-actions{grid-template-columns:1fr}
     }
     @media (max-width: 720px){
+      .detalle-resumen-grid{grid-template-columns:1fr;}
+      .detail-info-grid{grid-template-columns:1fr;}
       .recibos-toolbar-main{grid-template-columns:1fr}
       .recibos-toolbar-actions{width:100%;justify-content:stretch}
       .recibos-toolbar-actions .btn,
@@ -3084,9 +3171,19 @@
                 <button class="btn primary" onclick="openActivoModal()">Editar alquiler</button>
               </div>
               <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
+
+              <div class="detalle-resumen-wrap">
+                <div class="detalle-resumen-card">
+                  <div class="detalle-resumen-head">
+                    <h3 class="detalle-resumen-title">Resumen del alquiler y la deuda</h3>
+                    <div class="detalle-resumen-sub">Acá se ve mejor definido cuánto está pagando, cuánto vence y qué deuda tiene hoy.</div>
+                  </div>
+                  <div class="detalle-resumen-grid" id="detalleResumenCobro"></div>
+                </div>
+              </div>
             </div>
 
-            <div class="row" style="justify-content:space-between;align-items:end;">
+            <div class="row" style="justify-content:space-between;align-items:end;margin-top:18px;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
                 <div class="muted">Seguimiento de vencimientos, pagos y saldo pendiente.</div>
@@ -4331,6 +4428,7 @@ function globalSearch(){
     function renderDetalleInfo(r, cuotasRows=[]){
       const grid = $('detalleInfoGrid');
       const condicionesGrid = $('detalleCondicionesGrid');
+      const resumenGrid = $('detalleResumenCobro');
       if (!grid) return;
 
       const contrato = contratosActivos.find(c => String(c.id) === String(r.contrato_id)) || {};
@@ -4343,6 +4441,16 @@ function globalSearch(){
       const saldoPendiente = pendientes.reduce((acc, x) => acc + Number(x.saldo || 0), 0);
       const estado = getContratoStatus(r).label;
 
+      const montoMensual = Number(contrato?.monto_mensual || 0);
+      const impuestoMensual = Number(contrato?.impuesto_mensual || 0);
+      const totalMensual = montoMensual + impuestoMensual;
+      const primerTotalCuota = Number((cuotasRows || [])[0]?.total || 0);
+      const totalReferencia = totalMensual > 0 ? totalMensual : primerTotalCuota;
+      const montoVisible = montoMensual > 0 ? montoMensual : Math.max(totalReferencia - impuestoMensual, 0);
+      const deudaAtrasada = Number(r.deuda_atrasada || 0);
+      const mesesAdeudados = Number(r.meses_adeudados || 0);
+      const diaVto = contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido';
+
       const items = [
         { label:'Código', value:r.local_codigo || '—' },
         { label:'Contrato', value:r.contrato_id || '—' },
@@ -4352,17 +4460,17 @@ function globalSearch(){
         { label:'Email', value:inq.email || '—', small:true },
         { label:'Estado actual', value:estado },
         { label:'Próximo vencimiento', value:proximo },
-        { label:'Meses adeudados', value:String(Number(r.meses_adeudados || 0)) },
+        { label:'Meses adeudados', value:String(mesesAdeudados) },
         { label:'Saldo pendiente', value:fmtARS.format(saldoPendiente) },
-        { label:'Deuda atrasada', value:fmtARS.format(Number(r.deuda_atrasada || 0)) },
+        { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada) },
         { label:'Cuotas con deuda', value:String(pendientes.length) },
       ];
 
       const condiciones = [
-        { label:'Monto mensual', value: contrato?.monto_mensual != null ? fmtARS.format(Number(contrato.monto_mensual || 0)) : 'No definido' },
-        { label:'Impuesto mensual', value: contrato?.impuesto_mensual != null ? fmtARS.format(Number(contrato.impuesto_mensual || 0)) : 'No definido' },
+        { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
+        { label:'Impuesto mensual', value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : 'No definido' },
         { label:'Ajuste', value: contrato?.ajuste_porcentaje != null ? `${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : `Cada ${Number(contrato?.ajuste_cada_meses || 3)} mes(es)` },
-        { label:'Día de vencimiento', value: contrato?.dia_vencimiento ? `Día ${contrato.dia_vencimiento}` : 'No definido' },
+        { label:'Día de vencimiento', value: diaVto },
         { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
         { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
         { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true },
@@ -4380,6 +4488,43 @@ function globalSearch(){
           <article class="detail-info-item">
             <div class="detail-info-label">${item.label}</div>
             <div class="detail-info-value${item.small ? ' small' : ''}">${item.value}</div>
+          </article>
+        `).join('');
+      }
+
+      if (resumenGrid){
+        const resumen = [
+          {
+            cls:'destacado',
+            label:'Alquiler mensual',
+            value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido',
+            meta: 'Monto base actual del locatario'
+          },
+          {
+            cls:'',
+            label:'Impuesto mensual',
+            value: impuestoMensual > 0 ? fmtARS.format(impuestoMensual) : (contrato?.impuesto_mensual === 0 ? fmtARS.format(0) : 'No definido'),
+            meta: contrato?.ajuste_porcentaje != null ? `Ajuste: ${Number(contrato.ajuste_porcentaje || 0).toFixed(2)}% cada ${Number(contrato.ajuste_cada_meses || 3)} mes(es)` : 'Podés revisarlo y editarlo'
+          },
+          {
+            cls:'',
+            label:'Total mensual',
+            value: totalReferencia > 0 ? fmtARS.format(totalReferencia) : 'No definido',
+            meta: `${diaVto} · Próximo vencimiento: ${proximo}`
+          },
+          {
+            cls: saldoPendiente > 0 ? 'alerta' : '',
+            label:'Deuda pendiente',
+            value: fmtARS.format(saldoPendiente),
+            meta: saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda · atrasada ${fmtARS.format(deudaAtrasada)}` : 'Sin saldo pendiente'
+          }
+        ];
+
+        resumenGrid.innerHTML = resumen.map(item => `
+          <article class="detalle-resumen-item ${item.cls}">
+            <div class="detalle-resumen-label">${item.label}</div>
+            <div class="detalle-resumen-value">${item.value}</div>
+            <div class="detalle-resumen-meta">${item.meta}</div>
           </article>
         `).join('');
       }
