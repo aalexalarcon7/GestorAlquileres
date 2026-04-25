@@ -4815,53 +4815,53 @@ function globalSearch(){
             : 'Este activo no tiene contrato operativo para modificar desde acá.';
         }
 
-        const items = reconstructed ? [
-          { label:'Código', value:r?.local_codigo || '—' },
-          { label:'Inquilino', value:r?.inquilino_nombre || inq?.nombre || '—' },
-          { label:'Estado actual', value:estado },
-          { label:'Prioridad', value:r?.prioridad_total || '—' },
-          { label:'Situación', value:r?.situacion_general || '—' },
-          { label:'Meses adeudados', value:String(Number(r?.meses_adeudados || 0)) },
-          { label:'Contrato operativo', value:canUseOperationalContrato(r) ? `Sí · ${r?.contrato_id}` : 'No vinculado' },
-          { label:'Fuente', value:r?.manual_override ? 'Vista manual 2026' : 'Auditoría reconstruida' }
+        const datosItems = reconstructed ? [
+          ['Código', r?.local_codigo || '—', false],
+          ['Inquilino', r?.inquilino_nombre || inq?.nombre || '—', false],
+          ['Estado actual', estado, false],
+          ['Prioridad', r?.prioridad_total || '—', false],
+          ['Situación', r?.situacion_general || '—', false],
+          ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
+          ['Contrato operativo', canUseOperationalContrato(r) ? `Sí · ${r?.contrato_id}` : 'No vinculado', false],
+          ['Fuente', r?.manual_override ? 'Vista manual 2026' : 'Auditoría reconstruida', false]
         ] : [
-          { label:'Código', value:r?.local_codigo || '—' },
-          { label:'Contrato', value:r?.contrato_id || '—' },
-          { label:'Inquilino', value:r?.inquilino_nombre || inq?.nombre || '—' },
-          { label:'Documento', value:inq?.documento || '—', small:true },
-          { label:'Teléfono', value:inq?.telefono || '—', small:true },
-          { label:'Email', value:inq?.email || '—', small:true },
-          { label:'Estado actual', value:estado },
-          { label:'Próximo vencimiento', value:proximo },
-          { label:'Meses adeudados', value:String(Number(r?.meses_adeudados || 0)) },
-          { label:'Saldo pendiente', value:fmtARS.format(saldoPendiente) },
-          { label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada) },
-          { label:'Cuotas con deuda', value:String(pendientes.length) },
+          ['Código', r?.local_codigo || '—', false],
+          ['Contrato', r?.contrato_id || '—', false],
+          ['Inquilino', r?.inquilino_nombre || inq?.nombre || '—', false],
+          ['Documento', inq?.documento || '—', true],
+          ['Teléfono', inq?.telefono || '—', true],
+          ['Email', inq?.email || '—', true],
+          ['Estado actual', estado, false],
+          ['Próximo vencimiento', proximo, false],
+          ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
+          ['Saldo pendiente', fmtARS.format(saldoPendiente), false],
+          ['Deuda atrasada', fmtARS.format(deudaAtrasada), false],
+          ['Cuotas con deuda', String(pendientes.length), false]
         ];
 
-        grid.innerHTML = items.map(item => `
+        grid.innerHTML = datosItems.map(([label, value, small]) => `
           <article class="detail-info-item">
-            <div class="detail-info-label">${item.label}</div>
-            <div class="detail-info-value${item.small ? ' small' : ''}">${item.value}</div>
+            <div class="detail-info-label">${label}</div>
+            <div class="detail-info-value${small ? ' small' : ''}">${value}</div>
           </article>
         `).join('');
 
         if (condicionesGrid){
-          const condiciones = [
-            { label:'Monto mensual', value: montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido' },
-            { label:'Impuesto mensual', value: impuestoActual > 0 ? fmtARS.format(impuestoActual) : 'No definido' },
-            { label:'Ajuste', value: ajustePctActual != null ? `${ajustePctActual.toFixed(2)}% cada ${ajusteMesesActual} mes(es)` : `Cada ${ajusteMesesActual} mes(es)` },
-            { label:'Día de vencimiento', value: diaVtoLabel },
-            { label:'Fecha de inicio', value: formatDateValue(contrato?.fecha_inicio) || 'No definida' },
-            { label:'Fecha de fin', value: formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin' },
-            { label:'Contrato operativo', value: canUseOperationalContrato(r) ? `Sí · ${r?.contrato_id}` : 'No vinculado' },
-            { label:'Observaciones', value: contrato?.observaciones || 'Sin observaciones', small:true }
+          const condicionesItems = [
+            ['Monto mensual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', false],
+            ['Impuesto mensual', impuestoActual > 0 ? fmtARS.format(impuestoActual) : 'No definido', false],
+            ['Ajuste', ajustePctActual != null ? `${ajustePctActual.toFixed(2)}% cada ${ajusteMesesActual} mes(es)` : `Cada ${ajusteMesesActual} mes(es)`, false],
+            ['Día de vencimiento', diaVtoLabel, false],
+            ['Fecha de inicio', formatDateValue(contrato?.fecha_inicio) || 'No definida', false],
+            ['Fecha de fin', formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin', false],
+            ['Contrato operativo', canUseOperationalContrato(r) ? `Sí · ${r?.contrato_id}` : 'No vinculado', false],
+            ['Observaciones', contrato?.observaciones || 'Sin observaciones', true]
           ];
 
-          condicionesGrid.innerHTML = condiciones.map(item => `
+          condicionesGrid.innerHTML = condicionesItems.map(([label, value, small]) => `
             <article class="detail-info-item">
-              <div class="detail-info-label">${item.label}</div>
-              <div class="detail-info-value${item.small ? ' small' : ''}">${item.value}</div>
+              <div class="detail-info-label">${label}</div>
+              <div class="detail-info-value${small ? ' small' : ''}">${value}</div>
             </article>
           `).join('');
         }
@@ -4872,23 +4872,24 @@ function globalSearch(){
               ? `${estado} · ${r?.situacion_general || 'Deuda reconstruida 2025/2026'}`
               : `${estado}${proximo !== '—' ? ` · Próximo vencimiento: ${proximo}` : ''}`;
           }
-          const resumen = reconstructed ? [
-            { cls:'destacado', label:'Alquiler actual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto mensual vigente' },
-            { cls:'', label:'Arrastre 2025', value:fmtARS.format(deudaArrastre2025), meta:`${Number(r?.meses_deuda_2025 || 0)} mes(es) con deuda en 2025` },
-            { cls:'', label:'Deuda 2026', value:fmtARS.format(deuda2026), meta:`${Number(r?.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026` },
-            { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Deuda total', value:fmtARS.format(saldoPendiente), meta:r?.prioridad_total ? `Prioridad ${r.prioridad_total} · ${estado}` : `Estado actual: ${estado}` }
+
+          const resumenItems = reconstructed ? [
+            ['destacado', 'Alquiler actual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto mensual vigente'],
+            ['', 'Arrastre 2025', fmtARS.format(deudaArrastre2025), `${Number(r?.meses_deuda_2025 || 0)} mes(es) con deuda en 2025`],
+            ['', 'Deuda 2026', fmtARS.format(deuda2026), `${Number(r?.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026`],
+            [saldoPendiente > 0 ? 'alerta' : '', 'Deuda total', fmtARS.format(saldoPendiente), r?.prioridad_total ? `Prioridad ${r.prioridad_total} · ${estado}` : `Estado actual: ${estado}`]
           ] : [
-            { cls:'destacado', label:'Alquiler mensual', value:montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', meta:'Monto base actual del locatario' },
-            { cls:'', label:'Próximo vencimiento', value:proximo, meta:`Estado: ${estado}` },
-            { cls:'', label:'Deuda atrasada', value:fmtARS.format(deudaAtrasada), meta:`Meses adeudados: ${Number(r?.meses_adeudados || 0)}` },
-            { cls: saldoPendiente > 0 ? 'alerta' : '', label:'Saldo pendiente', value:fmtARS.format(saldoPendiente), meta: saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda` : 'Sin saldo pendiente' }
+            ['destacado', 'Alquiler mensual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto base actual del locatario'],
+            ['', 'Próximo vencimiento', proximo, `Estado: ${estado}`],
+            ['', 'Deuda atrasada', fmtARS.format(deudaAtrasada), `Meses adeudados: ${Number(r?.meses_adeudados || 0)}`],
+            [saldoPendiente > 0 ? 'alerta' : '', 'Saldo pendiente', fmtARS.format(saldoPendiente), saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda` : 'Sin saldo pendiente']
           ];
 
-          resumenGrid.innerHTML = resumen.map(item => `
-            <article class="detalle-resumen-item ${item.cls}">
-              <div class="detalle-resumen-label">${item.label}</div>
-              <div class="detalle-resumen-value">${item.value}</div>
-              <div class="detalle-resumen-meta">${item.meta}</div>
+          resumenGrid.innerHTML = resumenItems.map(([cls, label, value, meta]) => `
+            <article class="detalle-resumen-item ${cls}">
+              <div class="detalle-resumen-label">${label}</div>
+              <div class="detalle-resumen-value">${value}</div>
+              <div class="detalle-resumen-meta">${meta}</div>
             </article>
           `).join('');
         }
