@@ -3007,7 +3007,7 @@
 <!-- SPLASH -->
 <div id="splash" class="splash">
   <div class="splash-card">
-    <img src="logosaladita_padded.png" class="splash-logo-img" alt="Logo">
+    <img src="logosaladita.png" class="splash-logo-img" alt="Logo">
     <div class="splash-title" id="splashTitle">Gestión de Alquileres</div>
     <div class="splash-sub">Cargando…</div>
   </div>
@@ -3184,7 +3184,7 @@
                   <h3 style="margin:0;">Datos del activo</h3>
                   <div class="muted">Información principal de la unidad, contrato e inquilino.</div>
                 </div>
-                <button class="btn" onclick="openActivoModal()">Editar activo</button>
+                <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
@@ -5178,8 +5178,9 @@ function globalSearch(){
         alert('Este activo no tiene contrato operativo para modificar desde acá.');
         return;
       }
-      activoModalMode = 'alquiler';
-      openActivoModal();
+
+      openActivoModal('alquiler');
+
       setTimeout(() => {
         try{
           $('actMontoMensual')?.focus();
@@ -5188,7 +5189,51 @@ function globalSearch(){
       }, 80);
     }
 
-    function openActivoModal(){
+    function setActivoModalModeUI(isAlquilerMode){
+      const rowsToToggle = [
+        $('actCodigo')?.closest('.row'),
+        $('actNombre')?.closest('.row'),
+        $('actDoc')?.closest('.row')
+      ].filter(Boolean);
+
+      rowsToToggle.forEach(row => {
+        row.style.display = isAlquilerMode ? 'none' : 'flex';
+      });
+
+      ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
+        const el = $(id);
+        if (el) el.disabled = !!isAlquilerMode;
+      });
+    }
+
+    function parseModalNumber(value){
+      const raw = String(value || '').trim();
+      if (!raw) return null;
+
+      let s = raw.replace(/[^\d,\.\-]/g, '');
+      const hasComma = s.includes(',');
+      const hasDot = s.includes('.');
+
+      if (hasComma && hasDot) {
+        if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+        else s = s.replace(/,/g, '');
+      } else if (hasComma && !hasDot) {
+        s = s.replace(',', '.');
+      } else {
+        const dots = (s.match(/\./g) || []).length;
+        if (dots >= 2) s = s.replace(/\./g, '');
+        else {
+          const m = s.match(/^(\-?\d+)\.(\d{3})$/);
+          if (m) s = m[1] + m[2];
+        }
+      }
+
+      const n = Number(s);
+      if (!Number.isFinite(n) || n < 0) return null;
+      return Math.round(n * 100) / 100;
+    }
+
+    function openActivoModal(mode = 'full'){
       if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
         return;
@@ -5198,6 +5243,8 @@ function globalSearch(){
         return;
       }
 
+      activoModalMode = mode === 'alquiler' ? 'alquiler' : 'full';
+
       const contrato = getContratoActivoRow(selected.contrato_id);
       const inq = contrato?.inquilinos || {};
       activoEditContrato = contrato;
@@ -5206,22 +5253,28 @@ function globalSearch(){
       $('activoModalMsg').textContent = '';
       $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
       $('activoModalMeta').textContent = isAlquilerMode
-        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Ajustá monto, impuesto, vencimiento y vigencia.`
-        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
+        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Ajustá monto, impuesto, vencimiento, vigencia y observaciones.`
+        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Editá datos generales del activo e inquilino.`;
+
       $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
       $('actContrato').value = selected.contrato_id || '';
       $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
-      $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
-      $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
+
+      $('actMontoMensual').value = formatMoneyInputValue(contrato?.monto_mensual);
+      $('actImpuestoMensual').value = formatMoneyInputValue(contrato?.impuesto_mensual);
       $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
       $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
       $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
       $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
       $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
       $('actObservaciones').value = contrato?.observaciones || '';
+
+      setActivoModalModeUI(isAlquilerMode);
+      const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
+      if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
       $('modalActivoBack').style.display = 'flex';
     }
 
@@ -5229,6 +5282,9 @@ function globalSearch(){
       $('modalActivoBack').style.display = 'none';
       activoEditContrato = null;
       activoModalMode = 'full';
+      setActivoModalModeUI(false);
+      const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
+      if (saveBtn) saveBtn.textContent = 'Guardar cambios';
     }
 
     async function saveActivoModal(){
@@ -5239,44 +5295,108 @@ function globalSearch(){
         msg.textContent = 'No hay un activo seleccionado.';
         return;
       }
-
-      const codigo = ($('actCodigo').value || '').trim();
-      const nombre = ($('actNombre').value || '').trim();
-      const documento = ($('actDoc').value || '').trim() || null;
-      const telefono = ($('actTel').value || '').trim() || null;
-      const email = ($('actEmail').value || '').trim() || null;
-
-      if (!codigo) {
-        msg.textContent = 'El código de la unidad es obligatorio.';
-        return;
-      }
-      if (!nombre) {
-        msg.textContent = 'El nombre del inquilino es obligatorio.';
+      if (!canUseOperationalContrato(selected)) {
+        msg.textContent = 'Este activo no tiene contrato operativo para editar.';
         return;
       }
 
+      const isAlquilerMode = activoModalMode === 'alquiler';
       const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
+
       if (!contrato) {
         msg.textContent = 'No se encontró el contrato activo.';
         return;
       }
 
-      const tasks = [];
+      const codigo = ($('actCodigo')?.value || '').trim();
+      const nombre = ($('actNombre')?.value || '').trim();
+      const documento = ($('actDoc')?.value || '').trim() || null;
+      const telefono = ($('actTel')?.value || '').trim() || null;
+      const email = ($('actEmail')?.value || '').trim() || null;
 
-      if (contrato?.locales?.id) {
-        tasks.push(sb.from('locales').update({ codigo }).eq('id', contrato.locales.id));
+      if (!isAlquilerMode && !codigo) {
+        msg.textContent = 'El código de la unidad es obligatorio.';
+        return;
       }
-
-      if (contrato?.inquilinos?.id) {
-        tasks.push(sb.from('inquilinos').update({ nombre, documento, telefono, email }).eq('id', contrato.inquilinos.id));
-      }
-
-      if (!tasks.length) {
-        msg.textContent = 'No encontré registros editables para este activo.';
+      if (!isAlquilerMode && !nombre) {
+        msg.textContent = 'El nombre del inquilino es obligatorio.';
         return;
       }
 
-      msg.textContent = 'Guardando cambios...';
+      const montoRaw = ($('actMontoMensual')?.value || '').trim();
+      const impuestoRaw = ($('actImpuestoMensual')?.value || '').trim();
+      const ajustePctRaw = ($('actAjustePct')?.value || '').trim();
+      const ajusteMesesRaw = ($('actAjusteMeses')?.value || '').trim();
+      const diaVencimientoRaw = ($('actDiaVencimiento')?.value || '').trim();
+      const fechaInicio = ($('actFechaInicio')?.value || '').trim() || null;
+      const fechaFin = ($('actFechaFin')?.value || '').trim() || null;
+      const observaciones = ($('actObservaciones')?.value || '').trim() || null;
+
+      const montoMensual = montoRaw ? parseModalNumber(montoRaw) : null;
+      const impuestoMensual = impuestoRaw ? parseModalNumber(impuestoRaw) : null;
+      const ajustePct = ajustePctRaw ? parseModalNumber(ajustePctRaw) : null;
+      const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
+      const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
+
+      if (montoRaw && montoMensual === null) {
+        msg.textContent = 'El monto mensual no tiene un formato válido.';
+        return;
+      }
+      if (impuestoRaw && impuestoMensual === null) {
+        msg.textContent = 'El impuesto mensual no tiene un formato válido.';
+        return;
+      }
+      if (ajustePctRaw && ajustePct === null) {
+        msg.textContent = 'El aumento no tiene un formato válido.';
+        return;
+      }
+      if (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24) {
+        msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
+        return;
+      }
+      if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31) {
+        msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+        return;
+      }
+
+      const tasks = [];
+
+      if (!isAlquilerMode) {
+        if (contrato?.locales?.id) {
+          const payloadLocal = {};
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
+          if (Object.keys(payloadLocal).length){
+            tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
+          }
+        }
+
+        if (contrato?.inquilinos?.id) {
+          tasks.push(
+            sb.from('inquilinos')
+              .update({ nombre, documento, telefono, email })
+              .eq('id', contrato.inquilinos.id)
+          );
+        }
+      }
+
+      tasks.push(
+        sb.from('contratos')
+          .update({
+            monto_mensual: montoMensual,
+            impuesto_mensual: impuestoMensual,
+            ajuste_porcentaje: ajustePct,
+            ajuste_cada_meses: ajusteMeses,
+            dia_vencimiento: diaVencimiento,
+            fecha_inicio: fechaInicio,
+            fecha_fin: fechaFin,
+            observaciones
+          })
+          .eq('id', selected.contrato_id)
+      );
+
+      msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
+
       const results = await Promise.all(tasks);
       const failed = results.find(r => r?.error);
       if (failed?.error) {
@@ -5284,9 +5404,8 @@ function globalSearch(){
         return;
       }
 
-      msg.textContent = 'Activo actualizado ✅';
-      closeActivoModal();
       const currentId = selected.contrato_id;
+      closeActivoModal();
       await refreshAll();
       const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
       if (refreshed) {
