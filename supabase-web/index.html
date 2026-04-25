@@ -4957,6 +4957,15 @@ function globalSearch(){
       return parsed ? Number(parsed) : 0;
     }
 
+    function formatDateValue(value){
+      if (!value) return '';
+      try{
+        return String(value).slice(0,10);
+      } catch (e){
+        return '';
+      }
+    }
+
     function formatMoneyInputValue(value){
       const num = Number(value || 0);
       if (!Number.isFinite(num) || num <= 0) return '';
