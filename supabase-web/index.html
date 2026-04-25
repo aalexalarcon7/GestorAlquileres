@@ -3373,7 +3373,7 @@
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;" id="activoModalTitle">Editar activo</h3>
-          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad y del inquilino.</div>
+          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad, del inquilino y las condiciones del alquiler.</div>
         </div>
         <button class="btn" onclick="closeActivoModal()">Cerrar</button>
       </div>
@@ -3390,6 +3390,26 @@
         <input id="actDoc" placeholder="Documento" style="width:180px;">
         <input id="actTel" placeholder="Teléfono" style="width:180px;">
         <input id="actEmail" placeholder="Email" style="width:240px;">
+      </div>
+
+      <div class="hr"></div>
+      <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
+
+      <div class="row" style="margin-top:10px;">
+        <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
+        <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
+        <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
+        <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="actFechaInicio" type="date" style="width:180px;">
+        <input id="actFechaFin" type="date" style="width:180px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
       </div>
 
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
@@ -5143,6 +5163,7 @@ function globalSearch(){
     }
 
         let activoEditContrato = null;
+    let activoModalMode = 'full';
 
     function getContratoActivoRow(contratoId){
       return contratosActivos.find(c => String(c.id) === String(contratoId)) || null;
@@ -5157,6 +5178,7 @@ function globalSearch(){
         alert('Este activo no tiene contrato operativo para modificar desde acá.');
         return;
       }
+      activoModalMode = 'alquiler';
       openActivoModal();
       setTimeout(() => {
         try{
@@ -5179,22 +5201,34 @@ function globalSearch(){
       const contrato = getContratoActivoRow(selected.contrato_id);
       const inq = contrato?.inquilinos || {};
       activoEditContrato = contrato;
+      const isAlquilerMode = activoModalMode === 'alquiler';
 
       $('activoModalMsg').textContent = '';
-      $('activoModalTitle').textContent = 'Editar activo';
-      $('activoModalMeta').textContent = `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
-      $('actCodigo').value = contrato?.locales?.codigo || selected.local_codigo || '';
+      $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
+      $('activoModalMeta').textContent = isAlquilerMode
+        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Ajustá monto, impuesto, vencimiento y vigencia.`
+        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
+      $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
       $('actContrato').value = selected.contrato_id || '';
       $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
+      $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
+      $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
+      $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
+      $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
+      $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
+      $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
+      $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
+      $('actObservaciones').value = contrato?.observaciones || '';
       $('modalActivoBack').style.display = 'flex';
     }
 
     function closeActivoModal(){
       $('modalActivoBack').style.display = 'none';
       activoEditContrato = null;
+      activoModalMode = 'full';
     }
 
     async function saveActivoModal(){
