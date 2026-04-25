@@ -5260,7 +5260,7 @@ function globalSearch(){
     async function refreshContratosActivos(){
       const { data, error } = await sb
         .from('contratos')
-        .select('id, inquilino_id, locales(id,codigo), inquilinos(id,nombre,telefono,email,documento)')
+        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
         .eq('estado','ACTIVO');
 
       if (error){
