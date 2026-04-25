@@ -3002,6 +3002,103 @@
     body.route-hide-top #topHeader{display:none !important;}
   </style>
 
+
+  <style id="activoModalCenteredStyles">
+    #modalActivoBack .activo-modal{
+      width:min(760px,100%);
+    }
+    .activo-modal-header{
+      display:grid;
+      grid-template-columns:44px minmax(0,1fr) 88px;
+      align-items:start;
+      gap:12px;
+    }
+    .activo-modal-heading{
+      grid-column:2;
+      text-align:center;
+    }
+    .activo-modal-heading h3{
+      margin:0;
+      font-size:24px;
+      letter-spacing:-.03em;
+    }
+    .activo-modal-header > .btn{
+      grid-column:3;
+      justify-self:end;
+      min-width:88px;
+    }
+    .activo-modal-section{
+      margin-top:16px;
+      padding:16px;
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:var(--surface-soft);
+    }
+    [data-theme="dark"] .activo-modal-section{
+      background:rgba(255,255,255,.03);
+    }
+    .activo-modal-section-title{
+      margin-bottom:14px;
+      text-align:center;
+      font-size:12px;
+      font-weight:950;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:var(--muted);
+    }
+    .activo-modal-fields{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:12px;
+      align-items:start;
+      justify-items:center;
+    }
+    .activo-modal-fields input,
+    .activo-modal-fields textarea{
+      width:100% !important;
+      max-width:320px;
+      text-align:center;
+    }
+    .activo-modal-fields .full{
+      grid-column:1 / -1;
+      max-width:660px;
+    }
+    .activo-modal-fields textarea{
+      min-height:96px;
+      text-align:left;
+    }
+    .activo-modal-actions{
+      display:flex;
+      justify-content:center;
+      margin-top:16px;
+    }
+    .activo-modal-actions .btn{
+      min-width:220px;
+    }
+    @media (max-width:640px){
+      .activo-modal-header{
+        grid-template-columns:1fr;
+      }
+      .activo-modal-heading,
+      .activo-modal-header > .btn{
+        grid-column:auto;
+      }
+      .activo-modal-header > .btn{
+        justify-self:stretch;
+      }
+      .activo-modal-fields{
+        grid-template-columns:1fr;
+      }
+      .activo-modal-fields .full{
+        grid-column:auto;
+      }
+      .activo-modal-actions .btn{
+        width:100%;
+        min-width:0;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -3367,52 +3464,51 @@
     </div>
   </div>
 
-  <!-- MODAL EDITAR ACTIVO -->
+  <!-- MODAL EDITAR ACTIVO / MODIFICAR ALQUILER -->
   <div class="modalBack" id="modalActivoBack">
-    <div class="modal">
-      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div>
-          <h3 style="margin:0;" id="activoModalTitle">Editar activo</h3>
-          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad, del inquilino y las condiciones del alquiler.</div>
+    <div class="modal activo-modal">
+      <div class="activo-modal-header">
+        <div class="activo-modal-heading">
+          <h3 id="activoModalTitle">Editar activo</h3>
+          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad o las condiciones del alquiler.</div>
         </div>
         <button class="btn" onclick="closeActivoModal()">Cerrar</button>
       </div>
       <div class="toast" id="activoModalMsg"></div>
 
-      <div class="row" style="margin-top:12px;">
-        <input id="actCodigo" placeholder="Código / unidad" style="width:180px;">
-        <input id="actContrato" placeholder="Contrato" style="width:180px;" disabled>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actNombre" placeholder="Nombre del inquilino" style="width:100%;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actDoc" placeholder="Documento" style="width:180px;">
-        <input id="actTel" placeholder="Teléfono" style="width:180px;">
-        <input id="actEmail" placeholder="Email" style="width:240px;">
-      </div>
+      <section class="activo-modal-section activo-section-general">
+        <div class="activo-modal-section-title">Datos del activo</div>
+        <div class="activo-modal-fields">
+          <input id="actCodigo" placeholder="Código / unidad">
+          <input id="actContrato" placeholder="Contrato" disabled>
+        </div>
+      </section>
 
-      <div class="hr"></div>
-      <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
+      <section class="activo-modal-section activo-section-general">
+        <div class="activo-modal-section-title">Datos del inquilino</div>
+        <div class="activo-modal-fields">
+          <input id="actNombre" class="full" placeholder="Nombre del inquilino">
+          <input id="actDoc" placeholder="Documento">
+          <input id="actTel" placeholder="Teléfono">
+          <input id="actEmail" class="full" placeholder="Email">
+        </div>
+      </section>
 
-      <div class="row" style="margin-top:10px;">
-        <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
-        <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
-        <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
-        <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actFechaInicio" type="date" style="width:180px;">
-        <input id="actFechaFin" type="date" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
-      </div>
+      <section class="activo-modal-section activo-section-alquiler">
+        <div class="activo-modal-section-title">Condiciones del alquiler</div>
+        <div class="activo-modal-fields">
+          <input id="actMontoMensual" placeholder="Monto mensual">
+          <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento">
+          <input id="actImpuestoMensual" placeholder="Impuesto mensual">
+          <input id="actAjustePct" placeholder="Aumento (%)">
+          <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses">
+          <input id="actFechaInicio" type="date">
+          <input id="actFechaFin" type="date">
+          <textarea id="actObservaciones" class="full" placeholder="Observaciones del contrato / alquiler"></textarea>
+        </div>
+      </section>
 
-      <div class="row" style="margin-top:12px;justify-content:flex-end;">
+      <div class="activo-modal-actions">
         <button class="btn primary" onclick="saveActivoModal()">Guardar cambios</button>
       </div>
     </div>
@@ -5190,19 +5286,22 @@ function globalSearch(){
     }
 
     function setActivoModalModeUI(isAlquilerMode){
-      const rowsToToggle = [
-        $('actCodigo')?.closest('.row'),
-        $('actNombre')?.closest('.row'),
-        $('actDoc')?.closest('.row')
-      ].filter(Boolean);
+      document.querySelectorAll('#modalActivoBack .activo-section-general').forEach(section => {
+        section.style.display = isAlquilerMode ? 'none' : 'block';
+      });
 
-      rowsToToggle.forEach(row => {
-        row.style.display = isAlquilerMode ? 'none' : 'flex';
+      document.querySelectorAll('#modalActivoBack .activo-section-alquiler').forEach(section => {
+        section.style.display = isAlquilerMode ? 'block' : 'none';
       });
 
       ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
         const el = $(id);
         if (el) el.disabled = !!isAlquilerMode;
+      });
+
+      ['actMontoMensual','actImpuestoMensual','actAjustePct','actAjusteMeses','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones'].forEach(id => {
+        const el = $(id);
+        if (el) el.disabled = !isAlquilerMode;
       });
     }
 
@@ -5380,20 +5479,27 @@ function globalSearch(){
         }
       }
 
-      tasks.push(
-        sb.from('contratos')
-          .update({
-            monto_mensual: montoMensual,
-            impuesto_mensual: impuestoMensual,
-            ajuste_porcentaje: ajustePct,
-            ajuste_cada_meses: ajusteMeses,
-            dia_vencimiento: diaVencimiento,
-            fecha_inicio: fechaInicio,
-            fecha_fin: fechaFin,
-            observaciones
-          })
-          .eq('id', selected.contrato_id)
-      );
+      if (isAlquilerMode) {
+        tasks.push(
+          sb.from('contratos')
+            .update({
+              monto_mensual: montoMensual,
+              impuesto_mensual: impuestoMensual,
+              ajuste_porcentaje: ajustePct,
+              ajuste_cada_meses: ajusteMeses,
+              dia_vencimiento: diaVencimiento,
+              fecha_inicio: fechaInicio,
+              fecha_fin: fechaFin,
+              observaciones
+            })
+            .eq('id', selected.contrato_id)
+        );
+      }
+
+      if (!tasks.length) {
+        msg.textContent = 'No encontré registros editables para guardar.';
+        return;
+      }
 
       msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
 
