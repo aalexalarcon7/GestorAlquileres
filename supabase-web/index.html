@@ -4944,6 +4944,11 @@ function globalSearch(){
         if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Este activo viene de auditoría y no tiene contrato operativo vinculado.</td></tr>`;
         if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
       }
+      } catch (err){
+        console.error('loadDetalle error', err);
+        if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = '';
+      }
     }
 
     function parseMoneyToNumber(input){
