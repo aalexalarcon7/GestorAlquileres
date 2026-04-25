@@ -1789,6 +1789,36 @@
     }
   </style>
 
+  <style id="cleanCenteredDetailStyles">
+    #detalleCard .detalle-section-head{
+      justify-content:center !important;
+      align-items:center !important;
+      text-align:center;
+      gap:12px;
+      margin-top:18px;
+      margin-bottom:12px;
+    }
+    #detalleCard .detalle-section-head > div{
+      flex:1 1 100%;
+      text-align:center;
+    }
+    #detalleCard .detalle-section-head > .btn{
+      margin:4px auto 0;
+    }
+    #detalleCard .detalle-section-head h2,
+    #detalleCard .detalle-section-head h3{
+      text-align:center;
+    }
+    #detalleCard .tableWrap table th,
+    #detalleCard .tableWrap table td,
+    #detalleCard .tableWrap table td.right,
+    #detalleCard .tableWrap table td.center{
+      text-align:center !important;
+      vertical-align:middle !important;
+    }
+  </style>
+
+
   <style id="mobilePolishFix">
     .desktop-table{display:block}
     .mobile-top-list,
@@ -3228,7 +3258,6 @@
             <div class="row" style="justify-content:space-between;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
-                <div class="muted">Listado de unidades. Cobrá, revisá deuda y abrí el detalle completo del activo.</div>
               </div>
               <span class="badge b-info" id="unitsCount">0 resultados</span>
             </div>
@@ -3276,19 +3305,17 @@
             <div class="hr"></div>
 
             <div class="detail-info-section">
-              <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
+              <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
-                  <div class="muted">Información principal de la unidad, contrato e inquilino.</div>
                 </div>
                 <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
-              <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
+              <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
                 <div>
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
-                  <div class="muted">Monto mensual, impuesto, ajuste, vencimiento, vigencia y observaciones.</div>
                 </div>
                 <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
               </div>
@@ -3305,10 +3332,9 @@
               </div>
             </div>
 
-            <div class="row" style="justify-content:space-between;align-items:end;">
+            <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
-                <div class="muted">Seguimiento de vencimientos, pagos y saldo pendiente.</div>
               </div>
             </div>
 
@@ -3331,10 +3357,9 @@
             <div class="toast" id="detalleMsg"></div>
             <div class="hr"></div>
 
-            <div class="row" style="justify-content:space-between;align-items:end;">
+            <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Documentos</h3>
-                <div class="muted">Contrato, anexos y otros archivos administrativos. Los recibos se gestionan desde su módulo.</div>
               </div>
               <button class="btn" onclick="openDocumentosFromDetalle()">Abrir gestor</button>
             </div>
@@ -3427,14 +3452,9 @@
         <button class="btn primary" onclick="registrarPagoModal()">Guardar</button>
       </div>
 
-      <div class="muted" style="margin-top:8px;">Cobros divididos: cargá el alquiler, definí el porcentaje de impuesto y el sistema calcula automáticamente impuesto y total.</div>
-
-      
       <div class="row" style="margin-top:10px;">
         <textarea id="mDescripcion" style="width:100%;min-height:90px;" placeholder="Descripción del pago (opcional)"></textarea>
       </div>
-      <div class="muted" style="margin-top:6px;">Opcional: agregá una descripción o aclaración del pago.</div>
-
       <div class="toast" id="modalMsg"></div>
     </div>
   </div>
@@ -3470,7 +3490,7 @@
       <div class="activo-modal-header">
         <div class="activo-modal-heading">
           <h3 id="activoModalTitle">Editar activo</h3>
-          <div class="muted" id="activoModalMeta">Actualizá los datos principales de la unidad o las condiciones del alquiler.</div>
+          <div class="muted" id="activoModalMeta"></div>
         </div>
         <button class="btn" onclick="closeActivoModal()">Cerrar</button>
       </div>
@@ -3538,7 +3558,7 @@
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;">Recibo interno</h3>
-          <div class="muted" id="reciboModalMeta">Vista previa del recibo generado.</div>
+          <div class="muted" id="reciboModalMeta"></div>
         </div>
         <button class="btn" onclick="closeReciboModal()">Cerrar</button>
       </div>
@@ -4697,7 +4717,6 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted">Resumen general</div>
         </div>
 
         <div class="card">
@@ -5351,9 +5370,7 @@ function globalSearch(){
 
       $('activoModalMsg').textContent = '';
       $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
-      $('activoModalMeta').textContent = isAlquilerMode
-        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Ajustá monto, impuesto, vencimiento, vigencia y observaciones.`
-        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Editá datos generales del activo e inquilino.`;
+      $('activoModalMeta').textContent = `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
 
       $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
       $('actContrato').value = selected.contrato_id || '';
@@ -5611,7 +5628,6 @@ function globalSearch(){
           <div class="row" style="justify-content:space-between;">
             <div>
               <h2 style="margin:0;">Inquilinos</h2>
-              <div class="muted">Buscá por nombre y mirá sus unidades.</div>
             </div>
             <div class="row">
               <button class="btn" onclick="openInqModal('create')">Nuevo</button>
@@ -7822,7 +7838,6 @@ function globalSearch(){
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
               <h3 style="margin:0;">Detalle mensual</h3>
-              <div class="muted">Suma mensual de cobros, gastos, ganancia, saldo y porcentajes de control.</div>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
@@ -8417,7 +8432,6 @@ function globalSearch(){
             <div class="config-header">
               <div class="config-title">
                 <h2>Configuración</h2>
-                <div class="muted">Unificá identidad, cobranzas, documentos, apariencia y seguridad desde un espacio más ordenado y fácil de usar.</div>
               </div>
               <div class="config-actions">
                 <button class="btn" onclick="exportConfigSettings()">Exportar ajustes</button>
