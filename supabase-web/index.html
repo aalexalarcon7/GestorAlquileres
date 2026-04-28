@@ -5013,6 +5013,13 @@ function globalSearch(){
       const parsed = parseMoneyToDecimalString(input);
       return parsed ? Number(parsed) : 0;
     }
+    function parseMoneyInput(input){
+      const raw = String(input || '').trim();
+      if (!raw) return null;
+      const parsed = parseMoneyToDecimalString(raw);
+      return parsed ? Number(parsed) : null;
+    }
+
 
     function formatDateValue(value){
       if (!value) return '';
@@ -5382,60 +5389,6 @@ function globalSearch(){
       }
     }
 
-      const codigo = ($('actCodigo').value || '').trim();
-      const nombre = ($('actNombre').value || '').trim();
-      const documento = ($('actDoc').value || '').trim() || null;
-      const telefono = ($('actTel').value || '').trim() || null;
-      const email = ($('actEmail').value || '').trim() || null;
-
-      if (!codigo) {
-        msg.textContent = 'El código de la unidad es obligatorio.';
-        return;
-      }
-      if (!nombre) {
-        msg.textContent = 'El nombre del inquilino es obligatorio.';
-        return;
-      }
-
-      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
-      if (!contrato) {
-        msg.textContent = 'No se encontró el contrato activo.';
-        return;
-      }
-
-      const tasks = [];
-
-      if (contrato?.locales?.id) {
-        tasks.push(sb.from('locales').update({ codigo }).eq('id', contrato.locales.id));
-      }
-
-      if (contrato?.inquilinos?.id) {
-        tasks.push(sb.from('inquilinos').update({ nombre, documento, telefono, email }).eq('id', contrato.inquilinos.id));
-      }
-
-      if (!tasks.length) {
-        msg.textContent = 'No encontré registros editables para este activo.';
-        return;
-      }
-
-      msg.textContent = 'Guardando cambios...';
-      const results = await Promise.all(tasks);
-      const failed = results.find(r => r?.error);
-      if (failed?.error) {
-        msg.textContent = failed.error.message;
-        return;
-      }
-
-      msg.textContent = 'Activo actualizado ✅';
-      closeActivoModal();
-      const currentId = selected.contrato_id;
-      await refreshAll();
-      const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
-      if (refreshed) {
-        selected = refreshed;
-        openDetalle(refreshed);
-      }
-    }
 
     // ===== Inquilinos (lista + detalle) =====
     let contratosActivos = [];          // contratos activos con locales + inquilinos
