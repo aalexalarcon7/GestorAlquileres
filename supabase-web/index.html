@@ -4364,7 +4364,9 @@
       return {
         ...baseRow,
         local_code_normalized: key,
-        inquilino_nombre: recon.nombre_raw || baseRow.inquilino_nombre,
+        inquilino_nombre: canUseOperationalContrato(baseRow)
+        ? baseRow.inquilino_nombre
+        : (recon.nombre_raw || baseRow.inquilino_nombre),
         deuda_total: total,
         deuda_atrasada: total,
         meses_adeudados: months,
