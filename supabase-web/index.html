@@ -3519,6 +3519,7 @@
     let balancePageState = { query:'' };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
+    const EXCLUDED_RECON_CODES = new Set(['PTO23', 'PTO109']);
     let activosReconstruidosLoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
@@ -4242,7 +4243,7 @@
         const directMap = new Map();
         (directRows || []).forEach(row => {
           const key = normLocalCode(row.local_code_normalized);
-          if (!key) return;
+          if (!key || EXCLUDED_RECON_CODES.has(key)) return;
           directMap.set(key, {
             local_code_normalized: key,
             nombre_raw: String(row.nombre_raw || '').trim() || '—',
@@ -4564,7 +4565,8 @@ function globalSearch(){
       const knownCodes = new Set(mergedRows.map(r => normLocalCode(r.local_codigo || r.local_code_normalized)));
 
       activosReconstruidosMap.forEach((recon, code) => {
-        if (knownCodes.has(code)) return;
+      if (EXCLUDED_RECON_CODES.has(normLocalCode(code))) return;
+      if (knownCodes.has(code)) return;
         const total = toNumber(recon.deuda_total_2025_2026);
         const rent = toNumber(recon.monto_sugerido_2026);
         if (total <= 0 && rent <= 0) return;
