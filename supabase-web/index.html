@@ -6655,16 +6655,15 @@ function globalSearch(){
             <div class="recibos-actions">
               <div class="recibos-action-panel">
                 <button class="recibos-primary-action" onclick="openReciboModal('${reciboKey}')">Ver recibo</button>
-                <button class="recibos-download-action" onclick="downloadReciboOnly('${reciboKey}')">Descargar PDF</button>
                 <details class="recibos-share-menu">
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
                     <div class="recibos-share-label">Canales disponibles</div>
-                    <button class="recibos-share-action email" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByEmail('${reciboKey}')">
-                      <span class="icon">✉</span>
+                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${reciboKey}')">
+                      <span class="icon">PDF</span>
                       <span class="meta">
-                        <span class="title">Email</span>
-                        <span class="sub">Abrir envío por correo</span>
+                        <span class="title">Descargar PDF</span>
+                        <span class="sub">Solo el recibo</span>
                       </span>
                     </button>
                     <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${reciboKey}')">
@@ -6683,7 +6682,6 @@ function globalSearch(){
                     </button>
                   </div>
                 </details>
-                <button class="recibos-danger-action" onclick="deleteReciboById('${reciboKey}')">Eliminar</button>
               </div>
             </div>
           </td>
