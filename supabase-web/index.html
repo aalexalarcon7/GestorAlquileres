@@ -3540,14 +3540,7 @@
         <button class="btn" onclick="closeReciboModal()">Cerrar</button>
       </div>
       <div id="reciboPreviewBody" style="margin-top:14px;"></div>
-      <div class="recibo-actions">
-        <button class="btn" onclick="copyReciboShareText()">Copiar texto</button>
-        <button class="btn" onclick="downloadReciboActual()">Descargar PDF</button>
-        <button class="btn" onclick="openReciboEmail()">Email + PDF</button>
-        <button class="btn" onclick="openReciboWhatsappQuick()">WhatsApp rápido</button>
-        <button class="btn" onclick="openReciboWhatsappPdf()">WhatsApp + PDF</button>
-        <button class="btn primary" onclick="printReciboActual()">Imprimir / Guardar PDF</button>
-      </div>
+
       <div class="recibo-danger-zone">
         <div>
           <h4>Eliminar recibo</h4>
@@ -3748,12 +3741,12 @@
       const acento = ACCENT_PALETTES[String(next.apariencia?.acento || def.apariencia.acento)] ? String(next.apariencia?.acento || def.apariencia.acento) : def.apariencia.acento;
       return {
         negocio: {
-          nombre: String(next.negocio?.nombre || def.negocio.nombre),
-          telefono: String(next.negocio?.telefono || ''),
-          email: String(next.negocio?.email || ''),
-          direccion: String(next.negocio?.direccion || ''),
-          cuit: String(next.negocio?.cuit || ''),
-          moneda: String(next.negocio?.moneda || def.negocio.moneda).toUpperCase() || 'ARS'
+          nombre: 'Gestión de Alquileres',
+          telefono: '',
+          email: '',
+          direccion: '',
+          cuit: '',
+          moneda: 'ARS'
         },
         pagos: {
           reciboPrefijo: sanitizePrefix(next.pagos?.reciboPrefijo, def.pagos.reciboPrefijo),
@@ -3879,9 +3872,8 @@
     }
 
     function updateBusinessUI(){
-      const businessName = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
-      const shortName = businessName.length > 18 ? businessName.slice(0, 18).trim() : businessName;
-      if ($('brandName')) $('brandName').textContent = shortName;
+      const businessName = 'Gestión de Alquileres';
+      if ($('brandName')) $('brandName').textContent = businessName;
       const initials = businessName.split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA';
       const brandLogoEl = $('brandLogo');
       if (brandLogoEl && brandLogoEl.dataset.logo !== '1') brandLogoEl.textContent = initials;
@@ -6014,7 +6006,7 @@ function globalSearch(){
     }
 
     function buildEmailSubject(item){
-      return `Recibo ${item?.numero_recibo || 'interno'} · ${appSettings?.negocio?.nombre || 'Gestión de Alquileres'}`;
+      return `Recibo ${item?.numero_recibo || 'interno'} · Gestión de Alquileres`;
     }
 
     function buildEmailBody(item){
@@ -6057,11 +6049,7 @@ function globalSearch(){
       const contentWidth = 512;
       const startX = (pageWidth - contentWidth) / 2;
 
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
-      const negocioDireccion = appSettings?.negocio?.direccion || '';
-      const negocioTelefono = appSettings?.negocio?.telefono || '';
-      const negocioEmail = appSettings?.negocio?.email || '';
-      const cuitNegocio = appSettings?.negocio?.cuit || '—';
+      const negocio = 'Gestión de Alquileres';
 
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
@@ -6141,13 +6129,7 @@ function globalSearch(){
       centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
       centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
 
-      const headerMetaLines = [];
-      const contactLine1 = [negocioDireccion].filter(Boolean).join('');
-      const contactLine2 = [negocioTelefono, negocioEmail].filter(Boolean).join(' · ');
-      if (contactLine1) headerMetaLines.push(contactLine1);
-      if (contactLine2) headerMetaLines.push(contactLine2);
-      headerMetaLines.push(`CUIT / identificación: ${cuitNegocio}`);
-      drawCenteredLines(headerMetaLines.slice(0,3), centerX, headerY + 162, 9.5, 'normal', [203,213,225], 11);
+      // Encabezado limpio del gestor.
 
       const badgeY = headerY + headerH + 18;
       const badgeW1 = 170;
@@ -6336,7 +6318,7 @@ function globalSearch(){
 
     function buildReceiptShareText(item){
       if (!item) return '';
-      const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+      const negocio = 'Gestión de Alquileres';
       const lines = [
         `${negocio}`,
         `Recibo interno: ${item.numero_recibo || '—'}`,
@@ -6354,12 +6336,8 @@ function globalSearch(){
     }
 
     function buildReceiptPrintHtml(item){
-      const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquileres');
-      const initials = escapeHtml((appSettings?.negocio?.nombre || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA');
-      const email = escapeHtml(appSettings?.negocio?.email || '—');
-      const telefono = escapeHtml(appSettings?.negocio?.telefono || '—');
-      const direccion = escapeHtml(appSettings?.negocio?.direccion || '—');
-      const cuit = escapeHtml(appSettings?.negocio?.cuit || '—');
+      const negocio = escapeHtml('Gestión de Alquileres');
+      const initials = escapeHtml('GA');
       const numero = escapeHtml(item.numero_recibo || '—');
       const locatario = escapeHtml(item.inquilino_nombre || '—');
       const documento = escapeHtml(item.documento || '—');
@@ -6380,9 +6358,6 @@ function globalSearch(){
             <div class="recibo-sheet-head-meta">
               <h2 class="recibo-sheet-title">Recibo interno</h2>
               <div class="recibo-sheet-sub">${negocio}</div>
-              <div class="recibo-sheet-sub">${direccion}</div>
-              <div class="recibo-sheet-sub">${telefono} · ${email}</div>
-              <div class="recibo-sheet-sub">CUIT / identificación: ${cuit}</div>
             </div>
             <div class="recibo-sheet-badges">
               <span class="recibo-sheet-badge">N° ${numero}</span>
@@ -6845,7 +6820,7 @@ function globalSearch(){
 
                   <div class="recibos-side-actions">
                     <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
-                    <button class="btn" onclick="shareReciboByEmail('${ultimo.id}')">Email + PDF</button>
+                    <button class="btn" onclick="downloadReciboOnly('${ultimo.id}')">Descargar PDF</button>
                     <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
                     <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
                   </div>
@@ -8522,12 +8497,8 @@ function globalSearch(){
                 </div>
                 <div class="config-panel-surface">
                   <div class="field-grid">
-                    <div class="setting-field"><label>Nombre del negocio</label><input id="cfgNombre" value="${escapeAttr(s.negocio.nombre)}" placeholder="Ej. Gestión de Alquileres"></div>
-                    <div class="setting-field"><label>Teléfono</label><input id="cfgTelefono" value="${escapeAttr(s.negocio.telefono)}" placeholder="Ej. +54 376 ..."></div>
-                    <div class="setting-field"><label>Email</label><input id="cfgEmail" value="${escapeAttr(s.negocio.email)}" placeholder="admin@correo.com"></div>
-                    <div class="setting-field"><label>CUIT / identificación fiscal</label><input id="cfgCuit" value="${escapeAttr(s.negocio.cuit)}" placeholder="30-00000000-0"></div>
-                    <div class="setting-field"><label>Dirección</label><input id="cfgDireccion" value="${escapeAttr(s.negocio.direccion)}" placeholder="Dirección"></div>
-                    <div class="setting-field"><label>Moneda</label><input id="cfgMoneda" value="${escapeAttr(s.negocio.moneda)}" placeholder="ARS"></div>
+                    <div class="setting-field"><label>Nombre del gestor</label><input id="cfgNombre" value="Gestión de Alquileres" disabled></div>
+                    <div class="setting-field"><label>Moneda</label><input id="cfgMoneda" value="ARS" disabled></div>
                   </div>
                 </div>
               </section>
@@ -8709,12 +8680,12 @@ function globalSearch(){
       });
       return normalizeSettings({
         negocio: {
-          nombre: $('cfgNombre')?.value || '',
-          telefono: $('cfgTelefono')?.value || '',
-          email: $('cfgEmail')?.value || '',
-          direccion: $('cfgDireccion')?.value || '',
-          cuit: $('cfgCuit')?.value || '',
-          moneda: $('cfgMoneda')?.value || 'ARS'
+          nombre: 'Gestión de Alquileres',
+          telefono: '',
+          email: '',
+          direccion: '',
+          cuit: '',
+          moneda: 'ARS'
         },
         pagos: {
           reciboPrefijo: $('cfgReciboPrefijo')?.value || 'REC',
