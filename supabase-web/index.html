@@ -2026,7 +2026,7 @@
   <style id="recibosInternosStyles">
     .recibos-grid{
       display:grid;
-      grid-template-columns:1.2fr .8fr;
+      grid-template-columns:1fr;
       gap:14px;
     }
     .recibos-history-head{
@@ -3247,7 +3247,7 @@
             <div class="row" style="justify-content:space-between;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
-                <div class="muted"></div>
+                <div class="muted">Listado de unidades. Cobrá, revisá deuda y abrí el detalle completo del activo.</div>
               </div>
               <span class="badge b-info" id="unitsCount">0 resultados</span>
             </div>
@@ -6796,63 +6796,8 @@ function globalSearch(){
               </table>
             </div>
           </div>
-
-          <div class="recibos-side-stack">
-            <div class="card">
-              <div class="row" style="justify-content:space-between;align-items:end;">
-                <div>
-                  <h3 style="margin:0;">Locatario seleccionado</h3>
-                </div>
-              </div>
-              ${ultimo ? `
-                <div class="recibos-side-card" style="margin-top:12px;">
-                  <div class="recibos-side-head">
-                    <div>
-                      <h4>${escapeHtml(ultimo.inquilino_nombre)}</h4>
-                      <div class="muted">Local ${escapeHtml(ultimo.local_codigo)} · ${escapeHtml(ultimo.numero_recibo)}</div>
-                    </div>
-                    <span class="badge b-ok">${fmtARS.format(Number(ultimo.monto_total || 0))}</span>
-                  </div>
-
-                  <div class="recibos-side-meta">
-                    <div class="item">
-                      <div class="label">Documento</div>
-                      <div class="value">${escapeHtml(ultimo.documento || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Fecha</div>
-                      <div class="value">${formatDateDisplay(ultimo.fecha_pago || ultimo.created_at)}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Teléfono</div>
-                      <div class="value">${escapeHtml(ultimo.telefono || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Email</div>
-                      <div class="value">${escapeHtml(ultimo.email || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Alquiler</div>
-                      <div class="value">${fmtARS.format(Number(ultimo.monto_alquiler || 0))}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Impuesto</div>
-                      <div class="value">${fmtARS.format(Number(ultimo.monto_impuesto || 0))} · ${Number(ultimo.impuesto_porcentaje || 0).toFixed(2)}%</div>
-                    </div>
-                  </div>
-
-                  <div class="recibos-side-actions">
-                    <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
-                    <button class="btn" onclick="downloadReciboOnly('${ultimo.id}')">Descargar PDF</button>
-                    <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
-                    <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
-                  </div>
-                </div>
-              ` : `<div class="toast" style="margin-top:12px;">Apenas registres un cobro, vas a ver el recibo interno acá.</div>`}
-            </div>
-
-          </div>
         </div>
+
       `;
     }
 
@@ -7251,7 +7196,7 @@ function globalSearch(){
       gastosCache = (data || []).map(normalizeGasto);
       showInformesLoadError('');
       renderInformesTable();
-      if ($('infMsg')) $('infMsg').textContent = gastosCache.length ? '' : 'Todavía no hay gastos guardados en la base de datos.';
+      if ($('infMsg')) $('infMsg').textContent = gastosCache.length ? '' : 'Todavía no hay gastos guardados en Supabase.';
       if (!opts.keepSuccessMsg && $('gastoMsg')) $('gastoMsg').textContent = '';
     }
 
@@ -7864,7 +7809,7 @@ function globalSearch(){
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
               <h3 style="margin:0;">Detalle mensual</h3>
-              <div class="muted"></div>
+              <div class="muted">Suma mensual de cobros, gastos, ganancia, saldo y porcentajes de control.</div>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
