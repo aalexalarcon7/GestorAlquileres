@@ -2946,6 +2946,19 @@
       margin-top:18px;
       align-items:center;
     }
+    .section-hero-toolbar.informes{
+      grid-template-columns:minmax(320px,1.7fr) minmax(220px,.9fr) minmax(160px,.7fr) auto;
+    }
+    .section-toolbar-actions{
+      display:flex;
+      align-items:center;
+      justify-content:flex-end;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+    .section-toolbar-actions .btn{
+      min-width:118px;
+    }
     .section-hero-toolbar.balance{
       grid-template-columns:minmax(240px,1.6fr) 160px auto;
     }
@@ -2953,6 +2966,13 @@
       width:auto;
     }
     @media (max-width: 1100px){
+      .section-hero-toolbar.informes{
+        grid-template-columns:minmax(0,1fr) minmax(180px,.8fr) minmax(150px,.7fr);
+      }
+      .section-hero-toolbar.informes .section-toolbar-actions{
+        grid-column:1 / -1;
+        justify-content:flex-start;
+      }
       .section-hero-grid{grid-template-columns:1fr;}
       .section-hero-actions{justify-content:flex-start;}
       .section-hero-kpis{grid-template-columns:repeat(3,minmax(0,1fr));}
@@ -2963,7 +2983,10 @@
       .section-hero-icon{width:62px;height:62px;border-radius:18px;font-size:28px;}
       .section-hero-kpis{grid-template-columns:1fr;}
       .section-hero-toolbar,
-      .section-hero-toolbar.balance{grid-template-columns:1fr;}
+      .section-hero-toolbar.balance,
+      .section-hero-toolbar.informes{grid-template-columns:1fr;}
+      .section-toolbar-actions{justify-content:stretch;}
+      .section-toolbar-actions .btn{width:100%;}
       .section-hero-actions{width:100%;justify-content:stretch;}
       .section-hero-actions > *{width:100%;}
     }
@@ -7244,8 +7267,7 @@ function globalSearch(){
                   <h2 class="section-hero-title">Informes</h2>
                 </div>
               </div>
-              <div class="section-hero-toolbar">
-                <button class="btn" onclick="refreshInformesData({ keepSuccessMsg:true })">Recargar</button>
+              <div class="section-hero-toolbar informes">
                 <input id="infSearch" placeholder="Buscar gasto, persona, número o categoría..." oninput="renderInformesTable()">
                 <select id="infCategoria" onchange="renderInformesTable()">
                   <option value="TODOS">Todas las categorías</option>
@@ -7259,7 +7281,10 @@ function globalSearch(){
                   <option value="OTRO">Otro</option>
                 </select>
                 <input id="infMes" type="month" onchange="renderInformesTable()">
-                <button class="btn" onclick="resetInformesFilters()">Limpiar</button>
+                <div class="section-toolbar-actions">
+                  <button class="btn" onclick="refreshInformesData({ keepSuccessMsg:true })">Recargar</button>
+                  <button class="btn" onclick="resetInformesFilters()">Limpiar</button>
+                </div>
               </div>
             </div>
             <div class="section-hero-actions">
