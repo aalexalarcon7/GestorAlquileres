@@ -3247,7 +3247,7 @@
             <div class="row" style="justify-content:space-between;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
-                <div class="muted">Listado de unidades. Cobrá, revisá deuda y abrí el detalle completo del activo.</div>
+                <div class="muted"></div>
               </div>
               <span class="badge b-info" id="unitsCount">0 resultados</span>
             </div>
@@ -7251,7 +7251,7 @@ function globalSearch(){
       gastosCache = (data || []).map(normalizeGasto);
       showInformesLoadError('');
       renderInformesTable();
-      if ($('infMsg')) $('infMsg').textContent = gastosCache.length ? '' : 'Todavía no hay gastos guardados en Supabase.';
+      if ($('infMsg')) $('infMsg').textContent = gastosCache.length ? '' : 'Todavía no hay gastos guardados en la base de datos.';
       if (!opts.keepSuccessMsg && $('gastoMsg')) $('gastoMsg').textContent = '';
     }
 
@@ -7864,7 +7864,7 @@ function globalSearch(){
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
               <h3 style="margin:0;">Detalle mensual</h3>
-              <div class="muted">Suma mensual de cobros, gastos, ganancia, saldo y porcentajes de control.</div>
+              <div class="muted"></div>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
