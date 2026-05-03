@@ -3498,7 +3498,7 @@
       <div id="activoDatosSection">
         <div class="row" style="margin-top:12px;">
           <input id="actCodigo" placeholder="Código / unidad" style="width:180px;">
-          <input id="actContrato" placeholder="Contrato" style="width:180px;" disabled>
+          <input id="actContrato" placeholder="N° contrato" style="width:180px;">
         </div>
         <div class="row" style="margin-top:10px;">
           <input id="actNombre" placeholder="Nombre del inquilino" style="width:100%;">
@@ -5339,13 +5339,15 @@ function globalSearch(){
 
       $('actCodigo').value = loc.codigo || loc.codigo_local || selected?.local_codigo || '';
       $('actContrato').value = selected?.contrato_id || contrato?.id || '';
+      $('actContrato').disabled = !!isAlquilerMode;
+      $('actContrato').title = isAlquilerMode ? 'El número de contrato se modifica desde Editar activo.' : 'Podés modificar el número de contrato si no está usado por otro activo.';
       $('actNombre').value = inq.nombre || selected?.inquilino_nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
 
-      $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
-      $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
+      $('actMontoMensual').value = formatMoneyInputValue(contrato?.monto_mensual);
+      $('actImpuestoMensual').value = formatMoneyInputValue(contrato?.impuesto_mensual);
       $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
       $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
       $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
@@ -5398,7 +5400,7 @@ function globalSearch(){
         $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
         $('activoModalMeta').textContent = isAlquilerMode
           ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá solo las condiciones del alquiler.`
-          : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá código, inquilino, documento, teléfono y email.`;
+          : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá código, número de contrato, inquilino, documento, teléfono y email.`;
         setActivoModalSections(isAlquilerMode);
 
         const contrato = await fetchContratoActivoRow(selected.contrato_id);
@@ -5441,8 +5443,12 @@ function globalSearch(){
         const isAlquilerMode = activoModalMode === 'alquiler';
         const tasks = [];
 
+        let finalContratoId = selected.contrato_id;
+
         if (!isAlquilerMode) {
           const codigo = ($('actCodigo').value || '').trim();
+          const contratoActualRaw = String(contrato?.id || selected.contrato_id || '').trim();
+          const contratoNuevoRaw = ($('actContrato').value || '').trim();
           const nombre = ($('actNombre').value || '').trim();
           const documento = ($('actDoc').value || '').trim() || null;
           const telefono = ($('actTel').value || '').trim() || null;
@@ -5452,9 +5458,48 @@ function globalSearch(){
             msg.textContent = 'El código de la unidad es obligatorio.';
             return;
           }
+          if (!contratoNuevoRaw) {
+            msg.textContent = 'El número de contrato es obligatorio.';
+            return;
+          }
           if (!nombre) {
             msg.textContent = 'El nombre del inquilino es obligatorio.';
             return;
+          }
+
+          let contratoNuevoDbValue = contratoNuevoRaw;
+          if (/^\d+$/.test(contratoActualRaw)) {
+            if (!/^\d+$/.test(contratoNuevoRaw)) {
+              msg.textContent = 'El número de contrato debe ser numérico.';
+              return;
+            }
+            contratoNuevoDbValue = Number(contratoNuevoRaw);
+            if (!Number.isSafeInteger(contratoNuevoDbValue) || contratoNuevoDbValue <= 0) {
+              msg.textContent = 'El número de contrato debe ser mayor a 0.';
+              return;
+            }
+          }
+
+          if (String(contratoNuevoRaw) !== String(contratoActualRaw)) {
+            const { data: contratoExistente, error: contratoCheckError } = await sb
+              .from('contratos')
+              .select('id')
+              .eq('id', contratoNuevoDbValue)
+              .maybeSingle();
+            if (contratoCheckError) {
+              msg.textContent = 'No se pudo verificar el número de contrato: ' + contratoCheckError.message;
+              return;
+            }
+            if (contratoExistente) {
+              msg.textContent = `Ya existe un contrato con el número ${contratoNuevoRaw}.`;
+              return;
+            }
+            finalContratoId = contratoNuevoDbValue;
+            tasks.push(
+              sb.from('contratos')
+                .update({ id: contratoNuevoDbValue })
+                .eq('id', contratoActualRaw)
+            );
           }
 
           const localId = contrato?.locales?.id || contrato?.local_id;
@@ -5533,11 +5578,14 @@ function globalSearch(){
         const results = await Promise.all(tasks);
         const failed = results.find(r => r?.error);
         if (failed?.error) {
-          msg.textContent = failed.error.message;
+          const errMsg = String(failed.error.message || '');
+          msg.textContent = errMsg.includes('foreign key') || errMsg.includes('violates')
+            ? 'No se pudo cambiar el número de contrato porque tiene registros vinculados. Si pasa esto, avisame y lo hacemos con SQL actualizando relaciones.'
+            : errMsg;
           return;
         }
 
-        const currentId = selected.contrato_id;
+        const currentId = finalContratoId || selected.contrato_id;
         msg.textContent = isAlquilerMode ? 'Alquiler actualizado ✅' : 'Activo actualizado ✅';
         closeActivoModal();
 
