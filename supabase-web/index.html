@@ -2941,7 +2941,7 @@
       align-items:center;
     }
     .section-hero-toolbar.balance{
-      grid-template-columns:minmax(240px,1.6fr) 160px auto;
+      grid-template-columns:minmax(240px,1.6fr) 180px 140px auto;
     }
     .section-hero-toolbar .btn{
       width:auto;
@@ -3309,7 +3309,7 @@
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
-                <button class="btn" id="detalleEditarActivoBtn" onclick="openActivoModal('full', selected?.contrato_id)">Editar activo</button>
+                <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
@@ -3317,7 +3317,7 @@
                 <div>
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
                 </div>
-                <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal(selected?.contrato_id)">Modificar alquiler</button>
+                <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
               </div>
               <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
 
@@ -3500,7 +3500,7 @@
         <div class="activo-modal-section-title">Datos del activo</div>
         <div class="activo-modal-fields">
           <input id="actCodigo" placeholder="Código / unidad">
-          <input id="actContrato" placeholder="Contrato">
+          <input id="actContrato" placeholder="Contrato" disabled>
         </div>
       </section>
 
@@ -3596,7 +3596,7 @@
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
-    let balancePageState = { query:'' };
+    let balancePageState = { query:'', month:new Date().getMonth() };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
     let activosReconstruidosLoadError = '';
@@ -4817,7 +4817,7 @@ function globalSearch(){
       if (!canUseOperationalContrato(unidad)) return alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
       selected = unidad;
       setRoute('activos');
-      openActivoModal('full', contratoId);
+      openActivoModal();
     }
 
     function renderUnidades(){
@@ -4918,18 +4918,7 @@ function globalSearch(){
         const resumenGrid = $('detalleResumenCobro');
         const resumenSub = $('detalleResumenSub');
         const detalleCondicionesBtn = $('detalleCondicionesBtn');
-        const detalleEditarActivoBtn = $('detalleEditarActivoBtn');
         if (!grid) return;
-
-        if (detalleEditarActivoBtn){
-          const canEditActivo = canUseOperationalContrato(r);
-          detalleEditarActivoBtn.disabled = !canEditActivo;
-          detalleEditarActivoBtn.classList.toggle('is-disabled', !canEditActivo);
-          detalleEditarActivoBtn.title = canEditActivo
-            ? 'Editar datos del activo'
-            : 'Este activo no tiene contrato operativo para editar desde acá.';
-          detalleEditarActivoBtn.onclick = () => openActivoModal('full', r?.contrato_id);
-        }
 
         const contrato = contratosActivos.find(c => String(c.id) === String(r?.contrato_id)) || {};
         const inq = contrato?.inquilinos || {};
@@ -4959,7 +4948,6 @@ function globalSearch(){
           detalleCondicionesBtn.title = canEdit
             ? 'Modificar condiciones del alquiler'
             : 'Este activo no tiene contrato operativo para modificar desde acá.';
-          detalleCondicionesBtn.onclick = () => openAlquilerModal(r?.contrato_id);
         }
 
         const datosItems = reconstructed ? [
@@ -5296,28 +5284,17 @@ function globalSearch(){
       return contratosActivos.find(c => String(c.id) === String(contratoId)) || null;
     }
 
-    function findUnidadByContratoId(contratoId){
-      const id = contratoId ?? selected?.contrato_id;
-      if (!id) return selected || null;
-      return unidades.find(x => String(x.contrato_id) === String(id))
-        || (selected && String(selected.contrato_id) === String(id) ? selected : null)
-        || null;
-    }
-
-    function openAlquilerModal(contratoId = null){
-      const unidad = findUnidadByContratoId(contratoId);
-
-      if (!unidad?.contrato_id) {
+    function openAlquilerModal(){
+      if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
         return;
       }
-      if (!canUseOperationalContrato(unidad)) {
+      if (!canUseOperationalContrato(selected)) {
         alert('Este activo no tiene contrato operativo para modificar desde acá.');
         return;
       }
 
-      selected = unidad;
-      openActivoModal('alquiler', unidad.contrato_id);
+      openActivoModal('alquiler');
 
       setTimeout(() => {
         try{
@@ -5336,7 +5313,7 @@ function globalSearch(){
         section.style.display = isAlquilerMode ? 'block' : 'none';
       });
 
-      ['actCodigo','actNombre','actDoc','actTel','actEmail','actContrato'].forEach(id => {
+      ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
         const el = $(id);
         if (el) el.disabled = !!isAlquilerMode;
       });
@@ -5374,38 +5351,30 @@ function globalSearch(){
       return Math.round(n * 100) / 100;
     }
 
-    function openActivoModal(mode = 'full', contratoId = null){
-      const unidad = findUnidadByContratoId(contratoId);
-
-      if (!unidad?.contrato_id) {
+    function openActivoModal(mode = 'full'){
+      if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
         return;
       }
-      if (!canUseOperationalContrato(unidad)) {
+      if (!canUseOperationalContrato(selected)) {
         alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
         return;
       }
 
-      const contrato = getContratoActivoRow(unidad.contrato_id);
-      if (!contrato) {
-        alert('No se encontró el contrato activo en la base. Recargá y volvé a intentar.');
-        return;
-      }
-
-      selected = unidad;
       activoModalMode = mode === 'alquiler' ? 'alquiler' : 'full';
 
+      const contrato = getContratoActivoRow(selected.contrato_id);
       const inq = contrato?.inquilinos || {};
       activoEditContrato = contrato;
       const isAlquilerMode = activoModalMode === 'alquiler';
 
       $('activoModalMsg').textContent = '';
       $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
-      $('activoModalMeta').textContent = `${unidad.local_codigo || contrato?.locales?.codigo || contrato?.locales?.codigo_local || '—'} · Contrato ${contrato.id || unidad.contrato_id || '—'}`;
+      $('activoModalMeta').textContent = `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
 
-      $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || unidad.local_codigo || '';
-      $('actContrato').value = contrato?.id || unidad.contrato_id || '';
-      $('actNombre').value = inq.nombre || unidad.inquilino_nombre || '';
+      $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
+      $('actContrato').value = selected.contrato_id || '';
+      $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
@@ -5434,47 +5403,35 @@ function globalSearch(){
       if (saveBtn) saveBtn.textContent = 'Guardar cambios';
     }
 
-    function normalizeContratoIdInput(value){
-      const raw = String(value || '').trim();
-      if (!raw) return '';
-      return /^\d+$/.test(raw) ? Number(raw) : raw;
-    }
-
     async function saveActivoModal(){
       const msg = $('activoModalMsg');
       msg.textContent = '';
 
-      const contrato = activoEditContrato || getContratoActivoRow(selected?.contrato_id);
-      const originalContratoId = contrato?.id || selected?.contrato_id;
-
-      if (!originalContratoId) {
-        msg.textContent = 'No hay un contrato seleccionado para guardar.';
+      if (!selected?.contrato_id) {
+        msg.textContent = 'No hay un activo seleccionado.';
         return;
       }
-      if (!canUseOperationalContrato({ contrato_id: originalContratoId })) {
+      if (!canUseOperationalContrato(selected)) {
         msg.textContent = 'Este activo no tiene contrato operativo para editar.';
         return;
       }
+
+      const isAlquilerMode = activoModalMode === 'alquiler';
+      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
+
       if (!contrato) {
         msg.textContent = 'No se encontró el contrato activo.';
         return;
       }
 
-      const isAlquilerMode = activoModalMode === 'alquiler';
-      const codigo = ($('actCodigo')?.value || '').trim().toUpperCase();
-      const nuevoContratoRaw = ($('actContrato')?.value || '').trim();
-      const nuevoContratoId = normalizeContratoIdInput(nuevoContratoRaw);
-      const nombre = ($('actNombre')?.value || '').trim().toUpperCase();
+      const codigo = ($('actCodigo')?.value || '').trim();
+      const nombre = ($('actNombre')?.value || '').trim();
       const documento = ($('actDoc')?.value || '').trim() || null;
       const telefono = ($('actTel')?.value || '').trim() || null;
       const email = ($('actEmail')?.value || '').trim() || null;
 
       if (!isAlquilerMode && !codigo) {
         msg.textContent = 'El código de la unidad es obligatorio.';
-        return;
-      }
-      if (!isAlquilerMode && !nuevoContratoRaw) {
-        msg.textContent = 'El número de contrato es obligatorio.';
         return;
       }
       if (!isAlquilerMode && !nombre) {
@@ -5518,57 +5475,30 @@ function globalSearch(){
         return;
       }
 
-      const finalContratoId = !isAlquilerMode && String(nuevoContratoRaw) !== String(originalContratoId)
-        ? nuevoContratoId
-        : originalContratoId;
+      const tasks = [];
 
-      try{
-        msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
-
-        if (!isAlquilerMode) {
-          if (contrato?.locales?.id) {
-            const payloadLocal = {};
-            if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
-            if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
-            if (Object.keys(payloadLocal).length){
-              const { error } = await sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id);
-              if (error) throw error;
-            }
-          }
-
-          if (contrato?.inquilinos?.id) {
-            const { error } = await sb
-              .from('inquilinos')
-              .update({ nombre, documento, telefono, email })
-              .eq('id', contrato.inquilinos.id);
-            if (error) throw error;
-          }
-
-          if (String(nuevoContratoRaw) !== String(originalContratoId)) {
-            const { data: existeContrato, error: existeError } = await sb
-              .from('contratos')
-              .select('id')
-              .eq('id', nuevoContratoId)
-              .maybeSingle();
-
-            if (existeError) throw existeError;
-            if (existeContrato) {
-              msg.textContent = `Ya existe un contrato con el número ${nuevoContratoRaw}.`;
-              return;
-            }
-
-            const { error: contratoIdError } = await sb
-              .from('contratos')
-              .update({ id: nuevoContratoId })
-              .eq('id', originalContratoId);
-
-            if (contratoIdError) throw contratoIdError;
+      if (!isAlquilerMode) {
+        if (contrato?.locales?.id) {
+          const payloadLocal = {};
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
+          if (Object.keys(payloadLocal).length){
+            tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
           }
         }
 
-        if (isAlquilerMode) {
-          const { error } = await sb
-            .from('contratos')
+        if (contrato?.inquilinos?.id) {
+          tasks.push(
+            sb.from('inquilinos')
+              .update({ nombre, documento, telefono, email })
+              .eq('id', contrato.inquilinos.id)
+          );
+        }
+      }
+
+      if (isAlquilerMode) {
+        tasks.push(
+          sb.from('contratos')
             .update({
               monto_mensual: montoMensual,
               impuesto_mensual: impuestoMensual,
@@ -5579,24 +5509,31 @@ function globalSearch(){
               fecha_fin: fechaFin,
               observaciones
             })
-            .eq('id', originalContratoId);
+            .eq('id', selected.contrato_id)
+        );
+      }
 
-          if (error) throw error;
-        }
+      if (!tasks.length) {
+        msg.textContent = 'No encontré registros editables para guardar.';
+        return;
+      }
 
-        closeActivoModal();
-        selected = null;
-        await refreshUnidades();
-        const refreshed = unidades.find(x => String(x.contrato_id) === String(finalContratoId))
-          || unidades.find(x => String(x.contrato_id) === String(originalContratoId));
+      msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
 
-        if (refreshed) {
-          selected = refreshed;
-          openDetalle(refreshed);
-        }
-      } catch (e) {
-        console.error('saveActivoModal:', e);
-        msg.textContent = e?.message || 'No se pudo guardar el activo.';
+      const results = await Promise.all(tasks);
+      const failed = results.find(r => r?.error);
+      if (failed?.error) {
+        msg.textContent = failed.error.message;
+        return;
+      }
+
+      const currentId = selected.contrato_id;
+      closeActivoModal();
+      await refreshAll();
+      const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
+      if (refreshed) {
+        selected = refreshed;
+        openDetalle(refreshed);
       }
     }
 
@@ -7679,7 +7616,7 @@ function globalSearch(){
       };
     }
 
-    function buildBalanceYearSummary(year, pagos, gastos){
+    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null){
       const recaudacion = Array(12).fill(0);
       const gastosMes = Array(12).fill(0);
 
@@ -7707,16 +7644,19 @@ function globalSearch(){
 
       const now = new Date();
       const currentMonthIndex = now.getFullYear() === year ? now.getMonth() : 11;
-      const currentMonthDays = now.getFullYear() === year ? now.getDate() : daysInMonth(year, currentMonthIndex);
-      const monthTotalDays = daysInMonth(year, currentMonthIndex);
+      const rawSelectedMonthIndex = Number.isInteger(Number(selectedMonthIndex)) ? Number(selectedMonthIndex) : currentMonthIndex;
+      const activeMonthIndex = Math.max(0, Math.min(11, rawSelectedMonthIndex));
+      const isCurrentRealMonth = now.getFullYear() === year && now.getMonth() === activeMonthIndex;
+      const currentMonthDays = isCurrentRealMonth ? now.getDate() : daysInMonth(year, activeMonthIndex);
+      const monthTotalDays = daysInMonth(year, activeMonthIndex);
 
-      const recMesActual = recaudacion[currentMonthIndex] || 0;
-      const gastosActual = gastosMes[currentMonthIndex] || 0;
-      const gananciaActual = ganancia[currentMonthIndex] || 0;
-      const saldoActual = saldo[currentMonthIndex] || 0;
+      const recMesActual = recaudacion[activeMonthIndex] || 0;
+      const gastosActual = gastosMes[activeMonthIndex] || 0;
+      const gananciaActual = ganancia[activeMonthIndex] || 0;
+      const saldoActual = saldo[activeMonthIndex] || 0;
 
       const proyFactor = currentMonthDays > 0 ? (monthTotalDays / currentMonthDays) : 0;
-      const proyeccion = now.getFullYear() === year ? {
+      const proyeccion = isCurrentRealMonth ? {
         recaudacion: recMesActual * proyFactor,
         gastos: gastosActual * proyFactor,
         ganancia: gananciaActual * proyFactor
@@ -7744,6 +7684,8 @@ function globalSearch(){
           gastosActual,
           gananciaActual,
           saldoActual,
+          activeMonthIndex,
+          activeMonthName: BALANCE_MONTHS[activeMonthIndex],
           proyeccion,
           totalAnualRecaudado: recaudacion.reduce((a,b)=>a+b,0),
           totalAnualGastos: gastosMes.reduce((a,b)=>a+b,0),
@@ -7840,15 +7782,27 @@ function globalSearch(){
       renderBalancePage();
     }
 
+    function handleBalanceMonthChange(){
+      const monthValue = Number($('balanceMonth')?.value);
+      balancePageState.month = Number.isInteger(monthValue) ? Math.max(0, Math.min(11, monthValue)) : new Date().getMonth();
+      renderBalancePage();
+    }
+
     async function renderBalancePage(){
       const el = $('viewBalance');
       if (!el) return;
 
-      const currentYear = new Date().getFullYear();
+      const now = new Date();
+      const currentYear = now.getFullYear();
       balancePageState.query = $('balanceSearch')?.value || balancePageState.query || '';
       const selectedYear = Number($('balanceYear')?.value || currentYear);
+      const selectedMonth = Number($('balanceMonth')?.value ?? balancePageState.month ?? now.getMonth());
+      balancePageState.month = Number.isInteger(selectedMonth) ? Math.max(0, Math.min(11, selectedMonth)) : now.getMonth();
       const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
         .map(year => `<option value="${year}">${year}</option>`)
+        .join('');
+      const monthOptions = BALANCE_MONTHS
+        .map((month, idx) => `<option value="${idx}">${month}</option>`)
         .join('');
 
       el.innerHTML = `
@@ -7863,6 +7817,9 @@ function globalSearch(){
               </div>
               <div class="section-hero-toolbar balance">
                 <input id="balanceSearch" placeholder="Buscar en balance..." value="${escapeHtml(balancePageState.query || '')}" oninput="handleBalanceSearchInput()">
+                <select id="balanceMonth" style="width:180px" onchange="handleBalanceMonthChange()">
+                  ${monthOptions}
+                </select>
                 <select id="balanceYear" style="width:140px">
                   ${yearOptions}
                 </select>
@@ -7874,11 +7831,15 @@ function globalSearch(){
         </div>
 
         <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="margin:0;">Resumen del mes seleccionado</h3>
+            <span class="badge b-info" id="balSelectedMonthBadge">${BALANCE_MONTHS[balancePageState.month]} ${selectedYear}</span>
+          </div>
           <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Recaudación bruta del mes</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted">Todo lo cobrado en el mes</div></div>
-            <div class="kpi"><div class="label">Gastos del mes</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted">Egresos cargados en el mes</div></div>
-            <div class="kpi"><div class="label">Ganancia del mes</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted">Recaudación - gastos</div></div>
-            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted">Acumulado hasta el mes actual</div></div>
+            <div class="kpi"><div class="label">Recaudación bruta</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiRecaudacionSub">Todo lo cobrado en el mes elegido</div></div>
+            <div class="kpi"><div class="label">Gastos</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted" id="balKpiGastosSub">Egresos cargados en el mes elegido</div></div>
+            <div class="kpi"><div class="label">Ganancia</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted" id="balKpiGananciaSub">Recaudación - gastos</div></div>
+            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted" id="balKpiSaldoSub">Acumulado hasta el mes elegido</div></div>
           </div>
         </div>
 
@@ -7944,24 +7905,33 @@ function globalSearch(){
       `;
 
       const yearInput = $('balanceYear');
+      const monthInput = $('balanceMonth');
       if (yearInput && !yearInput.dataset.bound){
         yearInput.addEventListener('change', () => renderBalancePage());
         yearInput.dataset.bound = '1';
       }
       if (yearInput) yearInput.value = String(selectedYear);
+      if (monthInput) monthInput.value = String(balancePageState.month);
 
       const year = Number(yearInput?.value || currentYear);
+      const selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
       const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos);
+      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
       if (balanceQuery){
         rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
       }
 
+      const selectedMonthLabel = `${summary.activeMonthName} ${year}`;
+      if ($('balSelectedMonthBadge')) $('balSelectedMonthBadge').textContent = selectedMonthLabel;
       if ($('balKpiRecaudacion')) $('balKpiRecaudacion').textContent = fmtARS.format(summary.recMesActual);
       if ($('balKpiGastos')) $('balKpiGastos').textContent = fmtARS.format(summary.gastosActual);
       if ($('balKpiGanancia')) $('balKpiGanancia').textContent = fmtARS.format(summary.gananciaActual);
       if ($('balKpiSaldo')) $('balKpiSaldo').textContent = fmtARS.format(summary.saldoActual);
+      if ($('balKpiRecaudacionSub')) $('balKpiRecaudacionSub').textContent = `Cobros registrados en ${selectedMonthLabel}`;
+      if ($('balKpiGastosSub')) $('balKpiGastosSub').textContent = `Gastos registrados en ${selectedMonthLabel}`;
+      if ($('balKpiGananciaSub')) $('balKpiGananciaSub').textContent = `Resultado de ${selectedMonthLabel}`;
+      if ($('balKpiSaldoSub')) $('balKpiSaldoSub').textContent = `Acumulado hasta ${selectedMonthLabel}`;
 
       if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
