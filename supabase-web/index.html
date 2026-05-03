@@ -5295,62 +5295,51 @@ function globalSearch(){
       }
     }
 
-        let activoEditContrato = null;
+    let activoEditContrato = null;
     let activoModalMode = 'full';
 
     function getContratoActivoRow(contratoId){
       return contratosActivos.find(c => String(c.id) === String(contratoId)) || null;
     }
 
-    function openAlquilerModal(){
-      if (!selected?.contrato_id) {
-        alert('Primero abrí el detalle de un activo.');
-        return;
+    async function fetchContratoActivoRow(contratoId){
+      if (!contratoId || isSyntheticContratoId(contratoId)) return null;
+
+      const cached = getContratoActivoRow(contratoId);
+      if (cached) return cached;
+
+      const { data, error } = await sb
+        .from('contratos')
+        .select('id, local_id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
+        .eq('id', contratoId)
+        .maybeSingle();
+
+      if (error) throw error;
+      if (data && !contratosActivos.some(c => String(c.id) === String(data.id))) {
+        contratosActivos.push(data);
       }
-      if (!canUseOperationalContrato(selected)) {
-        alert('Este activo no tiene contrato operativo para modificar desde acá.');
-        return;
-      }
-      openActivoModal('alquiler');
-      setTimeout(() => {
-        try{
-          $('actMontoMensual')?.focus();
-          $('actMontoMensual')?.scrollIntoView({ behavior:'smooth', block:'center' });
-        }catch(e){}
-      }, 80);
+      return data || null;
     }
 
-    function openActivoModal(mode = 'full'){
-      if (!selected?.contrato_id) {
-        alert('Primero abrí el detalle de un activo.');
-        return;
-      }
-      if (!canUseOperationalContrato(selected)) {
-        alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
-        return;
-      }
+    function setActivoMsg(text){
+      const msg = $('activoModalMsg');
+      if (msg) msg.textContent = text || '';
+    }
 
-      activoModalMode = mode === 'alquiler' ? 'alquiler' : 'full';
-
-      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
-      const inq = contrato?.inquilinos || {};
-      activoEditContrato = contrato;
-      const isAlquilerMode = activoModalMode === 'alquiler';
-
-      $('activoModalMsg').textContent = '';
-      $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
-      $('activoModalMeta').textContent = isAlquilerMode
-        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá solo las condiciones del alquiler.`
-        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá código, inquilino y datos de contacto.`;
-
+    function setActivoModalSections(isAlquilerMode){
       const datosSection = $('activoDatosSection');
       const condicionesSection = $('activoCondicionesSection');
       if (datosSection) datosSection.style.display = isAlquilerMode ? 'none' : 'block';
       if (condicionesSection) condicionesSection.style.display = isAlquilerMode ? 'block' : 'none';
+    }
 
-      $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
-      $('actContrato').value = selected.contrato_id || '';
-      $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
+    function fillActivoModalFields(contrato, isAlquilerMode){
+      const inq = contrato?.inquilinos || {};
+      const loc = contrato?.locales || {};
+
+      $('actCodigo').value = loc.codigo || loc.codigo_local || selected?.local_codigo || '';
+      $('actContrato').value = selected?.contrato_id || contrato?.id || '';
+      $('actNombre').value = inq.nombre || selected?.inquilino_nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
@@ -5364,13 +5353,67 @@ function globalSearch(){
       $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
       $('actObservaciones').value = contrato?.observaciones || '';
 
-      $('modalActivoBack').style.display = 'flex';
       setTimeout(() => {
         try{
           const firstInput = isAlquilerMode ? $('actMontoMensual') : $('actCodigo');
           firstInput?.focus();
         }catch(e){}
       }, 50);
+    }
+
+    async function openAlquilerModal(){
+      if (!selected?.contrato_id) {
+        alert('Primero abrí el detalle de un activo.');
+        return;
+      }
+      if (!canUseOperationalContrato(selected)) {
+        alert('Este activo no tiene contrato operativo para modificar desde acá.');
+        return;
+      }
+      await openActivoModal('alquiler');
+      setTimeout(() => {
+        try{
+          $('actMontoMensual')?.focus();
+          $('actMontoMensual')?.scrollIntoView({ behavior:'smooth', block:'center' });
+        }catch(e){}
+      }, 80);
+    }
+
+    async function openActivoModal(mode = 'full'){
+      try{
+        if (!selected?.contrato_id) {
+          alert('Primero abrí el detalle de un activo.');
+          return;
+        }
+        if (!canUseOperationalContrato(selected)) {
+          alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
+          return;
+        }
+
+        activoModalMode = mode === 'alquiler' ? 'alquiler' : 'full';
+        const isAlquilerMode = activoModalMode === 'alquiler';
+
+        $('modalActivoBack').style.display = 'flex';
+        setActivoMsg('Cargando datos del contrato...');
+        $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
+        $('activoModalMeta').textContent = isAlquilerMode
+          ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá solo las condiciones del alquiler.`
+          : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá código, inquilino, documento, teléfono y email.`;
+        setActivoModalSections(isAlquilerMode);
+
+        const contrato = await fetchContratoActivoRow(selected.contrato_id);
+        if (!contrato) {
+          setActivoMsg('No se encontró el contrato operativo en la base.');
+          return;
+        }
+
+        activoEditContrato = contrato;
+        fillActivoModalFields(contrato, isAlquilerMode);
+        setActivoMsg('');
+      }catch(e){
+        console.error('openActivoModal:', e);
+        setActivoMsg('No se pudo abrir la edición: ' + String(e?.message || e));
+      }
     }
 
     function closeActivoModal(){
@@ -5383,122 +5426,133 @@ function globalSearch(){
       const msg = $('activoModalMsg');
       msg.textContent = '';
 
-      if (!selected?.contrato_id) {
-        msg.textContent = 'No hay un activo seleccionado.';
-        return;
-      }
-
-      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
-      if (!contrato) {
-        msg.textContent = 'No se encontró el contrato activo.';
-        return;
-      }
-
-      const isAlquilerMode = activoModalMode === 'alquiler';
-      const tasks = [];
-
-      if (!isAlquilerMode) {
-        const codigo = ($('actCodigo').value || '').trim();
-        const nombre = ($('actNombre').value || '').trim();
-        const documento = ($('actDoc').value || '').trim() || null;
-        const telefono = ($('actTel').value || '').trim() || null;
-        const email = ($('actEmail').value || '').trim() || null;
-
-        if (!codigo) {
-          msg.textContent = 'El código de la unidad es obligatorio.';
-          return;
-        }
-        if (!nombre) {
-          msg.textContent = 'El nombre del inquilino es obligatorio.';
+      try{
+        if (!selected?.contrato_id) {
+          msg.textContent = 'No hay un activo seleccionado.';
           return;
         }
 
-        if (contrato?.locales?.id) {
-          const payloadLocal = {};
-          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
-          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
-          if (Object.keys(payloadLocal).length){
-            tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
+        const contrato = activoEditContrato || await fetchContratoActivoRow(selected.contrato_id);
+        if (!contrato) {
+          msg.textContent = 'No se encontró el contrato activo.';
+          return;
+        }
+
+        const isAlquilerMode = activoModalMode === 'alquiler';
+        const tasks = [];
+
+        if (!isAlquilerMode) {
+          const codigo = ($('actCodigo').value || '').trim();
+          const nombre = ($('actNombre').value || '').trim();
+          const documento = ($('actDoc').value || '').trim() || null;
+          const telefono = ($('actTel').value || '').trim() || null;
+          const email = ($('actEmail').value || '').trim() || null;
+
+          if (!codigo) {
+            msg.textContent = 'El código de la unidad es obligatorio.';
+            return;
           }
-        }
+          if (!nombre) {
+            msg.textContent = 'El nombre del inquilino es obligatorio.';
+            return;
+          }
 
-        if (contrato?.inquilinos?.id) {
+          const localId = contrato?.locales?.id || contrato?.local_id;
+          const inquilinoId = contrato?.inquilinos?.id || contrato?.inquilino_id;
+
+          if (localId) {
+            tasks.push(
+              sb.from('locales')
+                .update({ codigo, codigo_local: codigo })
+                .eq('id', localId)
+            );
+          }
+
+          if (inquilinoId) {
+            tasks.push(
+              sb.from('inquilinos')
+                .update({ nombre, documento, telefono, email })
+                .eq('id', inquilinoId)
+            );
+          }
+        } else {
+          const montoMensual = parseMoneyInput($('actMontoMensual').value);
+          const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
+          const ajustePct = parseMoneyInput($('actAjustePct').value);
+          const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
+          const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
+          const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
+          const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
+          const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
+          const fechaFin = ($('actFechaFin').value || '').trim() || null;
+          const observaciones = ($('actObservaciones').value || '').trim() || null;
+
+          if ($('actMontoMensual').value.trim() && montoMensual === null) {
+            msg.textContent = 'El monto mensual no tiene un formato válido.';
+            return;
+          }
+          if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
+            msg.textContent = 'El impuesto mensual no tiene un formato válido.';
+            return;
+          }
+          if ($('actAjustePct').value.trim() && ajustePct === null) {
+            msg.textContent = 'El aumento no tiene un formato válido.';
+            return;
+          }
+          if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
+            msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
+            return;
+          }
+          if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
+            msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+            return;
+          }
+
           tasks.push(
-            sb.from('inquilinos')
-              .update({ nombre, documento, telefono, email })
-              .eq('id', contrato.inquilinos.id)
+            sb.from('contratos')
+              .update({
+                monto_mensual: montoMensual,
+                impuesto_mensual: impuestoMensual,
+                ajuste_porcentaje: ajustePct,
+                ajuste_cada_meses: ajusteMeses || 3,
+                dia_vencimiento: diaVencimiento || 10,
+                fecha_inicio: fechaInicio,
+                fecha_fin: fechaFin,
+                observaciones
+              })
+              .eq('id', selected.contrato_id)
           );
         }
-      } else {
-        const montoMensual = parseMoneyInput($('actMontoMensual').value);
-        const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
-        const ajustePct = parseMoneyInput($('actAjustePct').value);
-        const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
-        const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
-        const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
-        const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
-        const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
-        const fechaFin = ($('actFechaFin').value || '').trim() || null;
-        const observaciones = ($('actObservaciones').value || '').trim() || null;
 
-        if ($('actMontoMensual').value.trim() && montoMensual === null) {
-          msg.textContent = 'El monto mensual no tiene un formato válido.';
-          return;
-        }
-        if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
-          msg.textContent = 'El impuesto mensual no tiene un formato válido.';
-          return;
-        }
-        if ($('actAjustePct').value.trim() && ajustePct === null) {
-          msg.textContent = 'El aumento no tiene un formato válido.';
-          return;
-        }
-        if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
-          msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
-          return;
-        }
-        if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
-          msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+        if (!tasks.length) {
+          msg.textContent = 'No encontré registros editables para este activo.';
           return;
         }
 
-        tasks.push(
-          sb.from('contratos')
-            .update({
-              monto_mensual: montoMensual,
-              impuesto_mensual: impuestoMensual,
-              ajuste_porcentaje: ajustePct,
-              ajuste_cada_meses: ajusteMeses || 3,
-              dia_vencimiento: diaVencimiento || 10,
-              fecha_inicio: fechaInicio,
-              fecha_fin: fechaFin,
-              observaciones
-            })
-            .eq('id', selected.contrato_id)
-        );
-      }
+        msg.textContent = 'Guardando cambios...';
+        const results = await Promise.all(tasks);
+        const failed = results.find(r => r?.error);
+        if (failed?.error) {
+          msg.textContent = failed.error.message;
+          return;
+        }
 
-      if (!tasks.length) {
-        msg.textContent = 'No encontré registros editables para este activo.';
-        return;
-      }
+        const currentId = selected.contrato_id;
+        msg.textContent = isAlquilerMode ? 'Alquiler actualizado ✅' : 'Activo actualizado ✅';
+        closeActivoModal();
 
-      msg.textContent = 'Guardando cambios...';
-      const results = await Promise.all(tasks);
-      const failed = results.find(r => r?.error);
-      if (failed?.error) {
-        msg.textContent = failed.error.message;
-        return;
-      }
+        await refreshUnidades();
+        await refreshContratosActivos();
+        buildInqCache();
 
-      const currentId = selected.contrato_id;
-      msg.textContent = isAlquilerMode ? 'Alquiler actualizado ✅' : 'Activo actualizado ✅';
-      closeActivoModal();
-      await refreshAll();
-      const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
-      if (refreshed) {
-        selected = refreshed;
-        openDetalle(refreshed);
+        const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
+        if (refreshed) {
+          selected = refreshed;
+          openDetalle(refreshed);
+        }
+      }catch(e){
+        console.error('saveActivoModal:', e);
+        msg.textContent = 'Error al guardar: ' + String(e?.message || e);
       }
     }
 
