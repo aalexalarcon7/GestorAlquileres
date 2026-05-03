@@ -2020,7 +2020,7 @@
   <style id="recibosInternosStyles">
     .recibos-grid{
       display:grid;
-      grid-template-columns:1.2fr .8fr;
+      grid-template-columns:1fr;
       gap:14px;
     }
     .recibos-history-head{
@@ -3129,6 +3129,24 @@
     }
   </style>
 
+  <style id="reciboDangerRestoreStyles">
+    .recibo-danger-zone{
+      margin-top:14px;
+      padding:16px;
+      border:1px solid var(--bad-border);
+      border-radius:20px;
+      background:var(--bad-soft);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+    .recibo-danger-zone h4{ margin:0; font-size:16px; }
+    .recibo-danger-zone .muted{ margin-top:4px; }
+    .recibo-danger-zone .btn{ min-width:180px; }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -3563,12 +3581,13 @@
         <button class="btn" onclick="closeReciboModal()">Cerrar</button>
       </div>
       <div id="reciboPreviewBody" style="margin-top:14px;"></div>
-      <div class="recibo-actions">
-        <button class="btn" onclick="copyReciboShareText()">Copiar texto</button>
-        <button class="btn" onclick="openReciboEmail()">Email + PDF</button>
-        <button class="btn" onclick="openReciboWhatsappQuick()">WhatsApp rápido</button>
-        <button class="btn" onclick="openReciboWhatsappPdf()">WhatsApp + PDF</button>
-        <button class="btn primary" onclick="printReciboActual()">Imprimir / Guardar PDF</button>
+
+      <div class="recibo-danger-zone">
+        <div>
+          <h4>Eliminar recibo</h4>
+          <div class="muted">Elimina el recibo del historial y, si corresponde, también el pago asociado.</div>
+        </div>
+        <button class="btn danger" onclick="deleteReciboActual()">Eliminar recibo</button>
       </div>
       <div class="toast" id="reciboModalMsg"></div>
     </div>
@@ -6627,11 +6646,11 @@ function globalSearch(){
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
                     <div class="recibos-share-label">Canales disponibles</div>
-                    <button class="recibos-share-action email" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByEmail('${getReciboKey(item)}')">
-                      <span class="icon">✉</span>
+                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${getReciboKey(item)}')">
+                      <span class="icon">PDF</span>
                       <span class="meta">
-                        <span class="title">Email</span>
-                        <span class="sub">Abrir envío por correo</span>
+                        <span class="title">Descargar PDF</span>
+                        <span class="sub">Solo el recibo</span>
                       </span>
                     </button>
                     <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${getReciboKey(item)}')">
@@ -6773,61 +6792,6 @@ function globalSearch(){
             </div>
           </div>
 
-          <div class="recibos-side-stack">
-            <div class="card">
-              <div class="row" style="justify-content:space-between;align-items:end;">
-                <div>
-                  <h3 style="margin:0;">Locatario seleccionado</h3>
-                </div>
-              </div>
-              ${ultimo ? `
-                <div class="recibos-side-card" style="margin-top:12px;">
-                  <div class="recibos-side-head">
-                    <div>
-                      <h4>${escapeHtml(ultimo.inquilino_nombre)}</h4>
-                      <div class="muted">Local ${escapeHtml(ultimo.local_codigo)} · ${escapeHtml(ultimo.numero_recibo)}</div>
-                    </div>
-                    <span class="badge b-ok">${fmtARS.format(Number(ultimo.monto_total || 0))}</span>
-                  </div>
-
-                  <div class="recibos-side-meta">
-                    <div class="item">
-                      <div class="label">Documento</div>
-                      <div class="value">${escapeHtml(ultimo.documento || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Fecha</div>
-                      <div class="value">${formatDateDisplay(ultimo.fecha_pago || ultimo.created_at)}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Teléfono</div>
-                      <div class="value">${escapeHtml(ultimo.telefono || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Email</div>
-                      <div class="value">${escapeHtml(ultimo.email || 'No cargado')}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Alquiler</div>
-                      <div class="value">${fmtARS.format(Number(ultimo.monto_alquiler || 0))}</div>
-                    </div>
-                    <div class="item">
-                      <div class="label">Impuesto</div>
-                      <div class="value">${fmtARS.format(Number(ultimo.monto_impuesto || 0))} · ${Number(ultimo.impuesto_porcentaje || 0).toFixed(2)}%</div>
-                    </div>
-                  </div>
-
-                  <div class="recibos-side-actions">
-                    <button class="btn primary" onclick="openReciboModal('${ultimo.id}')">Abrir recibo</button>
-                    <button class="btn" onclick="shareReciboByEmail('${ultimo.id}')">Email + PDF</button>
-                    <button class="btn" onclick="shareReciboByWhatsappText('${ultimo.id}')">WhatsApp rápido</button>
-                    <button class="btn" onclick="shareReciboByWhatsappPdf('${ultimo.id}')">WhatsApp + PDF</button>
-                  </div>
-                </div>
-              ` : `<div class="toast" style="margin-top:12px;">Apenas registres un cobro, vas a ver el recibo interno acá.</div>`}
-            </div>
-
-          </div>
         </div>
       `;
     }
@@ -6839,6 +6803,113 @@ function globalSearch(){
 
     function getReciboById(id){
       return recibosInternosCache.find(item => getReciboKey(item) === String(id)) || null;
+    }
+
+
+    async function downloadReciboOnly(id){
+      const item = getReciboById(id);
+      if (!item){
+        alert('No se encontró el recibo para descargar.');
+        return;
+      }
+      try{
+        await downloadReciboPdf(item);
+        if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'PDF descargado correctamente.';
+      } catch (error){
+        console.error(error);
+        if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'No se pudo descargar el PDF.';
+        else alert('No se pudo descargar el PDF.');
+      }
+    }
+
+    function downloadReciboActual(){
+      if (!reciboActual) return;
+      downloadReciboOnly(getReciboKey(reciboActual));
+    }
+
+    function sameReciboIdentity(a, b){
+      if (!a || !b) return false;
+      const aKey = String(getReciboKey(a) || '');
+      const bKey = String(getReciboKey(b) || '');
+      const aId = String(a.id || a.pago_id || '');
+      const bId = String(b.id || b.pago_id || '');
+      const aNumero = String(a.numero_recibo || '');
+      const bNumero = String(b.numero_recibo || '');
+      return (!!aKey && !!bKey && aKey === bKey)
+        || (!!aId && !!bId && aId === bId)
+        || (!!aNumero && !!bNumero && aNumero === bNumero);
+    }
+
+    function removeReciboFromLocalCaches(item){
+      recibosInternosCache = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
+        .filter(row => !sameReciboIdentity(row, item));
+      saveReceiptsCache();
+
+      const manualReceipts = loadManualReceipts()
+        .filter(row => !sameReciboIdentity(row, item));
+      saveManualReceipts(manualReceipts);
+
+      const keys = [
+        getReciboKey(item),
+        item?.id,
+        item?.pago_id,
+        item?.numero_recibo,
+        item?.referencia,
+        item?.__cache_key
+      ].map(value => String(value || '').trim()).filter(Boolean);
+
+      keys.forEach(key => {
+        delete paymentDescriptionMap[key];
+        delete receiptNumberMap[key];
+      });
+      savePaymentDescriptionMap();
+      saveReceiptNumberMap();
+    }
+
+    async function deleteReciboById(id){
+      const item = getReciboById(id);
+      if (!item){
+        alert('No se encontró el recibo para eliminar.');
+        return;
+      }
+
+      const numero = item.numero_recibo || item.referencia || 'sin número';
+      const local = item.local_codigo || '—';
+      const locatario = item.inquilino_nombre || '—';
+      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nSi el recibo tiene un pago asociado en la base, también se eliminará ese pago.\n\n¿Continuar?`);
+      if (!ok) return;
+
+      const pagoId = String(item.id || item.pago_id || '').trim();
+      const looksLikeStoredPayment = !!pagoId
+        && pagoId !== String(item.numero_recibo || '').trim()
+        && !pagoId.startsWith('REC-')
+        && !pagoId.startsWith('tmp-');
+
+      try{
+        if (looksLikeStoredPayment){
+          const { error } = await sb.from('pagos').delete().eq('id', pagoId);
+          if (error) throw error;
+        }
+
+        removeReciboFromLocalCaches(item);
+
+        if (reciboActual && sameReciboIdentity(reciboActual, item)){
+          reciboActual = null;
+          closeReciboModal();
+        }
+
+        await refreshAll();
+        if (route === 'recibos') await renderRecibosPage();
+        showPagoSuccessToast(`Se eliminó el recibo ${numero}.`);
+      } catch (error){
+        console.error(error);
+        alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
+      }
+    }
+
+    function deleteReciboActual(){
+      if (!reciboActual) return;
+      deleteReciboById(getReciboKey(reciboActual));
     }
 
 
