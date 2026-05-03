@@ -3298,7 +3298,7 @@
               <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
-                  <div class="muted">Información principal de la unidad, contrato e inquilino.</div>
+                  
                 </div>
                 <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
               </div>
@@ -3307,7 +3307,7 @@
               <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;margin-top:18px;">
                 <div>
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
-                  <div class="muted">Monto mensual, impuesto, ajuste, vencimiento, vigencia y observaciones.</div>
+                  
                 </div>
                 <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
               </div>
@@ -3327,7 +3327,7 @@
             <div class="row" style="justify-content:space-between;align-items:end;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
-                <div class="muted">Seguimiento de vencimientos, pagos y saldo pendiente.</div>
+                
               </div>
             </div>
 
@@ -3495,37 +3495,41 @@
       </div>
       <div class="toast" id="activoModalMsg"></div>
 
-      <div class="row" style="margin-top:12px;">
-        <input id="actCodigo" placeholder="Código / unidad" style="width:180px;">
-        <input id="actContrato" placeholder="Contrato" style="width:180px;" disabled>
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actNombre" placeholder="Nombre del inquilino" style="width:100%;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actDoc" placeholder="Documento" style="width:180px;">
-        <input id="actTel" placeholder="Teléfono" style="width:180px;">
-        <input id="actEmail" placeholder="Email" style="width:240px;">
+      <div id="activoDatosSection">
+        <div class="row" style="margin-top:12px;">
+          <input id="actCodigo" placeholder="Código / unidad" style="width:180px;">
+          <input id="actContrato" placeholder="Contrato" style="width:180px;" disabled>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="actNombre" placeholder="Nombre del inquilino" style="width:100%;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="actDoc" placeholder="Documento" style="width:180px;">
+          <input id="actTel" placeholder="Teléfono" style="width:180px;">
+          <input id="actEmail" placeholder="Email" style="width:240px;">
+        </div>
       </div>
 
-      <div class="hr"></div>
-      <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
+      <div id="activoCondicionesSection">
+        <div class="hr"></div>
+        <div class="muted" style="font-weight:800;">Condiciones del alquiler</div>
 
-      <div class="row" style="margin-top:10px;">
-        <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
-        <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
-        <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
-        <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <input id="actFechaInicio" type="date" style="width:180px;">
-        <input id="actFechaFin" type="date" style="width:180px;">
-      </div>
-      <div class="row" style="margin-top:10px;">
-        <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
+        <div class="row" style="margin-top:10px;">
+          <input id="actMontoMensual" placeholder="Monto mensual" style="width:180px;">
+          <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento" style="width:180px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="actImpuestoMensual" placeholder="Impuesto mensual" style="width:180px;">
+          <input id="actAjustePct" placeholder="Aumento (%)" style="width:180px;">
+          <input id="actAjusteMeses" type="number" min="1" max="24" placeholder="Cada cuántos meses" style="width:180px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <input id="actFechaInicio" type="date" style="width:180px;">
+          <input id="actFechaFin" type="date" style="width:180px;">
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <textarea id="actObservaciones" placeholder="Observaciones del contrato / alquiler" style="width:100%;min-height:92px;"></textarea>
+        </div>
       </div>
 
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
@@ -5336,14 +5340,21 @@ function globalSearch(){
       $('activoModalMsg').textContent = '';
       $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
       $('activoModalMeta').textContent = isAlquilerMode
-        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Ajustá monto, impuesto, vencimiento y vigencia.`
-        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Editá datos generales y condiciones del alquiler.`;
+        ? `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá solo las condiciones del alquiler.`
+        : `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'} · Modificá código, inquilino y datos de contacto.`;
+
+      const datosSection = $('activoDatosSection');
+      const condicionesSection = $('activoCondicionesSection');
+      if (datosSection) datosSection.style.display = isAlquilerMode ? 'none' : 'block';
+      if (condicionesSection) condicionesSection.style.display = isAlquilerMode ? 'block' : 'none';
+
       $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
       $('actContrato').value = selected.contrato_id || '';
       $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
       $('actDoc').value = inq.documento || '';
       $('actTel').value = inq.telefono || '';
       $('actEmail').value = inq.email || '';
+
       $('actMontoMensual').value = formatMoneyInput(contrato?.monto_mensual);
       $('actImpuestoMensual').value = formatMoneyInput(contrato?.impuesto_mensual);
       $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
@@ -5352,7 +5363,14 @@ function globalSearch(){
       $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
       $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
       $('actObservaciones').value = contrato?.observaciones || '';
+
       $('modalActivoBack').style.display = 'flex';
+      setTimeout(() => {
+        try{
+          const firstInput = isAlquilerMode ? $('actMontoMensual') : $('actCodigo');
+          firstInput?.focus();
+        }catch(e){}
+      }, 50);
     }
 
     function closeActivoModal(){
@@ -5370,91 +5388,100 @@ function globalSearch(){
         return;
       }
 
-      const codigo = ($('actCodigo').value || '').trim();
-      const nombre = ($('actNombre').value || '').trim();
-      const documento = ($('actDoc').value || '').trim() || null;
-      const telefono = ($('actTel').value || '').trim() || null;
-      const email = ($('actEmail').value || '').trim() || null;
-
-      const montoMensual = parseMoneyInput($('actMontoMensual').value);
-      const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
-      const ajustePct = parseMoneyInput($('actAjustePct').value);
-      const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
-      const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
-      const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
-      const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
-      const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
-      const fechaFin = ($('actFechaFin').value || '').trim() || null;
-      const observaciones = ($('actObservaciones').value || '').trim() || null;
-
-      if (!codigo) {
-        msg.textContent = 'El código de la unidad es obligatorio.';
-        return;
-      }
-      if (!nombre) {
-        msg.textContent = 'El nombre del inquilino es obligatorio.';
-        return;
-      }
-      if ($('actMontoMensual').value.trim() && montoMensual === null) {
-        msg.textContent = 'El monto mensual no tiene un formato válido.';
-        return;
-      }
-      if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
-        msg.textContent = 'El impuesto mensual no tiene un formato válido.';
-        return;
-      }
-      if ($('actAjustePct').value.trim() && ajustePct === null) {
-        msg.textContent = 'El aumento no tiene un formato válido.';
-        return;
-      }
-      if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
-        msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
-        return;
-      }
-      if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
-        msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
-        return;
-      }
-
       const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id);
       if (!contrato) {
         msg.textContent = 'No se encontró el contrato activo.';
         return;
       }
 
+      const isAlquilerMode = activoModalMode === 'alquiler';
       const tasks = [];
 
-      if (contrato?.locales?.id) {
-        const payloadLocal = {};
-        if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
-        if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
-        if (Object.keys(payloadLocal).length){
-          tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
-        }
-      }
+      if (!isAlquilerMode) {
+        const codigo = ($('actCodigo').value || '').trim();
+        const nombre = ($('actNombre').value || '').trim();
+        const documento = ($('actDoc').value || '').trim() || null;
+        const telefono = ($('actTel').value || '').trim() || null;
+        const email = ($('actEmail').value || '').trim() || null;
 
-      if (contrato?.inquilinos?.id) {
+        if (!codigo) {
+          msg.textContent = 'El código de la unidad es obligatorio.';
+          return;
+        }
+        if (!nombre) {
+          msg.textContent = 'El nombre del inquilino es obligatorio.';
+          return;
+        }
+
+        if (contrato?.locales?.id) {
+          const payloadLocal = {};
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
+          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
+          if (Object.keys(payloadLocal).length){
+            tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
+          }
+        }
+
+        if (contrato?.inquilinos?.id) {
+          tasks.push(
+            sb.from('inquilinos')
+              .update({ nombre, documento, telefono, email })
+              .eq('id', contrato.inquilinos.id)
+          );
+        }
+      } else {
+        const montoMensual = parseMoneyInput($('actMontoMensual').value);
+        const impuestoMensual = parseMoneyInput($('actImpuestoMensual').value);
+        const ajustePct = parseMoneyInput($('actAjustePct').value);
+        const ajusteMesesRaw = ($('actAjusteMeses').value || '').trim();
+        const ajusteMeses = ajusteMesesRaw ? Number(ajusteMesesRaw) : 3;
+        const diaVencimientoRaw = ($('actDiaVencimiento').value || '').trim();
+        const diaVencimiento = diaVencimientoRaw ? Number(diaVencimientoRaw) : 10;
+        const fechaInicio = ($('actFechaInicio').value || '').trim() || null;
+        const fechaFin = ($('actFechaFin').value || '').trim() || null;
+        const observaciones = ($('actObservaciones').value || '').trim() || null;
+
+        if ($('actMontoMensual').value.trim() && montoMensual === null) {
+          msg.textContent = 'El monto mensual no tiene un formato válido.';
+          return;
+        }
+        if ($('actImpuestoMensual').value.trim() && impuestoMensual === null) {
+          msg.textContent = 'El impuesto mensual no tiene un formato válido.';
+          return;
+        }
+        if ($('actAjustePct').value.trim() && ajustePct === null) {
+          msg.textContent = 'El aumento no tiene un formato válido.';
+          return;
+        }
+        if (ajusteMeses && (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24)) {
+          msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
+          return;
+        }
+        if (diaVencimiento && (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31)) {
+          msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+          return;
+        }
+
         tasks.push(
-          sb.from('inquilinos')
-            .update({ nombre, documento, telefono, email })
-            .eq('id', contrato.inquilinos.id)
+          sb.from('contratos')
+            .update({
+              monto_mensual: montoMensual,
+              impuesto_mensual: impuestoMensual,
+              ajuste_porcentaje: ajustePct,
+              ajuste_cada_meses: ajusteMeses || 3,
+              dia_vencimiento: diaVencimiento || 10,
+              fecha_inicio: fechaInicio,
+              fecha_fin: fechaFin,
+              observaciones
+            })
+            .eq('id', selected.contrato_id)
         );
       }
 
-      tasks.push(
-        sb.from('contratos')
-          .update({
-            monto_mensual: montoMensual,
-            impuesto_mensual: impuestoMensual,
-            ajuste_porcentaje: ajustePct,
-            ajuste_cada_meses: ajusteMeses || 3,
-            dia_vencimiento: diaVencimiento || 10,
-            fecha_inicio: fechaInicio,
-            fecha_fin: fechaFin,
-            observaciones
-          })
-          .eq('id', selected.contrato_id)
-      );
+      if (!tasks.length) {
+        msg.textContent = 'No encontré registros editables para este activo.';
+        return;
+      }
 
       msg.textContent = 'Guardando cambios...';
       const results = await Promise.all(tasks);
@@ -5465,6 +5492,7 @@ function globalSearch(){
       }
 
       const currentId = selected.contrato_id;
+      msg.textContent = isAlquilerMode ? 'Alquiler actualizado ✅' : 'Activo actualizado ✅';
       closeActivoModal();
       await refreshAll();
       const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
