@@ -3655,7 +3655,7 @@
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
-    let balancePageState = { query:'', month:new Date().getMonth() };
+    let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
     let activosReconstruidosLoadError = '';
@@ -7717,6 +7717,27 @@ function globalSearch(){
       return new Date(year, monthIndex + 1, 0).getDate();
     }
 
+    function findLastBalanceMonthWithData(pagos, gastos, fallbackMonth){
+      const months = [];
+      (pagos || []).forEach(item => {
+        const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
+        if (idx >= 0 && Number(item.monto || 0) !== 0) months.push(idx);
+      });
+      (gastos || []).forEach(item => {
+        const idx = monthIndexFromDate(item.fecha || item.created_at);
+        if (idx >= 0 && Number(item.monto || 0) !== 0) months.push(idx);
+      });
+      if (months.length) return Math.max(...months);
+      const fb = Number(fallbackMonth);
+      return Number.isInteger(fb) ? Math.max(0, Math.min(11, fb)) : new Date().getMonth();
+    }
+
+    function hasBalanceMovementsInMonth(pagos, gastos, monthIndex){
+      const m = Number(monthIndex);
+      return (pagos || []).some(item => monthIndexFromDate(item.fecha_pago || item.created_at) === m && Number(item.monto || 0) !== 0)
+        || (gastos || []).some(item => monthIndexFromDate(item.fecha || item.created_at) === m && Number(item.monto || 0) !== 0);
+    }
+
     function destroyBalanceCharts(){
       balanceCharts.forEach(ch => {
         try { ch.destroy(); } catch (e){}
@@ -7817,7 +7838,8 @@ function globalSearch(){
           recMesActual,
           gastosActual,
           gananciaActual,
-          saldoActual,
+          saldoActual: gananciaActual,
+          saldoAcumuladoActual: saldoActual,
           activeMonthIndex,
           activeMonthName: BALANCE_MONTHS[activeMonthIndex],
           proyeccion,
@@ -7919,6 +7941,7 @@ function globalSearch(){
     function handleBalanceMonthChange(){
       const monthValue = Number($('balanceMonth')?.value);
       balancePageState.month = Number.isInteger(monthValue) ? Math.max(0, Math.min(11, monthValue)) : new Date().getMonth();
+      balancePageState.monthManual = true;
       renderBalancePage();
     }
 
@@ -7928,10 +7951,16 @@ function globalSearch(){
 
       const now = new Date();
       const currentYear = now.getFullYear();
+      const renderSeq = (balancePageState.renderSeq || 0) + 1;
+      balancePageState.renderSeq = renderSeq;
       balancePageState.query = $('balanceSearch')?.value || balancePageState.query || '';
-      const selectedYear = Number($('balanceYear')?.value || currentYear);
-      const selectedMonth = Number($('balanceMonth')?.value ?? balancePageState.month ?? now.getMonth());
-      balancePageState.month = Number.isInteger(selectedMonth) ? Math.max(0, Math.min(11, selectedMonth)) : now.getMonth();
+      const selectedYear = Number($('balanceYear')?.value || balancePageState.year || currentYear);
+      balancePageState.year = selectedYear;
+      const rawSelectedMonth = $('balanceMonth')?.value;
+      const selectedMonth = rawSelectedMonth !== undefined && rawSelectedMonth !== null
+        ? Number(rawSelectedMonth)
+        : (balancePageState.month ?? now.getMonth());
+      balancePageState.month = Number.isInteger(Number(selectedMonth)) ? Math.max(0, Math.min(11, Number(selectedMonth))) : now.getMonth();
       const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
         .map(year => `<option value="${year}">${year}</option>`)
         .join('');
@@ -7973,7 +8002,7 @@ function globalSearch(){
             <div class="kpi"><div class="label">Recaudación bruta</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiRecaudacionSub">Todo lo cobrado en el mes elegido</div></div>
             <div class="kpi"><div class="label">Gastos</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted" id="balKpiGastosSub">Egresos cargados en el mes elegido</div></div>
             <div class="kpi"><div class="label">Ganancia</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted" id="balKpiGananciaSub">Recaudación - gastos</div></div>
-            <div class="kpi"><div class="label">Saldo acumulado</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted" id="balKpiSaldoSub">Acumulado hasta el mes elegido</div></div>
+            <div class="kpi"><div class="label">Saldo del mes</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted" id="balKpiSaldoSub">Recaudación - gastos del mes</div></div>
           </div>
         </div>
 
@@ -8041,15 +8070,27 @@ function globalSearch(){
       const yearInput = $('balanceYear');
       const monthInput = $('balanceMonth');
       if (yearInput && !yearInput.dataset.bound){
-        yearInput.addEventListener('change', () => renderBalancePage());
+        yearInput.addEventListener('change', () => {
+          balancePageState.year = Number(yearInput.value || currentYear);
+          balancePageState.monthManual = false;
+          renderBalancePage();
+        });
         yearInput.dataset.bound = '1';
       }
       if (yearInput) yearInput.value = String(selectedYear);
       if (monthInput) monthInput.value = String(balancePageState.month);
 
       const year = Number(yearInput?.value || currentYear);
-      const selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
+      let selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
       const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
+      if (renderSeq !== balancePageState.renderSeq) return;
+
+      if (!balancePageState.monthManual && !hasBalanceMovementsInMonth(pagos, gastos, selectedMonthIndex)){
+        selectedMonthIndex = findLastBalanceMonthWithData(pagos, gastos, selectedMonthIndex);
+        balancePageState.month = selectedMonthIndex;
+        if (monthInput) monthInput.value = String(selectedMonthIndex);
+      }
+
       let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
       if (balanceQuery){
@@ -8065,7 +8106,7 @@ function globalSearch(){
       if ($('balKpiRecaudacionSub')) $('balKpiRecaudacionSub').textContent = `Cobros registrados en ${selectedMonthLabel}`;
       if ($('balKpiGastosSub')) $('balKpiGastosSub').textContent = `Gastos registrados en ${selectedMonthLabel}`;
       if ($('balKpiGananciaSub')) $('balKpiGananciaSub').textContent = `Resultado de ${selectedMonthLabel}`;
-      if ($('balKpiSaldoSub')) $('balKpiSaldoSub').textContent = `Acumulado hasta ${selectedMonthLabel}`;
+      if ($('balKpiSaldoSub')) $('balKpiSaldoSub').textContent = `Saldo propio de ${selectedMonthLabel}`;
 
       if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
@@ -8076,6 +8117,9 @@ function globalSearch(){
       if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rows);
 
       const messages = [];
+      if (!hasBalanceMovementsInMonth(pagos, gastos, summary.activeMonthIndex)){
+        messages.push(`No hay cobros ni gastos registrados en ${selectedMonthLabel}.`);
+      }
       if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
