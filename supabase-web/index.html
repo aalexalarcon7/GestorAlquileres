@@ -7717,6 +7717,32 @@ function globalSearch(){
       return new Date(year, monthIndex + 1, 0).getDate();
     }
 
+    function monthStartISO(year, monthIndex){
+      return `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
+    }
+
+    function monthEndISO(year, monthIndex){
+      return `${year}-${String(monthIndex + 1).padStart(2, '0')}-${String(daysInMonth(year, monthIndex)).padStart(2, '0')}`;
+    }
+
+    function contratoAplicaMesBalance(contrato, year, monthIndex){
+      const estado = String(contrato?.estado || '').trim().toUpperCase();
+      if (estado && estado !== 'ACTIVO') return false;
+
+      const start = monthStartISO(year, monthIndex);
+      const end = monthEndISO(year, monthIndex);
+      const inicio = String(contrato?.fecha_inicio || '').slice(0, 10);
+      const fin = String(contrato?.fecha_fin || '').slice(0, 10);
+
+      if (inicio && inicio > end) return false;
+      if (fin && fin < start) return false;
+      return true;
+    }
+
+    function montoFacturacionContratoBalance(contrato){
+      return Math.max(0, toNumber(contrato?.monto_mensual) + toNumber(contrato?.impuesto_mensual));
+    }
+
     function findLastBalanceMonthWithData(pagos, gastos, fallbackMonth){
       const months = [];
       (pagos || []).forEach(item => {
@@ -7761,19 +7787,38 @@ function globalSearch(){
         .gte('fecha', from)
         .lt('fecha', to);
 
-      const [{ data: pagosData, error: pagosError }, { data: gastosData, error: gastosError }] = await Promise.all([pagosPromise, gastosPromise]);
+      const contratosPromise = sb
+        .from('contratos')
+        .select('id, estado, monto_mensual, impuesto_mensual, fecha_inicio, fecha_fin');
+
+      const [
+        { data: pagosData, error: pagosError },
+        { data: gastosData, error: gastosError },
+        { data: contratosData, error: contratosError }
+      ] = await Promise.all([pagosPromise, gastosPromise, contratosPromise]);
 
       return {
         pagos: pagosData || [],
         gastos: gastosData || [],
+        contratos: contratosData || [],
         pagosError,
-        gastosError
+        gastosError,
+        contratosError
       };
     }
 
-    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null){
+    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null, contratos = []){
+      const facturacion = Array(12).fill(0);
       const recaudacion = Array(12).fill(0);
       const gastosMes = Array(12).fill(0);
+
+      (contratos || []).forEach(contrato => {
+        const monto = montoFacturacionContratoBalance(contrato);
+        if (!monto) return;
+        for (let idx = 0; idx < 12; idx++){
+          if (contratoAplicaMesBalance(contrato, year, idx)) facturacion[idx] += monto;
+        }
+      });
 
       (pagos || []).forEach(item => {
         const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
@@ -7793,8 +7838,11 @@ function globalSearch(){
         saldo.push(acumulado);
       });
 
-      const gastosSobreFact = recaudacion.map((value, idx) => safePercent(gastosMes[idx], value));
-      const utilidadSobreFact = recaudacion.map((value, idx) => safePercent(ganancia[idx], value));
+      const porcentajeCobrado = recaudacion.map((value, idx) => safePercent(value, facturacion[idx]));
+      const pendienteFacturacion = facturacion.map((value, idx) => Math.max(value - recaudacion[idx], 0));
+      const diferenciaFacturacion = recaudacion.map((value, idx) => value - facturacion[idx]);
+      const gastosSobreFact = facturacion.map((value, idx) => safePercent(gastosMes[idx], value));
+      const utilidadSobreFact = facturacion.map((value, idx) => safePercent(ganancia[idx], value));
       const recaudacionSobreSaldo = recaudacion.map((value, idx) => safePercent(value, saldo[idx]));
 
       const now = new Date();
@@ -7805,10 +7853,14 @@ function globalSearch(){
       const currentMonthDays = isCurrentRealMonth ? now.getDate() : daysInMonth(year, activeMonthIndex);
       const monthTotalDays = daysInMonth(year, activeMonthIndex);
 
+      const facturacionActual = facturacion[activeMonthIndex] || 0;
       const recMesActual = recaudacion[activeMonthIndex] || 0;
       const gastosActual = gastosMes[activeMonthIndex] || 0;
       const gananciaActual = ganancia[activeMonthIndex] || 0;
       const saldoActual = saldo[activeMonthIndex] || 0;
+      const porcentajeCobradoActual = porcentajeCobrado[activeMonthIndex] || 0;
+      const pendienteFacturacionActual = pendienteFacturacion[activeMonthIndex] || 0;
+      const diferenciaFacturacionActual = diferenciaFacturacion[activeMonthIndex] || 0;
 
       const proyFactor = currentMonthDays > 0 ? (monthTotalDays / currentMonthDays) : 0;
       const proyeccion = isCurrentRealMonth ? {
@@ -7823,7 +7875,11 @@ function globalSearch(){
 
       const rows = BALANCE_MONTHS.map((mes, idx) => ({
         mes,
+        facturacion: facturacion[idx],
         recaudacion: recaudacion[idx],
+        porcentajeCobrado: porcentajeCobrado[idx],
+        pendienteFacturacion: pendienteFacturacion[idx],
+        diferenciaFacturacion: diferenciaFacturacion[idx],
         gastos: gastosMes[idx],
         ganancia: ganancia[idx],
         saldo: saldo[idx],
@@ -7835,14 +7891,19 @@ function globalSearch(){
       return {
         rows,
         summary: {
+          facturacionActual,
           recMesActual,
           gastosActual,
           gananciaActual,
           saldoActual: gananciaActual,
           saldoAcumuladoActual: saldoActual,
+          porcentajeCobradoActual,
+          pendienteFacturacionActual,
+          diferenciaFacturacionActual,
           activeMonthIndex,
           activeMonthName: BALANCE_MONTHS[activeMonthIndex],
           proyeccion,
+          totalAnualFacturacion: facturacion.reduce((a,b)=>a+b,0),
           totalAnualRecaudado: recaudacion.reduce((a,b)=>a+b,0),
           totalAnualGastos: gastosMes.reduce((a,b)=>a+b,0),
           totalAnualGanancia: ganancia.reduce((a,b)=>a+b,0)
@@ -7854,7 +7915,10 @@ function globalSearch(){
       return rows.map(row => `
         <tr>
           <td><b>${row.mes}</b></td>
+          <td class="right">${fmtARS.format(row.facturacion)}</td>
           <td class="right">${fmtARS.format(row.recaudacion)}</td>
+          <td class="right">${row.porcentajeCobrado.toFixed(2)}%</td>
+          <td class="right">${fmtARS.format(row.pendienteFacturacion)}</td>
           <td class="right">${fmtARS.format(row.gastos)}</td>
           <td class="right">${fmtARS.format(row.ganancia)}</td>
           <td class="right">${fmtARS.format(row.saldo)}</td>
@@ -7909,6 +7973,19 @@ function globalSearch(){
         data: {
           labels,
           datasets: [{ label: 'Utilidad / Facturación %', data: rows.map(r => Number(r.utilidadSobreFact.toFixed(2))), tension: .28, fill: false, borderWidth: 2 }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } }
+        }
+      });
+
+      mk('balChartCobradoFact', {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{ label: 'Cobrado / Facturación %', data: rows.map(r => Number(r.porcentajeCobrado.toFixed(2))), tension: .28, fill: false, borderWidth: 2 }]
         },
         options: {
           responsive: true,
@@ -8007,6 +8084,19 @@ function globalSearch(){
         </div>
 
         <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
+            <h3 style="margin:0;">Facturación proyectada</h3>
+            <span class="badge b-info" id="balFacturacionBadge">Según contratos activos</span>
+          </div>
+          <div class="kpis balance-kpis-centered">
+            <div class="kpi"><div class="label">Facturación proyectada</div><div class="value" id="balKpiFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiFacturacionSub">Alquiler + impuesto del mes</div></div>
+            <div class="kpi"><div class="label">Cobrado / facturado</div><div class="value" id="balKpiPctCobrado">0.00%</div><div class="muted" id="balKpiPctCobradoSub">Porcentaje cubierto</div></div>
+            <div class="kpi"><div class="label">Pendiente estimado</div><div class="value" id="balKpiPendienteFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiPendienteFacturacionSub">Facturación - cobrado</div></div>
+            <div class="kpi"><div class="label">Diferencia</div><div class="value" id="balKpiDiferenciaFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiDiferenciaFacturacionSub">Cobrado - facturación</div></div>
+          </div>
+        </div>
+
+        <div class="card">
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
               <h3 style="margin:0;">Proyección mensual</h3>
@@ -8028,11 +8118,14 @@ function globalSearch(){
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
-            <table class="balance-table" style="min-width:1300px;">
+            <table class="balance-table" style="min-width:1650px;">
               <thead>
                 <tr>
                   <th>Mes</th>
+                  <th class="right">Facturación proyectada</th>
                   <th class="right">Recaudación</th>
+                  <th class="right">% cobrado</th>
+                  <th class="right">Pendiente fact.</th>
                   <th class="right">Gastos</th>
                   <th class="right">Ganancia</th>
                   <th class="right">Saldo</th>
@@ -8044,7 +8137,7 @@ function globalSearch(){
               <tbody id="balanceBody"></tbody>
             </table>
           </div>
-          <div class="balance-table-note">Cuando no hay facturación o saldo, los porcentajes se muestran en 0% para evitar errores de división.</div>
+          <div class="balance-table-note">La facturación proyectada se calcula con los contratos activos del mes. Cuando no hay facturación o saldo, los porcentajes se muestran en 0% para evitar errores de división.</div>
         </div>
 
         <div class="balance-grid">
@@ -8059,6 +8152,10 @@ function globalSearch(){
           <div class="card balance-chart-card">
             <h3 style="margin-top:0;">Utilidad sobre facturación</h3>
             <canvas id="balChartUtilidadFact"></canvas>
+          </div>
+          <div class="card balance-chart-card">
+            <h3 style="margin-top:0;">Cobrado sobre facturación</h3>
+            <canvas id="balChartCobradoFact"></canvas>
           </div>
           <div class="card balance-chart-card">
             <h3 style="margin-top:0;">Recaudación sobre saldo</h3>
@@ -8082,7 +8179,7 @@ function globalSearch(){
 
       const year = Number(yearInput?.value || currentYear);
       let selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
-      const { pagos, gastos, pagosError, gastosError } = await fetchBalanceData(year);
+      const { pagos, gastos, contratos, pagosError, gastosError, contratosError } = await fetchBalanceData(year);
       if (renderSeq !== balancePageState.renderSeq) return;
 
       if (!balancePageState.monthManual && !hasBalanceMovementsInMonth(pagos, gastos, selectedMonthIndex)){
@@ -8091,7 +8188,7 @@ function globalSearch(){
         if (monthInput) monthInput.value = String(selectedMonthIndex);
       }
 
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex);
+      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex, contratos);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
       if (balanceQuery){
         rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
@@ -8107,12 +8204,21 @@ function globalSearch(){
       if ($('balKpiGastosSub')) $('balKpiGastosSub').textContent = `Gastos registrados en ${selectedMonthLabel}`;
       if ($('balKpiGananciaSub')) $('balKpiGananciaSub').textContent = `Resultado de ${selectedMonthLabel}`;
       if ($('balKpiSaldoSub')) $('balKpiSaldoSub').textContent = `Saldo propio de ${selectedMonthLabel}`;
+      if ($('balKpiFacturacion')) $('balKpiFacturacion').textContent = fmtARS.format(summary.facturacionActual);
+      if ($('balKpiPctCobrado')) $('balKpiPctCobrado').textContent = `${summary.porcentajeCobradoActual.toFixed(2)}%`;
+      if ($('balKpiPendienteFacturacion')) $('balKpiPendienteFacturacion').textContent = fmtARS.format(summary.pendienteFacturacionActual);
+      if ($('balKpiDiferenciaFacturacion')) $('balKpiDiferenciaFacturacion').textContent = fmtARS.format(summary.diferenciaFacturacionActual);
+      if ($('balKpiFacturacionSub')) $('balKpiFacturacionSub').textContent = `Alquiler + impuesto proyectado en ${selectedMonthLabel}`;
+      if ($('balKpiPctCobradoSub')) $('balKpiPctCobradoSub').textContent = `Cobrado sobre facturación de ${selectedMonthLabel}`;
+      if ($('balKpiPendienteFacturacionSub')) $('balKpiPendienteFacturacionSub').textContent = `Pendiente estimado de ${selectedMonthLabel}`;
+      if ($('balKpiDiferenciaFacturacionSub')) $('balKpiDiferenciaFacturacionSub').textContent = summary.diferenciaFacturacionActual >= 0 ? 'Cobrado por encima de la proyección' : 'Falta cobrar contra la proyección';
+      if ($('balFacturacionBadge')) $('balFacturacionBadge').textContent = `Facturación ${selectedMonthLabel}`;
 
       if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
       if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
       if ($('balProjGanancia')) $('balProjGanancia').textContent = fmtARS.format(summary.proyeccion.ganancia);
       if ($('balAnnualResult')) $('balAnnualResult').textContent = fmtARS.format(summary.totalAnualGanancia);
-      if ($('balAnnualSub')) $('balAnnualSub').textContent = `Recaudado ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos ${fmtARS.format(summary.totalAnualGastos)}`;
+      if ($('balAnnualSub')) $('balAnnualSub').textContent = `Facturación ${fmtARS.format(summary.totalAnualFacturacion)} · Recaudado ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos ${fmtARS.format(summary.totalAnualGastos)}`;
 
       if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rows);
 
@@ -8121,7 +8227,11 @@ function globalSearch(){
         messages.push(`No hay cobros ni gastos registrados en ${selectedMonthLabel}.`);
       }
       if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
+      if (!summary.facturacionActual){
+        messages.push(`No hay facturación proyectada para ${selectedMonthLabel}.`);
+      }
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
+      if (contratosError) messages.push(`Contratos: ${contratosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
 
       renderBalanceCharts(rows);
