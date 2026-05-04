@@ -1978,23 +1978,70 @@
 
 
   <style id="balanceViewStyles">
+    .balance-card-compact{
+      padding:16px 18px;
+    }
+    .balance-card-compact .row{
+      margin-bottom:10px !important;
+    }
     .balance-grid{
       display:grid;
-      grid-template-columns:repeat(2,minmax(0,1fr));
-      gap:14px;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:12px;
     }
     .balance-chart-card{
-      min-height:360px;
+      min-height:300px;
+      padding:14px 16px;
+    }
+    .balance-chart-card h3{
+      font-size:15px;
+      margin-bottom:8px;
     }
     .balance-chart-card canvas{
       width:100% !important;
-      height:280px !important;
+      height:220px !important;
     }
-    .balance-kpis-centered .kpi,
+    .balance-kpis-centered{
+      gap:10px;
+    }
+    .balance-kpis-centered .kpi{
+      padding:10px 8px;
+      border-radius:14px;
+      min-width:0;
+    }
     .balance-kpis-centered .label,
     .balance-kpis-centered .value,
     .balance-kpis-centered .muted{
       text-align:center;
+    }
+    .balance-kpis-centered .label{
+      font-size:10.5px;
+      line-height:1.15;
+    }
+    .balance-kpis-centered .value{
+      font-size:19px;
+      margin-top:4px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .balance-kpis-centered .muted{
+      font-size:10.5px;
+      line-height:1.2;
+      margin-top:4px;
+    }
+    .balance-detail-card{
+      padding:16px 18px;
+    }
+    .balance-detail-card .tableWrap{
+      margin-top:10px !important;
+      overflow-x:visible !important;
+    }
+    .balance-table{
+      width:100% !important;
+      min-width:0 !important;
+      table-layout:fixed;
+      font-size:10.7px;
     }
     .balance-table th,
     .balance-table td,
@@ -2003,16 +2050,51 @@
       text-align:center !important;
       vertical-align:middle;
     }
+    .balance-table th,
+    .balance-table td{
+      padding:9px 5px !important;
+      line-height:1.18;
+      white-space:normal;
+      word-break:normal;
+      overflow-wrap:anywhere;
+    }
+    .balance-table th{
+      font-size:9.5px;
+      letter-spacing:.03em;
+    }
+    .balance-money{
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      display:block;
+    }
+    .balance-pct{
+      white-space:nowrap;
+    }
     .balance-table-note{
-      margin-top:10px;
-      font-size:12px;
+      margin-top:8px;
+      font-size:11px;
       color:var(--muted);
       text-align:center;
+    }
+    @media (max-width: 1350px){
+      .balance-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .balance-kpis-centered .value{font-size:17px;}
+      .balance-table{font-size:10px;}
+      .balance-table th,.balance-table td{padding:8px 4px !important;}
+    }
+    @media (max-width: 1100px){
+      .balance-kpis-centered{grid-template-columns:repeat(2,minmax(0,1fr));}
+      .balance-detail-card .tableWrap{overflow-x:auto !important;}
+      .balance-table{min-width:980px !important;}
     }
     @media (max-width: 900px){
       .balance-grid{grid-template-columns:1fr;}
       .balance-chart-card{min-height:auto;}
       .balance-chart-card canvas{height:250px !important;}
+    }
+    @media (max-width: 640px){
+      .balance-kpis-centered{grid-template-columns:1fr;}
     }
   </style>
 
@@ -7911,20 +7993,24 @@ function globalSearch(){
       };
     }
 
+    function formatBalanceMoney(value){
+      return fmtARS.format(toNumber(value)).replace(',00', '');
+    }
+
     function buildBalanceTableRows(rows){
       return rows.map(row => `
         <tr>
           <td><b>${row.mes}</b></td>
-          <td class="right">${fmtARS.format(row.facturacion)}</td>
-          <td class="right">${fmtARS.format(row.recaudacion)}</td>
-          <td class="right">${row.porcentajeCobrado.toFixed(2)}%</td>
-          <td class="right">${fmtARS.format(row.pendienteFacturacion)}</td>
-          <td class="right">${fmtARS.format(row.gastos)}</td>
-          <td class="right">${fmtARS.format(row.ganancia)}</td>
-          <td class="right">${fmtARS.format(row.saldo)}</td>
-          <td class="right">${row.gastosSobreFact.toFixed(2)}%</td>
-          <td class="right">${row.utilidadSobreFact.toFixed(2)}%</td>
-          <td class="right">${row.recaudacionSobreSaldo.toFixed(2)}%</td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.facturacion)}</span></td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.recaudacion)}</span></td>
+          <td class="right"><span class="balance-pct">${row.porcentajeCobrado.toFixed(1)}%</span></td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.pendienteFacturacion)}</span></td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.gastos)}</span></td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.ganancia)}</span></td>
+          <td class="right"><span class="balance-money">${formatBalanceMoney(row.saldo)}</span></td>
+          <td class="right"><span class="balance-pct">${row.gastosSobreFact.toFixed(1)}%</span></td>
+          <td class="right"><span class="balance-pct">${row.utilidadSobreFact.toFixed(1)}%</span></td>
+          <td class="right"><span class="balance-pct">${row.recaudacionSobreSaldo.toFixed(1)}%</span></td>
         </tr>
       `).join('');
     }
@@ -8070,9 +8156,9 @@ function globalSearch(){
           <div class="toast" id="balanceMsg" style="margin-top:14px;"></div>
         </div>
 
-        <div class="card">
+        <div class="card balance-card-compact">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;">Resumen del mes seleccionado</h3>
+            <h3 style="margin:0;font-size:17px;">Resumen del mes seleccionado</h3>
             <span class="badge b-info" id="balSelectedMonthBadge">${BALANCE_MONTHS[balancePageState.month]} ${selectedYear}</span>
           </div>
           <div class="kpis balance-kpis-centered">
@@ -8083,55 +8169,68 @@ function globalSearch(){
           </div>
         </div>
 
-        <div class="card">
+        <div class="card balance-card-compact">
           <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;">Facturación proyectada</h3>
+            <h3 style="margin:0;font-size:17px;">Facturación proyectada</h3>
             <span class="badge b-info" id="balFacturacionBadge">Según contratos activos</span>
           </div>
           <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Facturación proyectada</div><div class="value" id="balKpiFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiFacturacionSub">Alquiler + impuesto del mes</div></div>
-            <div class="kpi"><div class="label">Cobrado / facturado</div><div class="value" id="balKpiPctCobrado">0.00%</div><div class="muted" id="balKpiPctCobradoSub">Porcentaje cubierto</div></div>
-            <div class="kpi"><div class="label">Pendiente estimado</div><div class="value" id="balKpiPendienteFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiPendienteFacturacionSub">Facturación - cobrado</div></div>
+            <div class="kpi"><div class="label">Fact. proyectada</div><div class="value" id="balKpiFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiFacturacionSub">Alquiler + impuesto del mes</div></div>
+            <div class="kpi"><div class="label">Cobrado / fact.</div><div class="value" id="balKpiPctCobrado">0.00%</div><div class="muted" id="balKpiPctCobradoSub">Porcentaje cubierto</div></div>
+            <div class="kpi"><div class="label">Pendiente</div><div class="value" id="balKpiPendienteFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiPendienteFacturacionSub">Facturación - cobrado</div></div>
             <div class="kpi"><div class="label">Diferencia</div><div class="value" id="balKpiDiferenciaFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiDiferenciaFacturacionSub">Cobrado - facturación</div></div>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card balance-card-compact">
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
-              <h3 style="margin:0;">Proyección mensual</h3>
+              <h3 style="margin:0;font-size:17px;">Proyección mensual</h3>
               <div class="muted"></div>
             </div>
           </div>
           <div class="kpis balance-kpis-centered" style="margin-top:12px;">
-            <div class="kpi"><div class="label">Proyección de recaudación</div><div class="value" id="balProjRecaudacion">${fmtARS.format(0)}</div></div>
-            <div class="kpi"><div class="label">Proyección de gastos</div><div class="value" id="balProjGastos">${fmtARS.format(0)}</div></div>
-            <div class="kpi"><div class="label">Proyección de ganancia</div><div class="value" id="balProjGanancia">${fmtARS.format(0)}</div></div>
+            <div class="kpi"><div class="label">Proy. recaudación</div><div class="value" id="balProjRecaudacion">${fmtARS.format(0)}</div></div>
+            <div class="kpi"><div class="label">Proy. gastos</div><div class="value" id="balProjGastos">${fmtARS.format(0)}</div></div>
+            <div class="kpi"><div class="label">Proy. ganancia</div><div class="value" id="balProjGanancia">${fmtARS.format(0)}</div></div>
             <div class="kpi"><div class="label">Totales anuales</div><div class="value" id="balAnnualResult">${fmtARS.format(0)}</div><div class="muted" id="balAnnualSub">Sin datos</div></div>
           </div>
         </div>
 
-        <div class="card">
+        <div class="card balance-detail-card">
           <div class="row" style="justify-content:space-between;align-items:end;">
             <div>
-              <h3 style="margin:0;">Detalle mensual</h3>
+              <h3 style="margin:0;font-size:17px;">Detalle mensual</h3>
             </div>
           </div>
           <div class="tableWrap" style="margin-top:12px;">
-            <table class="balance-table" style="min-width:1650px;">
+            <table class="balance-table">
+              <colgroup>
+                <col style="width:7%">
+                <col style="width:12%">
+                <col style="width:11%">
+                <col style="width:7%">
+                <col style="width:11%">
+                <col style="width:9%">
+                <col style="width:10%">
+                <col style="width:10%">
+                <col style="width:7%">
+                <col style="width:8%">
+                <col style="width:8%">
+              </colgroup>
               <thead>
                 <tr>
                   <th>Mes</th>
-                  <th class="right">Facturación proyectada</th>
+                  <th class="right">Fact. proyectada</th>
                   <th class="right">Recaudación</th>
-                  <th class="right">% cobrado</th>
-                  <th class="right">Pendiente fact.</th>
+                  <th class="right">Cobrado %</th>
+                  <th class="right">Pendiente</th>
                   <th class="right">Gastos</th>
                   <th class="right">Ganancia</th>
                   <th class="right">Saldo</th>
-                  <th class="right">Gastos / Fact. %</th>
-                  <th class="right">Utilidad / Fact. %</th>
-                  <th class="right">Recaudación / Saldo %</th>
+                  <th class="right">Gtos/Fact</th>
+                  <th class="right">Util/Fact</th>
+                  <th class="right">Rec/Saldo</th>
                 </tr>
               </thead>
               <tbody id="balanceBody"></tbody>
