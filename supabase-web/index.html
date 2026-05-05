@@ -4272,13 +4272,52 @@
       return Math.floor((to.getTime() - from.getTime()) / 86400000);
     }
 
-    function getContratoStatus(row){
-      const deudaAtrasada = toNumber(row?.deuda_atrasada);
+    function getConfiguredDueDay(){
+      const raw = Number(appSettings?.pagos?.vencimientoDia || 10);
+      return Math.min(31, Math.max(1, Number.isFinite(raw) ? raw : 10));
+    }
+
+    function isBeforeOrOnCurrentDueDay(){
+      const now = new Date();
+      const dueDay = getConfiguredDueDay();
+      const grace = Math.max(0, Number(appSettings?.pagos?.diasGracia || 0));
+      return now.getDate() <= (dueDay + grace);
+    }
+
+    function getReconstructedDebtStatus(row){
       const deudaTotal = getDisplayedDebtTotal(row);
+      const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
+      const deuda2026 = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
+      const cuotaActual = toNumber(row?.monto_sugerido_2026 ?? row?.monto_mensual ?? row?.monto);
+      const tolerance = 1;
+
+      if (deudaTotal <= 0) {
+        return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
+      }
+
+      const soloDebeMesActual = arrastre2025 <= tolerance
+        && cuotaActual > 0
+        && deuda2026 > 0
+        && deuda2026 <= (cuotaActual + tolerance)
+        && deudaTotal <= (cuotaActual + tolerance);
+
+      if (soloDebeMesActual) {
+        return isBeforeOrOnCurrentDueDay()
+          ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
+          : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+      }
+
+      return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+    }
+
+    function getContratoStatus(row){
+      if (row?.reconstructed) return getReconstructedDebtStatus(row);
+
+      const deudaAtrasada = toNumber(row?.deuda_atrasada);
       const prox = canUseOperationalContrato(row) ? (proximoVencimientoMap[String(row?.contrato_id || '')] || null) : null;
       const dias = prox ? daysBetweenISO(today(), prox) : null;
 
-      if (deudaAtrasada > 0 || (row?.reconstructed && deudaTotal > 0)) {
+      if (deudaAtrasada > 0) {
         return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
       }
 
