@@ -4969,7 +4969,7 @@
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
       if (!code) return [];
 
-      const [{ data: rows2025, error: error2025 }, { data: rows2026, error: error2026 }] = await Promise.all([
+      const [{ data: rows2025, error: error2025 }, { data: rows2026, error: error2026 }, stagingRow, pagosAplicados] = await Promise.all([
         sb.from('vw_revision_cobros_2025_mes')
           .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2025')
           .eq('local_code_normalized', code)
@@ -4977,7 +4977,9 @@
         sb.from('vw_revision_cobros_2026_hasta_abril_con_arrastre_2025')
           .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2026')
           .eq('local_code_normalized', code)
-          .order('mes_nro', { ascending:true })
+          .order('mes_nro', { ascending:true }),
+        fetchStagingDebtRowByCode(code),
+        fetchPagoAplicacionesDetalle(row)
       ]);
 
       if (error2025) console.warn('Detalle reconstruido 2025:', error2025.message);
@@ -4985,7 +4987,7 @@
 
       const detalle2025 = (rows2025 || []).map(item => ({
         periodo: `2025 - ${item.mes}`,
-        vencimiento: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-01`,
+        vencimiento: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-10`,
         total: toNumber(item.costo_mes),
         pagado: toNumber(item.pagado_slots),
         saldo: toNumber(item.saldo_planilla),
@@ -4996,7 +4998,7 @@
 
       const detalle2026 = (rows2026 || []).map(item => ({
         periodo: `2026 - ${item.mes}`,
-        vencimiento: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-01`,
+        vencimiento: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-10`,
         total: toNumber(item.costo_mes),
         pagado: toNumber(item.pagado_slots),
         saldo: toNumber(item.saldo_planilla),
@@ -5005,7 +5007,155 @@
         sort_key: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}`
       }));
 
-      return [...detalle2025, ...detalle2026].sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+      // Las vistas de revisión 2026 llegan hasta abril. Como ya generamos mayo en el staging,
+      // el detalle debe mostrar también mayo aunque todavía no venga en la vista vieja.
+      const detalle2026ConActual = ensureGeneratedCurrent2026Rows(detalle2026, stagingRow || row || {});
+
+      // Si hay pagos registrados desde la página con periodo aplicado, los usamos para bajar
+      // visualmente el mes correcto: Abril baja Abril, Mayo baja Mayo, etc.
+      applyPaymentApplicationsToDebtRows(detalle2026ConActual, pagosAplicados || []);
+
+      return [...detalle2025, ...detalle2026ConActual].sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+    }
+
+    async function fetchPagoAplicacionesDetalle(row){
+      try{
+        if (!row || !canUseOperationalContrato(row) || !row.contrato_id) return [];
+        let res = await sb
+          .from('pagos')
+          .select('id,contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at')
+          .eq('contrato_id', row.contrato_id)
+          .order('fecha_pago', { ascending:true });
+
+        if (res.error){
+          const msg = String(res.error.message || '').toLowerCase();
+          if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('column')){
+            res = await sb
+              .from('pagos')
+              .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
+              .eq('contrato_id', row.contrato_id)
+              .order('fecha_pago', { ascending:true });
+          }
+        }
+
+        if (res.error){
+          console.warn('No se pudieron leer pagos aplicados para detalle:', res.error.message);
+          return [];
+        }
+        return res.data || [];
+      } catch (err){
+        console.warn('No se pudieron leer pagos aplicados para detalle:', err?.message || err);
+        return [];
+      }
+    }
+
+    function ensureGeneratedCurrent2026Rows(detalle2026, sourceRow){
+      const rows = Array.isArray(detalle2026) ? [...detalle2026] : [];
+      const debt = normalizeStagingDebtRow(sourceRow || {});
+      const monthly = Math.max(0, Number(debt.monto_mensual_2026 || sourceRow?.monto_sugerido_2026 || sourceRow?.monto || 0));
+      if (monthly <= 0) return rows;
+
+      const ym = getYearMonthParts(today());
+      const currentMonth = ym.year === 2026 ? ym.month : 5;
+      const lastMonthToShow = Math.min(12, Math.max(5, currentMonth));
+      const existingMonths = new Set(rows.map(r => Number(String(r.sort_key || '').slice(5,7))).filter(Boolean));
+      const maxExisting = rows.reduce((max, r) => Math.max(max, Number(String(r.sort_key || '').slice(5,7)) || 0), 0);
+      const start = Math.max(5, maxExisting + 1);
+
+      for (let month = start; month <= lastMonthToShow; month++){
+        if (existingMonths.has(month)) continue;
+        const estado = getEstadoSyntheticMonth(month, monthly);
+        rows.push({
+          periodo: `2026 - ${GA_MONTH_NAMES[month-1]}`,
+          vencimiento: `2026-${String(month).padStart(2,'0')}-10`,
+          total: monthly,
+          pagado: 0,
+          saldo: monthly,
+          estado_detalle: estado,
+          dias_atraso: estado === 'ATRASADO' ? Math.max(0, Number(new Date().getDate()) - 10) : 0,
+          sort_key: `2026-${String(month).padStart(2,'0')}`,
+          synthetic: true
+        });
+      }
+
+      return rows.sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+    }
+
+    function getEstadoSyntheticMonth(month, saldo){
+      if (toNumber(saldo) <= 0) return 'SALDADA';
+      const ym = getYearMonthParts(today());
+      if (ym.year === 2026 && Number(month) === ym.month && Number(new Date().getDate()) <= 10) return 'VENCE PRONTO';
+      return 'SIN PAGOS';
+    }
+
+    function extractPaymentPeriodLabels(pago){
+      const sources = [
+        pago?.periodo_aplicado,
+        pago?.detalle_aplicacion,
+        pago?.descripcion_pago,
+        paymentDescriptionMap?.[String(pago?.id || '')],
+        paymentDescriptionMap?.[String(pago?.referencia || '')]
+      ].filter(Boolean).join(' · ');
+
+      if (!sources) return [];
+      const labels = [];
+      if (/arrastre\s*2025/i.test(sources)) labels.push('Arrastre 2025');
+
+      const monthRegex = /(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)\s+2026/gi;
+      let match;
+      while ((match = monthRegex.exec(sources)) !== null){
+        const name = match[1].toLowerCase();
+        const idx = GA_MONTH_NAMES.findIndex(m => m.toLowerCase() === name);
+        if (idx >= 0) labels.push(`${GA_MONTH_NAMES[idx]} 2026`);
+      }
+      return [...new Set(labels)];
+    }
+
+    function periodLabelToSortKey(label){
+      const text = String(label || '').trim();
+      if (/arrastre\s*2025/i.test(text)) return 'ARRASTRE_2025';
+      const m = text.match(/(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Octubre|Noviembre|Diciembre)\s+2026/i);
+      if (!m) return '';
+      const idx = GA_MONTH_NAMES.findIndex(name => name.toLowerCase() === m[1].toLowerCase());
+      if (idx < 0) return '';
+      return `2026-${String(idx + 1).padStart(2,'0')}`;
+    }
+
+    function applyPaymentApplicationsToDebtRows(rows, pagos){
+      if (!Array.isArray(rows) || !Array.isArray(pagos) || !pagos.length) return rows;
+
+      pagos.forEach(pago => {
+        const labels = extractPaymentPeriodLabels(pago).filter(label => !/arrastre\s*2025/i.test(label));
+        if (!labels.length) return;
+
+        let remaining = toNumber(pago?.monto_alquiler ?? pago?.monto);
+        if (remaining <= 0) return;
+
+        labels.forEach(label => {
+          if (remaining <= 0.009) return;
+          const key = periodLabelToSortKey(label);
+          if (!key) return;
+          const row = rows.find(r => String(r.sort_key) === key);
+          if (!row) return;
+
+          const beforeSaldo = toNumber(row.saldo);
+          if (beforeSaldo <= 0.009) return;
+          const applied = Math.min(remaining, beforeSaldo);
+          row.pagado = round2(toNumber(row.pagado) + applied);
+          row.saldo = round2(beforeSaldo - applied);
+          remaining = round2(remaining - applied);
+
+          if (row.saldo <= 0.009){
+            row.saldo = 0;
+            row.estado_detalle = 'SALDADA';
+            row.dias_atraso = 0;
+          } else if (row.pagado > 0){
+            row.estado_detalle = 'PENDIENTE/PARCIAL';
+          }
+        });
+      });
+
+      return rows;
     }
 
     function renderDetalleDebtRows(rows){
