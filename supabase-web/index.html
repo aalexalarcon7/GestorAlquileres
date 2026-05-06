@@ -6339,6 +6339,103 @@ function globalSearch(){
       return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago, choice);
     }
 
+
+
+    async function applyPaymentPlanToStaging(plan){
+      if (!plan || !plan.next){
+        throw new Error('No se pudo armar el plan de imputación del pago.');
+      }
+
+      const fallbackCode = modalContrato?.local_codigo || modalContrato?.local_code_normalized || modalContrato?.codigo_local || modalContrato?.codigo || selected?.local_codigo || selected?.local_code_normalized;
+      const code = normLocalCode(plan.code || plan.old?.codigo_local || fallbackCode);
+      if (!code){
+        throw new Error('No se pudo identificar el código del activo para bajar la deuda.');
+      }
+
+      const rpcArgs = {
+        p_codigo: code,
+        p_arrastre_2025: Number(plan.next.arrastre_2025 || 0),
+        p_deuda_2026_ene_abr: Number(plan.next.deuda_2026_ene_abr || 0),
+        p_deuda_total: Number(plan.next.deuda_total || 0),
+        p_meses_deuda_2025: Number(plan.next.meses_deuda_2025 || 0),
+        p_meses_deuda_2026_ene_abr: Number(plan.next.meses_deuda_2026_ene_abr || 0)
+      };
+
+      let rpc;
+      try{
+        rpc = await sb.rpc('aplicar_pago_staging_manual', rpcArgs);
+      } catch (err){
+        throw new Error(err?.message || 'No se pudo ejecutar la función aplicar_pago_staging_manual.');
+      }
+
+      if (rpc.error){
+        const msg = rpc.error.message || String(rpc.error);
+        if (msg.includes('Could not find the function') || msg.includes('function') || msg.includes('aplicar_pago_staging_manual')){
+          throw new Error('Falta ejecutar el SQL de la función aplicar_pago_staging_manual en Supabase. El pago se puede guardar, pero sin esa función no puede bajar la deuda automáticamente.');
+        }
+        throw new Error(msg);
+      }
+
+      const result = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+      if (result && result.ok === false){
+        throw new Error(result.mensaje || 'No se pudo bajar la deuda en staging.');
+      }
+
+      const realCode = normLocalCode(result?.codigo_local || code);
+      const newArrastre = toNumber(result?.arrastre_2025 ?? rpcArgs.p_arrastre_2025);
+      const newDebt2026 = toNumber(result?.deuda_2026_ene_abr ?? rpcArgs.p_deuda_2026_ene_abr);
+      const newTotal = toNumber(result?.deuda_total ?? rpcArgs.p_deuda_total);
+      const newMeses2025 = Number(result?.meses_deuda_2025 ?? rpcArgs.p_meses_deuda_2025 ?? 0);
+      const newMeses2026 = Number(result?.meses_deuda_2026_ene_abr ?? rpcArgs.p_meses_deuda_2026_ene_abr ?? 0);
+
+      const patchCached = (key) => {
+        const k = normLocalCode(key);
+        if (!k || !activosReconstruidosMap?.has(k)) return;
+        const item = activosReconstruidosMap.get(k);
+        item.deuda_arrastre_2025 = newArrastre;
+        item.arrastre_2025 = newArrastre;
+        item.deuda_total_2026 = newDebt2026;
+        item.deuda_2026_ene_abr = newDebt2026;
+        item.deuda_total_2025_2026 = newTotal;
+        item.deuda_total = newTotal;
+        item.meses_deuda_2025 = newMeses2025;
+        item.meses_con_deuda_2026 = newMeses2026;
+        item.meses_deuda_2026_ene_abr = newMeses2026;
+        item.meses_adeudados_total = newMeses2025 + newMeses2026;
+      };
+
+      patchCached(code);
+      patchCached(realCode);
+
+      const patchObject = (obj) => {
+        if (!obj) return;
+        obj.deuda_arrastre_2025 = newArrastre;
+        obj.arrastre_2025 = newArrastre;
+        obj.deuda_total_2026 = newDebt2026;
+        obj.deuda_2026 = newDebt2026;
+        obj.deuda_2026_ene_abr = newDebt2026;
+        obj.deuda_total_2025_2026 = newTotal;
+        obj.deuda_total = newTotal;
+        obj.meses_deuda_2025 = newMeses2025;
+        obj.meses_con_deuda_2026 = newMeses2026;
+        obj.meses_deuda_2026_ene_abr = newMeses2026;
+        obj.meses_adeudados_total = newMeses2025 + newMeses2026;
+      };
+
+      patchObject(selected);
+      patchObject(modalContrato);
+
+      return {
+        ok: true,
+        codigo_local: result?.codigo_local || code,
+        arrastre_2025: newArrastre,
+        deuda_2026_ene_abr: newDebt2026,
+        deuda_total: newTotal,
+        meses_deuda_2025: newMeses2025,
+        meses_deuda_2026_ene_abr: newMeses2026
+      };
+    }
+
     async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly, periodKey }){
       const normalized = normLocalCode(code);
       const newM = toNumber(newMonthly);
