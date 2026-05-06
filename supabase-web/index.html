@@ -4,9 +4,6 @@
   <meta charset="utf-8"/>
   <title>Gestión de Alquileres</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="./logosaladita_padded.png">
-  <link rel="shortcut icon" href="./logosaladita_padded.png">
-  <link rel="apple-touch-icon" href="./logosaladita_padded.png">
   <script>
     (function () {
       try {
@@ -3693,7 +3690,11 @@
       <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" style="width:160px">
+          <input id="mFecha" type="date" style="width:160px" onchange="recalcularCobroModal()">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:240px;">
+          <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
+          <input id="mPeriodoAplicado" placeholder="Se calcula automáticamente" style="width:240px; font-weight:800;" readonly>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Alquiler</label>
@@ -5461,6 +5462,217 @@ function globalSearch(){
       return Number.isFinite(n) && n >= 0 ? n : 0;
     }
 
+
+    const GA_MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+    function monthLabelFromDate(value){
+      const raw = String(value || today()).slice(0,10);
+      const parts = raw.split('-').map(Number);
+      const year = Number(parts[0]) || new Date().getFullYear();
+      const month = Math.min(12, Math.max(1, Number(parts[1]) || (new Date().getMonth()+1)));
+      return `${GA_MONTH_NAMES[month-1]} ${year}`;
+    }
+
+    function estimateMonthsAfterPayment(oldDebt, newDebt, oldMonths){
+      oldDebt = Math.max(0, Number(oldDebt || 0));
+      newDebt = Math.max(0, Number(newDebt || 0));
+      oldMonths = Math.max(0, Number(oldMonths || 0));
+      if (newDebt <= 0.009) return 0;
+      if (oldMonths <= 0 || oldDebt <= 0) return 1;
+      return Math.max(1, Math.ceil(oldMonths * (newDebt / oldDebt)));
+    }
+
+    function normalizeStagingDebtRow(row){
+      return {
+        codigo_local: normLocalCode(row?.codigo_local || row?.local_code_normalized || row?.local_codigo || row?.codigo),
+        nombre_inquilino: row?.nombre_inquilino || row?.nombre_raw || row?.inquilino_nombre || row?.nombre || '',
+        monto_mensual_2026: toNumber(row?.monto_mensual_2026 ?? row?.monto_sugerido_2026 ?? row?.monto),
+        arrastre_2025: toNumber(row?.arrastre_2025 ?? row?.deuda_arrastre_2025),
+        deuda_2026_ene_abr: toNumber(row?.deuda_2026_ene_abr ?? row?.deuda_total_2026 ?? row?.deuda_2026),
+        deuda_total: toNumber(row?.deuda_total ?? row?.deuda_total_2025_2026),
+        meses_deuda_2025: Number(row?.meses_deuda_2025 || 0),
+        meses_deuda_2026_ene_abr: Number(row?.meses_deuda_2026_ene_abr ?? row?.meses_con_deuda_2026 ?? 0)
+      };
+    }
+
+    function buildPaymentApplicationPlanFromDebt(row, rentAmount, fechaPago){
+      const debt = normalizeStagingDebtRow(row || {});
+      const amount = Math.max(0, Number(rentAmount || 0));
+      let remaining = amount;
+      let newArrastre = debt.arrastre_2025;
+      let newDebt2026 = debt.deuda_2026_ene_abr;
+      let applied2025 = 0;
+      let applied2026 = 0;
+      const parts = [];
+
+      if (remaining > 0 && newArrastre > 0){
+        applied2025 = Math.min(remaining, newArrastre);
+        newArrastre = round2(newArrastre - applied2025);
+        remaining = round2(remaining - applied2025);
+        parts.push('Arrastre 2025');
+      }
+
+      if (remaining > 0 && newDebt2026 > 0){
+        applied2026 = Math.min(remaining, newDebt2026);
+        newDebt2026 = round2(newDebt2026 - applied2026);
+        remaining = round2(remaining - applied2026);
+        if (debt.arrastre_2025 <= 0 && debt.deuda_2026_ene_abr <= debt.monto_mensual_2026 + 0.01){
+          parts.push(monthLabelFromDate(fechaPago));
+        } else {
+          parts.push('Deuda 2026 pendiente');
+        }
+      }
+
+      if (!parts.length){
+        parts.push(monthLabelFromDate(fechaPago));
+      }
+
+      const newMeses2025 = estimateMonthsAfterPayment(debt.arrastre_2025, newArrastre, debt.meses_deuda_2025);
+      const newMeses2026 = estimateMonthsAfterPayment(debt.deuda_2026_ene_abr, newDebt2026, debt.meses_deuda_2026_ene_abr);
+      const newTotal = round2(newArrastre + newDebt2026);
+
+      return {
+        code: debt.codigo_local,
+        label: [...new Set(parts)].join(' + '),
+        detalle: `Aplicado a ${[...new Set(parts)].join(' + ')}`,
+        old: debt,
+        applied: {
+          total_renta: round2(amount - remaining),
+          arrastre_2025: round2(applied2025),
+          deuda_2026: round2(applied2026),
+          sobrante: round2(remaining)
+        },
+        next: {
+          arrastre_2025: newArrastre,
+          deuda_2026_ene_abr: newDebt2026,
+          deuda_total: newTotal,
+          meses_deuda_2025: newMeses2025,
+          meses_deuda_2026_ene_abr: newMeses2026
+        }
+      };
+    }
+
+    function getPaymentApplicationPreview(row, rentAmount, fechaPago){
+      const plan = buildPaymentApplicationPlanFromDebt(row || modalContrato || {}, rentAmount, fechaPago || $('mFecha')?.value || today());
+      return plan.label;
+    }
+
+    async function fetchStagingDebtRowByCode(code){
+      const normalized = normLocalCode(code);
+      if (!normalized) return null;
+      const { data, error } = await sb
+        .from('staging_importacion_alquileres_2026_limpio')
+        .select('codigo_local,nombre_inquilino,monto_mensual_2026,arrastre_2025,deuda_2026_ene_abr,deuda_total,meses_deuda_2025,meses_deuda_2026_ene_abr')
+        .eq('codigo_local', normalized)
+        .maybeSingle();
+      if (error){
+        console.warn('No se pudo leer staging para imputación:', error.message);
+        return null;
+      }
+      return data || null;
+    }
+
+    async function buildPaymentApplicationPlan(row, rentAmount, fechaPago){
+      const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
+      const stagingRow = await fetchStagingDebtRowByCode(code);
+      return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago);
+    }
+
+    async function applyPaymentPlanToStaging(plan){
+      if (!plan?.code) return { skipped:true, reason:'Sin código local para imputar.' };
+      const payload = {
+        arrastre_2025: Number(plan.next.arrastre_2025 || 0).toFixed(2),
+        deuda_2026_ene_abr: Number(plan.next.deuda_2026_ene_abr || 0).toFixed(2),
+        deuda_total: Number(plan.next.deuda_total || 0).toFixed(2),
+        meses_deuda_2025: Number(plan.next.meses_deuda_2025 || 0),
+        meses_deuda_2026_ene_abr: Number(plan.next.meses_deuda_2026_ene_abr || 0)
+      };
+      const { error } = await sb
+        .from('staging_importacion_alquileres_2026_limpio')
+        .update(payload)
+        .eq('codigo_local', plan.code);
+      if (error) throw error;
+      return { ok:true };
+    }
+
+    async function safeInsertPagoDirect(payload){
+      const richPayload = {
+        contrato_id: payload.contrato_id,
+        fecha_pago: payload.fecha_pago,
+        monto: Number(payload.monto || 0),
+        medio: payload.medio,
+        referencia: payload.referencia || null,
+        monto_alquiler: Number(payload.monto_alquiler || 0),
+        monto_impuesto: Number(payload.monto_impuesto || 0),
+        impuesto_porcentaje: Number(payload.impuesto_porcentaje || 0),
+        periodo_aplicado: payload.periodo_aplicado || null,
+        detalle_aplicacion: payload.detalle_aplicacion || null
+      };
+
+      const minimalPayload = {
+        contrato_id: payload.contrato_id,
+        fecha_pago: payload.fecha_pago,
+        monto: Number(payload.monto || 0),
+        medio: payload.medio,
+        referencia: payload.referencia || null
+      };
+
+      let res = await sb.from('pagos').insert(richPayload).select('id, referencia').single();
+      if (res.error){
+        const msg = String(res.error.message || '').toLowerCase();
+        if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('monto_impuesto') || msg.includes('impuesto_porcentaje') || msg.includes('column')){
+          res = await sb.from('pagos').insert(minimalPayload).select('id, referencia').single();
+        }
+      }
+      if (res.error) throw res.error;
+      return res.data;
+    }
+
+    async function ensurePagoRegistrado(payload){
+      let rpcRow = null;
+      let rpcError = null;
+      try{
+        const { data, error } = await sb.rpc('registrar_pago_y_aplicar', {
+          p_contrato_id: payload.contrato_id,
+          p_fecha_pago: payload.fecha_pago,
+          p_monto: Number(payload.monto || 0),
+          p_medio: payload.medio,
+          p_referencia: payload.referencia || null,
+          p_monto_alquiler: Number(payload.monto_alquiler || 0),
+          p_monto_impuesto: Number(payload.monto_impuesto || 0),
+          p_impuesto_porcentaje: Number(payload.impuesto_porcentaje || 0)
+        });
+        if (error) rpcError = error;
+        else rpcRow = Array.isArray(data) ? data[0] : data;
+      } catch (err){
+        rpcError = err;
+      }
+
+      const rpcPagoId = rpcRow?.pago_id || rpcRow?.id;
+      if (rpcPagoId){
+        try{
+          const { data: found } = await sb.from('pagos').select('id, referencia').eq('id', rpcPagoId).maybeSingle();
+          if (found) return { pago: found, via:'rpc', rpcRow };
+        } catch (e){}
+      }
+
+      if (payload.referencia){
+        try{
+          const { data: foundByRef } = await sb
+            .from('pagos')
+            .select('id, referencia')
+            .eq('contrato_id', payload.contrato_id)
+            .eq('referencia', payload.referencia)
+            .maybeSingle();
+          if (foundByRef) return { pago: foundByRef, via:'rpc-ref', rpcRow };
+        } catch (e){}
+      }
+
+      if (rpcError) console.warn('RPC registrar_pago_y_aplicar falló, usando inserción directa:', rpcError.message || rpcError);
+      const inserted = await safeInsertPagoDirect(payload);
+      return { pago: inserted, via:'direct', rpcRow };
+    }
+
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const impPct = parsePercentInput($('mImpPct')?.value || 0);
@@ -5469,6 +5681,7 @@ function globalSearch(){
 
       if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(impuesto);
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today());
 
       return { alquiler, impPct, impuesto, total };
     }
@@ -5479,6 +5692,7 @@ function globalSearch(){
       $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
       $('mFecha').value = today();
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
+      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = getPaymentApplicationPreview(r, getDisplayedRent(r, {}), $('mFecha')?.value || today());
       if ($('mImpPct')) $('mImpPct').value = '';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
@@ -5497,10 +5711,10 @@ function globalSearch(){
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       if (!modalContrato) return;
-      msgEl.textContent = 'Procesando...';
+      msgEl.textContent = 'Procesando cobro...';
 
       try{
-        const fecha = $('mFecha').value;
+        const fecha = $('mFecha').value || today();
         const medio = $('mMedio').value;
         const referencia = String($('mReferencia')?.value || '').trim();
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
@@ -5531,54 +5745,69 @@ function globalSearch(){
           return;
         }
 
-        const { data, error } = await sb.rpc('registrar_pago_y_aplicar', {
-          p_contrato_id: modalContrato.contrato_id,
-          p_fecha_pago: fecha,
-          p_monto: montoTotal,
-          p_medio: medio,
-          p_referencia: referencia || null,
-          p_monto_alquiler: montoAlquiler,
-          p_monto_impuesto: montoImpuesto,
-          p_impuesto_porcentaje: impPct
-        });
-
-        if (error){
-          msgEl.textContent = 'Error al registrar pago: ' + error.message;
-          console.error(error);
+        if (!canUseOperationalContrato(modalContrato)){
+          msgEl.textContent = 'Este activo no tiene contrato operativo para registrar el cobro.';
           return;
         }
 
-        const r = Array.isArray(data) ? data[0] : data;
+        const applicationPlan = await buildPaymentApplicationPlan(modalContrato, alquilerNum, fecha);
+        const periodoAplicado = applicationPlan.label || getPaymentApplicationPreview(modalContrato, alquilerNum, fecha);
+        if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = periodoAplicado;
 
-        if (!r) {
-          msgEl.textContent = 'Pago registrado, pero el servidor no devolvió detalle. Refrescando...';
-          await refreshAll();
+        const paymentPayload = {
+          contrato_id: modalContrato.contrato_id,
+          fecha_pago: fecha,
+          monto: Number(montoTotal),
+          medio,
+          referencia: referencia || null,
+          monto_alquiler: Number(montoAlquiler),
+          monto_impuesto: Number(montoImpuesto),
+          impuesto_porcentaje: Number(impPct),
+          periodo_aplicado: periodoAplicado,
+          detalle_aplicacion: applicationPlan.detalle || periodoAplicado
+        };
+
+        msgEl.textContent = `Guardando pago e imputando a ${periodoAplicado}...`;
+
+        const { pago, via, rpcRow } = await ensurePagoRegistrado(paymentPayload);
+        const pagoId = pago?.id || rpcRow?.pago_id || rpcRow?.id || null;
+
+        try{
+          await applyPaymentPlanToStaging(applicationPlan);
+        } catch (applyError){
+          console.error('Pago guardado, pero no se pudo aplicar a deuda/staging:', applyError);
+          msgEl.textContent = `El pago se guardó, pero no se pudo bajar la deuda: ${applyError.message || applyError}`;
           return;
         }
 
         const reciboNumero = referencia || buildReciboNumero({
-          id: r?.pago_id,
+          id: pagoId,
           fecha_pago: fecha,
-          referencia: r?.referencia || null
+          referencia: pago?.referencia || referencia || null
         }, true);
 
-        await refreshAll();
+        const descripcionFinal = [
+          descripcionPago,
+          `Aplicado a: ${periodoAplicado}`
+        ].filter(Boolean).join(' · ');
 
         const generatedRecibo = buildReciboPreviewData({
-          pagoId: r?.pago_id,
+          pagoId,
           fecha,
           medio,
-          referencia,
+          referencia: referencia || reciboNumero,
           reciboNumero,
           alquilerNum,
           impuestoNum,
           impPct,
           totalNum,
           contratoId: modalContrato.contrato_id,
-          descripcionPago
+          descripcionPago: descripcionFinal,
+          periodoAplicado,
+          detalleAplicacion: applicationPlan.detalle || periodoAplicado
         });
 
-        msgEl.textContent = `Pago registrado exitosamente ✅ | ${reciboNumero} | Total: ${fmtARS.format(totalNum)}`;
+        msgEl.textContent = `Pago registrado exitosamente ✅ | ${reciboNumero} | ${periodoAplicado} | Total: ${fmtARS.format(totalNum)}`;
 
         const generatedReciboKey = getReciboKey(generatedRecibo) || String(generatedRecibo.numero_recibo || `tmp-${Date.now()}`);
         generatedRecibo.__cache_key = generatedReciboKey;
@@ -5609,19 +5838,20 @@ function globalSearch(){
 
         recibosPageState = { query:'', local:'TODOS', month:'' };
 
+        await refreshAll();
+
         closePagoModal();
         if (route === 'recibos') {
           await renderRecibosPage();
         }
-        if ($('modalMsg')) $('modalMsg').textContent = 'Pago registrado exitosamente ✅';
-        showPagoSuccessToast(`Se guardó el recibo ${generatedRecibo.numero_recibo} correctamente.`);
+        showPagoSuccessToast(`Se guardó el recibo ${generatedRecibo.numero_recibo} y se imputó a ${periodoAplicado}.`);
       } catch(e){
         console.error(e);
         msgEl.textContent = 'Error inesperado: ' + String(e?.message || e);
       }
     }
 
-        let activoEditContrato = null;
+    let activoEditContrato = null;
     let activoModalMode = 'full';
 
     function getContratoActivoRow(contratoId){
@@ -6485,6 +6715,7 @@ function globalSearch(){
       const alquiler = fmtARS.format(Number(item?.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item?.monto_impuesto || 0));
       const total = fmtARS.format(Number(item?.monto_total || item?.monto || 0));
+      const periodoAplicado = item?.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : `Referencia: ${item?.referencia || '—'}`;
 
       const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = [15,23,42]) => {
         doc.setFont('helvetica', weight);
@@ -6574,7 +6805,7 @@ function globalSearch(){
       const gap = 14;
       const boxW = (contentWidth - gap) / 2;
       drawInfoBox(startX, boxY, boxW, 118, 'Locatario', item?.inquilino_nombre || '—', `Documento: ${item?.documento || '—'}`, `${item?.telefono || '—'} · ${item?.email || '—'}`);
-      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Medio de pago: ${item?.medio || '—'}`, `Referencia: ${item?.referencia || '—'}`);
+      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Medio de pago: ${item?.medio || '—'}`, periodoAplicado);
 
       const amountY = boxY + 138;
       const amountGap = 12;
@@ -6650,6 +6881,7 @@ function globalSearch(){
         `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${item.impuesto_porcentaje != null ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
         `Total: ${fmtARS.format(Number(item.monto_total || item.monto || 0))}`,
         `Medio de pago: ${item.medio || '—'}`,
+        item.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : null,
         item.descripcion_pago ? `Descripción: ${item.descripcion_pago}` : null,
         item.referencia ? `N° recibo / referencia: ${item.referencia}` : null
       ].filter(Boolean);
@@ -6697,6 +6929,7 @@ function globalSearch(){
               <div class="label">Detalle del cobro</div>
               <div class="value">Unidad ${local}</div>
               <div class="recibo-sheet-sub">Medio de pago: ${medio}</div>
+              ${item.periodo_aplicado ? `<div class="recibo-sheet-sub">Aplicado a: ${escapeHtml(item.periodo_aplicado)}</div>` : ''}
               <div class="recibo-sheet-sub">N° recibo: ${numero}</div>
             </div>
           </div>
@@ -6730,8 +6963,8 @@ function globalSearch(){
       let pagosError = null;
 
       const tries = [
-        () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje').order('fecha_pago', { ascending:false }),
-        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_alquiler, monto_impuesto, impuesto_porcentaje').order('fecha_pago', { ascending:false }),
+        () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
+        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_alquiler, monto_impuesto, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
         () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto').order('fecha_pago', { ascending:false })
       ];
 
@@ -6770,7 +7003,9 @@ function globalSearch(){
           monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
           monto_impuesto: Number(item.monto_impuesto || 0),
           impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || '').trim(),
+          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || item.detalle_aplicacion || '').trim(),
+          periodo_aplicado: String(item.periodo_aplicado || '').trim(),
+          detalle_aplicacion: String(item.detalle_aplicacion || '').trim(),
           __cache_key: paymentKey || buildReciboNumero(item, true),
           numero_recibo: buildReciboNumero(item, true),
           inquilino_nombre: inq.nombre || '—',
@@ -6792,6 +7027,8 @@ function globalSearch(){
           ...previous,
           ...item,
           descripcion_pago: String(item.descripcion_pago || previous.descripcion_pago || paymentDescriptionMap[key] || paymentDescriptionMap[item.numero_recibo || ''] || '').trim(),
+          periodo_aplicado: String(item.periodo_aplicado || previous.periodo_aplicado || '').trim(),
+          detalle_aplicacion: String(item.detalle_aplicacion || previous.detalle_aplicacion || '').trim(),
           __cache_key: key,
           numero_recibo: item.numero_recibo || previous.numero_recibo || buildReciboNumero(item, true)
         });
@@ -6864,7 +7101,7 @@ function globalSearch(){
     }
 
 
-    function buildReciboPreviewData({ pagoId, fecha, medio, referencia, reciboNumero, alquilerNum, impuestoNum, impPct, totalNum, contratoId, descripcionPago }){
+    function buildReciboPreviewData({ pagoId, fecha, medio, referencia, reciboNumero, alquilerNum, impuestoNum, impPct, totalNum, contratoId, descripcionPago, periodoAplicado, detalleAplicacion }){
       const contrato = contratosActivos.find(item => String(item.id) === String(contratoId)) || {};
       const inq = contrato.inquilinos || {};
       const local = contrato.locales || {};
@@ -6877,6 +7114,8 @@ function globalSearch(){
         medio: medio || '—',
         referencia: referencia || reciboNumero,
         descripcion_pago: String(descripcionPago || '').trim(),
+        periodo_aplicado: String(periodoAplicado || '').trim(),
+        detalle_aplicacion: String(detalleAplicacion || '').trim(),
         numero_recibo: reciboNumero,
         monto_alquiler: Number(alquilerNum || 0),
         monto_impuesto: Number(impuestoNum || 0),
