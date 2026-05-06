@@ -6344,11 +6344,6 @@ function globalSearch(){
       const newM = toNumber(newMonthly);
       if (!normalized || !Number.isFinite(newM)) throw new Error('Código o monto inválido para modificar alquiler.');
 
-      const stagingRow = await fetchStagingDebtRowByCode(normalized);
-      if (!stagingRow) throw new Error(`No se encontró ${normalized} en staging_importacion_alquileres_2026_limpio. Variantes probadas: ${localCodeCandidates(code).join(', ')}`);
-      const stagingCodigoLocal = stagingRow.codigo_local || normalized;
-
-      const debt = normalizeStagingDebtRow(stagingRow);
       const targetKey = /^2026-\d{2}$/.test(String(periodKey || '')) ? String(periodKey) : getCurrentRentPeriodKey();
       const targetMonth = Number(targetKey.slice(5,7));
       const targetLabel = getRentPeriodLabelFromKey(targetKey);
@@ -6357,30 +6352,41 @@ function globalSearch(){
       const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
       const targetRow = visibleRows.find(r => String(r.sort_key) === targetKey);
 
-      let newDebt2026 = toNumber(debt.deuda_2026_ene_abr);
-      let newMeses2026 = Number(debt.meses_deuda_2026_ene_abr || 0);
-
-      const oldVisibleTotal = targetRow ? toNumber(targetRow.total) : toNumber(oldMonthly || debt.monto_mensual_2026);
+      const oldVisibleTotal = targetRow ? toNumber(targetRow.total) : toNumber(oldMonthly || 0);
       const oldVisiblePaid = targetRow ? toNumber(targetRow.pagado) : 0;
       const oldVisibleSaldo = targetRow ? toNumber(targetRow.saldo) : Math.max(0, oldVisibleTotal - oldVisiblePaid);
       const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
-      const deltaSaldo = round2(newVisibleSaldo - oldVisibleSaldo);
 
-      if (Math.abs(deltaSaldo) > 0.009){
-        newDebt2026 = Math.max(0, round2(newDebt2026 + deltaSaldo));
-        if (oldVisibleSaldo <= 0.009 && newVisibleSaldo > 0.009) newMeses2026 += 1;
-        if (oldVisibleSaldo > 0.009 && newVisibleSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
+      // IMPORTANTE:
+      // No actualizamos staging directamente desde el frontend porque en Supabase puede estar protegido por RLS/permisos.
+      // Usamos una RPC SECURITY DEFINER que encuentra el código real del staging y actualiza la cuota elegida.
+      const rpcArgs = {
+        p_codigo: normalized,
+        p_periodo: targetKey,
+        p_monto_nuevo: Number(newM || 0),
+        p_monto_anterior: Number(oldVisibleTotal || 0),
+        p_pagado_periodo: Number(oldVisiblePaid || 0),
+        p_mes_actual: currentKey
+      };
+
+      const rpc = await sb.rpc('modificar_cuota_alquiler_manual', rpcArgs);
+      if (rpc.error){
+        const msg = rpc.error.message || String(rpc.error);
+        if (msg.includes('Could not find the function') || msg.includes('function') || msg.includes('modificar_cuota_alquiler_manual')){
+          throw new Error('Falta ejecutar el SQL de la función modificar_cuota_alquiler_manual en Supabase. Sin esa función, el frontend no puede modificar el staging de forma segura.');
+        }
+        throw new Error(msg);
       }
 
-      // Si se modifica el mes actual o uno futuro, también cambia el alquiler vigente.
-      // Si se modifica un mes histórico, solo se corrige la deuda total, no el monto vigente.
-      const shouldUpdateCurrentRent = targetMonth >= currentMonth;
-      const nextMonthly = shouldUpdateCurrentRent ? newM : toNumber(debt.monto_mensual_2026);
+      const result = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
+      if (!result || result.ok === false){
+        throw new Error(result?.mensaje || `No se pudo actualizar ${normalized} para ${targetLabel}.`);
+      }
 
       if (targetRow){
         targetRow.total = newM;
-        targetRow.saldo = newVisibleSaldo;
         targetRow.pagado = oldVisiblePaid;
+        targetRow.saldo = newVisibleSaldo;
         targetRow.estado_detalle = newVisibleSaldo <= 0.009
           ? 'SALDADA'
           : getEstadoSyntheticMonth(targetMonth, newVisibleSaldo);
@@ -6389,47 +6395,23 @@ function globalSearch(){
           : 0;
       }
 
-      const payload = {
-        monto_mensual_2026: Number(nextMonthly || 0).toFixed(2),
-        deuda_2026_ene_abr: Number(newDebt2026 || 0).toFixed(2),
-        deuda_total: Number(round2(toNumber(debt.arrastre_2025) + newDebt2026)).toFixed(2),
-        meses_deuda_2026_ene_abr: Number(newMeses2026 || 0)
-      };
+      const nextMonthly = toNumber(result.monto_mensual_2026);
+      const newDebt2026 = toNumber(result.deuda_2026_ene_abr);
+      const totalUpdated = toNumber(result.deuda_total);
+      const newMeses2026 = Number(result.meses_deuda_2026_ene_abr || 0);
+      const realCode = normLocalCode(result.codigo_local || normalized);
 
-      let { data, error } = await sb
-        .from('staging_importacion_alquileres_2026_limpio')
-        .update(payload)
-        .eq('codigo_local', stagingCodigoLocal)
-        .select('codigo_local');
-
-      if (error) throw error;
-
-      if (!data || !data.length){
-        for (const candidate of localCodeCandidates(code)){
-          const alt = await sb
-            .from('staging_importacion_alquileres_2026_limpio')
-            .update(payload)
-            .ilike('codigo_local', candidate)
-            .select('codigo_local');
-          if (alt.error) throw alt.error;
-          data = alt.data || [];
-          if (data.length) break;
-        }
-      }
-
-      if (!data || !data.length){
-        throw new Error(`No se pudo actualizar ${normalized} en staging para ${targetLabel}. Variantes probadas: ${localCodeCandidates(code).join(', ')}`);
-      }
-
-      const totalUpdated = round2(toNumber(debt.arrastre_2025) + newDebt2026);
-      const cached = activosReconstruidosMap.get(normalized);
-      if (cached){
+      const updateCached = (key) => {
+        const cached = activosReconstruidosMap.get(key);
+        if (!cached) return;
         cached.monto_sugerido_2026 = nextMonthly;
         cached.deuda_total_2026 = newDebt2026;
         cached.deuda_total_2025_2026 = totalUpdated;
         cached.meses_con_deuda_2026 = newMeses2026;
         cached.meses_adeudados_total = Number(cached.meses_deuda_2025 || 0) + Number(newMeses2026 || 0);
-      }
+      };
+      updateCached(normalized);
+      updateCached(realCode);
 
       if (selected && normLocalCode(selected.local_codigo || selected.local_code_normalized) === normalized){
         selected.monto_sugerido_2026 = nextMonthly;
@@ -6440,7 +6422,7 @@ function globalSearch(){
         selected.meses_con_deuda_2026 = newMeses2026;
       }
 
-      return { ok:true, targetKey, targetLabel, payload, updated:data.length };
+      return { ok:true, targetKey, targetLabel, payload:rpcArgs, updated:1, realCode:result.codigo_local };
     }
 
     async function safeInsertPagoDirect(payload){
