@@ -3945,29 +3945,21 @@ td:last-child{
 
             <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
               <div>
-                <h3 style="margin:0;">Documentos</h3>
+                <h3 style="margin:0;">Recibos</h3>
               </div>
-              <button class="btn" onclick="openDocumentosFromDetalle()">Abrir gestor</button>
+              <button class="btn" onclick="openDocumentosFromDetalle()">Abrir recibos</button>
             </div>
 
-            <div class="row" style="margin-top:12px;">
-              <select id="detDocTipo" style="width:180px">
-                <option value="CONTRATO">CONTRATO</option>
-                <option value="RECIBO">RECIBO</option>
-                <option value="OTRO">OTRO</option>
-              </select>
-              <input id="detDocFile" type="file" style="width:420px" />
-              <button class="btn primary" onclick="uploadDocFromDetalle()">Subir</button>
-            </div>
 
             <div class="tableWrap" style="margin-top:12px;">
               <table style="min-width:1100px;">
                 <thead>
                   <tr>
                     <th>Tipo</th>
-                    <th>Número</th>
-                    <th>Detalle / Archivo</th>
-                    <th>Fecha</th>
+                    <th>N° recibo</th>
+                    <th>Aplicado a / referencia</th>
+                    <th>Fecha de pago</th>
+                    <th>Registrado</th>
                     <th class="right">Importe</th>
                     <th>Medio de pago</th>
                     <th class="center">Acciones</th>
@@ -5763,7 +5755,7 @@ function globalSearch(){
       }
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
-      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Cargando documentos...</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos...</td></tr>`;
 
       loadDetalle(r);
       requestAnimationFrame(() => {
@@ -5945,9 +5937,9 @@ function globalSearch(){
         renderDetalleDebtRows(rows || []);
 
         if (canUseOperationalContrato(r)){
-          await loadDetalleDocs();
+          await loadDetalleRecibos();
         } else {
-          if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Este activo viene de auditoría y no tiene contrato operativo vinculado.</td></tr>`;
+          if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Este activo no tiene contrato operativo vinculado para consultar recibos.</td></tr>`;
           if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
         }
 
@@ -7515,11 +7507,17 @@ function globalSearch(){
 
     function openDocumentosFromDetalle(){
       if (!selected?.contrato_id || !canUseOperationalContrato(selected)) {
-        alert('Este activo viene de auditoría y no tiene contrato operativo vinculado.');
+        alert('Este activo no tiene contrato operativo vinculado para filtrar recibos.');
         return;
       }
-      docsContratoId = selected.contrato_id;
-      setRoute('documentos');
+      const local = String(selected?.local_codigo || '').trim();
+      recibosPageState = {
+        ...recibosPageState,
+        local: local || 'TODOS',
+        query: local ? '' : String(selected?.inquilino_nombre || ''),
+        month: ''
+      };
+      setRoute('recibos');
     }
 
     async function renderDocumentosPage(){
@@ -7790,6 +7788,7 @@ function globalSearch(){
 
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
+      const registrado = item?.created_at ? formatDateTimeDisplay(item.created_at) : '—';
       const impuestoPct = Number(item?.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item?.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item?.monto_impuesto || 0));
@@ -7884,7 +7883,7 @@ function globalSearch(){
       const gap = 14;
       const boxW = (contentWidth - gap) / 2;
       drawInfoBox(startX, boxY, boxW, 118, 'Locatario', item?.inquilino_nombre || '—', `Documento: ${item?.documento || '—'}`, `${item?.telefono || '—'} · ${item?.email || '—'}`);
-      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Medio de pago: ${item?.medio || '—'}`, periodoAplicado);
+      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Registrado: ${registrado}`, periodoAplicado);
 
       const amountY = boxY + 138;
       const amountGap = 12;
@@ -7955,7 +7954,8 @@ function globalSearch(){
         `Recibo interno: ${item.numero_recibo || '—'}`,
         `Locatario: ${item.inquilino_nombre || '—'}`,
         `Unidad: ${item.local_codigo || '—'}`,
-        `Fecha: ${formatDateDisplay(item.fecha_pago || item.created_at)}`,
+        `Fecha de pago: ${formatDateDisplay(item.fecha_pago || item.created_at)}`,
+        item.created_at ? `Registrado: ${formatDateTimeDisplay(item.created_at)}` : null,
         `Alquiler: ${fmtARS.format(Number(item.monto_alquiler || 0))}`,
         `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${item.impuesto_porcentaje != null ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
         `Total: ${fmtARS.format(Number(item.monto_total || item.monto || 0))}`,
@@ -7977,6 +7977,7 @@ function globalSearch(){
       const mail = escapeHtml(item.email || '—');
       const local = escapeHtml(item.local_codigo || '—');
       const fecha = escapeHtml(formatDateDisplay(item.fecha_pago || item.created_at));
+      const registrado = escapeHtml(item.created_at ? formatDateTimeDisplay(item.created_at) : '—');
       const medio = escapeHtml(item.medio || '—');
       const referencia = escapeHtml(item.referencia || '—');
       const impuestoPct = Number(item.impuesto_porcentaje || 0);
@@ -7993,7 +7994,8 @@ function globalSearch(){
             </div>
             <div class="recibo-sheet-badges">
               <span class="recibo-sheet-badge">N° ${numero}</span>
-              <span class="recibo-sheet-badge">${fecha}</span>
+              <span class="recibo-sheet-badge">Pago: ${fecha}</span>
+              <span class="recibo-sheet-badge">Registrado: ${registrado}</span>
             </div>
           </div>
 
@@ -8223,7 +8225,7 @@ function globalSearch(){
 
     function renderRecibosHistoryRows(rows){
       if (!rows.length){
-        return `<tr><td colspan="9"><div class="recibos-empty">No hay recibos visibles con los filtros actuales.</div></td></tr>`;
+        return `<tr><td colspan="10"><div class="recibos-empty">No hay recibos visibles con los filtros actuales.</div></td></tr>`;
       }
 
       return rows.map(item => `
@@ -8234,7 +8236,11 @@ function globalSearch(){
           </td>
           <td>
             <div class="recibos-cell-title">${formatDateDisplay(item.fecha_pago || item.created_at)}</div>
-            <span class="contact-sub">${escapeHtml(item.medio || '—')}</span>
+            <span class="contact-sub">Fecha del cobro</span>
+          </td>
+          <td>
+            <div class="recibos-cell-title">${item.created_at ? formatDateTimeDisplay(item.created_at) : '—'}</div>
+            <span class="contact-sub">Registro en sistema</span>
           </td>
           <td>
             <div class="recibos-cell-title">${escapeHtml(item.inquilino_nombre)}</div>
@@ -8402,7 +8408,8 @@ function globalSearch(){
                 <thead>
                   <tr>
                     <th>N° recibo</th>
-                    <th>Fecha</th>
+                    <th>Fecha de pago</th>
+                    <th>Registrado</th>
                     <th>Locatario</th>
                     <th>Local</th>
                     <th class="right">Alquiler</th>
@@ -10366,9 +10373,70 @@ function globalSearch(){
       }
     }
 
+    async function loadDetalleRecibos(){
+      const tb = $('detDocsBody');
+      const msgEl = $('detDocsMsg');
+      if (msgEl) msgEl.textContent = '';
+
+      if (!tb) return;
+      if (!selected?.contrato_id || !canUseOperationalContrato(selected)){
+        tb.innerHTML = `<tr><td colspan="8" class="center">Este activo no tiene contrato operativo vinculado para consultar recibos.</td></tr>`;
+        return;
+      }
+
+      tb.innerHTML = `<tr><td colspan="8" class="center">Cargando recibos...</td></tr>`;
+
+      try{
+        const { rows, pagosError } = await fetchRecibosInternosData();
+        const filtered = (rows || [])
+          .filter(item => String(item.contrato_id || '') === String(selected.contrato_id || ''))
+          .sort((a,b) => {
+            const ta = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
+            const tb = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
+            return tb - ta;
+          });
+
+        if (!filtered.length){
+          tb.innerHTML = `<tr><td colspan="8" class="center">Sin recibos registrados para este activo.</td></tr>`;
+          if (pagosError && msgEl) msgEl.textContent = `Aviso: ${pagosError.message}`;
+          return;
+        }
+
+        tb.innerHTML = filtered.map(item => {
+          const key = getReciboKey(item);
+          const pagoFecha = formatDateDisplay(item.fecha_pago || item.created_at);
+          const registroFecha = item.created_at ? formatDateTimeDisplay(item.created_at) : '—';
+          const periodo = item.periodo_aplicado || item.detalle_aplicacion || '—';
+          const referencia = item.referencia || item.numero_recibo || '—';
+          const total = Number(item.monto_total || item.monto || 0);
+          return `
+            <tr>
+              <td><span class="badge b-ok">RECIBO</span></td>
+              <td><b>${escapeHtml(item.numero_recibo || referencia)}</b></td>
+              <td>${escapeHtml(periodo)}<div class="muted">Ref.: ${escapeHtml(referencia)}</div></td>
+              <td>${escapeHtml(pagoFecha)}</td>
+              <td>${escapeHtml(registroFecha)}</td>
+              <td class="right">${fmtARS.format(total)}</td>
+              <td>${escapeHtml(item.medio || '—')}</td>
+              <td class="center">
+                <button class="linkBtn" onclick="openReciboModal('${key}')">Ver recibo</button>
+                &nbsp;|&nbsp;
+                <button class="linkBtn" onclick="downloadReciboOnly('${key}')">Descargar</button>
+              </td>
+            </tr>
+          `;
+        }).join('');
+
+        if (pagosError && msgEl) msgEl.textContent = `Aviso: ${pagosError.message}`;
+      } catch (err){
+        console.error('loadDetalleRecibos error', err);
+        tb.innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos.</td></tr>`;
+        if (msgEl) msgEl.textContent = String(err?.message || err);
+      }
+    }
+
     async function loadDetalleDocs(){
-      if (!selected?.contrato_id || !canUseOperationalContrato(selected)) return;
-      await loadDocsListInto('detDocsBody', 'detDocsMsg', selected.contrato_id, false);
+      await loadDetalleRecibos();
     }
 
     async function deleteDoc(docId, path, contratoId, tbodyId, msgId, includeContratoCol){
