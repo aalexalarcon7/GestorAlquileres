@@ -3625,6 +3625,31 @@ td:last-child{
     }
   </style>
 
+
+<style id="rentPeriodAndResponsiveFinalFix">
+  #actPeriodoAlquiler{display:block!important;visibility:visible!important;opacity:1!important;}
+  #modalActivoBack .rent-period-field{display:flex;flex-direction:column;align-items:center;width:100%;}
+  #modalActivoBack .rent-period-field select{box-sizing:border-box;}
+  @media (max-width:1280px){
+    .btn, button, [role="button"]{display:inline-flex!important;align-items:center;justify-content:center;white-space:nowrap;max-width:100%;}
+    .tableWrap, .recibos-table-wrap, .docs-table-wrap{width:100%;max-width:100%;overflow-x:auto!important;-webkit-overflow-scrolling:touch;}
+    td:last-child, th:last-child, .actions-cell{position:sticky;right:0;background:var(--surface);z-index:2;box-shadow:-8px 0 14px rgba(15,23,42,.04);}
+    [data-theme="dark"] td:last-child,[data-theme="dark"] th:last-child,[data-theme="dark"] .actions-cell{background:var(--surface);}
+    td:last-child .btn, .actions-cell .btn{min-width:92px;}
+  }
+  @media (max-width:820px){
+    .modalBack{align-items:flex-start!important;overflow-y:auto!important;padding:10px!important;}
+    #modalBack .modal,#modalActivoBack .activo-modal{width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;max-height:none!important;margin:8px auto 90px!important;}
+    #modalBack .row{display:flex!important;flex-direction:column!important;align-items:stretch!important;}
+    #modalBack .row > div{width:100%!important;min-width:0!important;}
+    #modalBack input,#modalBack select,#modalBack textarea,#modalActivoBack input,#modalActivoBack select,#modalActivoBack textarea{width:100%!important;max-width:100%!important;min-height:46px;}
+    .activo-modal-fields{grid-template-columns:1fr!important;}
+    .activo-modal-fields .full{grid-column:auto!important;max-width:100%!important;}
+    .activo-modal-actions{position:sticky;bottom:0;background:linear-gradient(180deg,transparent,var(--surface) 28%);padding-top:18px;z-index:5;}
+    .activo-modal-actions .btn{width:100%;}
+    td:last-child, th:last-child, .actions-cell{position:static;box-shadow:none;}
+  }
+</style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -4043,6 +4068,11 @@ td:last-child{
       <section class="activo-modal-section activo-section-alquiler">
         <div class="activo-modal-section-title">Condiciones del alquiler</div>
         <div class="activo-modal-fields">
+          <div class="full rent-period-field">
+            <label class="muted" style="display:block;font-size:12px;font-weight:900;margin-bottom:6px;text-align:center;">Mes a modificar</label>
+            <select id="actPeriodoAlquiler" onchange="onRentPeriodChange()" style="width:100%;max-width:420px;min-height:46px;text-align:center;font-weight:900;border-radius:16px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 14px;"></select>
+            <div id="actPeriodoAlquilerHint" class="muted" style="margin-top:6px;font-size:12px;line-height:1.35;text-align:center;">Elegí la cuota exacta que querés modificar. Para actualizar el alquiler vigente, usá Mayo 2026.</div>
+          </div>
           <input id="actMontoMensual" placeholder="Monto mensual">
           <input id="actDiaVencimiento" type="number" min="1" max="31" placeholder="Día de vencimiento">
           <input id="actImpuestoMensual" placeholder="Impuesto mensual">
@@ -6092,16 +6122,35 @@ function globalSearch(){
     async function fetchStagingDebtRowByCode(code){
       const normalized = normLocalCode(code);
       if (!normalized) return null;
-      const { data, error } = await sb
+
+      const cols = 'codigo_local,nombre_inquilino,monto_mensual_2026,arrastre_2025,deuda_2026_ene_abr,deuda_total,meses_deuda_2025,meses_deuda_2026_ene_abr';
+
+      let { data, error } = await sb
         .from('staging_importacion_alquileres_2026_limpio')
-        .select('codigo_local,nombre_inquilino,monto_mensual_2026,arrastre_2025,deuda_2026_ene_abr,deuda_total,meses_deuda_2025,meses_deuda_2026_ene_abr')
+        .select(cols)
         .eq('codigo_local', normalized)
         .maybeSingle();
-      if (error){
-        console.warn('No se pudo leer staging para imputación:', error.message);
+
+      if (!error && data) return data;
+
+      // Fallback: algunos códigos pueden venir con espacios o distinta capitalización.
+      const alt = await sb
+        .from('staging_importacion_alquileres_2026_limpio')
+        .select(cols)
+        .ilike('codigo_local', normalized)
+        .limit(1);
+
+      if (alt.error){
+        console.warn('No se pudo leer staging para imputación:', alt.error.message);
         return null;
       }
-      return data || null;
+
+      if (Array.isArray(alt.data) && alt.data.length) return alt.data[0];
+
+      if (error){
+        console.warn('No se pudo leer staging para imputación:', error.message);
+      }
+      return null;
     }
 
     function formatOptionMoney(value){
@@ -6221,58 +6270,57 @@ function globalSearch(){
       return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago, choice);
     }
 
-    async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly }){
+    async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly, periodKey }){
       const normalized = normLocalCode(code);
       const newM = toNumber(newMonthly);
-      if (!normalized || !Number.isFinite(newM)) return { skipped:true, reason:'Código o monto inválido' };
+      if (!normalized || !Number.isFinite(newM)) throw new Error('Código o monto inválido para modificar alquiler.');
 
       const stagingRow = await fetchStagingDebtRowByCode(normalized);
-      if (!stagingRow) return { skipped:true, reason:'Sin fila staging' };
+      if (!stagingRow) throw new Error(`No se encontró ${normalized} en staging_importacion_alquileres_2026_limpio.`);
 
       const debt = normalizeStagingDebtRow(stagingRow);
-      const ym = getYearMonthParts(today());
-      const currentMonth = ym.year === 2026 ? ym.month : 5;
-      const currentKey = `2026-${String(currentMonth).padStart(2,'0')}`;
+      const targetKey = /^2026-\d{2}$/.test(String(periodKey || '')) ? String(periodKey) : getCurrentRentPeriodKey();
+      const targetMonth = Number(targetKey.slice(5,7));
+      const targetLabel = getRentPeriodLabelFromKey(targetKey);
+      const currentKey = getCurrentRentPeriodKey();
+      const currentMonth = Number(currentKey.slice(5,7));
       const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
-      const currentRow = visibleRows.find(r => String(r.sort_key) === currentKey);
+      const targetRow = visibleRows.find(r => String(r.sort_key) === targetKey);
 
-      let newDebt2026 = debt.deuda_2026_ene_abr;
+      let newDebt2026 = toNumber(debt.deuda_2026_ene_abr);
       let newMeses2026 = Number(debt.meses_deuda_2026_ene_abr || 0);
 
-      // Mayo 2026 ya fue generado como cuota pendiente dentro del staging. Cuando se modifica
-      // el alquiler, el monto vigente del mes actual debe cambiar también en la deuda visible.
-      // No tocamos enero/abril ya cerrados: solo reemplazamos el saldo del mes actual.
-      const shouldAdjustCurrentGeneratedMonth = (ym.year === 2026 && currentMonth >= 5);
-      if (shouldAdjustCurrentGeneratedMonth){
-        const oldVisibleTotal = currentRow ? toNumber(currentRow.total) : toNumber(oldMonthly || debt.monto_mensual_2026);
-        const oldVisiblePaid = currentRow ? toNumber(currentRow.pagado) : 0;
-        const oldVisibleSaldo = currentRow ? toNumber(currentRow.saldo) : Math.max(0, oldVisibleTotal - oldVisiblePaid);
-        const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
-        const deltaSaldo = round2(newVisibleSaldo - oldVisibleSaldo);
+      const oldVisibleTotal = targetRow ? toNumber(targetRow.total) : toNumber(oldMonthly || debt.monto_mensual_2026);
+      const oldVisiblePaid = targetRow ? toNumber(targetRow.pagado) : 0;
+      const oldVisibleSaldo = targetRow ? toNumber(targetRow.saldo) : Math.max(0, oldVisibleTotal - oldVisiblePaid);
+      const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
+      const deltaSaldo = round2(newVisibleSaldo - oldVisibleSaldo);
 
-        if (Math.abs(deltaSaldo) > 0.009){
-          newDebt2026 = Math.max(0, round2(newDebt2026 + deltaSaldo));
-          if (oldVisibleSaldo <= 0.009 && newVisibleSaldo > 0.009) newMeses2026 += 1;
-          if (oldVisibleSaldo > 0.009 && newVisibleSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
-        }
+      if (Math.abs(deltaSaldo) > 0.009){
+        newDebt2026 = Math.max(0, round2(newDebt2026 + deltaSaldo));
+        if (oldVisibleSaldo <= 0.009 && newVisibleSaldo > 0.009) newMeses2026 += 1;
+        if (oldVisibleSaldo > 0.009 && newVisibleSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
+      }
 
-        // Actualizamos la fila visible en memoria para que, aunque Supabase tarde, el usuario vea
-        // inmediatamente el nuevo monto de Mayo al volver al detalle.
-        if (currentRow){
-          currentRow.total = newM;
-          currentRow.saldo = newVisibleSaldo;
-          currentRow.pagado = oldVisiblePaid;
-          currentRow.estado_detalle = newVisibleSaldo <= 0.009
-            ? 'SALDADA'
-            : getEstadoSyntheticMonth(currentMonth, newVisibleSaldo);
-          currentRow.dias_atraso = String(currentRow.estado_detalle).includes('ATRASADO')
-            ? Math.max(0, Number(new Date().getDate()) - 10)
-            : 0;
-        }
+      // Si se modifica el mes actual o uno futuro, también cambia el alquiler vigente.
+      // Si se modifica un mes histórico, solo se corrige la deuda total, no el monto vigente.
+      const shouldUpdateCurrentRent = targetMonth >= currentMonth;
+      const nextMonthly = shouldUpdateCurrentRent ? newM : toNumber(debt.monto_mensual_2026);
+
+      if (targetRow){
+        targetRow.total = newM;
+        targetRow.saldo = newVisibleSaldo;
+        targetRow.pagado = oldVisiblePaid;
+        targetRow.estado_detalle = newVisibleSaldo <= 0.009
+          ? 'SALDADA'
+          : getEstadoSyntheticMonth(targetMonth, newVisibleSaldo);
+        targetRow.dias_atraso = String(targetRow.estado_detalle).includes('ATRASADO')
+          ? Math.max(0, Number(new Date().getDate()) - 10)
+          : 0;
       }
 
       const payload = {
-        monto_mensual_2026: Number(newM || 0).toFixed(2),
+        monto_mensual_2026: Number(nextMonthly || 0).toFixed(2),
         deuda_2026_ene_abr: Number(newDebt2026 || 0).toFixed(2),
         deuda_total: Number(round2(toNumber(debt.arrastre_2025) + newDebt2026)).toFixed(2),
         meses_deuda_2026_ene_abr: Number(newMeses2026 || 0)
@@ -6286,7 +6334,6 @@ function globalSearch(){
 
       if (error) throw error;
 
-      // Fallback por si algún código quedó con espacios/minúsculas en staging.
       if (!data || !data.length){
         const alt = await sb
           .from('staging_importacion_alquileres_2026_limpio')
@@ -6298,44 +6345,29 @@ function globalSearch(){
       }
 
       if (!data || !data.length){
-        throw new Error(`No se encontró ${normalized} en staging_importacion_alquileres_2026_limpio para actualizar Mayo.`);
+        throw new Error(`No se pudo actualizar ${normalized} en staging para ${targetLabel}.`);
       }
 
+      const totalUpdated = round2(toNumber(debt.arrastre_2025) + newDebt2026);
       const cached = activosReconstruidosMap.get(normalized);
       if (cached){
-        cached.monto_sugerido_2026 = newM;
+        cached.monto_sugerido_2026 = nextMonthly;
         cached.deuda_total_2026 = newDebt2026;
-        cached.deuda_total_2025_2026 = round2(toNumber(debt.arrastre_2025) + newDebt2026);
+        cached.deuda_total_2025_2026 = totalUpdated;
         cached.meses_con_deuda_2026 = newMeses2026;
         cached.meses_adeudados_total = Number(cached.meses_deuda_2025 || 0) + Number(newMeses2026 || 0);
       }
 
       if (selected && normLocalCode(selected.local_codigo || selected.local_code_normalized) === normalized){
-        selected.monto_sugerido_2026 = newM;
+        selected.monto_sugerido_2026 = nextMonthly;
+        selected.monto = nextMonthly;
         selected.deuda_2026 = newDebt2026;
-        selected.deuda_total_2025_2026 = round2(toNumber(debt.arrastre_2025) + newDebt2026);
-        selected.deuda_total = selected.deuda_total_2025_2026;
+        selected.deuda_total_2025_2026 = totalUpdated;
+        selected.deuda_total = totalUpdated;
         selected.meses_con_deuda_2026 = newMeses2026;
       }
 
-      return { ok:true, payload, updated:data.length };
-    }
-
-    async function applyPaymentPlanToStaging(plan){
-      if (!plan?.code) return { skipped:true, reason:'Sin código local para imputar.' };
-      const payload = {
-        arrastre_2025: Number(plan.next.arrastre_2025 || 0).toFixed(2),
-        deuda_2026_ene_abr: Number(plan.next.deuda_2026_ene_abr || 0).toFixed(2),
-        deuda_total: Number(plan.next.deuda_total || 0).toFixed(2),
-        meses_deuda_2025: Number(plan.next.meses_deuda_2025 || 0),
-        meses_deuda_2026_ene_abr: Number(plan.next.meses_deuda_2026_ene_abr || 0)
-      };
-      const { error } = await sb
-        .from('staging_importacion_alquileres_2026_limpio')
-        .update(payload)
-        .eq('codigo_local', plan.code);
-      if (error) throw error;
-      return { ok:true };
+      return { ok:true, targetKey, targetLabel, payload, updated:data.length };
     }
 
     async function safeInsertPagoDirect(payload){
@@ -6672,6 +6704,94 @@ function globalSearch(){
       return Math.round(n * 100) / 100;
     }
 
+    function getCurrentRentPeriodKey(){
+      const ym = getYearMonthParts(today());
+      const month = ym.year === 2026 ? ym.month : 5;
+      return `2026-${String(Math.min(12, Math.max(1, month))).padStart(2,'0')}`;
+    }
+
+    function getRentPeriodVisibleRows(){
+      return (detalleCuotasActuales || [])
+        .filter(r => /^2026-\d{2}$/.test(String(r?.sort_key || '')))
+        .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+    }
+
+    function getRentPeriodRowByKey(key){
+      return getRentPeriodVisibleRows().find(r => String(r.sort_key) === String(key)) || null;
+    }
+
+    function getRentPeriodLabelFromKey(key){
+      const m = String(key || '').match(/^(\d{4})-(\d{2})$/);
+      if (!m) return 'Alquiler vigente';
+      return monthLabelFromYearMonth(Number(m[1]), Number(m[2]));
+    }
+
+    function populateRentPeriodOptions(){
+      const el = $('actPeriodoAlquiler');
+      if (!el) return;
+
+      const currentKey = getCurrentRentPeriodKey();
+      const rows = getRentPeriodVisibleRows();
+      const seen = new Set();
+      const options = [];
+
+      const add = (key, label) => {
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        options.push({ key, label });
+      };
+
+      // Si el detalle ya tiene cuotas visibles, usamos esas como opciones principales.
+      for (const r of rows){
+        const key = String(r.sort_key || '');
+        const saldo = toNumber(r.saldo);
+        const total = toNumber(r.total);
+        const estado = String(r.estado_detalle || r.estado || '').trim();
+        const meta = [
+          total > 0 ? fmtARS.format(total) : '',
+          saldo > 0 ? `saldo ${fmtARS.format(saldo)}` : 'saldada',
+          estado || ''
+        ].filter(Boolean).join(' · ');
+        add(key, `${getRentPeriodLabelFromKey(key)}${meta ? ` — ${meta}` : ''}`);
+      }
+
+      // Respaldo: siempre dejamos meses 2026 hasta el mes actual para que el usuario pueda elegir.
+      const currentMonth = Number(currentKey.slice(5,7));
+      for (let month = 1; month <= Math.max(5, currentMonth); month++){
+        const key = `2026-${String(month).padStart(2,'0')}`;
+        add(key, getRentPeriodLabelFromKey(key));
+      }
+
+      el.innerHTML = options.map(o => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('');
+      el.value = seen.has(currentKey) ? currentKey : (options[options.length - 1]?.key || currentKey);
+      el.disabled = false;
+      el.style.display = 'block';
+      onRentPeriodChange();
+    }
+
+    function onRentPeriodChange(){
+      const el = $('actPeriodoAlquiler');
+      const hint = $('actPeriodoAlquilerHint');
+      if (!el) return;
+      const key = String(el.value || getCurrentRentPeriodKey());
+      const row = getRentPeriodRowByKey(key);
+      const label = getRentPeriodLabelFromKey(key);
+
+      if (row && toNumber(row.total) > 0){
+        const input = $('actMontoMensual');
+        if (input) input.value = formatMoneyInputValue(toNumber(row.total));
+      }
+
+      if (hint){
+        const saldo = row ? toNumber(row.saldo) : 0;
+        const pagado = row ? toNumber(row.pagado) : 0;
+        const total = row ? toNumber(row.total) : 0;
+        hint.textContent = row
+          ? `${label}: total ${fmtARS.format(total)} · pagado ${fmtARS.format(pagado)} · saldo ${fmtARS.format(saldo)}. Al guardar se modifica esta cuota.`
+          : `${label}: al guardar se modificará esta cuota y, si corresponde, el alquiler vigente del contrato.`;
+      }
+    }
+
     function openActivoModal(mode = 'full'){
       if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
@@ -6710,6 +6830,7 @@ function globalSearch(){
       $('actObservaciones').value = contrato?.observaciones || '';
 
       setActivoModalModeUI(isAlquilerMode);
+      if (isAlquilerMode) populateRentPeriodOptions();
       const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
       if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
       $('modalActivoBack').style.display = 'flex';
@@ -6833,11 +6954,11 @@ function globalSearch(){
             .eq('id', selected.contrato_id)
         );
 
-        // La página no muestra la deuda desde contratos directamente, sino desde el staging reconstruido.
-        // Por eso también sincronizamos el monto vigente y el saldo del mes actual, especialmente Mayo 2026.
-        const codeToSync = selected?.local_codigo || selected?.local_code_normalized || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
+        // La página muestra la deuda desde staging reconstruido. Por eso sincronizamos la cuota elegida.
+        const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+        const codeToSync = selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
         const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
-        tasks.push(syncStagingAfterRentChange({ code: codeToSync, oldMonthly, newMonthly: montoMensual }));
+        tasks.push(syncStagingAfterRentChange({ code: codeToSync, oldMonthly, newMonthly: montoMensual, periodKey: targetRentPeriod }));
       }
 
       if (!tasks.length) {
@@ -6845,7 +6966,7 @@ function globalSearch(){
         return;
       }
 
-      msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
+      msg.textContent = isAlquilerMode ? `Guardando alquiler de ${getRentPeriodLabelFromKey($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey())}...` : 'Guardando cambios del activo...';
 
       let results = [];
       try {
