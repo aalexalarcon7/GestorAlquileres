@@ -3843,12 +3843,14 @@
       <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" style="width:160px" onchange="recalcularCobroModal()">
+          <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:240px;">
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
-          <input id="mPeriodoAplicado" placeholder="Se calcula automáticamente" style="width:240px; font-weight:800;" readonly>
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:250px;display:block;">Se imputa automáticamente a la deuda más antigua pendiente.</span>
+          <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
+            <option value="AUTO">Automático: deuda más antigua</option>
+          </select>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:280px;display:block;">Podés elegir el mes a cobrar. Si dejás Automático, usa la deuda más antigua.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Alquiler</label>
@@ -5715,9 +5717,42 @@ function globalSearch(){
       return labels;
     }
 
-    function buildPaymentApplicationPlanFromDebt(row, rentAmount, fechaPago){
+    function getSelectedPaymentPeriodChoice(){
+      const el = $('mPeriodoAplicado');
+      return String(el?.value || 'AUTO');
+    }
+
+    function parsePaymentPeriodChoice(choice){
+      const raw = String(choice || 'AUTO');
+      if (raw === 'AUTO') return { type:'AUTO' };
+      if (raw === 'ARRASTRE_2025') return { type:'ARRASTRE_2025' };
+      const m = raw.match(/^(\d{4})-(\d{2})$/);
+      if (m){
+        return { type:'MONTH', year:Number(m[1]), month:Number(m[2]) };
+      }
+      return { type:'CUSTOM', label:raw };
+    }
+
+    function build2026ApplicationLabelsFromStart(year, startMonth, appliedAmount, monthlyAmount){
+      let remaining = Math.max(0, Number(appliedAmount || 0));
+      const monthly = Math.max(0, Number(monthlyAmount || 0));
+      const labels = [];
+      let month = Math.min(12, Math.max(1, Number(startMonth || 1)));
+
+      if (remaining <= 0) return labels;
+      while (month <= 12 && remaining > 0.009){
+        labels.push(monthLabelFromYearMonth(year || 2026, month));
+        if (monthly <= 0) break;
+        remaining = round2(remaining - Math.min(remaining, monthly));
+        month += 1;
+      }
+      return labels;
+    }
+
+    function buildPaymentApplicationPlanFromDebt(row, rentAmount, fechaPago, periodChoice='AUTO'){
       const debt = normalizeStagingDebtRow(row || {});
       const amount = Math.max(0, Number(rentAmount || 0));
+      const choice = parsePaymentPeriodChoice(periodChoice);
       let remaining = amount;
       let newArrastre = debt.arrastre_2025;
       let newDebt2026 = debt.deuda_2026_ene_abr;
@@ -5725,20 +5760,51 @@ function globalSearch(){
       let applied2026 = 0;
       const parts = [];
 
-      if (remaining > 0 && newArrastre > 0){
-        applied2025 = Math.min(remaining, newArrastre);
-        newArrastre = round2(newArrastre - applied2025);
-        remaining = round2(remaining - applied2025);
-        parts.push('Arrastre 2025');
-      }
+      const applyArrastre = () => {
+        if (remaining > 0 && newArrastre > 0){
+          const x = Math.min(remaining, newArrastre);
+          applied2025 = round2(applied2025 + x);
+          newArrastre = round2(newArrastre - x);
+          remaining = round2(remaining - x);
+          parts.push('Arrastre 2025');
+        }
+      };
 
-      if (remaining > 0 && newDebt2026 > 0){
-        applied2026 = Math.min(remaining, newDebt2026);
-        const monthLabels = build2026ApplicationLabels(debt, applied2026, fechaPago);
-        newDebt2026 = round2(newDebt2026 - applied2026);
-        remaining = round2(remaining - applied2026);
-        if (monthLabels.length) parts.push(...monthLabels);
-        else parts.push('Deuda 2026 pendiente');
+      const apply2026Auto = () => {
+        if (remaining > 0 && newDebt2026 > 0){
+          const x = Math.min(remaining, newDebt2026);
+          applied2026 = round2(applied2026 + x);
+          const monthLabels = build2026ApplicationLabels(debt, x, fechaPago);
+          newDebt2026 = round2(newDebt2026 - x);
+          remaining = round2(remaining - x);
+          if (monthLabels.length) parts.push(...monthLabels);
+          else parts.push('Deuda 2026 pendiente');
+        }
+      };
+
+      const apply2026FromMonth = (year, month) => {
+        if (remaining > 0 && newDebt2026 > 0){
+          const x = Math.min(remaining, newDebt2026);
+          applied2026 = round2(applied2026 + x);
+          const monthLabels = build2026ApplicationLabelsFromStart(year || 2026, month, x, debt.monto_mensual_2026);
+          newDebt2026 = round2(newDebt2026 - x);
+          remaining = round2(remaining - x);
+          if (monthLabels.length) parts.push(...monthLabels);
+          else parts.push(monthLabelFromYearMonth(year || 2026, month));
+        }
+      };
+
+      if (choice.type === 'AUTO'){
+        applyArrastre();
+        apply2026Auto();
+      } else if (choice.type === 'ARRASTRE_2025'){
+        applyArrastre();
+        if (remaining > 0) apply2026Auto();
+      } else if (choice.type === 'MONTH'){
+        apply2026FromMonth(choice.year, choice.month);
+        if (remaining > 0 && newArrastre > 0) applyArrastre();
+      } else if (choice.label){
+        parts.push(choice.label);
       }
 
       if (!parts.length){
@@ -5749,12 +5815,14 @@ function globalSearch(){
       const newMeses2026 = estimate2026MonthsAfterPayment(debt.deuda_2026_ene_abr, newDebt2026, debt.meses_deuda_2026_ene_abr, debt.monto_mensual_2026);
       const newTotal = round2(newArrastre + newDebt2026);
       const uniqueParts = [...new Set(parts)];
+      const criterio = choice.type === 'AUTO' ? 'automático: deuda más antigua primero' : 'manual: mes elegido por el usuario';
 
       return {
         code: debt.codigo_local,
         label: uniqueParts.join(' + '),
-        detalle: `Aplicado a ${uniqueParts.join(' + ')} · Criterio: deuda más antigua primero`,
+        detalle: `Aplicado a ${uniqueParts.join(' + ')} · Criterio: ${criterio}`,
         old: debt,
+        selected_period: periodChoice,
         applied: {
           total_renta: round2(amount - remaining),
           arrastre_2025: round2(applied2025),
@@ -5771,8 +5839,8 @@ function globalSearch(){
       };
     }
 
-    function getPaymentApplicationPreview(row, rentAmount, fechaPago){
-      const plan = buildPaymentApplicationPlanFromDebt(row || modalContrato || {}, rentAmount, fechaPago || $('mFecha')?.value || today());
+    function getPaymentApplicationPreview(row, rentAmount, fechaPago, periodChoice){
+      const plan = buildPaymentApplicationPlanFromDebt(row || modalContrato || {}, rentAmount, fechaPago || $('mFecha')?.value || today(), periodChoice || getSelectedPaymentPeriodChoice());
       return plan.label;
     }
 
@@ -5791,10 +5859,53 @@ function globalSearch(){
       return data || null;
     }
 
-    async function buildPaymentApplicationPlan(row, rentAmount, fechaPago){
+    function buildPaymentPeriodOptionsFromDebt(row, fechaPago){
+      const debt = normalizeStagingDebtRow(row || {});
+      const options = [{ value:'AUTO', label:'Automático: deuda más antigua' }];
+
+      if (debt.arrastre_2025 > 0){
+        options.push({ value:'ARRASTRE_2025', label:'Arrastre 2025' });
+      }
+
+      const ym = getYearMonthParts(fechaPago);
+      const pendingMonths = debt.deuda_2026_ene_abr > 0
+        ? inferPending2026MonthNumbers(debt, fechaPago)
+        : [];
+
+      const currentMonth = ym.year === 2026 ? ym.month : 5;
+      if (!pendingMonths.includes(currentMonth) && currentMonth >= 1 && currentMonth <= 12){
+        pendingMonths.push(currentMonth);
+      }
+
+      [...new Set(pendingMonths)]
+        .filter(m => m >= 1 && m <= 12)
+        .sort((a,b) => a-b)
+        .forEach(month => {
+          options.push({
+            value: `2026-${String(month).padStart(2,'0')}`,
+            label: monthLabelFromYearMonth(2026, month)
+          });
+        });
+
+      return options;
+    }
+
+    async function refreshPaymentPeriodOptions(row, keepValue=false){
+      const el = $('mPeriodoAplicado');
+      if (!el) return;
+      const previous = keepValue ? String(el.value || 'AUTO') : 'AUTO';
+      const fechaPago = $('mFecha')?.value || today();
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
       const stagingRow = await fetchStagingDebtRowByCode(code);
-      return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago);
+      const options = buildPaymentPeriodOptionsFromDebt(stagingRow || row || {}, fechaPago);
+      el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+      el.value = options.some(opt => opt.value === previous) ? previous : 'AUTO';
+    }
+
+    async function buildPaymentApplicationPlan(row, rentAmount, fechaPago, periodChoice){
+      const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
+      const stagingRow = await fetchStagingDebtRowByCode(code);
+      return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago, periodChoice || getSelectedPaymentPeriodChoice());
     }
 
     async function applyPaymentPlanToStaging(plan){
@@ -5900,18 +6011,21 @@ function globalSearch(){
 
       if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(impuesto);
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
-      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today());
+      if ($('mPeriodoAplicado')) {
+        const preview = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
+        $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
+      }
 
       return { alquiler, impPct, impuesto, total };
     }
 
-    function openPagoModal(r){
+    async function openPagoModal(r){
       modalContrato = r;
       $('modalBack').style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
       $('mFecha').value = today();
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
-      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = getPaymentApplicationPreview(r, getDisplayedRent(r, {}), $('mFecha')?.value || today());
+      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
       if ($('mImpPct')) $('mImpPct').value = '';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
@@ -5919,6 +6033,7 @@ function globalSearch(){
       populatePaymentMethodSelect('mMedio');
       $('modalMsg').textContent = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
+      await refreshPaymentPeriodOptions(r, false);
       recalcularCobroModal();
     }
 
@@ -5969,9 +6084,9 @@ function globalSearch(){
           return;
         }
 
-        const applicationPlan = await buildPaymentApplicationPlan(modalContrato, alquilerNum, fecha);
-        const periodoAplicado = applicationPlan.label || getPaymentApplicationPreview(modalContrato, alquilerNum, fecha);
-        if ($('mPeriodoAplicado')) $('mPeriodoAplicado').value = periodoAplicado;
+        const selectedPeriodChoice = getSelectedPaymentPeriodChoice();
+        const applicationPlan = await buildPaymentApplicationPlan(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
+        const periodoAplicado = applicationPlan.label || getPaymentApplicationPreview(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
 
         const paymentPayload = {
           contrato_id: modalContrato.contrato_id,
