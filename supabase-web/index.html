@@ -4840,15 +4840,29 @@ td:last-child{
       return raw;
     }
 
+    function localCodeKey(value){
+      const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+      if (!raw) return '';
+      const match = raw.match(/^(PTO|PT|P)0*(\d+)$/);
+      if (match){
+        const num = String(Number(match[2]));
+        return `PTO${num}`;
+      }
+      return normLocalCode(raw);
+    }
+
     function localCodeCandidates(value){
       const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
       const canonical = normLocalCode(raw);
-      const set = new Set([canonical, raw].filter(Boolean));
+      const key = localCodeKey(raw);
+      const set = new Set([canonical, key, raw].filter(Boolean));
 
       const match = raw.match(/^(PTO|PT|P)0*(\d+)$/);
       if (match){
         const num = String(Number(match[2]));
         if (num && num !== 'NaN'){
+          // Variantes reales que pueden aparecer entre pantalla, contratos y staging.
+          // Importante: PTO5 tiene que estar sí o sí para casos como PT05 -> PTO5.
           set.add(`PTO${num}`);
           set.add(`PTO${String(num).padStart(2, '0')}`);
           set.add(`PT${num}`);
@@ -6166,6 +6180,7 @@ function globalSearch(){
 
       const cols = 'codigo_local,nombre_inquilino,monto_mensual_2026,arrastre_2025,deuda_2026_ene_abr,deuda_total,meses_deuda_2025,meses_deuda_2026_ene_abr';
       const candidates = localCodeCandidates(code);
+      const wantedKey = localCodeKey(code);
 
       // Primero intentamos con todas las variantes conocidas: PT05, PTO5, PTO05, P05, etc.
       let { data, error } = await sb
@@ -6187,8 +6202,22 @@ function globalSearch(){
         if (!alt.error && Array.isArray(alt.data) && alt.data.length) return alt.data[0];
       }
 
+      // Fallback definitivo: traemos los códigos del staging y comparamos por clave canónica.
+      // Esto cubre PT05 vs PTO5 aunque alguna variante no haya entrado por exact match.
+      const all = await sb
+        .from('staging_importacion_alquileres_2026_limpio')
+        .select(cols);
+
+      if (!all.error && Array.isArray(all.data)){
+        const found = all.data.find(r => localCodeKey(r?.codigo_local) === wantedKey);
+        if (found) return found;
+      }
+
       if (error){
         console.warn('No se pudo leer staging para imputación:', error.message, candidates);
+      }
+      if (all?.error){
+        console.warn('No se pudo hacer fallback general de staging:', all.error.message);
       }
       return null;
     }
