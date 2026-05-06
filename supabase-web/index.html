@@ -4817,7 +4817,23 @@ td:last-child{
     }
 
     function normLocalCode(value){
-      return String(value || '').trim().toUpperCase();
+      const raw = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+      if (!raw) return '';
+
+      // Normalización de puestos: en algunos datos el código viene como PT05/pt05
+      // pero en el staging y en el Excel final está como PTO5.
+      // También cubre PTO05 -> PTO5 para evitar que un cero adelante impida actualizar.
+      if (/^PT\d+$/.test(raw)) {
+        const num = raw.slice(2).replace(/^0+/, '') || '0';
+        return `PTO${num}`;
+      }
+
+      if (/^PTO0+\d+$/.test(raw)) {
+        const num = raw.slice(3).replace(/^0+/, '') || '0';
+        return `PTO${num}`;
+      }
+
+      return raw;
     }
 
     function toNumber(value){
