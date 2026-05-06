@@ -3650,6 +3650,43 @@ td:last-child{
     td:last-child, th:last-child, .actions-cell{position:static;box-shadow:none;}
   }
 </style>
+
+
+  <style id="logoutTopMoveStyles">
+    .sidebar-top-actions{
+      display:grid;
+      gap:8px;
+      margin:0 0 2px;
+    }
+    .sidebar-top-logout{
+      width:100%;
+      min-height:44px;
+      justify-content:center;
+    }
+    body.nav-collapsed .sidebar-top-actions{
+      display:flex;
+      justify-content:center;
+    }
+    body.nav-collapsed .sidebar-top-logout{
+      width:56px;
+      min-width:56px;
+      padding:0;
+    }
+    body.nav-collapsed .sidebar-top-logout .logout-label{
+      display:none;
+    }
+    body.nav-collapsed .sidebar-top-logout::before{
+      content:"↩";
+      font-size:18px;
+      line-height:1;
+    }
+    @media (max-width:820px){
+      .sidebar-top-logout{
+        min-height:48px;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -3681,6 +3718,13 @@ td:last-child{
           </button>
         </div>
       </div>
+
+      <div class="sidebar-top-actions">
+        <button class="btn danger sidebar-top-logout" type="button" onclick="logout()" title="Cerrar sesión">
+          <span class="logout-label">Cerrar sesión</span>
+        </button>
+      </div>
+
       <nav class="sb-nav">
         <button class="sb-item active" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon">🏠</span><span class="sb-item-label">Inicio</span></button>
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
@@ -3691,9 +3735,6 @@ td:last-child{
         
       </nav>
 
-      <div class="sb-footer">
-        <button class="btn danger" onclick="logout()"><span>Salir</span></button>
-      </div>
     </aside>
 
     <nav class="mobile-bottom-nav" aria-label="Navegación móvil">
