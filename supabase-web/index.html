@@ -665,6 +665,98 @@
       margin-top:16px;
       min-height:18px;
     }
+  
+
+/* === FIX FINAL: responsive y selector de cobro siempre visible === */
+#mPeriodoAplicado{
+  display:block !important;
+  visibility:visible !important;
+  opacity:1 !important;
+  min-height:44px;
+  max-width:100%;
+}
+#modalBack .modal,
+#modalActivoBack .activo-modal{
+  max-width:min(96vw, 980px);
+  max-height:calc(100vh - 28px);
+  overflow:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.tableWrap,
+.recibos-table-wrap,
+.docs-table-wrap{
+  max-width:100%;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.tableWrap table,
+.recibos-table-wrap table,
+.docs-table-wrap table{
+  width:100%;
+}
+.actions-cell,
+td:last-child{
+  white-space:nowrap;
+}
+@media (max-width:1100px){
+  body{overflow-x:hidden;}
+  main,.content,.page,.panel,.card,.section-card{max-width:100%;}
+  .top-actions,
+  .section-hero-actions,
+  .recibos-toolbar-actions,
+  .docs-toolbar-actions,
+  .activo-modal-actions,
+  .recibo-actions,
+  .mobile-actions{
+    display:flex !important;
+    flex-wrap:wrap !important;
+    gap:10px !important;
+    align-items:stretch !important;
+    justify-content:flex-start !important;
+  }
+  .top-actions .btn,
+  .section-hero-actions .btn,
+  .recibos-toolbar-actions .btn,
+  .docs-toolbar-actions .btn,
+  .activo-modal-actions .btn,
+  .recibo-actions .btn,
+  .mobile-actions .btn{
+    min-height:44px;
+    flex:1 1 150px;
+  }
+  #modalBack .row{
+    align-items:stretch !important;
+  }
+  #modalBack .row > div{
+    flex:1 1 220px;
+  }
+  #modalBack input,
+  #modalBack select,
+  #modalBack textarea,
+  #modalActivoBack input,
+  #modalActivoBack select,
+  #modalActivoBack textarea{
+    width:100% !important;
+    max-width:100%;
+  }
+}
+@media (max-width:720px){
+  .mobile-bottom-nav{display:flex !important;}
+  .tableWrap table,
+  .recibos-table-wrap table,
+  .docs-table-wrap table{
+    min-width:720px;
+  }
+  #modalBack .modal,
+  #modalActivoBack .activo-modal{
+    width:calc(100vw - 18px) !important;
+    border-radius:22px;
+  }
+  .btn,button,[role="button"]{
+    min-height:44px;
+  }
+}
+
   </style>
   <style id="premiumUxOverride">
     :root{
@@ -6106,7 +6198,9 @@ function globalSearch(){
       }
 
       el.disabled = false;
-      el.style.display = '';
+      el.style.display = 'block';
+      el.style.visibility = 'visible';
+      el.style.opacity = '1';
     }
 
     async function buildPaymentApplicationPlan(row, rentAmount, fechaPago, periodChoice){
@@ -6129,38 +6223,51 @@ function globalSearch(){
 
     async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly }){
       const normalized = normLocalCode(code);
-      if (!normalized || !Number.isFinite(Number(newMonthly))) return { skipped:true };
+      const newM = toNumber(newMonthly);
+      if (!normalized || !Number.isFinite(newM)) return { skipped:true, reason:'Código o monto inválido' };
 
       const stagingRow = await fetchStagingDebtRowByCode(normalized);
       if (!stagingRow) return { skipped:true, reason:'Sin fila staging' };
 
       const debt = normalizeStagingDebtRow(stagingRow);
-      const oldM = toNumber(oldMonthly || debt.monto_mensual_2026);
-      const newM = toNumber(newMonthly);
-      const currentYm = getYearMonthParts(today());
-      const currentKey = currentYm.year === 2026 ? `2026-${String(currentYm.month).padStart(2,'0')}` : '2026-05';
-      const currentRow = (detalleCuotasActuales || []).find(r => String(r.sort_key) === currentKey);
+      const ym = getYearMonthParts(today());
+      const currentMonth = ym.year === 2026 ? ym.month : 5;
+      const currentKey = `2026-${String(currentMonth).padStart(2,'0')}`;
+      const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
+      const currentRow = visibleRows.find(r => String(r.sort_key) === currentKey);
 
       let newDebt2026 = debt.deuda_2026_ene_abr;
-      let newMeses2026 = debt.meses_deuda_2026_ene_abr;
+      let newMeses2026 = Number(debt.meses_deuda_2026_ene_abr || 0);
 
-      // Si el mes actual ya está generado en el detalle, recalculamos solo el saldo de ese mes.
-      // Así, al cambiar el alquiler de mayo, mayo cambia sin tocar enero/abril ya saldados.
-      if (currentRow){
-        const oldSaldo = toNumber(currentRow.saldo);
-        const pagado = toNumber(currentRow.pagado);
-        const newSaldo = Math.max(0, round2(newM - pagado));
-        const deltaSaldo = round2(newSaldo - oldSaldo);
+      // Mayo 2026 ya fue generado como cuota pendiente dentro del staging. Cuando se modifica
+      // el alquiler, el monto vigente del mes actual debe cambiar también en la deuda visible.
+      // No tocamos enero/abril ya cerrados: solo reemplazamos el saldo del mes actual.
+      const shouldAdjustCurrentGeneratedMonth = (ym.year === 2026 && currentMonth >= 5);
+      if (shouldAdjustCurrentGeneratedMonth){
+        const oldVisibleTotal = currentRow ? toNumber(currentRow.total) : toNumber(oldMonthly || debt.monto_mensual_2026);
+        const oldVisiblePaid = currentRow ? toNumber(currentRow.pagado) : 0;
+        const oldVisibleSaldo = currentRow ? toNumber(currentRow.saldo) : Math.max(0, oldVisibleTotal - oldVisiblePaid);
+        const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
+        const deltaSaldo = round2(newVisibleSaldo - oldVisibleSaldo);
+
         if (Math.abs(deltaSaldo) > 0.009){
           newDebt2026 = Math.max(0, round2(newDebt2026 + deltaSaldo));
-          if (oldSaldo <= 0.009 && newSaldo > 0.009) newMeses2026 += 1;
-          if (oldSaldo > 0.009 && newSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
+          if (oldVisibleSaldo <= 0.009 && newVisibleSaldo > 0.009) newMeses2026 += 1;
+          if (oldVisibleSaldo > 0.009 && newVisibleSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
         }
-      } else if (oldM > 0){
-        // Respaldo: si no tenemos la fila visible pero ya existe deuda 2026, ajustamos por diferencia.
-        const delta = round2(newM - oldM);
-        if (Math.abs(delta) > 0.009 && newDebt2026 > 0){
-          newDebt2026 = Math.max(0, round2(newDebt2026 + delta));
+
+        // Actualizamos la fila visible en memoria para que, aunque Supabase tarde, el usuario vea
+        // inmediatamente el nuevo monto de Mayo al volver al detalle.
+        if (currentRow){
+          currentRow.total = newM;
+          currentRow.saldo = newVisibleSaldo;
+          currentRow.pagado = oldVisiblePaid;
+          currentRow.estado_detalle = newVisibleSaldo <= 0.009
+            ? 'SALDADA'
+            : getEstadoSyntheticMonth(currentMonth, newVisibleSaldo);
+          currentRow.dias_atraso = String(currentRow.estado_detalle).includes('ATRASADO')
+            ? Math.max(0, Number(new Date().getDate()) - 10)
+            : 0;
         }
       }
 
@@ -6171,12 +6278,47 @@ function globalSearch(){
         meses_deuda_2026_ene_abr: Number(newMeses2026 || 0)
       };
 
-      const { error } = await sb
+      let { data, error } = await sb
         .from('staging_importacion_alquileres_2026_limpio')
         .update(payload)
-        .eq('codigo_local', normalized);
+        .eq('codigo_local', normalized)
+        .select('codigo_local');
+
       if (error) throw error;
-      return { ok:true, payload };
+
+      // Fallback por si algún código quedó con espacios/minúsculas en staging.
+      if (!data || !data.length){
+        const alt = await sb
+          .from('staging_importacion_alquileres_2026_limpio')
+          .update(payload)
+          .ilike('codigo_local', normalized)
+          .select('codigo_local');
+        if (alt.error) throw alt.error;
+        data = alt.data || [];
+      }
+
+      if (!data || !data.length){
+        throw new Error(`No se encontró ${normalized} en staging_importacion_alquileres_2026_limpio para actualizar Mayo.`);
+      }
+
+      const cached = activosReconstruidosMap.get(normalized);
+      if (cached){
+        cached.monto_sugerido_2026 = newM;
+        cached.deuda_total_2026 = newDebt2026;
+        cached.deuda_total_2025_2026 = round2(toNumber(debt.arrastre_2025) + newDebt2026);
+        cached.meses_con_deuda_2026 = newMeses2026;
+        cached.meses_adeudados_total = Number(cached.meses_deuda_2025 || 0) + Number(newMeses2026 || 0);
+      }
+
+      if (selected && normLocalCode(selected.local_codigo || selected.local_code_normalized) === normalized){
+        selected.monto_sugerido_2026 = newM;
+        selected.deuda_2026 = newDebt2026;
+        selected.deuda_total_2025_2026 = round2(toNumber(debt.arrastre_2025) + newDebt2026);
+        selected.deuda_total = selected.deuda_total_2025_2026;
+        selected.meses_con_deuda_2026 = newMeses2026;
+      }
+
+      return { ok:true, payload, updated:data.length };
     }
 
     async function applyPaymentPlanToStaging(plan){
@@ -6705,11 +6847,22 @@ function globalSearch(){
 
       msg.textContent = isAlquilerMode ? 'Guardando condiciones del alquiler...' : 'Guardando cambios del activo...';
 
-      const results = await Promise.all(tasks);
+      let results = [];
+      try {
+        results = await Promise.all(tasks);
+      } catch (saveError) {
+        console.error(saveError);
+        msg.textContent = saveError?.message || 'No se pudo guardar el alquiler.';
+        return;
+      }
       const failed = results.find(r => r?.error);
       if (failed?.error) {
         msg.textContent = failed.error.message;
         return;
+      }
+
+      if (isAlquilerMode && detalleCuotasActuales?.length) {
+        renderDetalleDebtRows(detalleCuotasActuales);
       }
 
       const currentId = selected.contrato_id;
