@@ -3850,7 +3850,7 @@
           <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
             <option value="AUTO">Automático: deuda más antigua</option>
           </select>
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;"></span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;">Podés elegir manualmente Abril, Mayo u otro mes. Si dejás Automático, descuenta del saldo más antiguo detectado.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Alquiler</label>
@@ -4028,6 +4028,7 @@
     let unidades = [];      // v_deuda_por_contrato
     let selected = null;    // fila seleccionada
     let detalleLoadSeq = 0; // evita que una carga vieja pise el detalle actual
+    let detalleCuotasActuales = []; // últimas cuotas visibles del detalle abierto, usadas para imputar el cobro al mes correcto
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
@@ -5529,6 +5530,7 @@ function globalSearch(){
 
     function openDetalle(r){
       selected = r;
+      detalleCuotasActuales = [];
       setRoute('activos');
       const card = $('detalleCard');
       if (card) card.style.display = 'block';
@@ -5719,6 +5721,7 @@ function globalSearch(){
         }
 
         if (seq !== detalleLoadSeq) return;
+        detalleCuotasActuales = rows || [];
         renderDetalleInfo(r, rows || []);
         renderDetalleDebtRows(rows || []);
 
@@ -6009,14 +6012,55 @@ function globalSearch(){
       return data || null;
     }
 
+    function formatOptionMoney(value){
+      const n = toNumber(value);
+      if (n <= 0) return '';
+      return ` · saldo ${fmtARS.format(n)}`;
+    }
+
+    function getDebtRowsForPaymentOptions(){
+      return (detalleCuotasActuales || [])
+        .filter(r => toNumber(r?.saldo) > 0)
+        .filter(r => String(r?.sort_key || '').startsWith('2026-'))
+        .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+    }
+
+    function getOldestPendingPeriodChoiceFromVisibleRows(){
+      const rows = getDebtRowsForPaymentOptions();
+      const first = rows[0];
+      if (!first?.sort_key) return '';
+      const key = String(first.sort_key);
+      if (/^2026-\d{2}$/.test(key)) return key;
+      return '';
+    }
+
     function buildPaymentPeriodOptionsFromDebt(row, fechaPago){
       const debt = normalizeStagingDebtRow(row || {});
       const options = [{ value:'AUTO', label:'Automático: deuda más antigua' }];
+      const seen = new Set(['AUTO']);
+
+      const addOption = (value, label) => {
+        if (!value || seen.has(value)) return;
+        seen.add(value);
+        options.push({ value, label });
+      };
 
       if (debt.arrastre_2025 > 0){
-        options.push({ value:'ARRASTRE_2025', label:'Arrastre 2025' });
+        addOption('ARRASTRE_2025', `Arrastre 2025${formatOptionMoney(debt.arrastre_2025)}`);
       }
 
+      // Primero usamos las cuotas visibles del detalle. Esta es la fuente más clara para el usuario:
+      // si en la tabla aparece Abril y Mayo con saldo, ambos deben estar en el selector.
+      for (const rowItem of getDebtRowsForPaymentOptions()){
+        const key = String(rowItem.sort_key || '');
+        const m = key.match(/^2026-(\d{2})$/);
+        if (!m) continue;
+        const month = Number(m[1]);
+        addOption(key, `${monthLabelFromYearMonth(2026, month)}${formatOptionMoney(rowItem.saldo)}`);
+      }
+
+      // Como respaldo, mostramos todos los meses 2026 hasta el mes actual. Esto evita que el selector
+      // quede sin Abril/Marzo si la deuda viene acumulada y la app no puede inferir exactamente el mes.
       const ym = getYearMonthParts(fechaPago);
       const currentMonth = ym.year === 2026 ? ym.month : 5;
       const maxMonth = Math.min(12, Math.max(5, currentMonth));
@@ -6026,19 +6070,11 @@ function globalSearch(){
           : []
       );
 
-      // IMPORTANTE:
-      // La deuda del staging está acumulada, no guardada por mes exacto.
-      // Por eso NO podemos mostrar solo el mes inferido, porque puede pasar que alguien
-      // deba Abril pero el cálculo automático lo muestre como Mayo.
-      // Dejamos disponibles todos los meses de 2026 hasta el mes actual para que el usuario
-      // pueda imputar manualmente Abril, Marzo, Mayo, etc. según el caso real.
       for (let month = 1; month <= maxMonth; month++){
+        const value = `2026-${String(month).padStart(2,'0')}`;
         const labelBase = monthLabelFromYearMonth(2026, month);
-        const suffix = inferredPending.has(month) ? ' · detectado' : '';
-        options.push({
-          value: `2026-${String(month).padStart(2,'0')}`,
-          label: `${labelBase}${suffix}`
-        });
+        const suffix = inferredPending.has(month) ? ' · posible pendiente' : '';
+        addOption(value, `${labelBase}${suffix}`);
       }
 
       return options;
@@ -6047,19 +6083,100 @@ function globalSearch(){
     async function refreshPaymentPeriodOptions(row, keepValue=false){
       const el = $('mPeriodoAplicado');
       if (!el) return;
-      const previous = keepValue ? String(el.value || 'AUTO') : 'AUTO';
+
+      const previous = keepValue ? String(el.value || 'AUTO') : '';
       const fechaPago = $('mFecha')?.value || today();
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
-      const stagingRow = await fetchStagingDebtRowByCode(code);
+      let stagingRow = null;
+
+      try{
+        stagingRow = await fetchStagingDebtRowByCode(code);
+      } catch (err){
+        console.warn('No se pudo refrescar periodos de pago:', err?.message || err);
+      }
+
       const options = buildPaymentPeriodOptionsFromDebt(stagingRow || row || {}, fechaPago);
       el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
-      el.value = options.some(opt => opt.value === previous) ? previous : 'AUTO';
+
+      if (previous && options.some(opt => opt.value === previous)) {
+        el.value = previous;
+      } else {
+        // Por defecto dejamos automático, pero ahora el automático usa la deuda visible más vieja.
+        el.value = 'AUTO';
+      }
+
+      el.disabled = false;
+      el.style.display = '';
     }
 
     async function buildPaymentApplicationPlan(row, rentAmount, fechaPago, periodChoice){
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
       const stagingRow = await fetchStagingDebtRowByCode(code);
-      return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago, periodChoice || getSelectedPaymentPeriodChoice());
+      let choice = periodChoice || getSelectedPaymentPeriodChoice();
+
+      // Si está en automático y el detalle visible tiene una cuota vieja pendiente, usamos esa cuota.
+      // Ejemplo: si Abril y Mayo están pendientes, el automático imputa Abril primero.
+      if (choice === 'AUTO'){
+        const debt = normalizeStagingDebtRow(stagingRow || row || {});
+        if (debt.arrastre_2025 <= 0){
+          const oldestVisible = getOldestPendingPeriodChoiceFromVisibleRows();
+          if (oldestVisible) choice = oldestVisible;
+        }
+      }
+
+      return buildPaymentApplicationPlanFromDebt(stagingRow || row || {}, rentAmount, fechaPago, choice);
+    }
+
+    async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly }){
+      const normalized = normLocalCode(code);
+      if (!normalized || !Number.isFinite(Number(newMonthly))) return { skipped:true };
+
+      const stagingRow = await fetchStagingDebtRowByCode(normalized);
+      if (!stagingRow) return { skipped:true, reason:'Sin fila staging' };
+
+      const debt = normalizeStagingDebtRow(stagingRow);
+      const oldM = toNumber(oldMonthly || debt.monto_mensual_2026);
+      const newM = toNumber(newMonthly);
+      const currentYm = getYearMonthParts(today());
+      const currentKey = currentYm.year === 2026 ? `2026-${String(currentYm.month).padStart(2,'0')}` : '2026-05';
+      const currentRow = (detalleCuotasActuales || []).find(r => String(r.sort_key) === currentKey);
+
+      let newDebt2026 = debt.deuda_2026_ene_abr;
+      let newMeses2026 = debt.meses_deuda_2026_ene_abr;
+
+      // Si el mes actual ya está generado en el detalle, recalculamos solo el saldo de ese mes.
+      // Así, al cambiar el alquiler de mayo, mayo cambia sin tocar enero/abril ya saldados.
+      if (currentRow){
+        const oldSaldo = toNumber(currentRow.saldo);
+        const pagado = toNumber(currentRow.pagado);
+        const newSaldo = Math.max(0, round2(newM - pagado));
+        const deltaSaldo = round2(newSaldo - oldSaldo);
+        if (Math.abs(deltaSaldo) > 0.009){
+          newDebt2026 = Math.max(0, round2(newDebt2026 + deltaSaldo));
+          if (oldSaldo <= 0.009 && newSaldo > 0.009) newMeses2026 += 1;
+          if (oldSaldo > 0.009 && newSaldo <= 0.009) newMeses2026 = Math.max(0, newMeses2026 - 1);
+        }
+      } else if (oldM > 0){
+        // Respaldo: si no tenemos la fila visible pero ya existe deuda 2026, ajustamos por diferencia.
+        const delta = round2(newM - oldM);
+        if (Math.abs(delta) > 0.009 && newDebt2026 > 0){
+          newDebt2026 = Math.max(0, round2(newDebt2026 + delta));
+        }
+      }
+
+      const payload = {
+        monto_mensual_2026: Number(newM || 0).toFixed(2),
+        deuda_2026_ene_abr: Number(newDebt2026 || 0).toFixed(2),
+        deuda_total: Number(round2(toNumber(debt.arrastre_2025) + newDebt2026)).toFixed(2),
+        meses_deuda_2026_ene_abr: Number(newMeses2026 || 0)
+      };
+
+      const { error } = await sb
+        .from('staging_importacion_alquileres_2026_limpio')
+        .update(payload)
+        .eq('codigo_local', normalized);
+      if (error) throw error;
+      return { ok:true, payload };
     }
 
     async function applyPaymentPlanToStaging(plan){
@@ -6573,6 +6690,12 @@ function globalSearch(){
             })
             .eq('id', selected.contrato_id)
         );
+
+        // La página no muestra la deuda desde contratos directamente, sino desde el staging reconstruido.
+        // Por eso también sincronizamos el monto vigente y el saldo del mes actual, especialmente Mayo 2026.
+        const codeToSync = selected?.local_codigo || selected?.local_code_normalized || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
+        const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
+        tasks.push(syncStagingAfterRentChange({ code: codeToSync, oldMonthly, newMonthly: montoMensual }));
       }
 
       if (!tasks.length) {
