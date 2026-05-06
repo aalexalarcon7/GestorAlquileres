@@ -3850,7 +3850,7 @@
           <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
             <option value="AUTO">Automático: deuda más antigua</option>
           </select>
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:280px;display:block;">Podés elegir el mes a cobrar. Si dejás Automático, usa la deuda más antigua.</span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;">Podés elegir manualmente Abril, Mayo u otro mes. Si dejás Automático, descuenta del saldo más antiguo detectado.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Alquiler</label>
@@ -5868,24 +5868,28 @@ function globalSearch(){
       }
 
       const ym = getYearMonthParts(fechaPago);
-      const pendingMonths = debt.deuda_2026_ene_abr > 0
-        ? inferPending2026MonthNumbers(debt, fechaPago)
-        : [];
-
       const currentMonth = ym.year === 2026 ? ym.month : 5;
-      if (!pendingMonths.includes(currentMonth) && currentMonth >= 1 && currentMonth <= 12){
-        pendingMonths.push(currentMonth);
-      }
+      const maxMonth = Math.min(12, Math.max(5, currentMonth));
+      const inferredPending = new Set(
+        debt.deuda_2026_ene_abr > 0
+          ? inferPending2026MonthNumbers(debt, fechaPago).map(Number)
+          : []
+      );
 
-      [...new Set(pendingMonths)]
-        .filter(m => m >= 1 && m <= 12)
-        .sort((a,b) => a-b)
-        .forEach(month => {
-          options.push({
-            value: `2026-${String(month).padStart(2,'0')}`,
-            label: monthLabelFromYearMonth(2026, month)
-          });
+      // IMPORTANTE:
+      // La deuda del staging está acumulada, no guardada por mes exacto.
+      // Por eso NO podemos mostrar solo el mes inferido, porque puede pasar que alguien
+      // deba Abril pero el cálculo automático lo muestre como Mayo.
+      // Dejamos disponibles todos los meses de 2026 hasta el mes actual para que el usuario
+      // pueda imputar manualmente Abril, Marzo, Mayo, etc. según el caso real.
+      for (let month = 1; month <= maxMonth; month++){
+        const labelBase = monthLabelFromYearMonth(2026, month);
+        const suffix = inferredPending.has(month) ? ' · detectado' : '';
+        options.push({
+          value: `2026-${String(month).padStart(2,'0')}`,
+          label: `${labelBase}${suffix}`
         });
+      }
 
       return options;
     }
