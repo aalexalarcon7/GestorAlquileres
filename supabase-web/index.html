@@ -4,10 +4,6 @@
   <meta charset="utf-8"/>
   <title>Gestión de Alquileres</title>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link rel="icon" type="image/png" href="./logosaladita_padded.png">
-  <link rel="shortcut icon" href="./logosaladita_padded.png">
-  <link rel="apple-touch-icon" href="./logosaladita_padded.png">
-
   <script>
     (function () {
       try {
@@ -3475,7 +3471,7 @@
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
-                <p class="loginLead"></p>
+                <p class="loginLead">Ingresá para administrar alquileres, pagos, documentos e informes desde un solo lugar.</p>
               </div>
             </div>
 
@@ -3871,6 +3867,7 @@
     let user = null;
     let unidades = [];      // v_deuda_por_contrato
     let selected = null;    // fila seleccionada
+    let detalleLoadSeq = 0; // evita que una carga vieja pise el detalle actual
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
@@ -5223,7 +5220,20 @@ function globalSearch(){
     function openDetalle(r){
       selected = r;
       setRoute('activos');
-      $('detalleCard').style.display = 'block';
+      const card = $('detalleCard');
+      if (card) card.style.display = 'block';
+
+      // Pintado inmediato: evita que el detalle quede vacío mientras Supabase responde.
+      if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle...';
+      if ($('detalleMeta')) $('detalleMeta').textContent = `${r?.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
+      if ($('detalleBadge')) {
+        const statusInfo = getContratoStatus(r || {});
+        $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
+      }
+      renderDetalleInfo(r, []);
+      if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Cargando documentos...</td></tr>`;
+
       loadDetalle(r);
       requestAnimationFrame(() => {
         $('detalleCard')?.scrollIntoView({ behavior:'smooth', block:'start' });
@@ -5354,54 +5364,66 @@ function globalSearch(){
     }
 
     async function loadDetalle(r){
+      const seq = ++detalleLoadSeq;
       try{
-        $('detalleMsg').textContent = '';
+        if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle...';
         const statusInfo = getContratoStatus(r || {});
-        $('detalleMeta').textContent = `${r?.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
-        $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
+        if ($('detalleMeta')) $('detalleMeta').textContent = `${r?.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
+        if ($('detalleBadge')) $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
+
+        // Primer render inmediato con los datos disponibles.
+        renderDetalleInfo(r, []);
 
         let rows = [];
-      if (r?.reconstructed){
-        rows = await fetchDetalleReconstruidoRows(r);
-        if (!rows.length && canUseOperationalContrato(r)){
+        if (r?.reconstructed){
+          rows = await fetchDetalleReconstruidoRows(r);
+          if (seq !== detalleLoadSeq) return;
+
+          if (!rows.length && canUseOperationalContrato(r)){
+            const { data, error } = await sb
+              .from('v_cobranzas')
+              .select('*')
+              .eq('contrato_id', r.contrato_id)
+              .order('vencimiento', { ascending:true });
+            if (seq !== detalleLoadSeq) return;
+            if (error){
+              if ($('detalleMsg')) $('detalleMsg').textContent = error.message;
+            } else {
+              rows = data || [];
+            }
+          }
+        } else {
           const { data, error } = await sb
             .from('v_cobranzas')
             .select('*')
             .eq('contrato_id', r.contrato_id)
             .order('vencimiento', { ascending:true });
+
+          if (seq !== detalleLoadSeq) return;
           if (error){
-            $('detalleMsg').textContent = error.message;
+            if ($('detalleMsg')) $('detalleMsg').textContent = error.message;
+            rows = [];
           } else {
             rows = data || [];
           }
         }
-      } else {
-        const { data, error } = await sb
-          .from('v_cobranzas')
-          .select('*')
-          .eq('contrato_id', r.contrato_id)
-          .order('vencimiento', { ascending:true });
 
-        if (error){
-          $('detalleMsg').textContent = error.message;
-          rows = [];
+        if (seq !== detalleLoadSeq) return;
+        renderDetalleInfo(r, rows || []);
+        renderDetalleDebtRows(rows || []);
+
+        if (canUseOperationalContrato(r)){
+          await loadDetalleDocs();
         } else {
-          rows = data || [];
+          if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Este activo viene de auditoría y no tiene contrato operativo vinculado.</td></tr>`;
+          if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
         }
-      }
 
-      renderDetalleInfo(r, rows || []);
-      renderDetalleDebtRows(rows || []);
-
-      if (canUseOperationalContrato(r)){
-        await loadDetalleDocs();
-      } else {
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="7" class="center">Este activo viene de auditoría y no tiene contrato operativo vinculado.</td></tr>`;
-        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
-      }
+        if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
+        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle de cuotas.</td></tr>`;
         if ($('detDocsBody')) $('detDocsBody').innerHTML = '';
       }
     }
