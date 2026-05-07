@@ -3841,11 +3841,15 @@ td:last-child{
 
         <section id="viewActivos" style="display:none;">
           <div class="card">
-            <div class="row" style="justify-content:space-between;">
+            <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
               </div>
-              <span class="badge b-info" id="unitsCount">0 resultados</span>
+              <div class="row" style="gap:8px;justify-content:flex-end;">
+                <button class="btn" onclick="openGenerarMesModal()">Crear mes nuevo</button>
+                <button class="btn primary" onclick="openNuevoActivoModal()">Nuevo activo</button>
+                <span class="badge b-info" id="unitsCount">0 resultados</span>
+              </div>
             </div>
 
             <div class="row" style="margin-top:12px;">
@@ -3895,7 +3899,10 @@ td:last-child{
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
-                <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
+                <div class="row" style="gap:8px;justify-content:center;">
+                  <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
+                  <button class="btn danger" onclick="openBajaContratoModal()">Dar de baja</button>
+                </div>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
@@ -3922,6 +3929,7 @@ td:last-child{
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
               </div>
+              <button class="btn primary" onclick="selected ? openPagoModal(selected) : alert('Primero seleccioná un activo.')">Cobrar cuota</button>
             </div>
 
             <div class="tableWrap">
@@ -3997,27 +4005,27 @@ td:last-child{
           <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
-          <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
+          <label class="muted" style="font-size:12px;">Cuota a cobrar</label>
           <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
-            <option value="AUTO">Automático: deuda más antigua</option>
+            <option value="AUTO">Automático: cuota pendiente más antigua</option>
           </select>
           <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
-          <label class="muted" style="font-size:12px;">Alquiler</label>
-          <input id="mAlquiler" placeholder="Monto alquiler" style="width:220px" oninput="recalcularCobroModal()">
+          <label class="muted" style="font-size:12px;">Monto pagado</label>
+          <input id="mAlquiler" placeholder="Monto pagado" style="width:220px" oninput="recalcularCobroModal()">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:150px;">
-          <label class="muted" style="font-size:12px;">% impuesto</label>
-          <input id="mImpPct" type="number" min="0" step="0.01" placeholder="Ej: 10" style="width:140px" oninput="recalcularCobroModal()">
+          <label class="muted" style="font-size:12px;">Adicional manual</label>
+          <input id="mImpPct" placeholder="Ej: 3200" style="width:160px" oninput="recalcularCobroModal()">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
-          <label class="muted" style="font-size:12px;">Impuesto</label>
-          <input id="mImpMonto" placeholder="Impuesto" style="width:180px; font-weight:800;" readonly>
+          <label class="muted" style="font-size:12px;">Saldo actual</label>
+          <input id="mImpMonto" placeholder="Saldo actual" style="width:180px; font-weight:800;" readonly>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
-          <label class="muted" style="font-size:12px;">Total a cobrar</label>
-          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
+          <label class="muted" style="font-size:12px;">Total cuota c/adicional</label>
+          <input id="mTotal" placeholder="Total cuota" style="width:200px; font-weight:900;" readonly>
         </div>
       </div>
 
@@ -4038,7 +4046,7 @@ td:last-child{
       </div>
 
       <div class="row" style="margin-top:10px;">
-        <textarea id="mDescripcion" style="width:100%;min-height:90px;" placeholder="Descripción del pago (opcional)"></textarea>
+        <textarea id="mDescripcion" style="width:100%;min-height:90px;" placeholder="Observación interna del cobro (opcional)"></textarea>
       </div>
       <div class="toast" id="modalMsg"></div>
     </div>
@@ -4124,6 +4132,94 @@ td:last-child{
     </div>
   </div>
 
+
+  <!-- MODAL GENERAR MES -->
+  <div class="modalBack" id="modalGenerarMesBack">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;">
+        <h3 style="margin:0;">Crear mes nuevo</h3>
+        <button class="btn" onclick="closeGenerarMesModal()">Cerrar</button>
+      </div>
+      <div class="muted" style="margin-top:6px;">Genera cuotas mensuales para todos los contratos activos. No duplica cuotas ya existentes.</div>
+      <div class="row" style="margin-top:14px;align-items:flex-end;">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
+          <label class="muted" style="font-size:12px;">Año</label>
+          <input id="genAnio" type="number" min="2025" max="2100" placeholder="2026">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:160px;">
+          <label class="muted" style="font-size:12px;">Mes</label>
+          <select id="genMes">
+            <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option>
+            <option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option>
+            <option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+        </div>
+        <button class="btn primary" onclick="generarMesModal()">Generar cuotas</button>
+      </div>
+      <div class="toast" id="generarMesMsg"></div>
+    </div>
+  </div>
+
+  <!-- MODAL DAR DE BAJA -->
+  <div class="modalBack" id="modalBajaBack">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;">
+        <h3 style="margin:0;">Dar de baja contrato</h3>
+        <button class="btn" onclick="closeBajaContratoModal()">Cerrar</button>
+      </div>
+      <div class="muted" id="bajaMeta" style="margin-top:6px;">—</div>
+      <div class="row" style="margin-top:14px;align-items:flex-end;">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:180px;">
+          <label class="muted" style="font-size:12px;">Fecha de baja</label>
+          <input id="bajaFecha" type="date">
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:260px;flex:1;">
+          <label class="muted" style="font-size:12px;">Motivo</label>
+          <input id="bajaMotivo" placeholder="Ej: baja solicitada por el inquilino">
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="bajaObs" style="width:100%;min-height:90px;" placeholder="Observaciones de la baja"></textarea>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:flex-end;">
+        <button class="btn danger" onclick="confirmarBajaContratoModal()">Confirmar baja y anular cuotas futuras</button>
+      </div>
+      <div class="toast" id="bajaMsg"></div>
+    </div>
+  </div>
+
+  <!-- MODAL NUEVO ACTIVO -->
+  <div class="modalBack" id="modalNuevoActivoBack">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;">
+        <h3 style="margin:0;">Nuevo activo</h3>
+        <button class="btn" onclick="closeNuevoActivoModal()">Cerrar</button>
+      </div>
+      <div class="muted" style="margin-top:6px;">Crea el puesto/local, el inquilino y el contrato activo inicial.</div>
+      <div class="row" style="margin-top:14px;">
+        <input id="nuevoCodigo" placeholder="Código / puesto" style="flex:1;min-width:180px;">
+        <input id="nuevoNombre" placeholder="Nombre del inquilino" style="flex:2;min-width:240px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="nuevoDoc" placeholder="Documento" style="flex:1;min-width:160px;">
+        <input id="nuevoTel" placeholder="Teléfono" style="flex:1;min-width:160px;">
+        <input id="nuevoEmail" placeholder="Email" style="flex:1;min-width:220px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <input id="nuevoMonto" placeholder="Monto mensual" style="flex:1;min-width:180px;">
+        <input id="nuevoDiaVto" type="number" min="1" max="31" placeholder="Día vencimiento" style="flex:1;min-width:160px;">
+        <input id="nuevoFechaInicio" type="date" style="flex:1;min-width:170px;">
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <textarea id="nuevoObs" style="width:100%;min-height:90px;" placeholder="Observaciones del contrato"></textarea>
+      </div>
+      <div class="row" style="margin-top:12px;justify-content:flex-end;">
+        <button class="btn primary" onclick="saveNuevoActivoModal()">Crear activo</button>
+      </div>
+      <div class="toast" id="nuevoActivoMsg"></div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 
@@ -4186,6 +4282,7 @@ td:last-child{
     let detalleLoadSeq = 0; // evita que una carga vieja pise el detalle actual
     let detalleCuotasActuales = []; // últimas cuotas visibles del detalle abierto, usadas para imputar el cobro al mes correcto
     let modalContrato = null;
+    let modalCuotasOptions = [];
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
@@ -6324,32 +6421,69 @@ function globalSearch(){
       return options;
     }
 
+    function getCuotaOptionLabel(cuota){
+      const periodo = String(cuota?.periodo || (cuota?.anio && cuota?.mes ? `${String(cuota.mes).padStart(2,'0')}/${cuota.anio}` : 'Cuota'));
+      const saldo = toNumber(cuota?.saldo);
+      const estado = String(cuota?.estado || 'PENDIENTE');
+      return `${periodo} · saldo ${fmtARS.format(saldo)} · ${estado}`;
+    }
+
+    function getSelectedCuotaFromCache(){
+      const choice = getSelectedPaymentPeriodChoice();
+      if (choice.startsWith('CUOTA:')){
+        const id = choice.slice(6);
+        return (modalCuotasOptions || []).find(c => String(c.id) === String(id)) || null;
+      }
+      if (choice === 'AUTO'){
+        return (modalCuotasOptions || []).find(c => toNumber(c.saldo) > 0 && ['PENDIENTE','PARCIAL'].includes(String(c.estado || '').toUpperCase())) || null;
+      }
+      const parsed = parsePaymentPeriodChoice(choice);
+      if (parsed.type === 'MONTH'){
+        return (modalCuotasOptions || []).find(c => Number(c.anio) === parsed.year && Number(c.mes) === parsed.month) || null;
+      }
+      return null;
+    }
+
+    async function fetchCuotasAlquilerByContrato(contratoId){
+      if (!contratoId) return [];
+      const { data, error } = await sb
+        .from('cuotas_alquiler')
+        .select('id,contrato_id,local_id,inquilino_id,anio,mes,periodo,monto_base,monto_adicional,monto_total,monto_pagado,saldo,fecha_vencimiento,estado')
+        .eq('contrato_id', contratoId)
+        .order('anio', { ascending:true })
+        .order('mes', { ascending:true });
+      if (error) throw error;
+      return data || [];
+    }
+
     async function refreshPaymentPeriodOptions(row, keepValue=false){
       const el = $('mPeriodoAplicado');
       if (!el) return;
 
       const previous = keepValue ? String(el.value || 'AUTO') : '';
-      const fechaPago = $('mFecha')?.value || today();
-      const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
-      let stagingRow = null;
-
+      modalCuotasOptions = [];
       try{
-        stagingRow = await fetchStagingDebtRowByCode(code);
+        modalCuotasOptions = await fetchCuotasAlquilerByContrato(row?.contrato_id);
       } catch (err){
-        console.warn('No se pudo refrescar periodos de pago:', err?.message || err);
+        console.warn('No se pudieron cargar cuotas de alquiler:', err?.message || err);
+        modalCuotasOptions = [];
       }
 
-      const options = buildPaymentPeriodOptionsFromDebt(stagingRow || row || {}, fechaPago);
-      el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+      const pending = modalCuotasOptions.filter(c => toNumber(c.saldo) > 0 && ['PENDIENTE','PARCIAL'].includes(String(c.estado || '').toUpperCase()));
+      const rowsToShow = pending.length ? pending : modalCuotasOptions;
+      const options = rowsToShow.map(c => ({ value:`CUOTA:${c.id}`, label:getCuotaOptionLabel(c) }));
 
-      if (previous && options.some(opt => opt.value === previous)) {
-        el.value = previous;
-      } else {
-        // Por defecto dejamos automático, pero ahora el automático usa la deuda visible más vieja.
+      if (!options.length){
+        el.innerHTML = '<option value="AUTO">Sin cuotas disponibles</option>';
         el.value = 'AUTO';
+        el.disabled = true;
+      } else {
+        el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+        if (previous && options.some(opt => opt.value === previous)) el.value = previous;
+        else el.value = options[0].value;
+        el.disabled = false;
       }
 
-      el.disabled = false;
       el.style.display = 'block';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
@@ -6635,42 +6769,56 @@ function globalSearch(){
     }
 
     function recalcularCobroModal(){
-      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      const impPct = parsePercentInput($('mImpPct')?.value || 0);
-      const impuesto = round2(alquiler * impPct / 100);
-      const total = round2(alquiler + impuesto);
+      const montoPago = parseMoneyToNumber($('mAlquiler')?.value || '');
+      const adicional = parseMoneyToNumber($('mImpPct')?.value || '');
+      const cuota = getSelectedCuotaFromCache();
+      const saldoActual = cuota ? toNumber(cuota.saldo) : getDisplayedDebtTotal(modalContrato || {});
+      const totalCuotaConAdicional = cuota ? round2(toNumber(cuota.monto_total) + adicional) : round2(saldoActual + adicional);
 
-      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(impuesto);
-      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(saldoActual);
+      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(totalCuotaConAdicional);
       if ($('mPeriodoAplicado')) {
-        const preview = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
-        $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
+        $('mPeriodoAplicado').title = cuota ? `Cuota seleccionada: ${getCuotaOptionLabel(cuota)}` : 'Seleccioná una cuota pendiente.';
       }
 
-      return { alquiler, impPct, impuesto, total };
+      return { montoPago, adicional, saldoActual, totalCuotaConAdicional, cuota };
     }
 
     async function openPagoModal(r){
       modalContrato = r;
+      modalCuotasOptions = [];
       $('modalBack').style.display = 'flex';
-      $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
+      $('modalMeta').textContent = `${r.local_codigo || r.codigo_local || '—'} — ${r.inquilino_nombre || '—'} | Contrato: ${r.contrato_id || '—'}`;
       $('mFecha').value = today();
-      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
-      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
+      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Cargando cuotas...</option>';
+      if ($('mAlquiler')) $('mAlquiler').value = '';
       if ($('mImpPct')) $('mImpPct').value = '';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
-      if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
+      if ($('mReferencia')) $('mReferencia').value = '';
       populatePaymentMethodSelect('mMedio');
       $('modalMsg').textContent = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
+
       await refreshPaymentPeriodOptions(r, false);
+      const cuota = getSelectedCuotaFromCache();
+      if (cuota && $('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(toNumber(cuota.saldo));
       recalcularCobroModal();
     }
 
     function closePagoModal(){
       $('modalBack').style.display = 'none';
       modalContrato = null;
+      modalCuotasOptions = [];
+    }
+
+    async function resolverCuotaSeleccionadaParaCobro(){
+      let cuota = getSelectedCuotaFromCache();
+      if (cuota) return cuota;
+      if (!modalContrato?.contrato_id) return null;
+      await refreshPaymentPeriodOptions(modalContrato, true);
+      cuota = getSelectedCuotaFromCache();
+      return cuota;
     }
 
     async function registrarPagoModal(){
@@ -6683,78 +6831,51 @@ function globalSearch(){
         const medio = $('mMedio').value;
         const referencia = String($('mReferencia')?.value || '').trim();
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
-
-        const alquilerStr = parseMoneyToDecimalString($('mAlquiler')?.value || '');
-        const impPct = parsePercentInput($('mImpPct')?.value || 0);
-
-        if (!alquilerStr){
-          msgEl.textContent = 'Monto de alquiler inválido.';
-          return;
-        }
-
-        if (impPct < 0){
-          msgEl.textContent = 'El porcentaje de impuesto no puede ser negativo.';
-          return;
-        }
-
-        const alquilerNum = Number(alquilerStr);
-        const impuestoNum = round2(alquilerNum * impPct / 100);
-        const totalNum = round2(alquilerNum + impuestoNum);
-
-        const montoAlquiler = alquilerNum.toFixed(2);
-        const montoImpuesto = impuestoNum.toFixed(2);
-        const montoTotal = totalNum.toFixed(2);
-
-        if (Number(montoTotal) <= 0){
-          msgEl.textContent = 'El total a cobrar debe ser mayor a 0.';
-          return;
-        }
+        const montoPago = parseMoneyToNumber($('mAlquiler')?.value || '');
+        const adicional = parseMoneyToNumber($('mImpPct')?.value || '');
 
         if (!canUseOperationalContrato(modalContrato)){
           msgEl.textContent = 'Este activo no tiene contrato operativo para registrar el cobro.';
           return;
         }
-
-        const selectedPeriodChoice = getSelectedPaymentPeriodChoice();
-        const applicationPlan = await buildPaymentApplicationPlan(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
-        const periodoAplicado = applicationPlan.label || getPaymentApplicationPreview(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
-
-        const paymentPayload = {
-          contrato_id: modalContrato.contrato_id,
-          fecha_pago: fecha,
-          monto: Number(montoTotal),
-          medio,
-          referencia: referencia || null,
-          monto_alquiler: Number(montoAlquiler),
-          monto_impuesto: Number(montoImpuesto),
-          impuesto_porcentaje: Number(impPct),
-          periodo_aplicado: periodoAplicado,
-          detalle_aplicacion: applicationPlan.detalle || periodoAplicado
-        };
-
-        msgEl.textContent = `Guardando pago e imputando a ${periodoAplicado}...`;
-
-        const { pago, via, rpcRow } = await ensurePagoRegistrado(paymentPayload);
-        const pagoId = pago?.id || rpcRow?.pago_id || rpcRow?.id || null;
-
-        try{
-          await applyPaymentPlanToStaging(applicationPlan);
-        } catch (applyError){
-          console.error('Pago guardado, pero no se pudo aplicar a deuda/staging:', applyError);
-          msgEl.textContent = `El pago se guardó, pero no se pudo bajar la deuda: ${applyError.message || applyError}`;
+        if (!montoPago || montoPago <= 0){
+          msgEl.textContent = 'El monto pagado debe ser mayor a 0.';
+          return;
+        }
+        if (adicional < 0){
+          msgEl.textContent = 'El adicional manual no puede ser negativo.';
           return;
         }
 
-        const reciboNumero = referencia || buildReciboNumero({
-          id: pagoId,
-          fecha_pago: fecha,
-          referencia: pago?.referencia || referencia || null
-        }, true);
+        const cuota = await resolverCuotaSeleccionadaParaCobro();
+        if (!cuota?.id){
+          msgEl.textContent = 'No encontré una cuota pendiente para cobrar. Primero generá el mes correspondiente.';
+          return;
+        }
 
-        const descripcionFinal = [
-          descripcionPago,
-          `Aplicado a: ${periodoAplicado}`
-        ].filter(Boolean).join(' · ');
+        const periodoAplicado = cuota.periodo || `${String(cuota.mes).padStart(2,'0')}/${cuota.anio}`;
+        msgEl.textContent = `Guardando cobro de ${periodoAplicado}...`;
+
+        const { data, error } = await sb.rpc('cobrar_cuota_alquiler', {
+          p_cuota_id: Number(cuota.id),
+          p_monto_pago: Number(montoPago),
+          p_monto_adicional: Number(adicional || 0),
+          p_medio: medio,
+          p_referencia: referencia || null,
+          p_fecha_pago: fecha,
+          p_observacion_interna: descripcionPago || null
+        });
+
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        const pagoId = result?.pago_id || null;
+        const reciboNumero = result?.numero_recibo || referencia || buildReciboNumero({ id:pagoId, fecha_pago:fecha, referencia }, true);
+        const totalNum = Number(montoPago);
+        const alquilerNum = Math.max(0, round2(totalNum - Number(adicional || 0)));
+        const impuestoNum = 0;
+        const impPct = 0;
+        const detalleAplicacion = `Cuota ${periodoAplicado} · Estado: ${result?.estado_cuota || 'actualizado'} · Saldo: ${fmtARS.format(toNumber(result?.saldo_cuota))}`;
+        const descripcionFinal = [descripcionPago, detalleAplicacion].filter(Boolean).join(' · ');
 
         const generatedRecibo = buildReciboPreviewData({
           pagoId,
@@ -6769,50 +6890,180 @@ function globalSearch(){
           contratoId: modalContrato.contrato_id,
           descripcionPago: descripcionFinal,
           periodoAplicado,
-          detalleAplicacion: applicationPlan.detalle || periodoAplicado
+          detalleAplicacion
         });
-
-        msgEl.textContent = `Pago registrado exitosamente ✅ | ${reciboNumero} | ${periodoAplicado} | Total: ${fmtARS.format(totalNum)}`;
 
         const generatedReciboKey = getReciboKey(generatedRecibo) || String(generatedRecibo.numero_recibo || `tmp-${Date.now()}`);
         generatedRecibo.__cache_key = generatedReciboKey;
         reciboActual = generatedRecibo;
 
         paymentDescriptionMap[generatedReciboKey] = String(generatedRecibo.descripcion_pago || '').trim();
-        if (generatedRecibo.numero_recibo) {
-          paymentDescriptionMap[String(generatedRecibo.numero_recibo)] = String(generatedRecibo.descripcion_pago || '').trim();
-        }
+        if (generatedRecibo.numero_recibo) paymentDescriptionMap[String(generatedRecibo.numero_recibo)] = String(generatedRecibo.descripcion_pago || '').trim();
         savePaymentDescriptionMap();
 
         const existingReciboIndex = recibosInternosCache.findIndex(item => getReciboKey(item) === generatedReciboKey);
-        if (existingReciboIndex >= 0) {
-          recibosInternosCache[existingReciboIndex] = { ...recibosInternosCache[existingReciboIndex], ...generatedRecibo };
-        } else {
-          recibosInternosCache.unshift(generatedRecibo);
-        }
+        if (existingReciboIndex >= 0) recibosInternosCache[existingReciboIndex] = { ...recibosInternosCache[existingReciboIndex], ...generatedRecibo };
+        else recibosInternosCache.unshift(generatedRecibo);
 
         const manualReceipts = loadManualReceipts();
         const existingManualIndex = manualReceipts.findIndex(item => getReciboKey(item) === generatedReciboKey);
-        if (existingManualIndex >= 0) {
-          manualReceipts[existingManualIndex] = { ...manualReceipts[existingManualIndex], ...generatedRecibo };
-        } else {
-          manualReceipts.unshift(generatedRecibo);
-        }
+        if (existingManualIndex >= 0) manualReceipts[existingManualIndex] = { ...manualReceipts[existingManualIndex], ...generatedRecibo };
+        else manualReceipts.unshift(generatedRecibo);
         saveManualReceipts(manualReceipts);
         saveReceiptsCache();
 
         recibosPageState = { query:'', local:'TODOS', month:'' };
 
         await refreshAll();
-
         closePagoModal();
-        if (route === 'recibos') {
-          await renderRecibosPage();
-        }
-        showPagoSuccessToast(`Se guardó el recibo ${generatedRecibo.numero_recibo} y se imputó a ${periodoAplicado}.`);
+        if (route === 'recibos') await renderRecibosPage();
+        showPagoSuccessToast(`Se guardó el recibo ${reciboNumero} y se imputó a ${periodoAplicado}.`);
       } catch(e){
         console.error(e);
         msgEl.textContent = 'Error inesperado: ' + String(e?.message || e);
+      }
+    }
+
+    function openGenerarMesModal(){
+      const d = new Date();
+      let year = d.getFullYear();
+      let month = d.getMonth() + 2;
+      if (month > 12){ month = 1; year += 1; }
+      $('modalGenerarMesBack').style.display = 'flex';
+      $('genAnio').value = String(year);
+      $('genMes').value = String(month);
+      $('generarMesMsg').textContent = '';
+    }
+
+    function closeGenerarMesModal(){
+      $('modalGenerarMesBack').style.display = 'none';
+    }
+
+    async function generarMesModal(){
+      const msg = $('generarMesMsg');
+      const anio = Number($('genAnio')?.value || 0);
+      const mes = Number($('genMes')?.value || 0);
+      if (!anio || !mes || mes < 1 || mes > 12){
+        msg.textContent = 'Elegí un año y mes válidos.';
+        return;
+      }
+      msg.textContent = 'Generando cuotas...';
+      try{
+        const { data, error } = await sb.rpc('generar_cuotas_mes', { p_anio: anio, p_mes: mes });
+        if (error) throw error;
+        const creadas = Array.isArray(data) ? (data[0]?.generar_cuotas_mes ?? data[0] ?? 0) : (data ?? 0);
+        msg.textContent = `Cuotas generadas: ${creadas}.`;
+        await refreshAll();
+      } catch(e){
+        console.error(e);
+        msg.textContent = String(e?.message || e);
+      }
+    }
+
+    function openBajaContratoModal(){
+      if (!selected?.contrato_id) return alert('Primero abrí el detalle de un activo.');
+      if (!canUseOperationalContrato(selected)) return alert('Este activo no tiene contrato operativo para dar de baja desde acá.');
+      $('modalBajaBack').style.display = 'flex';
+      $('bajaFecha').value = today();
+      $('bajaMotivo').value = '';
+      $('bajaObs').value = '';
+      $('bajaMsg').textContent = '';
+      $('bajaMeta').textContent = `${selected.local_codigo || '—'} — ${selected.inquilino_nombre || '—'} | Contrato: ${selected.contrato_id}`;
+    }
+
+    function closeBajaContratoModal(){
+      $('modalBajaBack').style.display = 'none';
+    }
+
+    async function confirmarBajaContratoModal(){
+      const msg = $('bajaMsg');
+      if (!selected?.contrato_id) return;
+      const fecha = $('bajaFecha')?.value || today();
+      const motivo = String($('bajaMotivo')?.value || '').trim() || 'Baja manual desde sistema';
+      const obs = String($('bajaObs')?.value || '').trim();
+      if (!askConfirm(`Dar de baja el contrato ${selected.contrato_id}? Se anularán las cuotas futuras pendientes.`)) return;
+      msg.textContent = 'Dando de baja contrato...';
+      try{
+        const { data, error } = await sb.rpc('dar_baja_contrato', {
+          p_contrato_id: Number(selected.contrato_id),
+          p_fecha_baja: fecha,
+          p_motivo_baja: motivo,
+          p_baja_opcion: 'ANULAR_CUOTAS_FUTURAS',
+          p_observaciones: obs || null
+        });
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        msg.textContent = result?.mensaje || 'Contrato dado de baja correctamente.';
+        await refreshAll();
+        setTimeout(() => {
+          closeBajaContratoModal();
+          if ($('detalleCard')) $('detalleCard').style.display = 'none';
+          selected = null;
+        }, 650);
+      } catch(e){
+        console.error(e);
+        msg.textContent = String(e?.message || e);
+      }
+    }
+
+    function openNuevoActivoModal(){
+      $('modalNuevoActivoBack').style.display = 'flex';
+      ['nuevoCodigo','nuevoNombre','nuevoDoc','nuevoTel','nuevoEmail','nuevoMonto','nuevoDiaVto','nuevoObs'].forEach(id => { if ($(id)) $(id).value = ''; });
+      if ($('nuevoFechaInicio')) $('nuevoFechaInicio').value = today();
+      if ($('nuevoDiaVto')) $('nuevoDiaVto').value = String(getConfiguredDueDay());
+      if ($('nuevoActivoMsg')) $('nuevoActivoMsg').textContent = '';
+    }
+
+    function closeNuevoActivoModal(){
+      $('modalNuevoActivoBack').style.display = 'none';
+    }
+
+    async function saveNuevoActivoModal(){
+      const msg = $('nuevoActivoMsg');
+      const codigo = String($('nuevoCodigo')?.value || '').trim();
+      const nombre = String($('nuevoNombre')?.value || '').trim();
+      const documento = String($('nuevoDoc')?.value || '').trim();
+      const telefono = String($('nuevoTel')?.value || '').trim();
+      const email = String($('nuevoEmail')?.value || '').trim();
+      const montoMensual = parseMoneyToNumber($('nuevoMonto')?.value || '');
+      const diaVencimiento = Number($('nuevoDiaVto')?.value || getConfiguredDueDay());
+      const fechaInicio = $('nuevoFechaInicio')?.value || today();
+      const observaciones = String($('nuevoObs')?.value || '').trim();
+
+      if (!codigo || !nombre){ msg.textContent = 'Código e inquilino son obligatorios.'; return; }
+      if (!montoMensual || montoMensual <= 0){ msg.textContent = 'El monto mensual debe ser mayor a 0.'; return; }
+      if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31){ msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.'; return; }
+
+      msg.textContent = 'Creando activo...';
+      try{
+        const localPayload = { codigo_local: codigo, codigo };
+        const localRes = await sb.from('locales').insert(localPayload).select('id,codigo_local,codigo').single();
+        if (localRes.error) throw localRes.error;
+
+        const inqRes = await sb.from('inquilinos').insert({ nombre, telefono: telefono || null, email: email || null, documento: documento || null }).select('id,nombre').single();
+        if (inqRes.error) throw inqRes.error;
+
+        const contratoPayload = {
+          local_id: localRes.data.id,
+          inquilino_id: inqRes.data.id,
+          estado: 'ACTIVO',
+          monto_mensual: Number(montoMensual),
+          impuesto_mensual: 0,
+          ajuste_cada_meses: 3,
+          ajuste_porcentaje: 0,
+          dia_vencimiento: diaVencimiento,
+          fecha_inicio: fechaInicio,
+          observaciones: observaciones || null
+        };
+        const contratoRes = await sb.from('contratos').insert(contratoPayload).select('id').single();
+        if (contratoRes.error) throw contratoRes.error;
+
+        msg.textContent = `Activo creado correctamente. Contrato ${contratoRes.data.id}.`;
+        await refreshAll();
+        setTimeout(closeNuevoActivoModal, 650);
+      } catch(e){
+        console.error(e);
+        msg.textContent = String(e?.message || e);
       }
     }
 
