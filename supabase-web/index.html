@@ -4007,9 +4007,9 @@ td:last-child{
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Cuota a cobrar</label>
           <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
-            <option value="AUTO">Automático: cuota pendiente más antigua</option>
+            <option value="AUTO">Cargando meses...</option>
           </select>
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;"></span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;">Elegí el mes del año. Si la cuota no existe, se crea automáticamente al guardar.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Monto pagado</label>
@@ -6428,18 +6428,59 @@ function globalSearch(){
       return `${periodo} · saldo ${fmtARS.format(saldo)} · ${estado}`;
     }
 
-    function getSelectedCuotaFromCache(){
+    function getPaymentYearFromModalDate(){
+      const raw = String($('mFecha')?.value || today()).slice(0,10);
+      const year = Number(raw.split('-')[0]);
+      return Number.isFinite(year) && year >= 2000 ? year : new Date().getFullYear();
+    }
+
+    function getPaymentMonthFromModalDate(){
+      const raw = String($('mFecha')?.value || today()).slice(0,10);
+      const month = Number(raw.split('-')[1]);
+      return Math.min(12, Math.max(1, Number.isFinite(month) ? month : (new Date().getMonth() + 1)));
+    }
+
+    function getMonthlyBaseAmount(row){
+      const candidates = [
+        row?.monto_mensual,
+        row?.monto_sugerido_2026,
+        row?.monto_actual,
+        row?.monto,
+        row?.alquiler,
+        row?.canon_mensual,
+        row?.importe
+      ];
+      for (const value of candidates){
+        const n = toNumber(value);
+        if (n > 0) return n;
+      }
+      return Math.max(0, getDisplayedDebtTotal(row || {}));
+    }
+
+    function getSelectedPaymentMonth(){
       const choice = getSelectedPaymentPeriodChoice();
-      if (choice.startsWith('CUOTA:')){
-        const id = choice.slice(6);
-        return (modalCuotasOptions || []).find(c => String(c.id) === String(id)) || null;
-      }
-      if (choice === 'AUTO'){
-        return (modalCuotasOptions || []).find(c => toNumber(c.saldo) > 0 && ['PENDIENTE','PARCIAL'].includes(String(c.estado || '').toUpperCase())) || null;
-      }
       const parsed = parsePaymentPeriodChoice(choice);
-      if (parsed.type === 'MONTH'){
-        return (modalCuotasOptions || []).find(c => Number(c.anio) === parsed.year && Number(c.mes) === parsed.month) || null;
+      if (parsed.type === 'MONTH') return parsed;
+      return { type:'MONTH', year:getPaymentYearFromModalDate(), month:getPaymentMonthFromModalDate() };
+    }
+
+    function findCuotaByYearMonth(year, month){
+      return (modalCuotasOptions || []).find(c => Number(c.anio) === Number(year) && Number(c.mes) === Number(month)) || null;
+    }
+
+    function getMonthOptionLabel(year, month){
+      const cuota = findCuotaByYearMonth(year, month);
+      const base = monthLabelFromYearMonth(year, month);
+      if (!cuota) return `${base} · se crea al cobrar`;
+      const saldo = toNumber(cuota.saldo);
+      const estado = String(cuota.estado || 'PENDIENTE').toUpperCase();
+      return `${base} · saldo ${fmtARS.format(saldo)} · ${estado}`;
+    }
+
+    function getSelectedCuotaFromCache(){
+      const selectedMonth = getSelectedPaymentMonth();
+      if (selectedMonth?.type === 'MONTH'){
+        return findCuotaByYearMonth(selectedMonth.year, selectedMonth.month);
       }
       return null;
     }
@@ -6500,30 +6541,30 @@ function globalSearch(){
       const el = $('mPeriodoAplicado');
       if (!el) return;
 
-      const previous = keepValue ? String(el.value || 'AUTO') : '';
+      const year = getPaymentYearFromModalDate();
+      const currentMonth = getPaymentMonthFromModalDate();
+      const previous = keepValue ? String(el.value || '') : '';
+
       modalCuotasOptions = [];
       try{
         modalCuotasOptions = await fetchCuotasAlquilerByContrato(row?.contrato_id, row);
       } catch (err){
-        console.warn('No se pudieron cargar cuotas de alquiler:', err?.message || err);
+        // Aunque no se puedan leer las cuotas, el usuario puede elegir el mes.
+        // La RPC de cobro crea o busca la cuota por contrato + mes de forma segura.
+        console.warn('No se pudieron precargar cuotas. Se mostrarán meses del año:', err?.message || err);
         modalCuotasOptions = [];
       }
 
-      const pending = modalCuotasOptions.filter(c => toNumber(c.saldo) > 0 && ['PENDIENTE','PARCIAL'].includes(String(c.estado || '').toUpperCase()));
-      const rowsToShow = pending.length ? pending : modalCuotasOptions;
-      const options = rowsToShow.map(c => ({ value:`CUOTA:${c.id}`, label:getCuotaOptionLabel(c) }));
-
-      if (!options.length){
-        el.innerHTML = '<option value="AUTO">Sin cuotas disponibles</option>';
-        el.value = 'AUTO';
-        el.disabled = true;
-      } else {
-        el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
-        if (previous && options.some(opt => opt.value === previous)) el.value = previous;
-        else el.value = options[0].value;
-        el.disabled = false;
+      const options = [];
+      for (let month = 1; month <= 12; month++){
+        const value = `${year}-${String(month).padStart(2,'0')}`;
+        options.push({ value, label:getMonthOptionLabel(year, month) });
       }
 
+      el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+      if (previous && options.some(opt => opt.value === previous)) el.value = previous;
+      else el.value = `${year}-${String(currentMonth).padStart(2,'0')}`;
+      el.disabled = false;
       el.style.display = 'block';
       el.style.visibility = 'visible';
       el.style.opacity = '1';
@@ -6811,17 +6852,19 @@ function globalSearch(){
     function recalcularCobroModal(){
       const montoPago = parseMoneyToNumber($('mAlquiler')?.value || '');
       const adicional = parseMoneyToNumber($('mImpPct')?.value || '');
+      const selectedMonth = getSelectedPaymentMonth();
       const cuota = getSelectedCuotaFromCache();
-      const saldoActual = cuota ? toNumber(cuota.saldo) : getDisplayedDebtTotal(modalContrato || {});
+      const saldoActual = cuota ? toNumber(cuota.saldo) : getMonthlyBaseAmount(modalContrato || {});
       const totalCuotaConAdicional = cuota ? round2(toNumber(cuota.monto_total) + adicional) : round2(saldoActual + adicional);
 
       if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(saldoActual);
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(totalCuotaConAdicional);
       if ($('mPeriodoAplicado')) {
-        $('mPeriodoAplicado').title = cuota ? `Cuota seleccionada: ${getCuotaOptionLabel(cuota)}` : 'Seleccioná una cuota pendiente.';
+        const label = selectedMonth?.type === 'MONTH' ? monthLabelFromYearMonth(selectedMonth.year, selectedMonth.month) : 'Mes elegido';
+        $('mPeriodoAplicado').title = cuota ? `Cuota existente: ${getCuotaOptionLabel(cuota)}` : `${label}: se crea automáticamente al guardar si todavía no existe.`;
       }
 
-      return { montoPago, adicional, saldoActual, totalCuotaConAdicional, cuota };
+      return { montoPago, adicional, saldoActual, totalCuotaConAdicional, cuota, selectedMonth };
     }
 
     async function openPagoModal(r){
@@ -6830,7 +6873,7 @@ function globalSearch(){
       $('modalBack').style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo || r.codigo_local || '—'} — ${r.inquilino_nombre || '—'} | Contrato: ${r.contrato_id || '—'}`;
       $('mFecha').value = today();
-      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Cargando cuotas...</option>';
+      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Cargando meses...</option>';
       if ($('mAlquiler')) $('mAlquiler').value = '';
       if ($('mImpPct')) $('mImpPct').value = '';
       if ($('mImpMonto')) $('mImpMonto').value = '';
@@ -6841,8 +6884,8 @@ function globalSearch(){
       if ($('mDescripcion')) $('mDescripcion').value = '';
 
       await refreshPaymentPeriodOptions(r, false);
-      const cuota = getSelectedCuotaFromCache();
-      if (cuota && $('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(toNumber(cuota.saldo));
+      const calc = recalcularCobroModal();
+      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(calc.saldoActual || 0);
       recalcularCobroModal();
     }
 
@@ -6853,12 +6896,9 @@ function globalSearch(){
     }
 
     async function resolverCuotaSeleccionadaParaCobro(){
-      let cuota = getSelectedCuotaFromCache();
-      if (cuota) return cuota;
-      if (!modalContrato?.contrato_id) return null;
-      await refreshPaymentPeriodOptions(modalContrato, true);
-      cuota = getSelectedCuotaFromCache();
-      return cuota;
+      const selectedMonth = getSelectedPaymentMonth();
+      if (selectedMonth?.type !== 'MONTH') return null;
+      return selectedMonth;
     }
 
     async function registrarPagoModal(){
@@ -6887,17 +6927,19 @@ function globalSearch(){
           return;
         }
 
-        const cuota = await resolverCuotaSeleccionadaParaCobro();
-        if (!cuota?.id){
-          msgEl.textContent = 'No encontré una cuota pendiente para cobrar. Primero generá el mes correspondiente.';
+        const selectedMonth = await resolverCuotaSeleccionadaParaCobro();
+        if (!selectedMonth || !selectedMonth.year || !selectedMonth.month){
+          msgEl.textContent = 'Elegí un mes válido para cobrar.';
           return;
         }
 
-        const periodoAplicado = cuota.periodo || `${String(cuota.mes).padStart(2,'0')}/${cuota.anio}`;
+        const periodoAplicado = `${String(selectedMonth.month).padStart(2,'0')}/${selectedMonth.year}`;
         msgEl.textContent = `Guardando cobro de ${periodoAplicado}...`;
 
-        const { data, error } = await sb.rpc('cobrar_cuota_alquiler', {
-          p_cuota_id: Number(cuota.id),
+        const { data, error } = await sb.rpc('cobrar_cuota_alquiler_mes', {
+          p_contrato_id: Number(modalContrato.contrato_id),
+          p_anio: Number(selectedMonth.year),
+          p_mes: Number(selectedMonth.month),
           p_monto_pago: Number(montoPago),
           p_monto_adicional: Number(adicional || 0),
           p_medio: medio,
