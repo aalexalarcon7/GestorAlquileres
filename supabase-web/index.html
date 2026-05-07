@@ -5638,11 +5638,11 @@ function globalSearch(){
       const nms = nextMonthStartISO();
       const { data: pagosMes } = await sb
         .from('pagos')
-        .select('monto, fecha_pago')
+        .select('monto, monto_total, fecha_pago')
         .gte('fecha_pago', ms)
         .lt('fecha_pago', nms);
 
-      const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto||0),0);
+      const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto ?? p.monto_total ?? 0),0);
 
       const top = [...unidades]
         .filter(r => Number(r.deuda_atrasada||0) > 0)
@@ -9619,7 +9619,7 @@ function globalSearch(){
       return new Date(year, monthIndex + 1, 0).getDate();
     }
 
-    function monthStartISO(year, monthIndex){
+    function balanceMonthStartISO(year, monthIndex){
       return `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`;
     }
 
@@ -9631,7 +9631,7 @@ function globalSearch(){
       const estado = String(contrato?.estado || '').trim().toUpperCase();
       if (estado && estado !== 'ACTIVO') return false;
 
-      const start = monthStartISO(year, monthIndex);
+      const start = balanceMonthStartISO(year, monthIndex);
       const end = monthEndISO(year, monthIndex);
       const inicio = String(contrato?.fecha_inicio || '').slice(0, 10);
       const fin = String(contrato?.fecha_fin || '').slice(0, 10);
