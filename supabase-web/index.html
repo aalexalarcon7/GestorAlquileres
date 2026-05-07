@@ -7020,6 +7020,14 @@ function globalSearch(){
 
     async function saveNuevoActivoModal(){
       const msg = $('nuevoActivoMsg');
+      const createBtn = document.querySelector('#modalNuevoActivoBack button[onclick="saveNuevoActivoModal()"]');
+      const setMsg = (text, type = 'info') => {
+        if (!msg) return;
+        msg.textContent = text;
+        msg.style.color = type === 'error' ? 'var(--bad)' : (type === 'ok' ? 'var(--ok)' : 'var(--muted)');
+        msg.style.fontWeight = type === 'error' || type === 'ok' ? '800' : '600';
+      };
+
       const codigo = String($('nuevoCodigo')?.value || '').trim();
       const nombre = String($('nuevoNombre')?.value || '').trim();
       const documento = String($('nuevoDoc')?.value || '').trim();
@@ -7030,40 +7038,55 @@ function globalSearch(){
       const fechaInicio = $('nuevoFechaInicio')?.value || today();
       const observaciones = String($('nuevoObs')?.value || '').trim();
 
-      if (!codigo || !nombre){ msg.textContent = 'Código e inquilino son obligatorios.'; return; }
-      if (!montoMensual || montoMensual <= 0){ msg.textContent = 'El monto mensual debe ser mayor a 0.'; return; }
-      if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31){ msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.'; return; }
+      if (!codigo || !nombre){ setMsg('Código del puesto e inquilino son obligatorios.', 'error'); return; }
+      if (!montoMensual || montoMensual <= 0){ setMsg('El monto mensual debe ser mayor a 0.', 'error'); return; }
+      if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31){ setMsg('El día de vencimiento debe estar entre 1 y 31.', 'error'); return; }
 
-      msg.textContent = 'Creando activo...';
+      setMsg('Creando activo...', 'info');
+      if (createBtn){
+        createBtn.disabled = true;
+        createBtn.classList.add('is-disabled');
+        createBtn.textContent = 'Creando...';
+      }
+
       try{
-        const localPayload = { codigo_local: codigo, codigo };
-        const localRes = await sb.from('locales').insert(localPayload).select('id,codigo_local,codigo').single();
-        if (localRes.error) throw localRes.error;
+        const { data, error } = await sb.rpc('crear_activo_alquiler', {
+          p_codigo: codigo,
+          p_nombre: nombre,
+          p_documento: documento || null,
+          p_telefono: telefono || null,
+          p_email: email || null,
+          p_monto_mensual: Number(montoMensual),
+          p_dia_vencimiento: diaVencimiento,
+          p_fecha_inicio: fechaInicio,
+          p_observaciones: observaciones || null
+        });
 
-        const inqRes = await sb.from('inquilinos').insert({ nombre, telefono: telefono || null, email: email || null, documento: documento || null }).select('id,nombre').single();
-        if (inqRes.error) throw inqRes.error;
+        if (error) throw error;
 
-        const contratoPayload = {
-          local_id: localRes.data.id,
-          inquilino_id: inqRes.data.id,
-          estado: 'ACTIVO',
-          monto_mensual: Number(montoMensual),
-          impuesto_mensual: 0,
-          ajuste_cada_meses: 3,
-          ajuste_porcentaje: 0,
-          dia_vencimiento: diaVencimiento,
-          fecha_inicio: fechaInicio,
-          observaciones: observaciones || null
-        };
-        const contratoRes = await sb.from('contratos').insert(contratoPayload).select('id').single();
-        if (contratoRes.error) throw contratoRes.error;
+        const row = Array.isArray(data) ? data[0] : data;
+        const contratoId = row?.contrato_id || row?.nuevo_contrato_id || row?.id || '—';
+        setMsg(`Activo creado correctamente. Contrato ${contratoId}.`, 'ok');
+        if (typeof showPagoSuccessToast === 'function') {
+          showPagoSuccessToast(`Activo creado correctamente. Contrato ${contratoId}.`);
+        }
 
-        msg.textContent = `Activo creado correctamente. Contrato ${contratoRes.data.id}.`;
         await refreshAll();
-        setTimeout(closeNuevoActivoModal, 650);
+        setTimeout(closeNuevoActivoModal, 900);
       } catch(e){
-        console.error(e);
-        msg.textContent = String(e?.message || e);
+        console.error('saveNuevoActivoModal error', e);
+        const raw = String(e?.message || e || 'Error desconocido al crear el activo.');
+        const friendly = raw.includes('function crear_activo_alquiler')
+          ? 'Falta crear la función public.crear_activo_alquiler en Supabase. Ejecutá el SQL que te pasé y volvé a intentar.'
+          : raw;
+        setMsg(friendly, 'error');
+        alert(friendly);
+      } finally {
+        if (createBtn){
+          createBtn.disabled = false;
+          createBtn.classList.remove('is-disabled');
+          createBtn.textContent = 'Crear activo';
+        }
       }
     }
 
