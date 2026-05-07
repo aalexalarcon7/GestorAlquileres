@@ -6444,16 +6444,56 @@ function globalSearch(){
       return null;
     }
 
-    async function fetchCuotasAlquilerByContrato(contratoId){
-      if (!contratoId) return [];
-      const { data, error } = await sb
-        .from('cuotas_alquiler')
-        .select('id,contrato_id,local_id,inquilino_id,anio,mes,periodo,monto_base,monto_adicional,monto_total,monto_pagado,saldo,fecha_vencimiento,estado')
-        .eq('contrato_id', contratoId)
-        .order('anio', { ascending:true })
-        .order('mes', { ascending:true });
-      if (error) throw error;
-      return data || [];
+    function getOperationalRowId(row, keys){
+      for (const key of keys){
+        const value = row?.[key];
+        if (value === null || value === undefined || value === '') continue;
+        const n = Number(value);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      return null;
+    }
+
+    async function fetchCuotasAlquilerByContrato(contratoId, row={}){
+      const cid = getOperationalRowId({ contrato_id: contratoId, ...(row || {}) }, ['contrato_id','contratoId','id_contrato']);
+      const lid = getOperationalRowId(row || {}, ['local_id','localId','id_local']);
+      const iid = getOperationalRowId(row || {}, ['inquilino_id','inquilinoId','id_inquilino']);
+      if (!cid && !lid && !iid) return [];
+
+      // Fuente principal: RPC SECURITY DEFINER. Evita problemas de RLS/permisos y además permite
+      // recuperar cuotas por contrato, local o inquilino si algún dato viene incompleto desde la vista.
+      try{
+        const { data, error } = await sb.rpc('listar_cuotas_cobro_contrato', {
+          p_contrato_id: cid,
+          p_local_id: lid,
+          p_inquilino_id: iid
+        });
+        if (!error && Array.isArray(data)) return data;
+        if (error) console.warn('RPC listar_cuotas_cobro_contrato no disponible o falló:', error.message || error);
+      } catch (err){
+        console.warn('No se pudo llamar listar_cuotas_cobro_contrato:', err?.message || err);
+      }
+
+      const cols = 'id,contrato_id,local_id,inquilino_id,anio,mes,periodo,monto_base,monto_adicional,monto_total,monto_pagado,saldo,fecha_vencimiento,estado';
+      const sortRows = rows => (rows || []).slice().sort((a,b) => {
+        const ay = Number(a.anio || 0), by = Number(b.anio || 0);
+        if (ay !== by) return ay - by;
+        return Number(a.mes || 0) - Number(b.mes || 0);
+      });
+
+      const attempts = [];
+      if (cid) attempts.push(q => q.eq('contrato_id', cid));
+      if (lid) attempts.push(q => q.eq('local_id', lid));
+      if (iid) attempts.push(q => q.eq('inquilino_id', iid));
+
+      for (const applyFilter of attempts){
+        const q = applyFilter(sb.from('cuotas_alquiler').select(cols));
+        const { data, error } = await q.order('anio', { ascending:true }).order('mes', { ascending:true });
+        if (error) throw error;
+        if (Array.isArray(data) && data.length) return sortRows(data);
+      }
+
+      return [];
     }
 
     async function refreshPaymentPeriodOptions(row, keepValue=false){
@@ -6463,7 +6503,7 @@ function globalSearch(){
       const previous = keepValue ? String(el.value || 'AUTO') : '';
       modalCuotasOptions = [];
       try{
-        modalCuotasOptions = await fetchCuotasAlquilerByContrato(row?.contrato_id);
+        modalCuotasOptions = await fetchCuotasAlquilerByContrato(row?.contrato_id, row);
       } catch (err){
         console.warn('No se pudieron cargar cuotas de alquiler:', err?.message || err);
         modalCuotasOptions = [];
