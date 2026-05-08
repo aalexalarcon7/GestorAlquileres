@@ -4286,7 +4286,7 @@ td:last-child{
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'' };
-    let recibosRevisionState = { tab:'combinados', query:'', local:'TODOS' };
+    let recibosRevisionState = { tab:'combinados', query:'', local:'TODOS', visible:false };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -8824,7 +8824,25 @@ function globalSearch(){
       }).join('');
     }
 
+
+    function openRecibosRevisionPanel(){
+      recibosRevisionState.visible = true;
+      renderRecibosPage();
+      setTimeout(() => {
+        document.getElementById('recibosRevisionCard')?.scrollIntoView({ behavior:'smooth', block:'start' });
+      }, 80);
+    }
+
+    function closeRecibosRevisionPanel(){
+      recibosRevisionState.visible = false;
+      renderRecibosPage();
+      setTimeout(() => {
+        document.querySelector('#viewRecibos .section-hero')?.scrollIntoView({ behavior:'smooth', block:'start' });
+      }, 80);
+    }
+
     function renderRecibosRevisionPanel(data){
+      if (!recibosRevisionState.visible) return '';
       const combinados = data?.combinados || [];
       const sinPeriodo = data?.sinPeriodo || [];
       const totalCombinados = combinados.reduce((acc, item) => acc + Number(item.monto || 0), 0);
@@ -8842,7 +8860,10 @@ function globalSearch(){
               <h3 style="margin:0;">Recibos a revisar</h3>
               <div class="muted" style="margin-top:4px;">Pagos históricos que no conviene aplicar automáticamente a una sola cuota.</div>
             </div>
-            <button class="btn" onclick="renderRecibosPage()">Actualizar revisión</button>
+            <div class="row" style="gap:8px;">
+              <button class="btn" onclick="renderRecibosPage()">Actualizar revisión</button>
+              <button class="btn" onclick="closeRecibosRevisionPanel()">Cerrar revisión</button>
+            </div>
           </div>
 
           <div class="section-hero-kpis recibos-hero-kpis" style="margin-top:14px;">
@@ -8923,6 +8944,7 @@ function globalSearch(){
       saveReceiptsCache();
 
       const summary = renderRecibosKPIs(rows);
+      const revisionTotalCount = (revisionData?.combinados?.length || 0) + (revisionData?.sinPeriodo?.length || 0);
       let filteredRows = applyRecibosPageFilters(rows);
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
@@ -8971,7 +8993,7 @@ function globalSearch(){
             </div>
 
             <div class="section-hero-actions recibos-hero-actions">
-              <button class="btn" onclick="document.getElementById('recibosRevisionCard')?.scrollIntoView({behavior:'smooth', block:'start'})">Ver pendientes</button>
+              <button class="btn" onclick="openRecibosRevisionPanel()">Pendientes de revisión${revisionTotalCount ? ` (${revisionTotalCount})` : ''}</button>
               <button class="btn primary" onclick="renderRecibosPage()">Actualizar</button>
             </div>
           </div>
@@ -8980,8 +9002,6 @@ function globalSearch(){
         </div>
 
         <div class="recibos-grid">
-          ${renderRecibosRevisionPanel(revisionData)}
-
           <div class="card">
             <div class="row" style="justify-content:space-between;align-items:end;">
               <div>
@@ -9033,6 +9053,8 @@ function globalSearch(){
               </table>
             </div>
           </div>
+
+          ${renderRecibosRevisionPanel(revisionData)}
 
         </div>
       `;
