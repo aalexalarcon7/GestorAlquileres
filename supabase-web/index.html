@@ -4326,7 +4326,7 @@ td:last-child{
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:25 };
-    let recibosRevisionState = { tab:'noImputables', query:'', local:'TODOS', visible:false };
+    let recibosRevisionState = { tab:'noImputables', query:'', local:'TODOS', visible:false, page:1, pageSize:25 };
     let reciboClasificarActual = null;
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
@@ -8642,23 +8642,65 @@ function globalSearch(){
       setRecibosPage(raw);
     }
 
-    function renderRecibosPagination(totalRows, page, pageSize, totalPages){
+    function renderRecibosPagination(totalRows, page, pageSize, totalPages, config = {}){
+      const {
+        sizeId = 'recibosPageSize',
+        numberId = 'recibosPageNumber',
+        onSizeChange = 'updateRecibosPageSizeFromUI()',
+        onJump = 'jumpToRecibosPageFromUI()',
+        onPrev = `setRecibosPage(${page - 1})`,
+        onNext = `setRecibosPage(${page + 1})`
+      } = config;
       const disabledPrev = page <= 1 ? 'disabled' : '';
       const disabledNext = page >= totalPages ? 'disabled' : '';
       const pageOptions = [25, 50, 100, 200].map(size => `<option value="${size}" ${Number(pageSize) === size ? 'selected' : ''}>${size} por pág.</option>`).join('');
       return `
-        <div class="recibos-pagination-simple" style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:10px 0 12px;">
-          <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="width:auto;min-width:106px;height:38px;padding:0 12px;border-radius:14px;font-weight:700;">
-            ${pageOptions}
-          </select>
-          <div class="recibos-page-stepper" style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);height:38px;box-shadow:none;">
-            <button class="btn" title="Página anterior" style="border:0;border-radius:0;min-width:40px;height:38px;padding:0 10px;background:transparent;box-shadow:none;" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>▲</button>
-            <input id="recibosPageNumber" type="number" min="1" max="${totalPages}" value="${page}" onchange="jumpToRecibosPageFromUI()" onkeydown="if(event.key==='Enter') jumpToRecibosPageFromUI()" style="width:58px;height:38px;text-align:center;border:0;border-left:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;font-weight:900;font-size:17px;padding:0;background:transparent;">
-            <button class="btn" title="Página siguiente" style="border:0;border-radius:0;min-width:40px;height:38px;padding:0 10px;background:transparent;box-shadow:none;" onclick="setRecibosPage(${page + 1})" ${disabledNext}>▼</button>
+        <div class="recibos-pagination-clean" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:12px 0 14px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <select id="${sizeId}" onchange="${onSizeChange}" style="width:auto;min-width:120px;height:40px;padding:0 14px;border-radius:14px;font-weight:700;">
+              ${pageOptions}
+            </select>
+            <span class="contact-sub" style="font-weight:700;white-space:nowrap;">Página</span>
+            <input id="${numberId}" type="number" min="1" max="${totalPages}" value="${page}" onchange="${onJump}" onkeydown="if(event.key==='Enter') ${onJump}" style="width:74px;height:40px;text-align:center;border:1px solid var(--border);border-radius:14px;font-weight:800;font-size:16px;padding:0 10px;background:var(--card);">
+            <span class="contact-sub" style="font-weight:700;white-space:nowrap;">de ${totalPages}</span>
           </div>
-          <span class="contact-sub" style="font-weight:900;white-space:nowrap;">de ${totalPages}</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <button class="btn" onclick="${onPrev}" ${disabledPrev}>Anterior</button>
+            <button class="btn" onclick="${onNext}" ${disabledNext}>Siguiente</button>
+          </div>
         </div>
       `;
+    }
+
+    function getRecibosRevisionPageSize(){
+      const parsed = Number(recibosRevisionState.pageSize || 25);
+      return Number.isFinite(parsed) && parsed > 0 ? parsed : 25;
+    }
+
+    function getRecibosRevisionCurrentPage(totalRows){
+      const pageSize = getRecibosRevisionPageSize();
+      const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / pageSize));
+      recibosRevisionState.page = Math.min(Math.max(1, Number(recibosRevisionState.page || 1)), totalPages);
+      return { page: recibosRevisionState.page, pageSize, totalPages };
+    }
+
+    function setRecibosRevisionPage(page){
+      const { pageSize } = getRecibosRevisionCurrentPage(0);
+      const totalRows = Number(window.__recibosRevisionFilteredCount || 0);
+      const totalPages = Math.max(1, Math.ceil(totalRows / pageSize));
+      recibosRevisionState.page = Math.min(Math.max(1, Number(page || 1)), totalPages);
+      renderRecibosPage();
+    }
+
+    function updateRecibosRevisionPageSizeFromUI(){
+      recibosRevisionState.pageSize = Number($('recibosRevisionPageSize')?.value || 25);
+      recibosRevisionState.page = 1;
+      renderRecibosPage();
+    }
+
+    function jumpToRecibosRevisionPageFromUI(){
+      const raw = Number($('recibosRevisionPageNumber')?.value || 1);
+      setRecibosRevisionPage(raw);
     }
 
     function updateRecibosFiltersFromUI(){
@@ -8894,18 +8936,21 @@ function globalSearch(){
     function updateRecibosRevisionFiltersFromUI(){
       recibosRevisionState.query = $('recibosRevisionSearch')?.value || '';
       recibosRevisionState.local = $('recibosRevisionLocal')?.value || 'TODOS';
+      recibosRevisionState.page = 1;
       renderRecibosPage();
     }
 
     function setRecibosRevisionTab(tab){
       const allowed = ['noImputables', 'sobrantes', 'imputaciones', 'clasificados'];
       recibosRevisionState.tab = allowed.includes(tab) ? tab : 'noImputables';
+      recibosRevisionState.page = 1;
       renderRecibosPage();
     }
 
     function clearRecibosRevisionFilters(){
       recibosRevisionState.query = '';
       recibosRevisionState.local = 'TODOS';
+      recibosRevisionState.page = 1;
       renderRecibosPage();
     }
 
@@ -9180,6 +9225,17 @@ function globalSearch(){
       const allRows = [...noImputables, ...sobrantes, ...imputaciones, ...clasificados];
       const localOptions = [...new Set(allRows.map(item => String(item.codigo_local || '')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
       const errors = (data?.errors || []).filter(Boolean);
+      window.__recibosRevisionFilteredCount = activeRows.length;
+      const { page: revisionPage, pageSize: revisionPageSize, totalPages: revisionTotalPages } = getRecibosRevisionCurrentPage(activeRows.length);
+      const paginatedRevisionRows = activeRows.slice((revisionPage - 1) * revisionPageSize, revisionPage * revisionPageSize);
+      const revisionPaginationHtml = renderRecibosPagination(activeRows.length, revisionPage, revisionPageSize, revisionTotalPages, {
+        sizeId: 'recibosRevisionPageSize',
+        numberId: 'recibosRevisionPageNumber',
+        onSizeChange: 'updateRecibosRevisionPageSizeFromUI()',
+        onJump: 'jumpToRecibosRevisionPageFromUI()',
+        onPrev: `setRecibosRevisionPage(${revisionPage - 1})`,
+        onNext: `setRecibosRevisionPage(${revisionPage + 1})`
+      });
 
       return `
         <div class="card" id="recibosRevisionCard" style="margin-bottom:16px; border-color:rgba(245,158,11,.35);">
@@ -9244,15 +9300,17 @@ function globalSearch(){
               </div>
             </div>
             <div class="recibos-toolbar-actions">
-              <span class="recibos-count-pill">${activeRows.length} visibles</span>
+              <span class="recibos-count-pill">${activeRows.length} visibles · ${paginatedRevisionRows.length} en esta página</span>
               <button class="btn" onclick="clearRecibosRevisionFilters()">Limpiar filtros</button>
             </div>
           </div>
 
+          ${revisionPaginationHtml}
+
           <div class="tableWrap recibos-table" style="margin-top:12px;">
             <table style="min-width:1100px;">
               <thead>${renderRecibosRevisionTableHead(activeTab)}</thead>
-              <tbody>${renderRecibosRevisionRows(activeRows, activeTab)}</tbody>
+              <tbody>${renderRecibosRevisionRows(paginatedRevisionRows, activeTab)}</tbody>
             </table>
           </div>
         </div>
