@@ -8583,7 +8583,10 @@ function globalSearch(){
     }
 
     function setRecibosPage(page){
-      recibosPageState.page = Math.max(1, Number(page || 1));
+      const totalRows = applyRecibosPageFilters(recibosInternosCache || []).length;
+      const pageSize = getRecibosPageSize();
+      const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / pageSize));
+      recibosPageState.page = Math.min(Math.max(1, Number(page || 1)), totalPages);
       renderRecibosPage();
     }
 
@@ -8593,26 +8596,26 @@ function globalSearch(){
       renderRecibosPage();
     }
 
+    function jumpToRecibosPageFromUI(){
+      const raw = Number($('recibosPageNumber')?.value || 1);
+      setRecibosPage(raw);
+    }
+
     function renderRecibosPagination(totalRows, page, pageSize, totalPages){
-      const total = Number(totalRows || 0);
-      const start = total ? ((page - 1) * pageSize) + 1 : 0;
-      const end = Math.min(total, page * pageSize);
       const disabledPrev = page <= 1 ? 'disabled' : '';
       const disabledNext = page >= totalPages ? 'disabled' : '';
-      const pageOptions = [25, 50, 100, 200].map(size => `<option value="${size}" ${Number(pageSize) === size ? 'selected' : ''}>${size} por página</option>`).join('');
+      const pageOptions = [25, 50, 100, 200].map(size => `<option value="${size}" ${Number(pageSize) === size ? 'selected' : ''}>${size} por pág.</option>`).join('');
       return `
-        <div class="recibos-pagination" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;">
-          <div class="contact-sub" style="font-weight:800;">
-            Mostrando ${start}–${end} de ${total} recibos
+        <div class="recibos-pagination-simple" style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:12px 0;">
+          <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="width:auto;min-width:110px;padding:10px 12px;border-radius:16px;">
+            ${pageOptions}
+          </select>
+          <div class="recibos-page-stepper" style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:#fff;box-shadow:var(--shadow-soft);height:46px;">
+            <button class="btn" style="border:0;border-radius:0;min-width:48px;height:46px;padding:0 14px;" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>⌃</button>
+            <input id="recibosPageNumber" type="number" min="1" max="${totalPages}" value="${page}" onchange="jumpToRecibosPageFromUI()" onkeydown="if(event.key==='Enter') jumpToRecibosPageFromUI()" style="width:72px;height:46px;text-align:center;border:0;border-left:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;font-weight:900;font-size:18px;padding:0;">
+            <button class="btn" style="border:0;border-radius:0;min-width:48px;height:46px;padding:0 14px;" onclick="setRecibosPage(${page + 1})" ${disabledNext}>⌄</button>
           </div>
-          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
-            <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="min-width:140px;">${pageOptions}</select>
-            <button class="btn" onclick="setRecibosPage(1)" ${disabledPrev}>Primera</button>
-            <button class="btn" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>Anterior</button>
-            <span class="recibos-count-pill">Página ${page} de ${totalPages}</span>
-            <button class="btn" onclick="setRecibosPage(${page + 1})" ${disabledNext}>Siguiente</button>
-            <button class="btn" onclick="setRecibosPage(${totalPages})" ${disabledNext}>Última</button>
-          </div>
+          <span class="contact-sub" style="font-weight:800;white-space:nowrap;">de ${totalPages}</span>
         </div>
       `;
     }
@@ -9107,7 +9110,6 @@ function globalSearch(){
                 <tbody id="recibosBody">${renderRecibosHistoryRows(paginatedRows)}</tbody>
               </table>
             </div>
-            ${paginationHtml}
           </div>
 
           ${renderRecibosRevisionPanel(revisionData)}
