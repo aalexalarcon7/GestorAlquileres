@@ -4286,7 +4286,7 @@ td:last-child{
     let recibosInternosCache = [];
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:25 };
-    let recibosRevisionState = { tab:'combinados', query:'', local:'TODOS', visible:false };
+    let recibosRevisionState = { tab:'noImputables', query:'', local:'TODOS', visible:false };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -8756,39 +8756,58 @@ function globalSearch(){
 
     async function fetchRecibosRevisionData(){
       const result = {
-        combinados: [],
-        sinPeriodo: [],
+        noImputables: [],
+        sobrantes: [],
+        imputaciones: [],
         errors: []
       };
 
       try{
         const { data, error } = await sb
-          .from('vw_revision_pagos_periodo_combinado')
+          .from('vw_recibos_no_imputables_automaticamente')
           .select('*')
           .order('fecha_pago', { ascending:false });
-        if (error) result.errors.push(`Combinados: ${error.message}`);
-        result.combinados = data || [];
+        if (error) result.errors.push(`No imputables: ${error.message}`);
+        result.noImputables = data || [];
       } catch(error){
-        result.errors.push(`Combinados: ${error?.message || error}`);
+        result.errors.push(`No imputables: ${error?.message || error}`);
       }
 
       try{
         const { data, error } = await sb
-          .from('vw_revision_pagos_sin_periodo')
+          .from('vw_recibos_imputados_con_sobrante')
           .select('*')
           .order('fecha_pago', { ascending:false });
-        if (error) result.errors.push(`Sin período: ${error.message}`);
-        result.sinPeriodo = data || [];
+        if (error) result.errors.push(`Con sobrante: ${error.message}`);
+        result.sobrantes = data || [];
       } catch(error){
-        result.errors.push(`Sin período: ${error?.message || error}`);
+        result.errors.push(`Con sobrante: ${error?.message || error}`);
+      }
+
+      try{
+        const { data, error } = await sb
+          .from('vw_recibos_imputaciones_realizadas')
+          .select('*')
+          .order('created_at', { ascending:false });
+        if (error) result.errors.push(`Imputaciones realizadas: ${error.message}`);
+        result.imputaciones = data || [];
+      } catch(error){
+        result.errors.push(`Imputaciones realizadas: ${error?.message || error}`);
       }
 
       return result;
     }
 
     function getRecibosRevisionActiveRows(data){
-      const tab = recibosRevisionState.tab === 'sinPeriodo' ? 'sinPeriodo' : 'combinados';
-      return tab === 'sinPeriodo' ? (data?.sinPeriodo || []) : (data?.combinados || []);
+      const tab = recibosRevisionState.tab || 'noImputables';
+      if (tab === 'sobrantes') return data?.sobrantes || [];
+      if (tab === 'imputaciones') return data?.imputaciones || [];
+      return data?.noImputables || [];
+    }
+
+    function normalizeRevisionMotivo(value){
+      const text = String(value || '').replaceAll('_', ' ').toLowerCase();
+      return text.charAt(0).toUpperCase() + text.slice(1);
     }
 
     function applyRecibosRevisionFilters(rows){
@@ -8799,13 +8818,21 @@ function globalSearch(){
         if (!query) return true;
         return [
           item.id,
+          item.pago_id,
           item.numero_recibo,
           item.codigo_local,
           item.nombre_inquilino,
           item.periodo_aplicado,
+          item.periodo,
           item.fecha_pago,
+          item.created_at,
           item.monto,
-          item.origen
+          item.monto_pago,
+          item.monto_imputado,
+          item.saldo_sin_imputar,
+          item.motivo_revision,
+          item.criterio,
+          item.detalle_aplicacion
         ].some(value => String(value || '').toLowerCase().includes(query));
       });
     }
@@ -8817,7 +8844,8 @@ function globalSearch(){
     }
 
     function setRecibosRevisionTab(tab){
-      recibosRevisionState.tab = tab === 'sinPeriodo' ? 'sinPeriodo' : 'combinados';
+      const allowed = ['noImputables', 'sobrantes', 'imputaciones'];
+      recibosRevisionState.tab = allowed.includes(tab) ? tab : 'noImputables';
       renderRecibosPage();
     }
 
@@ -8838,23 +8866,115 @@ function globalSearch(){
       }
     }
 
+    function renderRecibosRevisionTableHead(tab){
+      if (tab === 'sobrantes'){
+        return `
+          <tr>
+            <th>N° recibo</th>
+            <th>Local</th>
+            <th>Inquilino</th>
+            <th>Fecha pago</th>
+            <th class="right">Pago</th>
+            <th class="right">Imputado</th>
+            <th class="right">Sobrante</th>
+            <th class="center">Acción</th>
+          </tr>
+        `;
+      }
+      if (tab === 'imputaciones'){
+        return `
+          <tr>
+            <th>N° recibo</th>
+            <th>Local</th>
+            <th>Inquilino</th>
+            <th>Cuota imputada</th>
+            <th>Registrado</th>
+            <th class="right">Monto imputado</th>
+            <th>Criterio</th>
+            <th class="center">Acción</th>
+          </tr>
+        `;
+      }
+      return `
+        <tr>
+          <th>N° recibo</th>
+          <th>Local</th>
+          <th>Inquilino</th>
+          <th>Período informado</th>
+          <th>Fecha pago</th>
+          <th class="right">Importe</th>
+          <th>Motivo</th>
+          <th class="center">Acción</th>
+        </tr>
+      `;
+    }
+
     function renderRecibosRevisionRows(rows, tab){
       if (!rows.length){
-        return `<tr><td colspan="8"><div class="recibos-empty">No hay recibos pendientes con los filtros actuales.</div></td></tr>`;
+        return `<tr><td colspan="8"><div class="recibos-empty">No hay recibos en esta categoría con los filtros actuales.</div></td></tr>`;
       }
 
       return rows.map(item => {
-        const periodo = tab === 'sinPeriodo'
-          ? '<span class="recibos-chip muted">Sin período asignado</span>'
-          : escapeHtml(item.periodo_aplicado || '—');
-        const tipoBadge = tab === 'sinPeriodo'
-          ? '<span class="recibos-chip muted">Sin período</span>'
-          : '<span class="recibos-chip primary">Varios meses</span>';
+        const pagoId = item.pago_id || item.id || '';
+        if (tab === 'sobrantes'){
+          return `
+            <tr>
+              <td>
+                <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo || '—')}</strong></div>
+                <span class="contact-sub">ID pago: ${escapeHtml(pagoId || '—')}</span>
+              </td>
+              <td>
+                <span class="recibos-chip primary">${escapeHtml(item.codigo_local || '—')}</span>
+                <div class="contact-sub">Contrato ${escapeHtml(item.contrato_id || '—')}</div>
+              </td>
+              <td>
+                <div class="recibos-cell-title">${escapeHtml(item.nombre_inquilino || '—')}</div>
+                <span class="contact-sub">Inquilino ${escapeHtml(item.inquilino_id || '—')}</span>
+              </td>
+              <td>${formatDateDisplay(item.fecha_pago)}</td>
+              <td class="right"><strong>${fmtARS.format(Number(item.monto_pago || 0))}</strong></td>
+              <td class="right">${fmtARS.format(Number(item.monto_imputado || 0))}</td>
+              <td class="right"><strong>${fmtARS.format(Number(item.saldo_sin_imputar || 0))}</strong></td>
+              <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
+            </tr>
+          `;
+        }
+
+        if (tab === 'imputaciones'){
+          return `
+            <tr>
+              <td>
+                <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo || '—')}</strong></div>
+                <span class="contact-sub">ID pago: ${escapeHtml(pagoId || '—')}</span>
+              </td>
+              <td>
+                <span class="recibos-chip primary">${escapeHtml(item.codigo_local || '—')}</span>
+                <div class="contact-sub">Contrato ${escapeHtml(item.contrato_id || '—')}</div>
+              </td>
+              <td>
+                <div class="recibos-cell-title">${escapeHtml(item.nombre_inquilino || '—')}</div>
+                <span class="contact-sub">Inquilino ${escapeHtml(item.inquilino_id || '—')}</span>
+              </td>
+              <td>
+                <span class="recibos-chip muted">${escapeHtml(item.periodo || '—')}</span>
+                <div class="contact-sub">Cuota ${escapeHtml(item.cuota_id || '—')}</div>
+              </td>
+              <td>${formatDateDisplay(item.created_at)}</td>
+              <td class="right"><strong>${fmtARS.format(Number(item.monto_imputado || 0))}</strong></td>
+              <td>${escapeHtml(item.criterio || '—')}</td>
+              <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
+            </tr>
+          `;
+        }
+
+        const periodo = item.periodo_aplicado
+          ? escapeHtml(item.periodo_aplicado)
+          : '<span class="recibos-chip muted">Sin período asignado</span>';
         return `
           <tr>
             <td>
               <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo || '—')}</strong></div>
-              <span class="contact-sub">ID pago: ${escapeHtml(item.id || '—')}</span>
+              <span class="contact-sub">ID pago: ${escapeHtml(pagoId || '—')}</span>
             </td>
             <td>
               <span class="recibos-chip primary">${escapeHtml(item.codigo_local || '—')}</span>
@@ -8866,11 +8986,12 @@ function globalSearch(){
             </td>
             <td>${periodo}</td>
             <td>${formatDateDisplay(item.fecha_pago)}</td>
-            <td class="right"><strong>${fmtARS.format(Number(item.monto || 0))}</strong></td>
-            <td>${tipoBadge}</td>
-            <td class="center">
-              <button class="btn" onclick="copyRevisionPagoId('${escapeAttr(item.id || '')}')">Copiar ID</button>
+            <td class="right"><strong>${fmtARS.format(Number(item.monto_pago || item.monto || 0))}</strong></td>
+            <td>
+              <span class="recibos-chip muted">Sin deuda vencida</span>
+              <div class="contact-sub">${escapeHtml(normalizeRevisionMotivo(item.motivo_revision))}</div>
             </td>
+            <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
           </tr>
         `;
       }).join('');
@@ -8895,13 +9016,15 @@ function globalSearch(){
 
     function renderRecibosRevisionPanel(data){
       if (!recibosRevisionState.visible) return '';
-      const combinados = data?.combinados || [];
-      const sinPeriodo = data?.sinPeriodo || [];
-      const totalCombinados = combinados.reduce((acc, item) => acc + Number(item.monto || 0), 0);
-      const totalSinPeriodo = sinPeriodo.reduce((acc, item) => acc + Number(item.monto || 0), 0);
-      const activeTab = recibosRevisionState.tab === 'sinPeriodo' ? 'sinPeriodo' : 'combinados';
+      const noImputables = data?.noImputables || [];
+      const sobrantes = data?.sobrantes || [];
+      const imputaciones = data?.imputaciones || [];
+      const totalNoImputables = noImputables.reduce((acc, item) => acc + Number(item.monto_pago || item.monto || 0), 0);
+      const totalSobrantes = sobrantes.reduce((acc, item) => acc + Number(item.saldo_sin_imputar || 0), 0);
+      const totalImputado = imputaciones.reduce((acc, item) => acc + Number(item.monto_imputado || 0), 0);
+      const activeTab = ['sobrantes', 'imputaciones'].includes(recibosRevisionState.tab) ? recibosRevisionState.tab : 'noImputables';
       const activeRows = applyRecibosRevisionFilters(getRecibosRevisionActiveRows(data));
-      const allRows = [...combinados, ...sinPeriodo];
+      const allRows = [...noImputables, ...sobrantes, ...imputaciones];
       const localOptions = [...new Set(allRows.map(item => String(item.codigo_local || '')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
       const errors = (data?.errors || []).filter(Boolean);
 
@@ -8909,30 +9032,30 @@ function globalSearch(){
         <div class="card" id="recibosRevisionCard" style="margin-bottom:16px; border-color:rgba(245,158,11,.35);">
           <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
             <div>
-              <h3 style="margin:0;">Recibos a revisar</h3>
-              <div class="muted" style="margin-top:4px;">Pagos históricos que no conviene aplicar automáticamente a una sola cuota.</div>
+              <h3 style="margin:0;">Recibos pendientes de clasificación</h3>
+              <div class="muted" style="margin-top:4px;">Pagos históricos separados según si no se pueden imputar automáticamente, si dejaron sobrante o si ya fueron aplicados por deuda más antigua.</div>
             </div>
             <div class="row" style="gap:8px;">
-              <button class="btn" onclick="renderRecibosPage()">Actualizar revisión</button>
-              <button class="btn" onclick="closeRecibosRevisionPanel()">Cerrar revisión</button>
+              <button class="btn" onclick="renderRecibosPage()">Actualizar clasificación</button>
+              <button class="btn" onclick="closeRecibosRevisionPanel()">Cerrar clasificación</button>
             </div>
           </div>
 
           <div class="section-hero-kpis recibos-hero-kpis" style="margin-top:14px;">
             <div class="section-mini-stat">
-              <div class="label">Con varios meses</div>
-              <div class="value">${combinados.length}</div>
-              <div class="sub">${fmtARS.format(totalCombinados)}</div>
+              <div class="label">No imputables auto.</div>
+              <div class="value">${noImputables.length}</div>
+              <div class="sub">${fmtARS.format(totalNoImputables)}</div>
             </div>
             <div class="section-mini-stat">
-              <div class="label">Sin período</div>
-              <div class="value">${sinPeriodo.length}</div>
-              <div class="sub">${fmtARS.format(totalSinPeriodo)}</div>
+              <div class="label">Con sobrante</div>
+              <div class="value">${sobrantes.length}</div>
+              <div class="sub">${fmtARS.format(totalSobrantes)}</div>
             </div>
             <div class="section-mini-stat">
-              <div class="label">Total pendiente</div>
-              <div class="value">${combinados.length + sinPeriodo.length}</div>
-              <div class="sub">${fmtARS.format(totalCombinados + totalSinPeriodo)}</div>
+              <div class="label">Imputaciones realizadas</div>
+              <div class="value">${imputaciones.length}</div>
+              <div class="sub">${fmtARS.format(totalImputado)}</div>
             </div>
           </div>
 
@@ -8941,10 +9064,11 @@ function globalSearch(){
           <div class="recibos-toolbar" style="margin-top:14px;">
             <div class="recibos-toolbar-main">
               <div class="recibos-filter-wrap">
-                <label>Tipo</label>
+                <label>Clasificación</label>
                 <div class="row" style="gap:8px;">
-                  <button class="btn ${activeTab === 'combinados' ? 'primary' : ''}" onclick="setRecibosRevisionTab('combinados')">Varios meses</button>
-                  <button class="btn ${activeTab === 'sinPeriodo' ? 'primary' : ''}" onclick="setRecibosRevisionTab('sinPeriodo')">Sin período</button>
+                  <button class="btn ${activeTab === 'noImputables' ? 'primary' : ''}" onclick="setRecibosRevisionTab('noImputables')">No imputables</button>
+                  <button class="btn ${activeTab === 'sobrantes' ? 'primary' : ''}" onclick="setRecibosRevisionTab('sobrantes')">Con sobrante</button>
+                  <button class="btn ${activeTab === 'imputaciones' ? 'primary' : ''}" onclick="setRecibosRevisionTab('imputaciones')">Imputaciones</button>
                 </div>
               </div>
               <div class="recibos-search-wrap">
@@ -8967,24 +9091,14 @@ function globalSearch(){
 
           <div class="tableWrap recibos-table" style="margin-top:12px;">
             <table style="min-width:1100px;">
-              <thead>
-                <tr>
-                  <th>N° recibo</th>
-                  <th>Local</th>
-                  <th>Inquilino</th>
-                  <th>Período informado</th>
-                  <th>Fecha pago</th>
-                  <th class="right">Importe</th>
-                  <th>Motivo revisión</th>
-                  <th class="center">Acción</th>
-                </tr>
-              </thead>
+              <thead>${renderRecibosRevisionTableHead(activeTab)}</thead>
               <tbody>${renderRecibosRevisionRows(activeRows, activeTab)}</tbody>
             </table>
           </div>
         </div>
       `;
     }
+
 
     async function renderRecibosPage(){
       const el = $('viewRecibos');
@@ -8996,7 +9110,7 @@ function globalSearch(){
       saveReceiptsCache();
 
       const summary = renderRecibosKPIs(rows);
-      const revisionTotalCount = (revisionData?.combinados?.length || 0) + (revisionData?.sinPeriodo?.length || 0);
+      const revisionTotalCount = (revisionData?.noImputables?.length || 0) + (revisionData?.sobrantes?.length || 0);
       let filteredRows = applyRecibosPageFilters(rows);
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
@@ -9049,7 +9163,7 @@ function globalSearch(){
             </div>
 
             <div class="section-hero-actions recibos-hero-actions">
-              <button class="btn" onclick="openRecibosRevisionPanel()">Pendientes de revisión${revisionTotalCount ? ` (${revisionTotalCount})` : ''}</button>
+              <button class="btn" onclick="openRecibosRevisionPanel()">Clasificación de recibos${revisionTotalCount ? ` (${revisionTotalCount})` : ''}</button>
               <button class="btn primary" onclick="renderRecibosPage()">Actualizar</button>
             </div>
           </div>
