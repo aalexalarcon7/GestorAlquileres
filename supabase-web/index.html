@@ -4053,6 +4053,46 @@ td:last-child{
   </div>
 
 
+
+  <!-- MODAL CLASIFICAR RECIBO -->
+  <div class="modalBack" id="modalClasificarReciboBack" style="display:none;">
+    <div class="modal" style="max-width:720px;">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div>
+          <h3 style="margin:0;">Clasificar recibo</h3>
+          <div class="muted" id="clsMeta" style="margin-top:4px;">—</div>
+        </div>
+        <button class="btn" onclick="closeClasificarReciboModal()">Cerrar</button>
+      </div>
+      <div class="toast" style="margin-top:12px;">Esta acción no modifica cuotas. Solo deja asentada la decisión administrativa sobre el recibo.</div>
+      <input id="clsPagoId" type="hidden">
+      <div class="row" style="margin-top:14px;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:260px;flex:1;">
+          <label class="muted" style="font-size:12px;">Decisión</label>
+          <select id="clsTipo" style="width:100%;">
+            <option value="HISTORICO_SIN_IMPUTAR">Histórico sin imputar</option>
+            <option value="SALDO_A_FAVOR">Saldo a favor</option>
+            <option value="ADELANTO">Adelanto</option>
+            <option value="AJUSTE_OTRO_CONCEPTO">Ajuste / otro concepto</option>
+            <option value="REVISAR_CON_JEFE">Revisar con jefe</option>
+          </select>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:190px;">
+          <label class="muted" style="font-size:12px;">Monto a clasificar</label>
+          <input id="clsMonto" placeholder="Monto" style="width:180px;font-weight:900;">
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px;">
+        <textarea id="clsObs" style="width:100%;min-height:110px;" placeholder="Observación del jefe o motivo de la clasificación"></textarea>
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px;">
+        <button class="btn" onclick="closeClasificarReciboModal()">Cancelar</button>
+        <button class="btn primary" onclick="guardarClasificacionRecibo()">Guardar clasificación</button>
+      </div>
+      <div class="toast" id="clsMsg"></div>
+    </div>
+  </div>
+
   <!-- MODAL INQUILINO -->
   <div class="modalBack" id="modalInqBack">
     <div class="modal">
@@ -4287,6 +4327,7 @@ td:last-child{
     let reciboActual = null;
     let recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:25 };
     let recibosRevisionState = { tab:'noImputables', query:'', local:'TODOS', visible:false };
+    let reciboClasificarActual = null;
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -8606,16 +8647,16 @@ function globalSearch(){
       const disabledNext = page >= totalPages ? 'disabled' : '';
       const pageOptions = [25, 50, 100, 200].map(size => `<option value="${size}" ${Number(pageSize) === size ? 'selected' : ''}>${size} por pág.</option>`).join('');
       return `
-        <div class="recibos-pagination-simple" style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:12px 0;">
-          <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="width:auto;min-width:110px;padding:10px 12px;border-radius:16px;">
+        <div class="recibos-pagination-simple" style="display:flex;gap:10px;align-items:center;justify-content:flex-end;flex-wrap:wrap;margin:10px 0 12px;">
+          <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="width:auto;min-width:106px;height:38px;padding:0 12px;border-radius:14px;font-weight:700;">
             ${pageOptions}
           </select>
-          <div class="recibos-page-stepper" style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:18px;overflow:hidden;background:#fff;box-shadow:var(--shadow-soft);height:46px;">
-            <button class="btn" style="border:0;border-radius:0;min-width:48px;height:46px;padding:0 14px;" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>⌃</button>
-            <input id="recibosPageNumber" type="number" min="1" max="${totalPages}" value="${page}" onchange="jumpToRecibosPageFromUI()" onkeydown="if(event.key==='Enter') jumpToRecibosPageFromUI()" style="width:72px;height:46px;text-align:center;border:0;border-left:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;font-weight:900;font-size:18px;padding:0;">
-            <button class="btn" style="border:0;border-radius:0;min-width:48px;height:46px;padding:0 14px;" onclick="setRecibosPage(${page + 1})" ${disabledNext}>⌄</button>
+          <div class="recibos-page-stepper" style="display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:14px;overflow:hidden;background:var(--card);height:38px;box-shadow:none;">
+            <button class="btn" title="Página anterior" style="border:0;border-radius:0;min-width:40px;height:38px;padding:0 10px;background:transparent;box-shadow:none;" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>▲</button>
+            <input id="recibosPageNumber" type="number" min="1" max="${totalPages}" value="${page}" onchange="jumpToRecibosPageFromUI()" onkeydown="if(event.key==='Enter') jumpToRecibosPageFromUI()" style="width:58px;height:38px;text-align:center;border:0;border-left:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;font-weight:900;font-size:17px;padding:0;background:transparent;">
+            <button class="btn" title="Página siguiente" style="border:0;border-radius:0;min-width:40px;height:38px;padding:0 10px;background:transparent;box-shadow:none;" onclick="setRecibosPage(${page + 1})" ${disabledNext}>▼</button>
           </div>
-          <span class="contact-sub" style="font-weight:800;white-space:nowrap;">de ${totalPages}</span>
+          <span class="contact-sub" style="font-weight:900;white-space:nowrap;">de ${totalPages}</span>
         </div>
       `;
     }
@@ -8759,6 +8800,7 @@ function globalSearch(){
         noImputables: [],
         sobrantes: [],
         imputaciones: [],
+        clasificados: [],
         errors: []
       };
 
@@ -8795,6 +8837,17 @@ function globalSearch(){
         result.errors.push(`Imputaciones realizadas: ${error?.message || error}`);
       }
 
+      try{
+        const { data, error } = await sb
+          .from('vw_recibos_clasificados')
+          .select('*')
+          .order('created_at', { ascending:false });
+        if (error) result.errors.push(`Clasificados: ${error.message}`);
+        result.clasificados = data || [];
+      } catch(error){
+        result.errors.push(`Clasificados: ${error?.message || error}`);
+      }
+
       return result;
     }
 
@@ -8802,6 +8855,7 @@ function globalSearch(){
       const tab = recibosRevisionState.tab || 'noImputables';
       if (tab === 'sobrantes') return data?.sobrantes || [];
       if (tab === 'imputaciones') return data?.imputaciones || [];
+      if (tab === 'clasificados') return data?.clasificados || [];
       return data?.noImputables || [];
     }
 
@@ -8844,7 +8898,7 @@ function globalSearch(){
     }
 
     function setRecibosRevisionTab(tab){
-      const allowed = ['noImputables', 'sobrantes', 'imputaciones'];
+      const allowed = ['noImputables', 'sobrantes', 'imputaciones', 'clasificados'];
       recibosRevisionState.tab = allowed.includes(tab) ? tab : 'noImputables';
       renderRecibosPage();
     }
@@ -8866,7 +8920,78 @@ function globalSearch(){
       }
     }
 
+    function parseMoneyInput(value){
+      const raw = String(value || '').trim();
+      if (!raw) return 0;
+      const normalized = raw.includes(',')
+        ? raw.replace(/\./g, '').replace(',', '.')
+        : raw.replace(/\s/g, '');
+      const n = Number(normalized);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function openClasificarRecibo(pagoId, montoSugerido, contexto){
+      const id = String(pagoId || '').trim();
+      if (!id){ alert('No encontré el ID del pago.'); return; }
+      reciboClasificarActual = { pagoId: id, montoSugerido: Number(montoSugerido || 0), contexto: contexto || '' };
+      const back = $('modalClasificarReciboBack');
+      if (!back){ alert('No se encontró el modal de clasificación.'); return; }
+      if ($('clsPagoId')) $('clsPagoId').value = id;
+      if ($('clsMonto')) $('clsMonto').value = Number(montoSugerido || 0) > 0 ? Number(montoSugerido || 0).toFixed(2) : '';
+      if ($('clsTipo')) $('clsTipo').value = contexto === 'SOBRANTE' ? 'SALDO_A_FAVOR' : 'HISTORICO_SIN_IMPUTAR';
+      if ($('clsObs')) $('clsObs').value = '';
+      if ($('clsMeta')) $('clsMeta').textContent = `Pago ID ${id}${contexto ? ' · ' + contexto : ''}`;
+      if ($('clsMsg')) $('clsMsg').textContent = '';
+      back.style.display = 'flex';
+    }
+
+    function closeClasificarReciboModal(){
+      const back = $('modalClasificarReciboBack');
+      if (back) back.style.display = 'none';
+      reciboClasificarActual = null;
+    }
+
+    async function guardarClasificacionRecibo(){
+      const pagoId = Number($('clsPagoId')?.value || reciboClasificarActual?.pagoId || 0);
+      const clasificacion = String($('clsTipo')?.value || '').trim();
+      const monto = parseMoneyInput($('clsMonto')?.value || 0);
+      const observacion = String($('clsObs')?.value || '').trim();
+      const msg = $('clsMsg');
+      if (!pagoId){ if (msg) msg.textContent = 'Falta el ID del pago.'; return; }
+      if (!clasificacion){ if (msg) msg.textContent = 'Elegí una clasificación.'; return; }
+      if (monto <= 0){ if (msg) msg.textContent = 'El monto clasificado debe ser mayor a cero.'; return; }
+      try{
+        if (msg) msg.textContent = 'Guardando clasificación...';
+        const { error } = await sb.rpc('clasificar_recibo', {
+          p_pago_id: pagoId,
+          p_clasificacion: clasificacion,
+          p_monto: monto,
+          p_observacion: observacion || null
+        });
+        if (error) throw error;
+        if (msg) msg.textContent = 'Clasificación guardada correctamente.';
+        closeClasificarReciboModal();
+        await renderRecibosPage();
+      } catch(error){
+        if (msg) msg.textContent = `Error al clasificar: ${error?.message || error}`;
+      }
+    }
+
     function renderRecibosRevisionTableHead(tab){
+      if (tab === 'clasificados'){
+        return `
+          <tr>
+            <th>N° recibo</th>
+            <th>Local</th>
+            <th>Inquilino</th>
+            <th>Clasificación</th>
+            <th class="right">Monto</th>
+            <th>Observación</th>
+            <th>Registrado</th>
+            <th class="center">Acción</th>
+          </tr>
+        `;
+      }
       if (tab === 'sobrantes'){
         return `
           <tr>
@@ -8916,6 +9041,32 @@ function globalSearch(){
 
       return rows.map(item => {
         const pagoId = item.pago_id || item.id || '';
+        if (tab === 'clasificados'){
+          return `
+            <tr>
+              <td>
+                <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo || '—')}</strong></div>
+                <span class="contact-sub">ID pago: ${escapeHtml(pagoId || '—')}</span>
+              </td>
+              <td>
+                <span class="recibos-chip primary">${escapeHtml(item.codigo_local || '—')}</span>
+                <div class="contact-sub">Contrato ${escapeHtml(item.contrato_id || '—')}</div>
+              </td>
+              <td>
+                <div class="recibos-cell-title">${escapeHtml(item.nombre_inquilino || '—')}</div>
+                <span class="contact-sub">Inquilino ${escapeHtml(item.inquilino_id || '—')}</span>
+              </td>
+              <td>
+                <span class="recibos-chip primary">${escapeHtml(normalizeRevisionMotivo(item.clasificacion || '—'))}</span>
+              </td>
+              <td class="right"><strong>${fmtARS.format(Number(item.monto_clasificado || 0))}</strong></td>
+              <td>${escapeHtml(item.observacion || '—')}</td>
+              <td>${formatDateDisplay(item.created_at)}</td>
+              <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
+            </tr>
+          `;
+        }
+
         if (tab === 'sobrantes'){
           return `
             <tr>
@@ -8935,7 +9086,7 @@ function globalSearch(){
               <td class="right"><strong>${fmtARS.format(Number(item.monto_pago || 0))}</strong></td>
               <td class="right">${fmtARS.format(Number(item.monto_imputado || 0))}</td>
               <td class="right"><strong>${fmtARS.format(Number(item.saldo_sin_imputar || 0))}</strong></td>
-              <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
+              <td class="center"><button class="btn primary" onclick="openClasificarRecibo('${escapeAttr(pagoId)}', '${Number(item.saldo_sin_imputar || 0)}', 'SOBRANTE')">Clasificar</button></td>
             </tr>
           `;
         }
@@ -8991,7 +9142,7 @@ function globalSearch(){
               <span class="recibos-chip muted">Sin deuda vencida</span>
               <div class="contact-sub">${escapeHtml(normalizeRevisionMotivo(item.motivo_revision))}</div>
             </td>
-            <td class="center"><button class="btn" onclick="copyRevisionPagoId('${escapeAttr(pagoId)}')">Copiar ID</button></td>
+            <td class="center"><button class="btn primary" onclick="openClasificarRecibo('${escapeAttr(pagoId)}', '${Number(item.monto_pago || item.monto || 0)}', 'NO_IMPUTABLE')">Clasificar</button></td>
           </tr>
         `;
       }).join('');
@@ -9019,12 +9170,14 @@ function globalSearch(){
       const noImputables = data?.noImputables || [];
       const sobrantes = data?.sobrantes || [];
       const imputaciones = data?.imputaciones || [];
+      const clasificados = data?.clasificados || [];
       const totalNoImputables = noImputables.reduce((acc, item) => acc + Number(item.monto_pago || item.monto || 0), 0);
       const totalSobrantes = sobrantes.reduce((acc, item) => acc + Number(item.saldo_sin_imputar || 0), 0);
       const totalImputado = imputaciones.reduce((acc, item) => acc + Number(item.monto_imputado || 0), 0);
-      const activeTab = ['sobrantes', 'imputaciones'].includes(recibosRevisionState.tab) ? recibosRevisionState.tab : 'noImputables';
+      const totalClasificado = clasificados.reduce((acc, item) => acc + Number(item.monto_clasificado || 0), 0);
+      const activeTab = ['sobrantes', 'imputaciones', 'clasificados'].includes(recibosRevisionState.tab) ? recibosRevisionState.tab : 'noImputables';
       const activeRows = applyRecibosRevisionFilters(getRecibosRevisionActiveRows(data));
-      const allRows = [...noImputables, ...sobrantes, ...imputaciones];
+      const allRows = [...noImputables, ...sobrantes, ...imputaciones, ...clasificados];
       const localOptions = [...new Set(allRows.map(item => String(item.codigo_local || '')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
       const errors = (data?.errors || []).filter(Boolean);
 
@@ -9034,6 +9187,7 @@ function globalSearch(){
             <div>
               <h3 style="margin:0;">Recibos pendientes de clasificación</h3>
               <div class="muted" style="margin-top:4px;">Pagos históricos separados según si no se pueden imputar automáticamente, si dejaron sobrante o si ya fueron aplicados por deuda más antigua.</div>
+              <div class="toast" style="margin-top:10px;max-width:980px;">Para resolver un recibo, usá <strong>Clasificar</strong>. Eso no toca cuotas: solo deja asentada la decisión administrativa del jefe como histórico, saldo a favor, adelanto u otro concepto.</div>
             </div>
             <div class="row" style="gap:8px;">
               <button class="btn" onclick="renderRecibosPage()">Actualizar clasificación</button>
@@ -9057,6 +9211,11 @@ function globalSearch(){
               <div class="value">${imputaciones.length}</div>
               <div class="sub">${fmtARS.format(totalImputado)}</div>
             </div>
+            <div class="section-mini-stat">
+              <div class="label">Clasificados por jefe</div>
+              <div class="value">${clasificados.length}</div>
+              <div class="sub">${fmtARS.format(totalClasificado)}</div>
+            </div>
           </div>
 
           ${errors.length ? `<div class="toast" style="margin-top:12px;color:var(--danger);">${errors.map(escapeHtml).join(' | ')}</div>` : ''}
@@ -9069,6 +9228,7 @@ function globalSearch(){
                   <button class="btn ${activeTab === 'noImputables' ? 'primary' : ''}" onclick="setRecibosRevisionTab('noImputables')">No imputables</button>
                   <button class="btn ${activeTab === 'sobrantes' ? 'primary' : ''}" onclick="setRecibosRevisionTab('sobrantes')">Con sobrante</button>
                   <button class="btn ${activeTab === 'imputaciones' ? 'primary' : ''}" onclick="setRecibosRevisionTab('imputaciones')">Imputaciones</button>
+                  <button class="btn ${activeTab === 'clasificados' ? 'primary' : ''}" onclick="setRecibosRevisionTab('clasificados')">Clasificados</button>
                 </div>
               </div>
               <div class="recibos-search-wrap">
