@@ -4285,7 +4285,7 @@ td:last-child{
     let modalCuotasOptions = [];
     let recibosInternosCache = [];
     let reciboActual = null;
-    let recibosPageState = { query:'', local:'TODOS', month:'' };
+    let recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:25 };
     let recibosRevisionState = { tab:'combinados', query:'', local:'TODOS', visible:false };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
@@ -7033,7 +7033,7 @@ function globalSearch(){
         saveManualReceipts(manualReceipts);
         saveReceiptsCache();
 
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+        recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:getRecibosPageSize() };
 
         await refreshAll();
         closePagoModal();
@@ -8569,10 +8569,59 @@ function globalSearch(){
       });
     }
 
+    function getRecibosPageSize(){
+      const raw = Number(recibosPageState.pageSize || 25);
+      return [25, 50, 100, 200].includes(raw) ? raw : 25;
+    }
+
+    function getRecibosCurrentPage(totalRows){
+      const pageSize = getRecibosPageSize();
+      const totalPages = Math.max(1, Math.ceil(Number(totalRows || 0) / pageSize));
+      const page = Math.min(Math.max(1, Number(recibosPageState.page || 1)), totalPages);
+      recibosPageState.page = page;
+      return { page, pageSize, totalPages };
+    }
+
+    function setRecibosPage(page){
+      recibosPageState.page = Math.max(1, Number(page || 1));
+      renderRecibosPage();
+    }
+
+    function updateRecibosPageSizeFromUI(){
+      recibosPageState.pageSize = Number($('recibosPageSize')?.value || 25);
+      recibosPageState.page = 1;
+      renderRecibosPage();
+    }
+
+    function renderRecibosPagination(totalRows, page, pageSize, totalPages){
+      const total = Number(totalRows || 0);
+      const start = total ? ((page - 1) * pageSize) + 1 : 0;
+      const end = Math.min(total, page * pageSize);
+      const disabledPrev = page <= 1 ? 'disabled' : '';
+      const disabledNext = page >= totalPages ? 'disabled' : '';
+      const pageOptions = [25, 50, 100, 200].map(size => `<option value="${size}" ${Number(pageSize) === size ? 'selected' : ''}>${size} por página</option>`).join('');
+      return `
+        <div class="recibos-pagination" style="display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;margin:12px 0;">
+          <div class="contact-sub" style="font-weight:800;">
+            Mostrando ${start}–${end} de ${total} recibos
+          </div>
+          <div class="row" style="gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="recibosPageSize" onchange="updateRecibosPageSizeFromUI()" style="min-width:140px;">${pageOptions}</select>
+            <button class="btn" onclick="setRecibosPage(1)" ${disabledPrev}>Primera</button>
+            <button class="btn" onclick="setRecibosPage(${page - 1})" ${disabledPrev}>Anterior</button>
+            <span class="recibos-count-pill">Página ${page} de ${totalPages}</span>
+            <button class="btn" onclick="setRecibosPage(${page + 1})" ${disabledNext}>Siguiente</button>
+            <button class="btn" onclick="setRecibosPage(${totalPages})" ${disabledNext}>Última</button>
+          </div>
+        </div>
+      `;
+    }
+
     function updateRecibosFiltersFromUI(){
       recibosPageState.query = $('recibosSearch')?.value || '';
       recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
       recibosPageState.month = $('recibosMonthFilter')?.value || '';
+      recibosPageState.page = 1;
       renderRecibosPage();
     }
 
@@ -8606,7 +8655,7 @@ function globalSearch(){
     }
 
     function clearRecibosFilters(){
-      recibosPageState = { query:'', local:'TODOS', month:'' };
+      recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:getRecibosPageSize() };
       if ($('recibosSearch')) $('recibosSearch').value = '';
       if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
       if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
@@ -8950,9 +8999,13 @@ function globalSearch(){
       // Si hay recibos pero los filtros dejaron la tabla vacía,
       // mostramos todo para no "perder" el recibo recién generado.
       if (!filteredRows.length && rows.length){
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+        recibosPageState = { query:'', local:'TODOS', month:'', page:1, pageSize:getRecibosPageSize() };
         filteredRows = [...rows];
       }
+
+      const { page, pageSize, totalPages } = getRecibosCurrentPage(filteredRows.length);
+      const paginatedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
+      const paginationHtml = renderRecibosPagination(filteredRows.length, page, pageSize, totalPages);
 
       const ultimo = filteredRows[0] || rows[0] || null;
       const localOptions = [...new Set(rows.map(item => String(item.local_codigo || '—')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
@@ -9028,10 +9081,12 @@ function globalSearch(){
                 </div>
               </div>
               <div class="recibos-toolbar-actions">
-                <span class="recibos-count-pill">${filteredRows.length} visibles</span>
+                <span class="recibos-count-pill">${filteredRows.length} visibles · ${paginatedRows.length} en esta página</span>
                 <button class="btn" onclick="clearRecibosFilters()">Limpiar filtros</button>
               </div>
             </div>
+
+            ${paginationHtml}
 
             <div class="tableWrap recibos-table" style="margin-top:12px;">
               <table>
@@ -9049,9 +9104,10 @@ function globalSearch(){
                     <th class="center">Acciones</th>
                   </tr>
                 </thead>
-                <tbody id="recibosBody">${renderRecibosHistoryRows(filteredRows)}</tbody>
+                <tbody id="recibosBody">${renderRecibosHistoryRows(paginatedRows)}</tbody>
               </table>
             </div>
+            ${paginationHtml}
           </div>
 
           ${renderRecibosRevisionPanel(revisionData)}
