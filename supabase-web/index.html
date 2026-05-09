@@ -4193,16 +4193,6 @@ td:last-child{
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
     let activosReconstruidosLoadError = '';
-    let deudaRealActualRows = [];
-    let deudaRealActualByContrato = new Map();
-    let deudaRealActualReady = false;
-    let deudaRealActualLoadError = '';
-    let estadoCuenta2025Rows = [];
-    let estadoCuenta2025ByContrato = new Map();
-    let estadoCuenta2025ByCodigo = new Map();
-    let resumenEstadoCuenta2025 = null;
-    let estadoCuenta2025Ready = false;
-    let estadoCuenta2025LoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
     const THEME_KEY = 'ga_theme';
@@ -5187,6 +5177,83 @@ td:last-child{
       };
     }
 
+    async function fetchDetalleOperativoRows(row){
+      try{
+        const selectCols = 'cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado,origen,observacion';
+        const contratoId = row?.contrato_id && !isSyntheticContratoId(row.contrato_id) ? row.contrato_id : null;
+        const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || '');
+        let rows = [];
+
+        if (contratoId){
+          const res = await sb
+            .from('vw_deuda_real_actual')
+            .select(selectCols)
+            .eq('contrato_id', contratoId)
+            .order('anio', { ascending:true })
+            .order('mes', { ascending:true });
+          if (res.error){
+            console.warn('Detalle operativo por contrato:', res.error.message);
+          } else {
+            rows = res.data || [];
+          }
+        }
+
+        if ((!rows || !rows.length) && code){
+          const candidates = localCodeCandidates(code);
+          const res = await sb
+            .from('vw_deuda_real_actual')
+            .select(selectCols)
+            .in('codigo_local', candidates)
+            .order('anio', { ascending:true })
+            .order('mes', { ascending:true });
+          if (res.error){
+            console.warn('Detalle operativo por local:', res.error.message, candidates);
+          } else {
+            rows = res.data || [];
+          }
+        }
+
+        if ((!rows || !rows.length) && code){
+          const wantedKey = localCodeKey(code);
+          const res = await sb
+            .from('vw_deuda_real_actual')
+            .select(selectCols);
+          if (res.error){
+            console.warn('Detalle operativo fallback general:', res.error.message);
+          } else {
+            rows = (res.data || []).filter(item => localCodeKey(item?.codigo_local) === wantedKey);
+          }
+        }
+
+        return (rows || [])
+          .map(item => {
+            const year = Number(item?.anio) || 0;
+            const month = Number(item?.mes) || 0;
+            const vencimiento = year && month
+              ? `${year}-${String(month).padStart(2,'0')}-10`
+              : '';
+            const saldo = toNumber(item?.saldo);
+            const pagado = toNumber(item?.monto_pagado);
+            const estado = item?.estado || (saldo > 0 ? (pagado > 0 ? 'PARCIAL' : 'PENDIENTE') : 'PAGADO');
+            return {
+              periodo: item?.periodo || (year && month ? `${year} - ${GA_MONTH_NAMES[month-1] || month}` : '—'),
+              vencimiento,
+              total: toNumber(item?.monto_total),
+              pagado,
+              saldo,
+              estado_detalle: estado,
+              dias_atraso: saldo > 0 && vencimiento ? Math.max(0, -daysBetweenISO(today(), vencimiento)) : 0,
+              sort_key: year && month ? `${year}-${String(month).padStart(2,'0')}` : String(item?.periodo || ''),
+              fuente_operativa: true
+            };
+          })
+          .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+      } catch (err){
+        console.warn('No se pudo leer detalle operativo:', err?.message || err);
+        return [];
+      }
+    }
+
     async function fetchDetalleReconstruidoRows(row){
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
       if (!code) return [];
@@ -5410,236 +5477,6 @@ td:last-child{
       });
     }
 
-    function getSortValueFromDebtRow(row){
-      const y = Number(row?.anio || 0);
-      const m = Number(row?.mes || 0);
-      if (y && m) return y * 100 + m;
-      const periodo = String(row?.periodo || '');
-      const match = periodo.match(/(\d{2})\/(\d{4})/);
-      if (match) return Number(match[2]) * 100 + Number(match[1]);
-      return 999999;
-    }
-
-    function rebuildDeudaRealActualMap(rows){
-      const map = new Map();
-      for (const r of (rows || [])){
-        const contratoId = r?.contrato_id;
-        if (contratoId == null) continue;
-        const key = String(contratoId);
-        const saldo = toNumber(r?.saldo);
-        if (saldo <= 0) continue;
-        const current = map.get(key) || {
-          contrato_id: contratoId,
-          codigo_local: r?.codigo_local || '—',
-          nombre_inquilino: r?.nombre_inquilino || '—',
-          saldo: 0,
-          cuotas: 0,
-          arrastre_2025: 0,
-          parciales: 0,
-          pendientes: 0,
-          periodo_mas_viejo: r?.periodo || '—',
-          sort_mas_viejo: getSortValueFromDebtRow(r),
-          rows: []
-        };
-
-        current.saldo = round2(current.saldo + saldo);
-        current.cuotas += 1;
-        current.rows.push(r);
-        if (Number(r?.anio || 0) < 2026) current.arrastre_2025 = round2(current.arrastre_2025 + saldo);
-        if (String(r?.estado || '').toUpperCase() === 'PARCIAL') current.parciales += 1;
-        if (String(r?.estado || '').toUpperCase() === 'PENDIENTE') current.pendientes += 1;
-
-        const sortValue = getSortValueFromDebtRow(r);
-        if (sortValue < current.sort_mas_viejo){
-          current.sort_mas_viejo = sortValue;
-          current.periodo_mas_viejo = r?.periodo || current.periodo_mas_viejo;
-        }
-
-        if (!current.codigo_local || current.codigo_local === '—') current.codigo_local = r?.codigo_local || '—';
-        if (!current.nombre_inquilino || current.nombre_inquilino === '—') current.nombre_inquilino = r?.nombre_inquilino || '—';
-        map.set(key, current);
-      }
-      return map;
-    }
-
-    async function refreshDeudaRealActualData(){
-      deudaRealActualLoadError = '';
-      deudaRealActualReady = false;
-      const { data, error } = await sb
-        .from('vw_deuda_real_actual')
-        .select('cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado')
-        .order('saldo', { ascending:false });
-
-      if (error){
-        deudaRealActualRows = [];
-        deudaRealActualByContrato = new Map();
-        deudaRealActualLoadError = error.message || String(error);
-        console.warn('No se pudo leer vw_deuda_real_actual:', deudaRealActualLoadError);
-        return;
-      }
-
-      deudaRealActualRows = Array.isArray(data) ? data : [];
-      deudaRealActualByContrato = rebuildDeudaRealActualMap(deudaRealActualRows);
-      deudaRealActualReady = true;
-    }
-
-
-    function rebuildEstadoCuenta2025Maps(rows){
-      const byContrato = new Map();
-      const byCodigo = new Map();
-      for (const r of (rows || [])){
-        if (r?.contrato_id != null) byContrato.set(String(r.contrato_id), r);
-        const codigo = normLocalCode(r?.codigo_local || '');
-        if (codigo) byCodigo.set(codigo, r);
-      }
-      return { byContrato, byCodigo };
-    }
-
-    async function refreshEstadoCuenta2025Data(){
-      estadoCuenta2025LoadError = '';
-      estadoCuenta2025Ready = false;
-      try{
-        const resumenRes = await sb
-          .from('vw_resumen_estado_cuenta_2025')
-          .select('locatarios_asentados,saldados,con_deuda,deuda_total_2025')
-          .limit(1);
-
-        if (resumenRes.error) throw resumenRes.error;
-        resumenEstadoCuenta2025 = Array.isArray(resumenRes.data) ? (resumenRes.data[0] || null) : null;
-
-        const detalleRes = await sb
-          .from('vw_estado_2025_por_locatario')
-          .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total,origen,observacion')
-          .order('deuda_total', { ascending:false });
-
-        if (detalleRes.error) throw detalleRes.error;
-        estadoCuenta2025Rows = Array.isArray(detalleRes.data) ? detalleRes.data : [];
-        const maps = rebuildEstadoCuenta2025Maps(estadoCuenta2025Rows);
-        estadoCuenta2025ByContrato = maps.byContrato;
-        estadoCuenta2025ByCodigo = maps.byCodigo;
-        estadoCuenta2025Ready = true;
-      } catch (err){
-        estadoCuenta2025Rows = [];
-        estadoCuenta2025ByContrato = new Map();
-        estadoCuenta2025ByCodigo = new Map();
-        resumenEstadoCuenta2025 = null;
-        estadoCuenta2025LoadError = err?.message || String(err);
-        console.warn('No se pudo leer estado 2025 operativo:', estadoCuenta2025LoadError);
-      }
-    }
-
-    function getEstado2025ByContrato(contratoId){
-      if (!estadoCuenta2025Ready || contratoId == null) return null;
-      return estadoCuenta2025ByContrato.get(String(contratoId)) || null;
-    }
-
-    function getEstado2025ByUnit(unit){
-      if (!estadoCuenta2025Ready || !unit) return null;
-      const byContrato = getEstado2025ByContrato(unit.contrato_id);
-      if (byContrato) return byContrato;
-      const code = normLocalCode(unit.local_codigo || unit.local_code_normalized || unit.codigo_local || '');
-      return code ? (estadoCuenta2025ByCodigo.get(code) || null) : null;
-    }
-
-    function estado2025ClassName(estado){
-      const value = String(estado || '').toUpperCase();
-      if (value === 'SALDADO') return 'b-ok';
-      if (value === 'CON_DEUDA') return 'b-bad';
-      return 'b-info';
-    }
-
-    function estado2025ShortText(item){
-      if (!estadoCuenta2025Ready) return '2025 sin cargar';
-      if (!item) return '2025 sin dato';
-      if (String(item.estado_2025 || '').toUpperCase() === 'SALDADO') return '2025 saldado';
-      if (String(item.estado_2025 || '').toUpperCase() === 'CON_DEUDA') return `Debe 2025: ${fmtARS.format(toNumber(item.deuda_total))}`;
-      return '2025 sin dato';
-    }
-
-    function renderEstado2025BadgeForUnit(unit){
-      const item = getEstado2025ByUnit(unit);
-      return `<span class="badge ${estado2025ClassName(item?.estado_2025)}">${estado2025ShortText(item)}</span>`;
-    }
-
-    function applyEstadoCuenta2025ToUnit(unit){
-      if (!unit || !estadoCuenta2025Ready) return unit;
-      const item = getEstado2025ByUnit(unit);
-      if (!item) return unit;
-      return {
-        ...unit,
-        estado_2025: item.estado_2025 || null,
-        deuda_estado_2025: toNumber(item.deuda_total),
-        cuotas_deuda_2025: Number(item.cuotas_con_deuda || item.meses_deuda || 0),
-        observacion_estado_2025: item.observacion || null,
-      };
-    }
-
-    function getRealDebtSummaryByContrato(contratoId){
-      if (!deudaRealActualReady || contratoId == null) return null;
-      return deudaRealActualByContrato.get(String(contratoId)) || null;
-    }
-
-    function applyRealDebtToUnit(unit){
-      if (!unit || !deudaRealActualReady) return unit;
-      const summary = getRealDebtSummaryByContrato(unit.contrato_id);
-      const saldo = toNumber(summary?.saldo);
-      const arrastre = toNumber(summary?.arrastre_2025);
-      const cuotas = Number(summary?.cuotas || 0);
-      return {
-        ...unit,
-        deuda_real_actual: saldo,
-        deuda_total: saldo,
-        deuda_total_2025_2026: saldo,
-        deuda_atrasada: saldo,
-        deuda_arrastre_2025: arrastre,
-        meses_adeudados: cuotas,
-        meses_adeudados_total: cuotas,
-        periodo_mas_viejo_deuda: summary?.periodo_mas_viejo || unit?.periodo_mas_viejo_deuda || null,
-        cuotas_con_deuda: cuotas,
-      };
-    }
-
-    function buildUnitFromRealDebtSummary(summary){
-      return {
-        contrato_id: summary.contrato_id,
-        local_codigo: summary.codigo_local || '—',
-        local_code_normalized: summary.codigo_local || '—',
-        inquilino_nombre: summary.nombre_inquilino || '—',
-        deuda_real_actual: toNumber(summary.saldo),
-        deuda_total: toNumber(summary.saldo),
-        deuda_total_2025_2026: toNumber(summary.saldo),
-        deuda_atrasada: toNumber(summary.saldo),
-        deuda_arrastre_2025: toNumber(summary.arrastre_2025),
-        meses_adeudados: Number(summary.cuotas || 0),
-        meses_adeudados_total: Number(summary.cuotas || 0),
-        cuotas_con_deuda: Number(summary.cuotas || 0),
-        periodo_mas_viejo_deuda: summary.periodo_mas_viejo || null,
-        __from_deuda_real_actual: true,
-      };
-    }
-
-    function getDebtTopRows(){
-      const rows = deudaRealActualReady
-        ? [...deudaRealActualByContrato.values()].map(summary => {
-            const unit = unidades.find(u => String(u.contrato_id) === String(summary.contrato_id));
-            return {
-              ...(unit || buildUnitFromRealDebtSummary(summary)),
-              contrato_id: summary.contrato_id,
-              local_codigo: summary.codigo_local || unit?.local_codigo || '—',
-              inquilino_nombre: summary.nombre_inquilino || unit?.inquilino_nombre || '—',
-              deuda_total: toNumber(summary.saldo),
-              deuda_total_2025_2026: toNumber(summary.saldo),
-              deuda_atrasada: toNumber(summary.saldo),
-              deuda_arrastre_2025: toNumber(summary.arrastre_2025),
-              cuotas_con_deuda: Number(summary.cuotas || 0),
-              periodo_mas_viejo_deuda: summary.periodo_mas_viejo || '—',
-            };
-          })
-        : [...unidades].filter(r => getDisplayedDebtTotal(r) > 0);
-
-      return rows.sort((a,b)=>getDisplayedDebtTotal(b)-getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
-    }
-
     function getDisplayedDebtTotal(row){
       return toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
     }
@@ -5710,8 +5547,6 @@ function globalSearch(){
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
       await refreshActivosReconstruidosData();
-      await refreshDeudaRealActualData();
-      await refreshEstadoCuenta2025Data();
 
       const { data, error } = await sb.from('v_deuda_por_contrato').select('*').order('deuda_total', { ascending:false });
       if (error){ $('unitsMsg').textContent = error.message; return; }
@@ -5728,18 +5563,7 @@ function globalSearch(){
         mergedRows.push(buildSyntheticReconstructedUnit(recon));
       });
 
-      unidades = dedupeUnitsByLocalCode(mergedRows).map(applyRealDebtToUnit).map(applyEstadoCuenta2025ToUnit);
-
-      if (deudaRealActualReady){
-        const existingContratoIds = new Set(unidades.map(u => String(u.contrato_id)));
-        for (const summary of deudaRealActualByContrato.values()){
-          if (!existingContratoIds.has(String(summary.contrato_id))){
-            unidades.push(applyEstadoCuenta2025ToUnit(buildUnitFromRealDebtSummary(summary)));
-          }
-        }
-      }
-
-      unidades = unidades
+      unidades = dedupeUnitsByLocalCode(mergedRows)
         .sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
@@ -5775,12 +5599,8 @@ function globalSearch(){
 
     async function renderInicio(){
       const total = unidades.length;
-      const debtRows = getDebtTopRows();
-      const deudaTotal = debtRows.reduce((a,r)=>a+getDisplayedDebtTotal(r),0);
-      const cuotasConDeuda = deudaRealActualReady
-        ? deudaRealActualRows.filter(r => toNumber(r?.saldo) > 0).length
-        : debtRows.reduce((a,r)=>a+Number(r?.cuotas_con_deuda || r?.meses_adeudados || 0),0);
-      const contratosConDeuda = debtRows.length;
+      const deudaTotal = unidades.reduce((a,r)=>a+Number(r.deuda_total||0),0);
+      const deudaAtrasada = unidades.reduce((a,r)=>a+Number(r.deuda_atrasada||0),0);
       const ocupados = total;
       const libres = 0;
       const ocupPerc = total ? 100 : 0;
@@ -5803,18 +5623,11 @@ function globalSearch(){
         .lt('fecha_pago', nms);
 
       const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto||0),0);
-      const top = debtRows.slice(0, 10);
-      const deudaFuenteNota = deudaRealActualReady
-        ? 'Fuente: deuda real actual de contratos activos hasta mayo 2026.'
-        : 'No se pudo leer vw_deuda_real_actual; se usa respaldo anterior.';
-      const resumen2025 = resumenEstadoCuenta2025 || {};
-      const locatarios2025 = Number(resumen2025.locatarios_asentados || 0);
-      const saldados2025 = Number(resumen2025.saldados || 0);
-      const conDeuda2025 = Number(resumen2025.con_deuda || 0);
-      const deudaTotal2025 = toNumber(resumen2025.deuda_total_2025);
-      const estado2025FuenteNota = estadoCuenta2025Ready
-        ? 'Fuente: cierre operativo 2025 regenerado desde Excel.'
-        : `Estado 2025 no disponible${estadoCuenta2025LoadError ? ': ' + estadoCuenta2025LoadError : '.'}`;
+
+      const top = [...unidades]
+        .filter(r => Number(r.deuda_atrasada||0) > 0)
+        .sort((a,b)=>Number(b.deuda_atrasada||0)-Number(a.deuda_atrasada||0))
+        .slice(0, 10);
 
       $('viewInicio').innerHTML = `
         <div class="card">
@@ -5823,45 +5636,25 @@ function globalSearch(){
 
         <div class="card">
           <div class="kpis">
-            <div class="kpi"><div class="label">Deuda real actual</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${contratosConDeuda} contratos con deuda</div></div>
-            <div class="kpi"><div class="label">Cuotas con deuda</div><div class="value">${cuotasConDeuda}</div><div class="muted">Pendientes o parciales</div></div>
+            <div class="kpi"><div class="label">Deuda total</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${total} unidades</div></div>
+            <div class="kpi"><div class="label">Deuda atrasada</div><div class="value">${fmtARS.format(deudaAtrasada)}</div><div class="muted">Cuotas vencidas con saldo</div></div>
             <div class="kpi"><div class="label">Ocupación</div><div class="value">${ocupPerc}%</div><div class="muted">Ocupados: ${ocupados} | Libres: ${libres}</div></div>
             <div class="kpi"><div class="label">Recaudado este mes</div><div class="value">${fmtARS.format(recaudado)}</div><div class="muted">Vencen en 7 días: ${(vencen7||[]).length}</div></div>
           </div>
-          <div class="muted" style="margin-top:10px;">${deudaFuenteNota}</div>
         </div>
 
         <div class="card">
-          <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-            <div>
-              <h3 style="margin:0;">Estado de cuenta 2025</h3>
-              <div class="muted">Constancia operativa de saldados y deudores del año 2025.</div>
-            </div>
-            <span class="badge ${estadoCuenta2025Ready ? 'b-ok' : 'b-warn'}">${estadoCuenta2025Ready ? 'Cargado' : 'No disponible'}</span>
-          </div>
-          <div class="kpis">
-            <div class="kpi"><div class="label">Locatarios asentados</div><div class="value">${locatarios2025 || '—'}</div><div class="muted">Total registrado 2025</div></div>
-            <div class="kpi"><div class="label">Saldados 2025</div><div class="value">${saldados2025 || '—'}</div><div class="muted">Sin deuda del año</div></div>
-            <div class="kpi"><div class="label">Con deuda 2025</div><div class="value">${conDeuda2025 || '—'}</div><div class="muted">Locatarios pendientes</div></div>
-            <div class="kpi"><div class="label">Deuda 2025</div><div class="value">${estadoCuenta2025Ready ? fmtARS.format(deudaTotal2025) : '—'}</div><div class="muted">Pendiente según cierre</div></div>
-          </div>
-          <div class="muted" style="margin-top:10px;">${estado2025FuenteNota}</div>
-        </div>
-
-        <div class="card">
-          <h3 style="margin-top:0;">Top deudores reales</h3>
-          <div class="muted" style="margin-bottom:10px;">Ordenado por saldo real pendiente de contratos activos.</div>
+          <h3 style="margin-top:0;">Top atrasados</h3>
           <div class="tableWrap desktop-table">
             <table>
-              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Saldo real</th><th class="center">Cuotas</th><th>Período más viejo</th><th class="center">Acción</th></tr></thead>
+              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda</th><th class="right">Arrastre 2025</th><th class="center">Acción</th></tr></thead>
               <tbody>
                 ${top.map(r=>`
                   <tr>
-                    <td><b>${r.local_codigo || '—'}</b></td>
-                    <td>${r.inquilino_nombre || '—'}</td>
-                    <td class="right"><b>${fmtARS.format(getDisplayedDebtTotal(r))}</b></td>
-                    <td class="center">${Number(r.cuotas_con_deuda || r.meses_adeudados || 0)}</td>
-                    <td>${r.periodo_mas_viejo_deuda || '—'}</td>
+                    <td><b>${r.local_codigo}</b></td>
+                    <td>${r.inquilino_nombre}</td>
+                    <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
+                    <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
                     <td class="center">
                       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                         ${canUseOperationalContrato(r)
@@ -5879,22 +5672,18 @@ function globalSearch(){
             ${top.map(r=>`
               <article class="mobile-data-card">
                 <div class="mobile-card-top">
-                  <span class="mobile-code">${r.local_codigo || '—'}</span>
+                  <span class="mobile-code">${r.local_codigo}</span>
                   ${badgeEstado(r)}
                 </div>
-                <div class="mobile-tenant">${r.inquilino_nombre || '—'}</div>
+                <div class="mobile-tenant">${r.inquilino_nombre}</div>
                 <div class="mobile-meta-grid">
                   <div class="mobile-meta">
-                    <div class="label">Saldo real</div>
+                    <div class="label">Deuda total</div>
                     <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
                   </div>
                   <div class="mobile-meta">
-                    <div class="label">Cuotas</div>
-                    <div class="value">${Number(r.cuotas_con_deuda || r.meses_adeudados || 0)}</div>
-                  </div>
-                  <div class="mobile-meta">
-                    <div class="label">Más viejo</div>
-                    <div class="value">${r.periodo_mas_viejo_deuda || '—'}</div>
+                    <div class="label">Arrastre 2025</div>
+                    <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
                   </div>
                 </div>
                 <div class="mobile-actions">
@@ -5906,7 +5695,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay deuda real pendiente 🎉'}</div>
+          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
@@ -6071,11 +5860,7 @@ function globalSearch(){
         const reconstructed = !!r?.reconstructed;
         const statusInfo = getContratoStatus(r || {});
         const estado = statusInfo.label;
-        const estado2025Item = getEstado2025ByUnit(r || {});
-        const estado2025Texto = estado2025ShortText(estado2025Item);
-        const deudaEstado2025 = toNumber(estado2025Item?.deuda_total);
-        const cuotasEstado2025 = Number(estado2025Item?.cuotas_con_deuda || estado2025Item?.meses_deuda || 0);
-        const deudaArrastre2025 = estado2025Item ? deudaEstado2025 : toNumber(r?.deuda_arrastre_2025);
+        const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
         const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
         const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
@@ -6098,8 +5883,6 @@ function globalSearch(){
           ['Código', r?.local_codigo || '—', false],
           ['Inquilino', r?.inquilino_nombre || inq?.nombre || '—', false],
           ['Estado actual', estado, false],
-          ['Estado 2025', estado2025Texto, false],
-          ['Deuda 2025', estado2025Item ? fmtARS.format(deudaEstado2025) : '—', false],
           ['Prioridad', r?.prioridad_total || '—', false],
           ['Situación', r?.situacion_general || '—', false],
           ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
@@ -6113,8 +5896,6 @@ function globalSearch(){
           ['Teléfono', inq?.telefono || '—', true],
           ['Email', inq?.email || '—', true],
           ['Estado actual', estado, false],
-          ['Estado 2025', estado2025Texto, false],
-          ['Deuda 2025', estado2025Item ? fmtARS.format(deudaEstado2025) : '—', false],
           ['Próximo vencimiento', proximo, false],
           ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
           ['Saldo pendiente', fmtARS.format(saldoPendiente), false],
@@ -6158,13 +5939,13 @@ function globalSearch(){
 
           const resumenItems = reconstructed ? [
             ['destacado', 'Alquiler actual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto mensual vigente'],
-            ['', 'Estado 2025', estado2025Texto, estado2025Item ? `${cuotasEstado2025} mes(es) con deuda · ${fmtARS.format(deudaEstado2025)}` : 'Sin constancia 2025 vinculada'],
+            ['', 'Arrastre 2025', fmtARS.format(deudaArrastre2025), `${Number(r?.meses_deuda_2025 || 0)} mes(es) con deuda en 2025`],
             ['', 'Deuda 2026', fmtARS.format(deuda2026), `${Number(r?.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026`],
             [saldoPendiente > 0 ? 'alerta' : '', 'Deuda total', fmtARS.format(saldoPendiente), r?.prioridad_total ? `Prioridad ${r.prioridad_total} · ${estado}` : `Estado actual: ${estado}`]
           ] : [
             ['destacado', 'Alquiler mensual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto base actual del locatario'],
             ['', 'Próximo vencimiento', proximo, `Estado: ${estado}`],
-            ['', 'Estado 2025', estado2025Texto, estado2025Item ? `${cuotasEstado2025} mes(es) con deuda · ${fmtARS.format(deudaEstado2025)}` : 'Sin constancia 2025 vinculada'],
+            ['', 'Deuda atrasada', fmtARS.format(deudaAtrasada), `Meses adeudados: ${Number(r?.meses_adeudados || 0)}`],
             [saldoPendiente > 0 ? 'alerta' : '', 'Saldo pendiente', fmtARS.format(saldoPendiente), saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda` : 'Sin saldo pendiente']
           ];
 
@@ -6193,35 +5974,23 @@ function globalSearch(){
         // Primer render inmediato con los datos disponibles.
         renderDetalleInfo(r, []);
 
-        let rows = [];
-        if (r?.reconstructed){
+        let rows = await fetchDetalleOperativoRows(r);
+        if (seq !== detalleLoadSeq) return;
+
+        if (!rows.length && r?.reconstructed){
           rows = await fetchDetalleReconstruidoRows(r);
           if (seq !== detalleLoadSeq) return;
+        }
 
-          if (!rows.length && canUseOperationalContrato(r)){
-            const { data, error } = await sb
-              .from('v_cobranzas')
-              .select('*')
-              .eq('contrato_id', r.contrato_id)
-              .order('vencimiento', { ascending:true });
-            if (seq !== detalleLoadSeq) return;
-            if (error){
-              if ($('detalleMsg')) $('detalleMsg').textContent = error.message;
-            } else {
-              rows = data || [];
-            }
-          }
-        } else {
+        if (!rows.length && canUseOperationalContrato(r)){
           const { data, error } = await sb
             .from('v_cobranzas')
             .select('*')
             .eq('contrato_id', r.contrato_id)
             .order('vencimiento', { ascending:true });
-
           if (seq !== detalleLoadSeq) return;
           if (error){
-            if ($('detalleMsg')) $('detalleMsg').textContent = error.message;
-            rows = [];
+            console.warn('Fallback v_cobranzas detalle:', error.message);
           } else {
             rows = data || [];
           }
@@ -7500,7 +7269,7 @@ function globalSearch(){
     }
 
     function buildInqCache(){
-      const debtByContrato = new Map(unidades.map(u => [String(u.contrato_id), u]));
+      const debtByContrato = new Map(unidades.map(u => [u.contrato_id, u]));
       const byId = new Map();
 
       for (const c of contratosActivos){
@@ -7523,12 +7292,10 @@ function globalSearch(){
           contratos: [],
         };
 
-        const d = debtByContrato.get(String(c.id));
-        const real = getRealDebtSummaryByContrato(c.id);
-        const deuda_total = deudaRealActualReady ? toNumber(real?.saldo) : Number(d?.deuda_total || 0);
-        const deuda_atrasada = deudaRealActualReady ? deuda_total : Number(d?.deuda_atrasada || 0);
-        const meses_adeudados = deudaRealActualReady ? Number(real?.cuotas || 0) : Number(d?.meses_adeudados || 0);
-        const deuda_arrastre_2025 = deudaRealActualReady ? toNumber(real?.arrastre_2025) : toNumber(d?.deuda_arrastre_2025);
+        const d = debtByContrato.get(c.id);
+        const deuda_total = Number(d?.deuda_total || 0);
+        const deuda_atrasada = Number(d?.deuda_atrasada || 0);
+        const meses_adeudados = Number(d?.meses_adeudados || 0);
         const contratoStatus = getContratoStatus(d || { contrato_id: c.id, deuda_total, deuda_atrasada });
 
         row.contratos_activos += 1;
@@ -7541,7 +7308,6 @@ function globalSearch(){
           local_codigo: c.locales?.codigo || d?.local_codigo || '—',
           deuda_total,
           deuda_atrasada,
-          deuda_arrastre_2025,
           meses_adeudados,
           inquilino_nombre: nombre,
         });
@@ -8338,73 +8104,87 @@ function globalSearch(){
       `;
     }
 
-    function normalizeReciboOperativoRow(item){
-      const reciboId = item.recibo_id ?? item.id ?? item.pago_id ?? item.numero_recibo ?? '';
-      const numero = String(item.numero_recibo || item.referencia || item.recibo_base || reciboId || 'SIN_RECIBO').trim();
-      const monto = Number(item.monto ?? item.monto_total ?? 0);
-      const periodo = String(item.periodo || item.periodo_aplicado || '').trim();
-      const observacion = String(item.observacion || item.detalle_aplicacion || '').trim();
-      return {
-        ...item,
-        id: `REC-OP-${reciboId}`,
-        recibo_id: reciboId,
-        pago_id: null,
-        contrato_id: item.contrato_id || null,
-        fecha_pago: item.fecha_pago || item.created_at || null,
-        created_at: item.created_at || item.fecha_pago || null,
-        medio: item.medio || 'Histórico Excel',
-        referencia: numero,
-        numero_recibo: numero,
-        periodo_aplicado: periodo,
-        detalle_aplicacion: observacion,
-        descripcion_pago: observacion || periodo,
-        monto_alquiler: monto,
-        monto_impuesto: 0,
-        impuesto_porcentaje: 0,
-        monto_total: monto,
-        monto: monto,
-        inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || '—',
-        telefono: item.telefono || '',
-        email: item.email || '',
-        documento: item.documento || '',
-        local_codigo: item.codigo_local || item.local_codigo || '—',
-        __source_table: 'recibos_operativos',
-        __cache_key: `REC-OP-${reciboId}`
-      };
-    }
-
     async function fetchRecibosInternosData(){
-      let recibos = [];
-      let recibosError = null;
+      let pagos = [];
+      let pagosError = null;
 
-      const selects = [
-        'recibo_id, contrato_id, local_id, inquilino_id, codigo_local, nombre_inquilino, numero_recibo, recibo_base, anio, mes, periodo, fecha_pago, monto, origen, fuente_hoja, observacion, created_at, updated_at',
-        '*'
+      const tries = [
+        () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
+        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_alquiler, monto_impuesto, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
+        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto').order('fecha_pago', { ascending:false })
       ];
 
-      for (const sel of selects){
-        const { data, error } = await sb
-          .from('vw_recibos_operativos')
-          .select(sel)
-          .order('fecha_pago', { ascending:false });
+      for (const getQuery of tries){
+        const { data, error } = await getQuery();
         if (!error){
-          recibos = data || [];
-          recibosError = null;
+          pagos = data || [];
+          pagosError = null;
           break;
         }
-        recibosError = error;
+        pagosError = error;
       }
 
-      const dbRows = (recibos || []).map(normalizeReciboOperativoRow);
+      const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
+      let contratosMeta = [];
+      let contratosError = null;
+      if (contratoIds.length){
+        const { data, error } = await sb
+          .from('contratos')
+          .select('id, locales(codigo), inquilinos(nombre,telefono,email,documento)')
+          .in('id', contratoIds);
+        contratosMeta = data || [];
+        contratosError = error;
+      }
 
-      // Fuente limpia: solo recibos operativos cargados desde Excel y mapeados por contrato exacto.
-      // No mezclamos localStorage ni pagos históricos viejos para evitar cruces por nombres parecidos.
-      const rows = [...dbRows];
-      saveManualReceipts([]);
+      const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
+      const dbRows = (pagos || []).map(item => {
+        const meta = metaMap.get(String(item.contrato_id || '')) || {};
+        const inq = meta.inquilinos || {};
+        const local = meta.locales || {};
+        const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
+        const paymentKey = String(item.id || item.pago_id || '');
+        return {
+          ...item,
+          monto_total: montoTotal,
+          monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
+          monto_impuesto: Number(item.monto_impuesto || 0),
+          impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
+          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || item.detalle_aplicacion || '').trim(),
+          periodo_aplicado: String(item.periodo_aplicado || '').trim(),
+          detalle_aplicacion: String(item.detalle_aplicacion || '').trim(),
+          __cache_key: paymentKey || buildReciboNumero(item, true),
+          numero_recibo: buildReciboNumero(item, true),
+          inquilino_nombre: inq.nombre || '—',
+          telefono: inq.telefono || '',
+          email: inq.email || '',
+          documento: inq.documento || '',
+          local_codigo: local.codigo || '—'
+        };
+      });
+
+      const manualReceipts = loadManualReceipts();
+      const mergedMap = new Map();
+      [...dbRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
+        if (!item) return;
+        const key = String(item.id || item.pago_id || item.numero_recibo || item.__cache_key || '');
+        if (!key) return;
+        const previous = mergedMap.get(key) || {};
+        mergedMap.set(key, {
+          ...previous,
+          ...item,
+          descripcion_pago: String(item.descripcion_pago || previous.descripcion_pago || paymentDescriptionMap[key] || paymentDescriptionMap[item.numero_recibo || ''] || '').trim(),
+          periodo_aplicado: String(item.periodo_aplicado || previous.periodo_aplicado || '').trim(),
+          detalle_aplicacion: String(item.detalle_aplicacion || previous.detalle_aplicacion || '').trim(),
+          __cache_key: key,
+          numero_recibo: item.numero_recibo || previous.numero_recibo || buildReciboNumero(item, true)
+        });
+      });
+
+      const rows = [...mergedMap.values()];
 
       rows.sort((a,b) => {
-        const timeA = new Date(a.fecha_pago || a.created_at || 0).getTime() || 0;
-        const timeB = new Date(b.fecha_pago || b.created_at || 0).getTime() || 0;
+        const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
+        const timeB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
         if (timeA !== timeB) return timeB - timeA;
 
         const numA = parseInt(String(a.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
@@ -8415,11 +8195,11 @@ function globalSearch(){
         const keyB = String(b.id || b.pago_id || b.__cache_key || '');
         return keyB.localeCompare(keyA);
       });
-
       recibosInternosCache = rows;
       saveReceiptsCache();
+      saveManualReceipts(rows);
 
-      return { rows, pagosError: recibosError, contratosError: null };
+      return { rows, pagosError, contratosError };
     }
 
     function renderRecibosKPIs(rows){
@@ -8793,22 +8573,17 @@ function globalSearch(){
       const numero = item.numero_recibo || item.referencia || 'sin número';
       const local = item.local_codigo || '—';
       const locatario = item.inquilino_nombre || '—';
-      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nEsto elimina solo el recibo operativo que ve la página. No modifica la deuda ni los pagos históricos importados.\n\n¿Continuar?`);
+      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nSi el recibo tiene un pago asociado en la base, también se eliminará ese pago.\n\n¿Continuar?`);
       if (!ok) return;
 
-      const reciboOperativoId = String(item.recibo_id || '').trim();
-      const pagoId = String(item.pago_id || item.id || '').trim();
+      const pagoId = String(item.id || item.pago_id || '').trim();
       const looksLikeStoredPayment = !!pagoId
-        && item.__source_table !== 'recibos_operativos'
         && pagoId !== String(item.numero_recibo || '').trim()
         && !pagoId.startsWith('REC-')
         && !pagoId.startsWith('tmp-');
 
       try{
-        if (item.__source_table === 'recibos_operativos' && reciboOperativoId){
-          const { error } = await sb.from('recibos_operativos').delete().eq('id', reciboOperativoId);
-          if (error) throw error;
-        } else if (looksLikeStoredPayment){
+        if (looksLikeStoredPayment){
           const { error } = await sb.from('pagos').delete().eq('id', pagoId);
           if (error) throw error;
         }
@@ -10205,29 +9980,17 @@ function globalSearch(){
 
     async function fetchPagosRows(contratoId){
       const selects = [
-        'recibo_id, contrato_id, fecha_pago, monto, numero_recibo, periodo, origen, created_at',
-        '*'
+        'id, contrato_id, fecha_pago, monto, medio, referencia, created_at',
+        'id, contrato_id, fecha_pago, monto, medio, created_at',
+        'id, contrato_id, fecha_pago, monto, created_at'
       ];
 
       let lastError = null;
       for (const sel of selects){
-        let q = sb.from('vw_recibos_operativos').select(sel).order('fecha_pago', { ascending:false });
+        let q = sb.from('pagos').select(sel).order('fecha_pago', { ascending:false });
         if (!isAllContratos(contratoId)) q = q.eq('contrato_id', contratoId);
         const { data, error } = await q;
-        if (!error){
-          const rows = (data || []).map(item => ({
-            id: `REC-OP-${item.recibo_id || item.id || item.numero_recibo || ''}`,
-            recibo_id: item.recibo_id || item.id || null,
-            contrato_id: item.contrato_id || null,
-            fecha_pago: item.fecha_pago || item.created_at || null,
-            monto: Number(item.monto || item.monto_total || 0),
-            medio: item.origen || 'Histórico Excel',
-            referencia: item.numero_recibo || item.referencia || null,
-            periodo_aplicado: item.periodo || item.periodo_aplicado || '',
-            created_at: item.created_at || item.fecha_pago || null
-          }));
-          return { data: rows, error: null };
-        }
+        if (!error) return { data: data || [], error: null };
         lastError = error;
       }
       return { data: [], error: lastError };
