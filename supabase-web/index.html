@@ -3868,7 +3868,6 @@ td:last-child{
                     <th>Inquilino</th>
                     <th class="right">Deuda total</th>
                     <th class="right">Arrastre 2025</th>
-                    <th class="center">Estado 2025</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
@@ -5982,7 +5981,6 @@ function globalSearch(){
           <td>${r.inquilino_nombre}</td>
           <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
           <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
-          <td class="center">${renderEstado2025BadgeForUnit(r)}</td>
           <td class="center">${Number(r.meses_adeudados||0)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
@@ -6009,10 +6007,6 @@ function globalSearch(){
               <div class="mobile-meta">
                 <div class="label">Arrastre 2025</div>
                 <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
-              </div>
-              <div class="mobile-meta">
-                <div class="label">Estado 2025</div>
-                <div class="value">${estado2025ShortText(getEstado2025ByUnit(r))}</div>
               </div>
               <div class="mobile-meta">
                 <div class="label">Deuda 2026</div>
