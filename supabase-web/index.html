@@ -4036,7 +4036,7 @@ td:last-child{
             <option>MERCADOPAGO</option>
           </select>
         </div>
-        <button class="btn primary" onclick="registrarPagoModal()">Guardar</button>
+        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Guardar</button>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -10949,14 +10949,20 @@ function globalSearch(){
 
     async function fetchCuotasOperativasContrato(contratoId){
       if (!contratoId) return [];
+      // Fuente directa para cobrar: cuotas_operativas.
+      // No usamos vistas acá para evitar que un cambio de columnas rompa el botón Cobro.
       const { data, error } = await sb
-        .from('vw_detalle_mensual_operativo')
-        .select('detalle_id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key')
+        .from('cuotas_operativas')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion')
         .eq('contrato_id', contratoId)
         .order('anio', { ascending:true })
         .order('mes', { ascending:true });
       if (error) throw error;
-      return data || [];
+      return (data || []).map(row => ({
+        ...row,
+        detalle_id: row.id,
+        sort_key: `${row.anio}-${String(row.mes).padStart(2,'0')}`
+      }));
     }
 
     function cuotaChoiceValue(row){
@@ -10992,7 +10998,7 @@ function globalSearch(){
       });
 
       if (!pendientes.length){
-        options.push({ value:'AUTO', label:'Sin deuda pendiente visible' });
+        options[0] = { value:'AUTO', label:'Sin deuda pendiente visible' };
       }
 
       el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
@@ -11029,8 +11035,10 @@ function globalSearch(){
 
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
+      const btn = $('btnGuardarPago');
       if (!modalContrato?.contrato_id) return;
       try{
+        if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const amount = parseMoneyToNumber($('mAlquiler')?.value || '');
         if (amount <= 0){
@@ -11049,7 +11057,16 @@ function globalSearch(){
           p_observacion: String($('mDescripcion')?.value || '').trim() || null
         };
         const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
-        if (error) throw error;
+        if (error) {
+          const raw = error.message || String(error);
+          if (/registrar_cobro_operativo|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función registrar_cobro_operativo en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
+          }
+          if (/permission|permiso|denied|42501/i.test(raw)) {
+            throw new Error('Permiso denegado para registrar cobros. Ejecutá el SQL hotfix de permisos. Detalle: ' + raw);
+          }
+          throw error;
+        }
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
         if (msgEl) msgEl.textContent = res?.mensaje || 'Cobro registrado correctamente.';
@@ -11060,6 +11077,8 @@ function globalSearch(){
       } catch(err){
         console.error(err);
         if (msgEl) msgEl.textContent = err?.message || 'No se pudo registrar el cobro. Revisá que hayas ejecutado el SQL operativo.';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Guardar'; }
       }
     }
 
@@ -11156,6 +11175,17 @@ function globalSearch(){
         alert(err?.message || 'No se pudo borrar el activo.');
       }
     }
+
+    // Exponer funciones operativas para los onclick inline del HTML.
+    window.openPagoModal = openPagoModal;
+    window.closePagoModal = closePagoModal;
+    window.registrarPagoModal = registrarPagoModal;
+    window.refreshPaymentPeriodOptions = refreshPaymentPeriodOptions;
+    window.recalcularCobroModal = recalcularCobroModal;
+    window.openAgregarMesModal = openAgregarMesModal;
+    window.closeAgregarMesModal = closeAgregarMesModal;
+    window.guardarMesOperativo = guardarMesOperativo;
+    window.deleteActivoActual = deleteActivoActual;
 
     init();
   
