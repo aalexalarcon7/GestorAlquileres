@@ -8538,19 +8538,32 @@ function globalSearch(){
       const numero = item.numero_recibo || item.referencia || 'sin número';
       const local = item.local_codigo || '—';
       const locatario = item.inquilino_nombre || '—';
-      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nSi el recibo tiene un pago asociado en la base, también se eliminará ese pago.\n\n¿Continuar?`);
+      const pagoIdRaw = item.pago_id || item.recibo_id || item.id || '';
+      const pagoId = Number(pagoIdRaw);
+
+      if (!Number.isFinite(pagoId) || pagoId <= 0){
+        alert('Este recibo no tiene un pago operativo válido asociado para eliminar.');
+        return;
+      }
+
+      const ok = confirm(
+        `Vas a eliminar el recibo ${numero} de ${locatario} (${local}).
+
+` +
+        `Esto también revierte el saldo de la cuota imputada.
+
+` +
+        `¿Continuar?`
+      );
       if (!ok) return;
 
-      const pagoId = String(item.id || item.pago_id || '').trim();
-      const looksLikeStoredPayment = !!pagoId
-        && pagoId !== String(item.numero_recibo || '').trim()
-        && !pagoId.startsWith('REC-')
-        && !pagoId.startsWith('tmp-');
-
       try{
-        if (looksLikeStoredPayment){
-          const { error } = await sb.from('pagos').delete().eq('id', pagoId);
-          if (error) throw error;
+        const { data, error } = await sb.rpc('eliminar_recibo_operativo', { p_pago_id: pagoId });
+        if (error) throw error;
+
+        const result = Array.isArray(data) ? data[0] : data;
+        if (result && result.ok === false){
+          throw new Error(result.mensaje || 'La base rechazó la eliminación del recibo.');
         }
 
         removeReciboFromLocalCaches(item);
@@ -8560,9 +8573,14 @@ function globalSearch(){
           closeReciboModal();
         }
 
+        try{
+          localStorage.removeItem(RECEIPTS_CACHE_KEY);
+          localStorage.removeItem(MANUAL_RECEIPTS_KEY);
+        } catch(e){}
+
         await refreshAll();
         if (route === 'recibos') await renderRecibosPage();
-        showPagoSuccessToast(`Se eliminó el recibo ${numero}.`);
+        showPagoSuccessToast(result?.mensaje || `Se eliminó el recibo ${numero}.`);
       } catch (error){
         console.error(error);
         alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
