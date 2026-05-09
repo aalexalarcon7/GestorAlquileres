@@ -3868,6 +3868,7 @@ td:last-child{
                     <th>Inquilino</th>
                     <th class="right">Deuda total</th>
                     <th class="right">Arrastre 2025</th>
+                    <th class="center">Estado 2025</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
@@ -4197,6 +4198,12 @@ td:last-child{
     let deudaRealActualByContrato = new Map();
     let deudaRealActualReady = false;
     let deudaRealActualLoadError = '';
+    let estadoCuenta2025Rows = [];
+    let estadoCuenta2025ByContrato = new Map();
+    let estadoCuenta2025ByCodigo = new Map();
+    let resumenEstadoCuenta2025 = null;
+    let estadoCuenta2025Ready = false;
+    let estadoCuenta2025LoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
     const THEME_KEY = 'ga_theme';
@@ -5477,6 +5484,97 @@ td:last-child{
       deudaRealActualReady = true;
     }
 
+
+    function rebuildEstadoCuenta2025Maps(rows){
+      const byContrato = new Map();
+      const byCodigo = new Map();
+      for (const r of (rows || [])){
+        if (r?.contrato_id != null) byContrato.set(String(r.contrato_id), r);
+        const codigo = normLocalCode(r?.codigo_local || '');
+        if (codigo) byCodigo.set(codigo, r);
+      }
+      return { byContrato, byCodigo };
+    }
+
+    async function refreshEstadoCuenta2025Data(){
+      estadoCuenta2025LoadError = '';
+      estadoCuenta2025Ready = false;
+      try{
+        const resumenRes = await sb
+          .from('vw_resumen_estado_cuenta_2025')
+          .select('locatarios_asentados,saldados,con_deuda,deuda_total_2025')
+          .limit(1);
+
+        if (resumenRes.error) throw resumenRes.error;
+        resumenEstadoCuenta2025 = Array.isArray(resumenRes.data) ? (resumenRes.data[0] || null) : null;
+
+        const detalleRes = await sb
+          .from('vw_estado_2025_por_locatario')
+          .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total,origen,observacion')
+          .order('deuda_total', { ascending:false });
+
+        if (detalleRes.error) throw detalleRes.error;
+        estadoCuenta2025Rows = Array.isArray(detalleRes.data) ? detalleRes.data : [];
+        const maps = rebuildEstadoCuenta2025Maps(estadoCuenta2025Rows);
+        estadoCuenta2025ByContrato = maps.byContrato;
+        estadoCuenta2025ByCodigo = maps.byCodigo;
+        estadoCuenta2025Ready = true;
+      } catch (err){
+        estadoCuenta2025Rows = [];
+        estadoCuenta2025ByContrato = new Map();
+        estadoCuenta2025ByCodigo = new Map();
+        resumenEstadoCuenta2025 = null;
+        estadoCuenta2025LoadError = err?.message || String(err);
+        console.warn('No se pudo leer estado 2025 operativo:', estadoCuenta2025LoadError);
+      }
+    }
+
+    function getEstado2025ByContrato(contratoId){
+      if (!estadoCuenta2025Ready || contratoId == null) return null;
+      return estadoCuenta2025ByContrato.get(String(contratoId)) || null;
+    }
+
+    function getEstado2025ByUnit(unit){
+      if (!estadoCuenta2025Ready || !unit) return null;
+      const byContrato = getEstado2025ByContrato(unit.contrato_id);
+      if (byContrato) return byContrato;
+      const code = normLocalCode(unit.local_codigo || unit.local_code_normalized || unit.codigo_local || '');
+      return code ? (estadoCuenta2025ByCodigo.get(code) || null) : null;
+    }
+
+    function estado2025ClassName(estado){
+      const value = String(estado || '').toUpperCase();
+      if (value === 'SALDADO') return 'b-ok';
+      if (value === 'CON_DEUDA') return 'b-bad';
+      return 'b-info';
+    }
+
+    function estado2025ShortText(item){
+      if (!estadoCuenta2025Ready) return '2025 sin cargar';
+      if (!item) return '2025 sin dato';
+      if (String(item.estado_2025 || '').toUpperCase() === 'SALDADO') return '2025 saldado';
+      if (String(item.estado_2025 || '').toUpperCase() === 'CON_DEUDA') return `Debe 2025: ${fmtARS.format(toNumber(item.deuda_total))}`;
+      return '2025 sin dato';
+    }
+
+    function renderEstado2025BadgeForUnit(unit){
+      const item = getEstado2025ByUnit(unit);
+      return `<span class="badge ${estado2025ClassName(item?.estado_2025)}">${estado2025ShortText(item)}</span>`;
+    }
+
+    function applyEstadoCuenta2025ToUnit(unit){
+      if (!unit || !estadoCuenta2025Ready) return unit;
+      const item = getEstado2025ByUnit(unit);
+      if (!item) return unit;
+      return {
+        ...unit,
+        estado_2025: item.estado_2025 || null,
+        deuda_estado_2025: toNumber(item.deuda_total),
+        cuotas_deuda_2025: Number(item.cuotas_con_deuda || item.meses_deuda || 0),
+        observacion_estado_2025: item.observacion || null,
+      };
+    }
+
     function getRealDebtSummaryByContrato(contratoId){
       if (!deudaRealActualReady || contratoId == null) return null;
       return deudaRealActualByContrato.get(String(contratoId)) || null;
@@ -5614,6 +5712,7 @@ function globalSearch(){
       $('unitsMsg').textContent = '';
       await refreshActivosReconstruidosData();
       await refreshDeudaRealActualData();
+      await refreshEstadoCuenta2025Data();
 
       const { data, error } = await sb.from('v_deuda_por_contrato').select('*').order('deuda_total', { ascending:false });
       if (error){ $('unitsMsg').textContent = error.message; return; }
@@ -5630,13 +5729,13 @@ function globalSearch(){
         mergedRows.push(buildSyntheticReconstructedUnit(recon));
       });
 
-      unidades = dedupeUnitsByLocalCode(mergedRows).map(applyRealDebtToUnit);
+      unidades = dedupeUnitsByLocalCode(mergedRows).map(applyRealDebtToUnit).map(applyEstadoCuenta2025ToUnit);
 
       if (deudaRealActualReady){
         const existingContratoIds = new Set(unidades.map(u => String(u.contrato_id)));
         for (const summary of deudaRealActualByContrato.values()){
           if (!existingContratoIds.has(String(summary.contrato_id))){
-            unidades.push(buildUnitFromRealDebtSummary(summary));
+            unidades.push(applyEstadoCuenta2025ToUnit(buildUnitFromRealDebtSummary(summary)));
           }
         }
       }
@@ -5709,6 +5808,14 @@ function globalSearch(){
       const deudaFuenteNota = deudaRealActualReady
         ? 'Fuente: deuda real actual de contratos activos hasta mayo 2026.'
         : 'No se pudo leer vw_deuda_real_actual; se usa respaldo anterior.';
+      const resumen2025 = resumenEstadoCuenta2025 || {};
+      const locatarios2025 = Number(resumen2025.locatarios_asentados || 0);
+      const saldados2025 = Number(resumen2025.saldados || 0);
+      const conDeuda2025 = Number(resumen2025.con_deuda || 0);
+      const deudaTotal2025 = toNumber(resumen2025.deuda_total_2025);
+      const estado2025FuenteNota = estadoCuenta2025Ready
+        ? 'Fuente: cierre operativo 2025 regenerado desde Excel.'
+        : `Estado 2025 no disponible${estadoCuenta2025LoadError ? ': ' + estadoCuenta2025LoadError : '.'}`;
 
       $('viewInicio').innerHTML = `
         <div class="card">
@@ -5723,6 +5830,23 @@ function globalSearch(){
             <div class="kpi"><div class="label">Recaudado este mes</div><div class="value">${fmtARS.format(recaudado)}</div><div class="muted">Vencen en 7 días: ${(vencen7||[]).length}</div></div>
           </div>
           <div class="muted" style="margin-top:10px;">${deudaFuenteNota}</div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+            <div>
+              <h3 style="margin:0;">Estado de cuenta 2025</h3>
+              <div class="muted">Constancia operativa de saldados y deudores del año 2025.</div>
+            </div>
+            <span class="badge ${estadoCuenta2025Ready ? 'b-ok' : 'b-warn'}">${estadoCuenta2025Ready ? 'Cargado' : 'No disponible'}</span>
+          </div>
+          <div class="kpis">
+            <div class="kpi"><div class="label">Locatarios asentados</div><div class="value">${locatarios2025 || '—'}</div><div class="muted">Total registrado 2025</div></div>
+            <div class="kpi"><div class="label">Saldados 2025</div><div class="value">${saldados2025 || '—'}</div><div class="muted">Sin deuda del año</div></div>
+            <div class="kpi"><div class="label">Con deuda 2025</div><div class="value">${conDeuda2025 || '—'}</div><div class="muted">Locatarios pendientes</div></div>
+            <div class="kpi"><div class="label">Deuda 2025</div><div class="value">${estadoCuenta2025Ready ? fmtARS.format(deudaTotal2025) : '—'}</div><div class="muted">Pendiente según cierre</div></div>
+          </div>
+          <div class="muted" style="margin-top:10px;">${estado2025FuenteNota}</div>
         </div>
 
         <div class="card">
@@ -5858,6 +5982,7 @@ function globalSearch(){
           <td>${r.inquilino_nombre}</td>
           <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
           <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
+          <td class="center">${renderEstado2025BadgeForUnit(r)}</td>
           <td class="center">${Number(r.meses_adeudados||0)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
@@ -5884,6 +6009,10 @@ function globalSearch(){
               <div class="mobile-meta">
                 <div class="label">Arrastre 2025</div>
                 <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
+              </div>
+              <div class="mobile-meta">
+                <div class="label">Estado 2025</div>
+                <div class="value">${estado2025ShortText(getEstado2025ByUnit(r))}</div>
               </div>
               <div class="mobile-meta">
                 <div class="label">Deuda 2026</div>
@@ -5948,7 +6077,11 @@ function globalSearch(){
         const reconstructed = !!r?.reconstructed;
         const statusInfo = getContratoStatus(r || {});
         const estado = statusInfo.label;
-        const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
+        const estado2025Item = getEstado2025ByUnit(r || {});
+        const estado2025Texto = estado2025ShortText(estado2025Item);
+        const deudaEstado2025 = toNumber(estado2025Item?.deuda_total);
+        const cuotasEstado2025 = Number(estado2025Item?.cuotas_con_deuda || estado2025Item?.meses_deuda || 0);
+        const deudaArrastre2025 = estado2025Item ? deudaEstado2025 : toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
         const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
         const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
@@ -5971,6 +6104,8 @@ function globalSearch(){
           ['Código', r?.local_codigo || '—', false],
           ['Inquilino', r?.inquilino_nombre || inq?.nombre || '—', false],
           ['Estado actual', estado, false],
+          ['Estado 2025', estado2025Texto, false],
+          ['Deuda 2025', estado2025Item ? fmtARS.format(deudaEstado2025) : '—', false],
           ['Prioridad', r?.prioridad_total || '—', false],
           ['Situación', r?.situacion_general || '—', false],
           ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
@@ -5984,6 +6119,8 @@ function globalSearch(){
           ['Teléfono', inq?.telefono || '—', true],
           ['Email', inq?.email || '—', true],
           ['Estado actual', estado, false],
+          ['Estado 2025', estado2025Texto, false],
+          ['Deuda 2025', estado2025Item ? fmtARS.format(deudaEstado2025) : '—', false],
           ['Próximo vencimiento', proximo, false],
           ['Meses adeudados', String(Number(r?.meses_adeudados || 0)), false],
           ['Saldo pendiente', fmtARS.format(saldoPendiente), false],
@@ -6027,13 +6164,13 @@ function globalSearch(){
 
           const resumenItems = reconstructed ? [
             ['destacado', 'Alquiler actual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto mensual vigente'],
-            ['', 'Arrastre 2025', fmtARS.format(deudaArrastre2025), `${Number(r?.meses_deuda_2025 || 0)} mes(es) con deuda en 2025`],
+            ['', 'Estado 2025', estado2025Texto, estado2025Item ? `${cuotasEstado2025} mes(es) con deuda · ${fmtARS.format(deudaEstado2025)}` : 'Sin constancia 2025 vinculada'],
             ['', 'Deuda 2026', fmtARS.format(deuda2026), `${Number(r?.meses_con_deuda_2026 || 0)} mes(es) con deuda en 2026`],
             [saldoPendiente > 0 ? 'alerta' : '', 'Deuda total', fmtARS.format(saldoPendiente), r?.prioridad_total ? `Prioridad ${r.prioridad_total} · ${estado}` : `Estado actual: ${estado}`]
           ] : [
             ['destacado', 'Alquiler mensual', montoVisible > 0 ? fmtARS.format(montoVisible) : 'No definido', 'Monto base actual del locatario'],
             ['', 'Próximo vencimiento', proximo, `Estado: ${estado}`],
-            ['', 'Deuda atrasada', fmtARS.format(deudaAtrasada), `Meses adeudados: ${Number(r?.meses_adeudados || 0)}`],
+            ['', 'Estado 2025', estado2025Texto, estado2025Item ? `${cuotasEstado2025} mes(es) con deuda · ${fmtARS.format(deudaEstado2025)}` : 'Sin constancia 2025 vinculada'],
             [saldoPendiente > 0 ? 'alerta' : '', 'Saldo pendiente', fmtARS.format(saldoPendiente), saldoPendiente > 0 ? `${pendientes.length} cuota(s) con deuda` : 'Sin saldo pendiente']
           ];
 
