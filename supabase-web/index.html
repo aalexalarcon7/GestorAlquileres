@@ -5134,83 +5134,88 @@ td:last-child{
     async function fetchDetalleReconstruidoRows(row){
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
       const contratoId = row?.contrato_id;
-      if (!code && !contratoId) return [];
+      const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
+      if (!code && !contratoId && !selectedName) return [];
 
-      const deudaRows = await fetchSupabaseRowsSafe(
-        'vw_deuda_real_actual',
-        'cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado'
-      );
-      const estado2025Rows = await fetchSupabaseRowsSafe(
-        'vw_estado_2025_por_locatario',
-        'contrato_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'
-      );
-      const estado2026Rows = await fetchSupabaseRowsSafe(
-        'vw_estado_2026_hasta_abril_por_locatario',
-        'contrato_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'
+      const detalleRows = await fetchSupabaseRowsSafe(
+        'vw_detalle_mensual_operativo',
+        'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key'
       );
 
       const sameRow = (item) => {
-        const itemCode = normLocalCode(item?.codigo_local || item?.codigo_local_excel || '');
-        return (contratoId && String(item?.contrato_id || '') === String(contratoId)) || (code && itemCode === code);
+        const itemCode = normLocalCode(item?.codigo_local || '');
+        const itemName = normalizeDetalleName(item?.nombre_inquilino || '');
+
+        // Regla segura:
+        // 1) Si coincide el contrato_id, es el mismo locatario.
+        // 2) Si no coincide o viene null, exige código + nombre.
+        // Esto evita mezclar, por ejemplo, PTO102 de 2025 con PTO102 de 2026 si cambió el inquilino.
+        if (contratoId && item?.contrato_id && String(item.contrato_id) === String(contratoId)) return true;
+        return !!(code && itemCode === code && selectedName && itemName === selectedName);
       };
 
-      const rows = [];
-      const estado2025 = (estado2025Rows || []).find(sameRow) || null;
-      const estado2026 = (estado2026Rows || []).find(sameRow) || null;
-      const debt = (deudaRows || []).filter(sameRow).sort((a,b) => `${a.anio}-${String(a.mes).padStart(2,'0')}`.localeCompare(`${b.anio}-${String(b.mes).padStart(2,'0')}`));
+      const rows = (detalleRows || [])
+        .filter(sameRow)
+        .map(item => {
+          const anio = Number(item.anio || 0);
+          const mes = Number(item.mes || 0);
+          const estado = normalizeDetalleEstado(item);
+          return {
+            periodo: `${anio} - ${item.mes_nombre || GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
+            vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
+            total: toNumber(item.monto_total),
+            pagado: toNumber(item.monto_pagado),
+            saldo: toNumber(item.saldo),
+            estado_detalle: estado,
+            dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
+            sort_key: item.sort_key || `${anio}-${String(mes || 1).padStart(2,'0')}`,
+            origen: item.origen,
+            fuente_hoja: item.fuente_hoja
+          };
+        })
+        .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
 
-      const debt2025 = debt.filter(x => Number(x.anio) === 2025);
-      const debt2026 = debt.filter(x => Number(x.anio) === 2026 && Number(x.mes) >= 1 && Number(x.mes) <= 4);
+      return rows;
+    }
 
-      if (estado2025 && String(estado2025.estado_2025 || '').toUpperCase() === 'SALDADO'){
-        rows.push({
-          periodo: '2025 - Estado anual',
-          vencimiento: '2025-12-31',
-          total: 0,
-          pagado: 0,
-          saldo: 0,
-          estado_detalle: 'SALDADO',
-          dias_atraso: 0,
-          sort_key: '2025-00'
-        });
+    function normalizeDetalleName(value){
+      return String(value || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toUpperCase()
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function normalizeDetalleEstado(item){
+      const raw = String(item?.estado || '').toUpperCase().trim();
+      const total = toNumber(item?.monto_total);
+      const pagado = toNumber(item?.monto_pagado);
+      const saldo = toNumber(item?.saldo);
+
+      if (raw) {
+        if (raw === 'PAGADO') return 'PAGADO';
+        if (raw === 'PARCIAL') return 'PARCIAL';
+        if (raw === 'PENDIENTE') return 'PENDIENTE';
+        if (raw === 'SIN CARGO') return 'SIN CARGO';
+        return raw;
       }
 
-      debt2025.forEach(item => rows.push({
-        periodo: `${item.anio} - ${GA_MONTH_NAMES[(Number(item.mes)||1)-1] || item.periodo || item.mes}`,
-        vencimiento: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}-10`,
-        total: toNumber(item.monto_total),
-        pagado: toNumber(item.monto_pagado),
-        saldo: toNumber(item.saldo),
-        estado_detalle: item.estado || 'PENDIENTE',
-        dias_atraso: 0,
-        sort_key: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}`
-      }));
+      if (total <= 0 && pagado <= 0 && saldo <= 0) return 'SIN CARGO';
+      if (saldo <= 0) return 'PAGADO';
+      if (pagado > 0) return 'PARCIAL';
+      return 'PENDIENTE';
+    }
 
-      if (estado2026 && String(estado2026.estado_2026_hasta_abril || '').toUpperCase() === 'AL_DIA_HASTA_ABRIL'){
-        rows.push({
-          periodo: '2026 - Enero a Abril',
-          vencimiento: '2026-04-10',
-          total: toNumber(estado2026.costo_ene_abr),
-          pagado: toNumber(estado2026.pagado_ene_abr || estado2026.costo_ene_abr),
-          saldo: 0,
-          estado_detalle: 'AL DÍA HASTA ABRIL',
-          dias_atraso: 0,
-          sort_key: '2026-04.5'
-        });
-      }
+    function getDetalleDiasAtraso(anio, mes, saldo, estado){
+      if (toNumber(saldo) <= 0) return 0;
+      const normalized = String(estado || '').toUpperCase();
+      if (normalized.includes('PAGADO') || normalized.includes('SIN CARGO')) return 0;
 
-      debt2026.forEach(item => rows.push({
-        periodo: `${item.anio} - ${GA_MONTH_NAMES[(Number(item.mes)||1)-1] || item.periodo || item.mes}`,
-        vencimiento: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}-10`,
-        total: toNumber(item.monto_total),
-        pagado: toNumber(item.monto_pagado),
-        saldo: toNumber(item.saldo),
-        estado_detalle: item.estado || 'PENDIENTE',
-        dias_atraso: 0,
-        sort_key: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}`
-      }));
-
-      return rows.sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+      const due = new Date(Number(anio), Number(mes || 1) - 1, 10);
+      const now = new Date();
+      const diff = Math.floor((now - due) / (1000 * 60 * 60 * 24));
+      return Math.max(0, diff);
     }
 
     async function fetchPagoAplicacionesDetalle(row){
