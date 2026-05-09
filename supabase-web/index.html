@@ -8097,80 +8097,74 @@ function globalSearch(){
     async function fetchRecibosInternosData(){
       let pagos = [];
       let pagosError = null;
+      let contratosError = null;
 
-      const tries = [
-        () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
-        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_alquiler, monto_impuesto, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
-        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto').order('fecha_pago', { ascending:false })
-      ];
+      // IMPORTANTE:
+      // Recibos internos ahora debe leer SOLO la base operativa nueva.
+      // No usamos v_pagos_detallados ni pagos viejos, porque traen importaciones históricas
+      // y recibos de Excel que no están auditados con la base limpia.
+      try{
+        localStorage.removeItem(RECEIPTS_CACHE_KEY);
+        localStorage.removeItem(MANUAL_RECEIPTS_KEY);
+      } catch(e){}
 
-      for (const getQuery of tries){
-        const { data, error } = await getQuery();
-        if (!error){
-          pagos = data || [];
-          pagosError = null;
-          break;
-        }
+      const { data, error } = await sb
+        .from('pagos_operativos')
+        .select('id, contrato_id, local_id, inquilino_id, codigo_local, nombre_inquilino, fecha_pago, monto, medio, referencia, periodo_aplicado, observacion, created_at, updated_at')
+        .order('created_at', { ascending:false });
+
+      if (error){
+        pagos = [];
         pagosError = error;
+      } else {
+        pagos = data || [];
       }
 
       const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
       let contratosMeta = [];
-      let contratosError = null;
       if (contratoIds.length){
-        const { data, error } = await sb
+        const { data: metaData, error: metaError } = await sb
           .from('contratos')
-          .select('id, locales(codigo), inquilinos(nombre,telefono,email,documento)')
+          .select('id, locales(codigo_local,codigo), inquilinos(nombre,telefono,email,documento)')
           .in('id', contratoIds);
-        contratosMeta = data || [];
-        contratosError = error;
+        contratosMeta = metaData || [];
+        contratosError = metaError;
       }
 
       const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
-      const dbRows = (pagos || []).map(item => {
+      const rows = (pagos || []).map(item => {
         const meta = metaMap.get(String(item.contrato_id || '')) || {};
         const inq = meta.inquilinos || {};
         const local = meta.locales || {};
-        const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
+        const montoTotal = Number(item.monto || 0);
         const paymentKey = String(item.id || item.pago_id || '');
+        const numero = item.referencia || buildReciboNumero({
+          id: item.id,
+          pago_id: item.id,
+          fecha_pago: item.fecha_pago,
+          referencia: item.referencia
+        }, true);
+
         return {
           ...item,
+          id: item.id,
+          pago_id: item.id,
           monto_total: montoTotal,
-          monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
-          monto_impuesto: Number(item.monto_impuesto || 0),
-          impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || item.detalle_aplicacion || '').trim(),
+          monto_alquiler: montoTotal,
+          monto_impuesto: 0,
+          impuesto_porcentaje: 0,
+          descripcion_pago: String(item.observacion || paymentDescriptionMap[paymentKey] || paymentDescriptionMap[numero] || '').trim(),
           periodo_aplicado: String(item.periodo_aplicado || '').trim(),
-          detalle_aplicacion: String(item.detalle_aplicacion || '').trim(),
-          __cache_key: paymentKey || buildReciboNumero(item, true),
-          numero_recibo: buildReciboNumero(item, true),
-          inquilino_nombre: inq.nombre || '—',
+          detalle_aplicacion: String(item.periodo_aplicado || '').trim(),
+          __cache_key: paymentKey || numero,
+          numero_recibo: numero,
+          inquilino_nombre: item.nombre_inquilino || inq.nombre || '—',
           telefono: inq.telefono || '',
           email: inq.email || '',
           documento: inq.documento || '',
-          local_codigo: local.codigo || '—'
+          local_codigo: item.codigo_local || local.codigo_local || local.codigo || '—'
         };
       });
-
-      const manualReceipts = loadManualReceipts();
-      const mergedMap = new Map();
-      [...dbRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
-        if (!item) return;
-        const key = String(item.id || item.pago_id || item.numero_recibo || item.__cache_key || '');
-        if (!key) return;
-        const previous = mergedMap.get(key) || {};
-        mergedMap.set(key, {
-          ...previous,
-          ...item,
-          descripcion_pago: String(item.descripcion_pago || previous.descripcion_pago || paymentDescriptionMap[key] || paymentDescriptionMap[item.numero_recibo || ''] || '').trim(),
-          periodo_aplicado: String(item.periodo_aplicado || previous.periodo_aplicado || '').trim(),
-          detalle_aplicacion: String(item.detalle_aplicacion || previous.detalle_aplicacion || '').trim(),
-          __cache_key: key,
-          numero_recibo: item.numero_recibo || previous.numero_recibo || buildReciboNumero(item, true)
-        });
-      });
-
-      const rows = [...mergedMap.values()];
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -8185,9 +8179,10 @@ function globalSearch(){
         const keyB = String(b.id || b.pago_id || b.__cache_key || '');
         return keyB.localeCompare(keyA);
       });
+
       recibosInternosCache = rows;
-      saveReceiptsCache();
-      saveManualReceipts(rows);
+      try { localStorage.setItem(RECEIPTS_CACHE_KEY, JSON.stringify(rows)); } catch(e){}
+      try { localStorage.setItem(MANUAL_RECEIPTS_KEY, JSON.stringify([])); } catch(e){}
 
       return { rows, pagosError, contratosError };
     }
