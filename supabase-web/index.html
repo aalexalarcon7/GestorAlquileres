@@ -3919,10 +3919,11 @@ td:last-child{
               </div>
             </div>
 
-            <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
+            <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
               <div>
                 <h3 style="margin:0;">Cuotas y deuda</h3>
               </div>
+              <button class="btn primary" onclick="openAgregarMesModal()">Agregar mes</button>
             </div>
 
             <div class="tableWrap">
@@ -4042,6 +4043,51 @@ td:last-child{
         <textarea id="mDescripcion" style="width:100%;min-height:90px;" placeholder="Descripción del pago (opcional)"></textarea>
       </div>
       <div class="toast" id="modalMsg"></div>
+    </div>
+  </div>
+
+
+  <!-- MODAL AGREGAR MES OPERATIVO -->
+  <div class="modalBack" id="modalMesBack">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;">
+        <h3 style="margin:0;">Agregar / actualizar mes</h3>
+        <button class="btn" onclick="closeAgregarMesModal()">Cerrar</button>
+      </div>
+      <div class="muted" id="modalMesMeta">—</div>
+
+      <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:120px;">
+          <label class="muted" style="font-size:12px;">Año</label>
+          <input id="mesAnio" type="number" min="2025" max="2035" step="1" style="width:120px">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
+          <label class="muted" style="font-size:12px;">Mes</label>
+          <select id="mesMes" style="width:170px">
+            <option value="1">Enero</option><option value="2">Febrero</option><option value="3">Marzo</option><option value="4">Abril</option>
+            <option value="5">Mayo</option><option value="6">Junio</option><option value="7">Julio</option><option value="8">Agosto</option>
+            <option value="9">Septiembre</option><option value="10">Octubre</option><option value="11">Noviembre</option><option value="12">Diciembre</option>
+          </select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
+          <label class="muted" style="font-size:12px;">Monto del mes</label>
+          <input id="mesMonto" placeholder="Ej: 193.300" style="width:180px;font-weight:800;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
+          <label class="muted" style="font-size:12px;">Pagado inicial</label>
+          <input id="mesPagado" placeholder="0" style="width:180px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
+          <label class="muted" style="font-size:12px;">Vencimiento</label>
+          <input id="mesVencimiento" type="date" style="width:170px;">
+        </div>
+        <button class="btn primary" onclick="guardarMesOperativo()">Guardar mes</button>
+      </div>
+
+      <div class="row" style="margin-top:10px;">
+        <textarea id="mesObservacion" style="width:100%;min-height:80px;" placeholder="Observación opcional"></textarea>
+      </div>
+      <div class="toast" id="modalMesMsg"></div>
     </div>
   </div>
 
@@ -4605,35 +4651,26 @@ td:last-child{
     }
 
     function getReconstructedDebtStatus(row){
-      const deudaTotal = getDisplayedDebtTotal(row);
       const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
-      const deuda2026 = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
-      const cuotaActual = toNumber(row?.monto_sugerido_2026 ?? row?.monto_mensual ?? row?.monto);
+      const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
+      const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
+      const deudaVencidaBase = round2(arrastre2025 + deuda2026Vencida);
       const tolerance = 1;
 
-      if (deudaTotal <= 0) {
-        const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
-        if (deudaMesActual > tolerance) {
-          return isBeforeOrOnCurrentDueDay()
-            ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
-            : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
-        }
-        return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
+      // La deuda 2025 + enero-abril 2026 ya está vencida.
+      if (deudaVencidaBase > tolerance) {
+        return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
       }
 
-      const soloDebeMesActual = arrastre2025 <= tolerance
-        && cuotaActual > 0
-        && deuda2026 > 0
-        && deuda2026 <= (cuotaActual + tolerance)
-        && deudaTotal <= (cuotaActual + tolerance);
-
-      if (soloDebeMesActual) {
+      // El mes actual se muestra como importe a abonar, pero antes del día de vencimiento
+      // no debe marcarse como atraso.
+      if (deudaMesActual > tolerance) {
         return isBeforeOrOnCurrentDueDay()
           ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
           : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
       }
 
-      return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+      return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
     }
 
     function getContratoStatus(row){
@@ -5422,8 +5459,23 @@ td:last-child{
       });
     }
 
+    function getDisplayedCurrentMonthDebt(row){
+      const ym = getYearMonthParts(today());
+      // Hasta abril, la deuda del mes ya está incluida en el estado 2026.
+      // Desde mayo en adelante, el mes actual se suma como importe a abonar
+      // para que VENCE PRONTO no figure con $0.
+      if (!(ym.year === 2026 && ym.month > 4)) return 0;
+      return Math.max(0, toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0));
+    }
+
     function getDisplayedDebtTotal(row){
-      return toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
+      const base = toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
+      return round2(base + getDisplayedCurrentMonthDebt(row));
+    }
+
+    function getDisplayedMonthsOwed(row){
+      const base = Number(row?.meses_adeudados || 0);
+      return base + (getDisplayedCurrentMonthDebt(row) > 0 ? 1 : 0);
     }
 
     function getDisplayedRent(row, contrato){
@@ -5673,10 +5725,10 @@ function globalSearch(){
           <td>${r.inquilino_nombre}</td>
           <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
           <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
-          <td class="center">${Number(r.meses_adeudados||0)}</td>
+          <td class="center">${getDisplayedMonthsOwed(r)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
-            <button class="btn is-disabled" type="button" disabled title="Cobros y recibos en pausa hasta la auditoría.">Cobro</button>
+            <button class="btn primary" type="button" onclick="openPagoModal(unidades.find(u => String(u.contrato_id) === String(r.contrato_id)) || r)">Cobro</button>
             <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
           </td>
         `;
@@ -5695,10 +5747,10 @@ function globalSearch(){
               <div class="mobile-meta"><div class="label">Deuda total</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
               <div class="mobile-meta"><div class="label">Arrastre 2025</div><div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div></div>
               <div class="mobile-meta"><div class="label">Deuda 2026</div><div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div></div>
-              <div class="mobile-meta"><div class="label">Meses</div><div class="value">${Number(r.meses_adeudados||0)}</div></div>
+              <div class="mobile-meta"><div class="label">Meses</div><div class="value">${getDisplayedMonthsOwed(r)}</div></div>
             </div>
             <div class="mobile-actions">
-              <button class="btn is-disabled" type="button" disabled title="Cobros y recibos en pausa hasta la auditoría.">Cobro</button>
+              <button class="btn primary" type="button" onclick="openPagoModal(unidades.find(u => String(u.contrato_id) === String(r.contrato_id)) || r)">Cobro</button>
               <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
             </div>
           `;
@@ -10887,6 +10939,222 @@ function globalSearch(){
       };
       if (typeof media.addEventListener === 'function') media.addEventListener('change', onThemeChange);
       else if (typeof media.addListener === 'function') media.addListener(onThemeChange);
+    }
+
+
+    // =====================================================
+    // OVERRIDE OPERATIVO: COBRO + AGREGAR MESES
+    // Usa cuotas_operativas y RPCs nuevas. No toca recibos viejos.
+    // =====================================================
+
+    async function fetchCuotasOperativasContrato(contratoId){
+      if (!contratoId) return [];
+      const { data, error } = await sb
+        .from('vw_detalle_mensual_operativo')
+        .select('detalle_id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key')
+        .eq('contrato_id', contratoId)
+        .order('anio', { ascending:true })
+        .order('mes', { ascending:true });
+      if (error) throw error;
+      return data || [];
+    }
+
+    function cuotaChoiceValue(row){
+      return `${Number(row?.anio || 0)}-${String(Number(row?.mes || 0)).padStart(2,'0')}`;
+    }
+
+    function parseCuotaChoice(value){
+      const raw = String(value || 'AUTO');
+      if (raw === 'AUTO') return { auto:true, anio:null, mes:null };
+      const m = raw.match(/^(\d{4})-(\d{2})$/);
+      if (!m) return { auto:true, anio:null, mes:null };
+      return { auto:false, anio:Number(m[1]), mes:Number(m[2]) };
+    }
+
+    async function refreshPaymentPeriodOptions(row, keepValue=false){
+      const el = $('mPeriodoAplicado');
+      if (!el) return;
+      const previous = keepValue ? String(el.value || 'AUTO') : 'AUTO';
+      let rows = [];
+      try{
+        rows = await fetchCuotasOperativasContrato(row?.contrato_id || modalContrato?.contrato_id);
+      } catch(err){
+        console.warn('No se pudieron cargar cuotas operativas:', err?.message || err);
+      }
+
+      const pendientes = rows.filter(x => toNumber(x.saldo) > 0);
+      const options = [{ value:'AUTO', label:'Automático: deuda más antigua' }];
+      pendientes.forEach(x => {
+        options.push({
+          value: cuotaChoiceValue(x),
+          label: `${x.mes_nombre || x.periodo} ${x.anio} · saldo ${fmtARS.format(toNumber(x.saldo))}`
+        });
+      });
+
+      if (!pendientes.length){
+        options.push({ value:'AUTO', label:'Sin deuda pendiente visible' });
+      }
+
+      el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
+      el.value = options.some(opt => opt.value === previous) ? previous : 'AUTO';
+    }
+
+    function recalcularCobroModal(){
+      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
+      if ($('mImpPct')) $('mImpPct').value = '';
+      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(0);
+      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(alquiler);
+      return { alquiler, impPct:0, impuesto:0, total:alquiler };
+    }
+
+    async function openPagoModal(r){
+      if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
+      modalContrato = r;
+      $('modalBack').style.display = 'flex';
+      $('modalMeta').textContent = `${r.local_codigo || '—'} — ${r.inquilino_nombre || '—'} | Deuda visible: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
+      $('mFecha').value = today();
+      if ($('mReferencia')) $('mReferencia').value = '';
+      if ($('mDescripcion')) $('mDescripcion').value = '';
+      populatePaymentMethodSelect('mMedio');
+      if ($('modalMsg')) $('modalMsg').textContent = '';
+
+      let rows = [];
+      try{ rows = await fetchCuotasOperativasContrato(r.contrato_id); } catch(e){ console.warn(e); }
+      const oldest = rows.find(x => toNumber(x.saldo) > 0);
+      const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
+      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
+      await refreshPaymentPeriodOptions(r, false);
+      recalcularCobroModal();
+    }
+
+    async function registrarPagoModal(){
+      const msgEl = $('modalMsg');
+      if (!modalContrato?.contrato_id) return;
+      try{
+        if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
+        const amount = parseMoneyToNumber($('mAlquiler')?.value || '');
+        if (amount <= 0){
+          if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
+          return;
+        }
+        const choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+        const args = {
+          p_contrato_id: Number(modalContrato.contrato_id),
+          p_anio: choice.anio,
+          p_mes: choice.mes,
+          p_monto_pago: amount,
+          p_fecha_pago: $('mFecha')?.value || today(),
+          p_medio: $('mMedio')?.value || 'EFECTIVO',
+          p_referencia: String($('mReferencia')?.value || '').trim() || null,
+          p_observacion: String($('mDescripcion')?.value || '').trim() || null
+        };
+        const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
+        if (msgEl) msgEl.textContent = res?.mensaje || 'Cobro registrado correctamente.';
+        await refreshAll();
+        const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
+        if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
+        setTimeout(() => { closePagoModal(); }, 700);
+      } catch(err){
+        console.error(err);
+        if (msgEl) msgEl.textContent = err?.message || 'No se pudo registrar el cobro. Revisá que hayas ejecutado el SQL operativo.';
+      }
+    }
+
+    function openAgregarMesModal(){
+      if (!selected?.contrato_id) return alert('Primero abrí el detalle de un activo.');
+      $('modalMesBack').style.display = 'flex';
+      $('modalMesMeta').textContent = `${selected.local_codigo || '—'} — ${selected.inquilino_nombre || '—'}`;
+      const rows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
+      let nextYear = new Date().getFullYear();
+      let nextMonth = new Date().getMonth() + 1;
+      const last = rows.map(r => ({ anio:Number(String(r.sort_key || '').slice(0,4)) || 0, mes:Number(String(r.sort_key || '').slice(5,7)) || 0 }))
+        .filter(x => x.anio && x.mes)
+        .sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes))
+        .pop();
+      if (last){
+        nextYear = last.anio;
+        nextMonth = last.mes + 1;
+        if (nextMonth > 12){ nextMonth = 1; nextYear += 1; }
+      }
+      if ($('mesAnio')) $('mesAnio').value = nextYear;
+      if ($('mesMes')) $('mesMes').value = String(nextMonth);
+      const contrato = getContratoActivoRow(selected.contrato_id) || {};
+      const monto = getDisplayedRent(selected, contrato);
+      if ($('mesMonto')) $('mesMonto').value = formatMoneyInputValue(monto);
+      if ($('mesPagado')) $('mesPagado').value = '';
+      if ($('mesVencimiento')) $('mesVencimiento').value = `${nextYear}-${String(nextMonth).padStart(2,'0')}-10`;
+      if ($('mesObservacion')) $('mesObservacion').value = '';
+      if ($('modalMesMsg')) $('modalMesMsg').textContent = '';
+    }
+
+    function closeAgregarMesModal(){
+      if ($('modalMesBack')) $('modalMesBack').style.display = 'none';
+    }
+
+    async function guardarMesOperativo(){
+      const msg = $('modalMesMsg');
+      if (!selected?.contrato_id) return;
+      try{
+        if (msg) msg.textContent = 'Guardando mes...';
+        const anio = Number($('mesAnio')?.value || 0);
+        const mes = Number($('mesMes')?.value || 0);
+        const monto = parseMoneyToNumber($('mesMonto')?.value || '');
+        const pagado = parseMoneyToNumber($('mesPagado')?.value || '');
+        if (!anio || !mes || monto < 0 || pagado < 0) throw new Error('Revisá año, mes y montos.');
+        const args = {
+          p_contrato_id: Number(selected.contrato_id),
+          p_anio: anio,
+          p_mes: mes,
+          p_monto_total: monto,
+          p_monto_pagado: pagado,
+          p_vencimiento: $('mesVencimiento')?.value || `${anio}-${String(mes).padStart(2,'0')}-10`,
+          p_observacion: String($('mesObservacion')?.value || '').trim() || 'Mes creado desde la web.'
+        };
+        const { data, error } = await sb.rpc('crear_cuota_operativa', args);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo crear el mes.');
+        if (msg) msg.textContent = res?.mensaje || 'Mes guardado correctamente.';
+        await refreshAll();
+        const refreshed = unidades.find(x => String(x.contrato_id) === String(selected.contrato_id));
+        if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
+        setTimeout(() => closeAgregarMesModal(), 600);
+      } catch(err){
+        console.error(err);
+        if (msg) msg.textContent = err?.message || 'No se pudo guardar el mes. Revisá que hayas ejecutado el SQL operativo.';
+      }
+    }
+
+    async function deleteActivoActual(){
+      const msg = $('activoModalMsg') || $('unitsMsg');
+      const unidad = selected;
+      if (!unidad?.contrato_id) return alert('Primero abrí el detalle de un activo.');
+      const contratoId = unidad.contrato_id;
+      const label = `${unidad.local_codigo || '—'} · ${unidad.inquilino_nombre || '—'}`;
+      const ok = askConfirm(`¿Dar de baja este activo?\n\n${label}\n\nSe quitará de la pantalla y se limpiarán sus cuotas/deudas operativas. No se borran pagos operativos ya registrados.`);
+      if (!ok) return;
+      try{
+        if (msg) msg.textContent = 'Dando de baja activo...';
+        await sb.from('cuotas_operativas').delete().eq('contrato_id', contratoId);
+        await sb.rpc('sync_operativo_desde_cuotas');
+        let upd = await sb.from('contratos').update({ estado:'INACTIVO', fecha_baja: today() }).eq('id', contratoId);
+        if (upd?.error && /fecha_baja/i.test(upd.error.message || '')) {
+          upd = await sb.from('contratos').update({ estado:'INACTIVO' }).eq('id', contratoId);
+        }
+        if (upd?.error) throw upd.error;
+        closeActivoModal();
+        selected = null;
+        if ($('detalleCard')) $('detalleCard').style.display = 'none';
+        await refreshAll();
+        if (msg) msg.textContent = 'Activo dado de baja correctamente.';
+      } catch(err){
+        console.error(err);
+        if (msg) msg.textContent = err?.message || 'No se pudo borrar el activo.';
+        alert(err?.message || 'No se pudo borrar el activo.');
+      }
     }
 
     init();
