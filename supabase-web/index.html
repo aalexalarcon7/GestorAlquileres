@@ -8095,80 +8095,56 @@ function globalSearch(){
     }
 
     async function fetchRecibosInternosData(){
-      let pagos = [];
-      let pagosError = null;
-      let contratosError = null;
+      let rows = [];
+      let recibosError = null;
 
-      // Fuente limpia y mínima: pagos_operativos.
-      // Pedimos solamente columnas que sabemos que existen para evitar que Supabase rechace toda la consulta.
       try{
         localStorage.removeItem(RECEIPTS_CACHE_KEY);
         localStorage.removeItem(MANUAL_RECEIPTS_KEY);
       } catch(e){}
 
-      const { data, error } = await sb
-        .from('pagos_operativos')
-        .select('id, contrato_id, fecha_pago, monto, created_at')
-        .order('created_at', { ascending:false });
+      // Fuente definitiva para recibos: RPC SECURITY DEFINER.
+      // Esto evita problemas de RLS/permisos con pagos_operativos desde el navegador.
+      const { data, error } = await sb.rpc('listar_recibos_operativos');
 
       if (error){
-        console.error('Error leyendo pagos_operativos para recibos:', error);
-        pagos = [];
-        pagosError = error;
+        console.error('Error leyendo listar_recibos_operativos:', error);
+        recibosError = error;
+        rows = [];
       } else {
-        pagos = data || [];
+        rows = (data || []).map(item => {
+          const montoTotal = Number(item.monto_total ?? item.monto ?? 0);
+          const numero = item.numero_recibo || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
+          const fecha = item.fecha_pago || item.created_at || null;
+          return {
+            id: item.id || item.recibo_id,
+            recibo_id: item.recibo_id || item.id,
+            pago_id: item.pago_id || item.recibo_id || item.id,
+            contrato_id: item.contrato_id || null,
+            fecha_pago: fecha,
+            created_at: item.created_at || fecha,
+            medio: item.medio || 'EFECTIVO',
+            referencia: item.referencia || numero,
+            numero_recibo: numero,
+            recibo_base: item.recibo_base || numero,
+            periodo_aplicado: item.periodo_aplicado || item.periodo || '',
+            detalle_aplicacion: item.detalle_aplicacion || item.observacion || 'Cobro operativo registrado desde la página.',
+            descripcion_pago: item.descripcion_pago || item.observacion || 'Cobro operativo registrado desde la página.',
+            monto_alquiler: Number(item.monto_alquiler ?? montoTotal),
+            monto_impuesto: Number(item.monto_impuesto ?? 0),
+            impuesto_porcentaje: Number(item.impuesto_porcentaje ?? 0),
+            monto_total: montoTotal,
+            monto: montoTotal,
+            inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || '—',
+            telefono: item.telefono || '',
+            email: item.email || '',
+            documento: item.documento || '',
+            local_codigo: item.codigo_local || item.local_codigo || '—',
+            __source_table: item.fuente_hoja || 'pagos_operativos_rpc',
+            __cache_key: String(item.pago_id || item.recibo_id || numero)
+          };
+        });
       }
-
-      const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
-      let contratosMeta = [];
-      if (contratoIds.length){
-        const { data: metaData, error: metaError } = await sb
-          .from('contratos')
-          .select('id, locales(codigo_local,codigo), inquilinos(nombre,telefono,email,documento)')
-          .in('id', contratoIds);
-        contratosMeta = metaData || [];
-        contratosError = metaError;
-        if (metaError) console.warn('Error leyendo metadatos de contratos para recibos:', metaError);
-      }
-
-      const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
-      const rows = (pagos || []).map(item => {
-        const meta = metaMap.get(String(item.contrato_id || '')) || {};
-        const inq = meta.inquilinos || {};
-        const local = meta.locales || {};
-        const montoTotal = Number(item.monto || 0);
-        const paymentKey = String(item.id || '');
-        const numero = `REC-${String(item.id || '').padStart(6, '0')}`;
-        const fecha = item.fecha_pago || item.created_at || null;
-
-        return {
-          id: item.id,
-          recibo_id: item.id,
-          pago_id: item.id,
-          contrato_id: item.contrato_id || null,
-          fecha_pago: fecha,
-          created_at: item.created_at || fecha,
-          medio: 'EFECTIVO',
-          referencia: numero,
-          numero_recibo: numero,
-          recibo_base: numero,
-          periodo_aplicado: '',
-          detalle_aplicacion: 'Cobro operativo registrado desde la página.',
-          descripcion_pago: 'Cobro operativo registrado desde la página.',
-          monto_alquiler: montoTotal,
-          monto_impuesto: 0,
-          impuesto_porcentaje: 0,
-          monto_total: montoTotal,
-          monto: montoTotal,
-          inquilino_nombre: inq.nombre || '—',
-          telefono: inq.telefono || '',
-          email: inq.email || '',
-          documento: inq.documento || '',
-          local_codigo: local.codigo_local || local.codigo || '—',
-          __source_table: 'pagos_operativos',
-          __cache_key: paymentKey || numero
-        };
-      });
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -8188,7 +8164,7 @@ function globalSearch(){
       try { localStorage.setItem(RECEIPTS_CACHE_KEY, JSON.stringify(rows)); } catch(e){}
       try { localStorage.setItem(MANUAL_RECEIPTS_KEY, JSON.stringify([])); } catch(e){}
 
-      return { rows, pagosError, contratosError };
+      return { rows, pagosError: recibosError, contratosError: null };
     }
 
     function renderRecibosKPIs(rows){
