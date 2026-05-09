@@ -4997,45 +4997,13 @@ td:last-child{
     }
 
     
+
     async function refreshActivosReconstruidosData(){
       activosReconstruidosLoadError = '';
 
-      const directRows = await fetchSupabaseRowsSafe(
-        'vw_activos_reconstruidos',
-        'local_code_normalized,nombre_raw,monto_sugerido_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,meses_deuda_2025,meses_con_deuda_2026,meses_adeudados_total,tipo_deuda_2025,tipo_deuda_2026,prioridad_total,situacion_general,manual_override'
-      );
-
-      if ((directRows || []).length){
-        const directMap = new Map();
-        (directRows || []).forEach(row => {
-          const key = normLocalCode(row.local_code_normalized);
-          if (!key) return;
-          directMap.set(key, {
-            local_code_normalized: key,
-            nombre_raw: String(row.nombre_raw || '').trim() || '—',
-            monto_sugerido_2026: toNumber(row.monto_sugerido_2026),
-            deuda_arrastre_2025: toNumber(row.deuda_arrastre_2025),
-            deuda_total_2026: toNumber(row.deuda_total_2026),
-            deuda_total_2025_2026: toNumber(row.deuda_total_2025_2026),
-            meses_deuda_2025: Number(row.meses_deuda_2025 || 0),
-            meses_con_deuda_2026: Number(row.meses_con_deuda_2026 || 0),
-            meses_adeudados_total: Number(row.meses_adeudados_total || 0),
-            tipo_deuda_2025: row.tipo_deuda_2025 || null,
-            tipo_deuda_2026: row.tipo_deuda_2026 || null,
-            prioridad_total: row.prioridad_total || null,
-            situacion_general: row.situacion_general || null,
-            manual_override: !!row.manual_override
-          });
-        });
-        activosReconstruidosMap = directMap;
-        return directMap;
-      }
-
-      const [rows25, rows26, rowsMontos, rowsManual] = await Promise.all([
-        fetchSupabaseRowsSafe('vw_clasificacion_deudores_2025', 'local_code_normalized,nombre_raw,meses_con_deuda,deuda_total_2025,tipo_deuda,prioridad_deuda'),
-        fetchSupabaseRowsSafe('vw_clasificacion_deudores_2026_hasta_abril', 'local_code_normalized,nombre_raw,meses_con_deuda_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,tipo_deuda_2025,tipo_deuda_2026,prioridad_deuda_2026,situacion_general'),
-        fetchSupabaseRowsSafe('vw_montos_2026_sugeridos', 'local_code_normalized,nombre_raw,monto_sugerido_2026'),
-        fetchSupabaseRowsSafe('vw_deuda_pagina_manual_2026', 'local_code_normalized,nombre_planilla,monto_sugerido_2026,deuda_arrastre_2025,deuda_total_2026,deuda_total_2025_2026,situacion_general,prioridad_total')
+      const [estado2025Rows, estado2026Rows] = await Promise.all([
+        fetchSupabaseRowsSafe('vw_estado_2025_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'),
+        fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr')
       ]);
 
       const nextMap = new Map();
@@ -5058,61 +5026,46 @@ td:last-child{
             tipo_deuda_2026: null,
             prioridad_total: null,
             situacion_general: null,
-            manual_override: false
+            estado_2025: null,
+            estado_2026_hasta_abril: null,
+            meses_deuda_texto_2026: '',
+            manual_override: true
           });
         }
         return nextMap.get(key);
       }
 
-      (rows25 || []).forEach(row => {
-        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
+      (estado2025Rows || []).forEach(row => {
+        const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
-        entry.nombre_raw = entry.nombre_raw === '—' && row.nombre_raw ? row.nombre_raw : entry.nombre_raw;
-        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_total_2025));
-        entry.meses_deuda_2025 = Math.max(entry.meses_deuda_2025, Number(row.meses_con_deuda || 0));
-        entry.tipo_deuda_2025 = row.tipo_deuda || entry.tipo_deuda_2025;
-        entry.prioridad_total = row.prioridad_deuda || entry.prioridad_total;
+        if (entry.nombre_raw === '—' && row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
+        entry.estado_2025 = row.estado_2025 || entry.estado_2025;
+        entry.deuda_arrastre_2025 = toNumber(row.deuda_total);
+        entry.meses_deuda_2025 = Number(row.meses_deuda ?? row.cuotas_con_deuda ?? 0);
+        entry.tipo_deuda_2025 = row.estado_2025 || null;
       });
 
-      (rows26 || []).forEach(row => {
-        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
+      (estado2026Rows || []).forEach(row => {
+        const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
-        entry.nombre_raw = row.nombre_raw || entry.nombre_raw;
-        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_arrastre_2025));
-        entry.deuda_total_2026 = Math.max(entry.deuda_total_2026, toNumber(row.deuda_total_2026));
-        entry.deuda_total_2025_2026 = Math.max(entry.deuda_total_2025_2026, toNumber(row.deuda_total_2025_2026));
-        entry.meses_con_deuda_2026 = Math.max(entry.meses_con_deuda_2026, Number(row.meses_con_deuda_2026 || 0));
-        entry.tipo_deuda_2025 = row.tipo_deuda_2025 || entry.tipo_deuda_2025;
-        entry.tipo_deuda_2026 = row.tipo_deuda_2026 || entry.tipo_deuda_2026;
-        entry.prioridad_total = row.prioridad_deuda_2026 || entry.prioridad_total;
-        entry.situacion_general = row.situacion_general || entry.situacion_general;
-      });
-
-      (rowsMontos || []).forEach(row => {
-        const entry = ensureEntry(row.local_code_normalized, row.nombre_raw);
-        if (!entry) return;
-        entry.nombre_raw = entry.nombre_raw === '—' && row.nombre_raw ? row.nombre_raw : entry.nombre_raw;
-        entry.monto_sugerido_2026 = Math.max(entry.monto_sugerido_2026, toNumber(row.monto_sugerido_2026));
-      });
-
-      (rowsManual || []).forEach(row => {
-        const entry = ensureEntry(row.local_code_normalized, row.nombre_planilla);
-        if (!entry) return;
-        entry.nombre_raw = row.nombre_planilla || entry.nombre_raw;
-        entry.monto_sugerido_2026 = Math.max(entry.monto_sugerido_2026, toNumber(row.monto_sugerido_2026));
-        entry.deuda_arrastre_2025 = Math.max(entry.deuda_arrastre_2025, toNumber(row.deuda_arrastre_2025));
-        entry.deuda_total_2026 = Math.max(entry.deuda_total_2026, toNumber(row.deuda_total_2026));
-        entry.deuda_total_2025_2026 = Math.max(entry.deuda_total_2025_2026, toNumber(row.deuda_total_2025_2026));
-        entry.situacion_general = row.situacion_general || entry.situacion_general;
-        entry.prioridad_total = row.prioridad_total || entry.prioridad_total;
-        entry.manual_override = true;
+        if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
+        entry.deuda_total_2026 = toNumber(row.deuda_hasta_abril);
+        entry.meses_con_deuda_2026 = Number(row.meses_con_deuda || 0);
+        entry.tipo_deuda_2026 = row.estado_2026_hasta_abril || null;
+        entry.estado_2026_hasta_abril = row.estado_2026_hasta_abril || null;
+        entry.meses_deuda_texto_2026 = row.meses_deuda_texto || '';
       });
 
       nextMap.forEach(entry => {
-        if (!entry.deuda_total_2025_2026){
-          entry.deuda_total_2025_2026 = round2(entry.deuda_arrastre_2025 + entry.deuda_total_2026);
-        }
+        entry.deuda_total_2025_2026 = round2(toNumber(entry.deuda_arrastre_2025) + toNumber(entry.deuda_total_2026));
         entry.meses_adeudados_total = Number(entry.meses_deuda_2025 || 0) + Number(entry.meses_con_deuda_2026 || 0);
+        const debe2025 = toNumber(entry.deuda_arrastre_2025) > 0;
+        const debe2026 = toNumber(entry.deuda_total_2026) > 0;
+        if (debe2025 && debe2026) entry.situacion_general = 'Debe 2025 y 2026 hasta abril';
+        else if (debe2025) entry.situacion_general = 'Debe 2025';
+        else if (debe2026) entry.situacion_general = 'Debe 2026 hasta abril';
+        else entry.situacion_general = 'Al día según estados operativos';
+        entry.prioridad_total = entry.deuda_total_2025_2026 > 0 ? 'OPERATIVA' : 'AL_DIA';
       });
 
       activosReconstruidosMap = nextMap;
@@ -5177,134 +5130,87 @@ td:last-child{
       };
     }
 
-    async function fetchDetalleOperativoRows(row){
-      try{
-        const selectCols = 'cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado,origen,observacion';
-        const contratoId = row?.contrato_id && !isSyntheticContratoId(row.contrato_id) ? row.contrato_id : null;
-        const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || '');
-        let rows = [];
-
-        if (contratoId){
-          const res = await sb
-            .from('vw_deuda_real_actual')
-            .select(selectCols)
-            .eq('contrato_id', contratoId)
-            .order('anio', { ascending:true })
-            .order('mes', { ascending:true });
-          if (res.error){
-            console.warn('Detalle operativo por contrato:', res.error.message);
-          } else {
-            rows = res.data || [];
-          }
-        }
-
-        if ((!rows || !rows.length) && code){
-          const candidates = localCodeCandidates(code);
-          const res = await sb
-            .from('vw_deuda_real_actual')
-            .select(selectCols)
-            .in('codigo_local', candidates)
-            .order('anio', { ascending:true })
-            .order('mes', { ascending:true });
-          if (res.error){
-            console.warn('Detalle operativo por local:', res.error.message, candidates);
-          } else {
-            rows = res.data || [];
-          }
-        }
-
-        if ((!rows || !rows.length) && code){
-          const wantedKey = localCodeKey(code);
-          const res = await sb
-            .from('vw_deuda_real_actual')
-            .select(selectCols);
-          if (res.error){
-            console.warn('Detalle operativo fallback general:', res.error.message);
-          } else {
-            rows = (res.data || []).filter(item => localCodeKey(item?.codigo_local) === wantedKey);
-          }
-        }
-
-        return (rows || [])
-          .map(item => {
-            const year = Number(item?.anio) || 0;
-            const month = Number(item?.mes) || 0;
-            const vencimiento = year && month
-              ? `${year}-${String(month).padStart(2,'0')}-10`
-              : '';
-            const saldo = toNumber(item?.saldo);
-            const pagado = toNumber(item?.monto_pagado);
-            const estado = item?.estado || (saldo > 0 ? (pagado > 0 ? 'PARCIAL' : 'PENDIENTE') : 'PAGADO');
-            return {
-              periodo: item?.periodo || (year && month ? `${year} - ${GA_MONTH_NAMES[month-1] || month}` : '—'),
-              vencimiento,
-              total: toNumber(item?.monto_total),
-              pagado,
-              saldo,
-              estado_detalle: estado,
-              dias_atraso: saldo > 0 && vencimiento ? Math.max(0, -daysBetweenISO(today(), vencimiento)) : 0,
-              sort_key: year && month ? `${year}-${String(month).padStart(2,'0')}` : String(item?.periodo || ''),
-              fuente_operativa: true
-            };
-          })
-          .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
-      } catch (err){
-        console.warn('No se pudo leer detalle operativo:', err?.message || err);
-        return [];
-      }
-    }
 
     async function fetchDetalleReconstruidoRows(row){
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
-      if (!code) return [];
+      const contratoId = row?.contrato_id;
+      if (!code && !contratoId) return [];
 
-      const [{ data: rows2025, error: error2025 }, { data: rows2026, error: error2026 }, stagingRow, pagosAplicados] = await Promise.all([
-        sb.from('vw_revision_cobros_2025_mes')
-          .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2025')
-          .eq('local_code_normalized', code)
-          .order('mes_nro', { ascending:true }),
-        sb.from('vw_revision_cobros_2026_hasta_abril_con_arrastre_2025')
-          .select('local_code_normalized,nombre_raw,mes,mes_nro,costo_mes,pagado_slots,saldo_planilla,estado_2026')
-          .eq('local_code_normalized', code)
-          .order('mes_nro', { ascending:true }),
-        fetchStagingDebtRowByCode(code),
-        fetchPagoAplicacionesDetalle(row)
-      ]);
+      const deudaRows = await fetchSupabaseRowsSafe(
+        'vw_deuda_real_actual',
+        'cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado'
+      );
+      const estado2025Rows = await fetchSupabaseRowsSafe(
+        'vw_estado_2025_por_locatario',
+        'contrato_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'
+      );
+      const estado2026Rows = await fetchSupabaseRowsSafe(
+        'vw_estado_2026_hasta_abril_por_locatario',
+        'contrato_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'
+      );
 
-      if (error2025) console.warn('Detalle reconstruido 2025:', error2025.message);
-      if (error2026) console.warn('Detalle reconstruido 2026:', error2026.message);
+      const sameRow = (item) => {
+        const itemCode = normLocalCode(item?.codigo_local || item?.codigo_local_excel || '');
+        return (contratoId && String(item?.contrato_id || '') === String(contratoId)) || (code && itemCode === code);
+      };
 
-      const detalle2025 = (rows2025 || []).map(item => ({
-        periodo: `2025 - ${item.mes}`,
-        vencimiento: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-10`,
-        total: toNumber(item.costo_mes),
-        pagado: toNumber(item.pagado_slots),
-        saldo: toNumber(item.saldo_planilla),
-        estado_detalle: item.estado_2025 || '—',
+      const rows = [];
+      const estado2025 = (estado2025Rows || []).find(sameRow) || null;
+      const estado2026 = (estado2026Rows || []).find(sameRow) || null;
+      const debt = (deudaRows || []).filter(sameRow).sort((a,b) => `${a.anio}-${String(a.mes).padStart(2,'0')}`.localeCompare(`${b.anio}-${String(b.mes).padStart(2,'0')}`));
+
+      const debt2025 = debt.filter(x => Number(x.anio) === 2025);
+      const debt2026 = debt.filter(x => Number(x.anio) === 2026 && Number(x.mes) >= 1 && Number(x.mes) <= 4);
+
+      if (estado2025 && String(estado2025.estado_2025 || '').toUpperCase() === 'SALDADO'){
+        rows.push({
+          periodo: '2025 - Estado anual',
+          vencimiento: '2025-12-31',
+          total: 0,
+          pagado: 0,
+          saldo: 0,
+          estado_detalle: 'SALDADO',
+          dias_atraso: 0,
+          sort_key: '2025-00'
+        });
+      }
+
+      debt2025.forEach(item => rows.push({
+        periodo: `${item.anio} - ${GA_MONTH_NAMES[(Number(item.mes)||1)-1] || item.periodo || item.mes}`,
+        vencimiento: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}-10`,
+        total: toNumber(item.monto_total),
+        pagado: toNumber(item.monto_pagado),
+        saldo: toNumber(item.saldo),
+        estado_detalle: item.estado || 'PENDIENTE',
         dias_atraso: 0,
-        sort_key: `2025-${String(Number(item.mes_nro || 1)).padStart(2,'0')}`
+        sort_key: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}`
       }));
 
-      const detalle2026 = (rows2026 || []).map(item => ({
-        periodo: `2026 - ${item.mes}`,
-        vencimiento: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}-10`,
-        total: toNumber(item.costo_mes),
-        pagado: toNumber(item.pagado_slots),
-        saldo: toNumber(item.saldo_planilla),
-        estado_detalle: item.estado_2026 || '—',
+      if (estado2026 && String(estado2026.estado_2026_hasta_abril || '').toUpperCase() === 'AL_DIA_HASTA_ABRIL'){
+        rows.push({
+          periodo: '2026 - Enero a Abril',
+          vencimiento: '2026-04-10',
+          total: toNumber(estado2026.costo_ene_abr),
+          pagado: toNumber(estado2026.pagado_ene_abr || estado2026.costo_ene_abr),
+          saldo: 0,
+          estado_detalle: 'AL DÍA HASTA ABRIL',
+          dias_atraso: 0,
+          sort_key: '2026-04.5'
+        });
+      }
+
+      debt2026.forEach(item => rows.push({
+        periodo: `${item.anio} - ${GA_MONTH_NAMES[(Number(item.mes)||1)-1] || item.periodo || item.mes}`,
+        vencimiento: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}-10`,
+        total: toNumber(item.monto_total),
+        pagado: toNumber(item.monto_pagado),
+        saldo: toNumber(item.saldo),
+        estado_detalle: item.estado || 'PENDIENTE',
         dias_atraso: 0,
-        sort_key: `2026-${String(Number(item.mes_nro || 1)).padStart(2,'0')}`
+        sort_key: `${item.anio}-${String(Number(item.mes || 1)).padStart(2,'0')}`
       }));
 
-      // Las vistas de revisión 2026 llegan hasta abril. Como ya generamos mayo en el staging,
-      // el detalle debe mostrar también mayo aunque todavía no venga en la vista vieja.
-      const detalle2026ConActual = ensureGeneratedCurrent2026Rows(detalle2026, stagingRow || row || {});
-
-      // Si hay pagos registrados desde la página con periodo aplicado, los usamos para bajar
-      // visualmente el mes correcto: Abril baja Abril, Mayo baja Mayo, etc.
-      applyPaymentApplicationsToDebtRows(detalle2026ConActual, pagosAplicados || []);
-
-      return [...detalle2025, ...detalle2026ConActual].sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+      return rows.sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
     }
 
     async function fetchPagoAplicacionesDetalle(row){
@@ -5544,110 +5450,88 @@ function globalSearch(){
       if (selected?.contrato_id) await loadDetalle(selected);
     }
 
+
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
+      await refreshContratosActivos();
       await refreshActivosReconstruidosData();
 
-      const { data, error } = await sb.from('v_deuda_por_contrato').select('*').order('deuda_total', { ascending:false });
-      if (error){ $('unitsMsg').textContent = error.message; return; }
+      const baseRows = (contratosActivos || [])
+        .map(c => {
+          const codigo = c.locales?.codigo_local || c.locales?.codigo || '—';
+          const nombre = c.inquilinos?.nombre || '—';
+          return {
+            contrato_id: c.id,
+            local_codigo: codigo,
+            local_code_normalized: normLocalCode(codigo),
+            inquilino_nombre: nombre,
+            deuda_total: 0,
+            deuda_atrasada: 0,
+            meses_adeudados: 0,
+            monto_sugerido_2026: toNumber(c.monto_mensual),
+            monto_mensual: toNumber(c.monto_mensual),
+            deuda_arrastre_2025: 0,
+            deuda_2026: 0,
+            deuda_total_2025_2026: 0,
+            prioridad_total: null,
+            situacion_general: 'Activo reconstruido desde base limpia',
+            reconstructed: true
+          };
+        })
+        .filter(r => !isSinAsignarName(r.inquilino_nombre));
 
-      const baseRows = (data || []).filter(r => !isSinAsignarName(r.inquilino_nombre));
-      const mergedRows = baseRows.map(applyReconstructedDebtToUnit);
-      const knownCodes = new Set(mergedRows.map(r => normLocalCode(r.local_codigo || r.local_code_normalized)));
-
-      activosReconstruidosMap.forEach((recon, code) => {
-        if (knownCodes.has(code)) return;
-        const total = toNumber(recon.deuda_total_2025_2026);
-        const rent = toNumber(recon.monto_sugerido_2026);
-        if (total <= 0 && rent <= 0) return;
-        mergedRows.push(buildSyntheticReconstructedUnit(recon));
-      });
-
-      unidades = dedupeUnitsByLocalCode(mergedRows)
+      unidades = baseRows
+        .map(applyReconstructedDebtToUnit)
         .sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
-      const realContratoIds = unidades
-        .map(item => item.contrato_id)
-        .filter(id => canUseOperationalContrato({ contrato_id:id }));
-
-      if (realContratoIds.length){
-        const { data: vencimientosData, error: vencimientosError } = await sb
-          .from('v_cobranzas')
-          .select('contrato_id, vencimiento, saldo')
-          .in('contrato_id', realContratoIds)
-          .gt('saldo', 0)
-          .order('vencimiento', { ascending:true });
-
-        if (!vencimientosError){
-          for (const item of (vencimientosData || [])){
-            const key = String(item.contrato_id || '');
-            const venc = String(item.vencimiento || '').slice(0,10);
-            if (!key || !venc) continue;
-            if (!proximoVencimientoMap[key] || venc < proximoVencimientoMap[key]) {
-              proximoVencimientoMap[key] = venc;
-            }
-          }
-        }
-      }
 
       renderUnidades();
       await renderInicio();
-      await refreshContratosActivos();
       buildInqCache();
     }
 
+
     async function renderInicio(){
       const total = unidades.length;
-      const deudaTotal = unidades.reduce((a,r)=>a+Number(r.deuda_total||0),0);
-      const deudaAtrasada = unidades.reduce((a,r)=>a+Number(r.deuda_atrasada||0),0);
+      const deudaTotal = unidades.reduce((a,r)=>a+getDisplayedDebtTotal(r),0);
+      const deudaAtrasada = deudaTotal;
       const ocupados = total;
       const libres = 0;
       const ocupPerc = total ? 100 : 0;
 
-      const t = today();
-      const t7 = addDays(t, 7);
-      const { data: vencen7 } = await sb
-        .from('v_cobranzas')
-        .select('cuota_id')
-        .gt('saldo', 0)
-        .gte('vencimiento', t)
-        .lte('vencimiento', t7);
-
-      const ms = monthStartISO();
-      const nms = nextMonthStartISO();
-      const { data: pagosMes } = await sb
-        .from('pagos')
-        .select('monto, fecha_pago')
-        .gte('fecha_pago', ms)
-        .lt('fecha_pago', nms);
-
-      const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto||0),0);
+      const [res2025, res2026] = await Promise.all([
+        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
+        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
+      ]);
+      const r25 = (res2025 || [])[0] || {};
+      const r26 = (res2026 || [])[0] || {};
 
       const top = [...unidades]
-        .filter(r => Number(r.deuda_atrasada||0) > 0)
-        .sort((a,b)=>Number(b.deuda_atrasada||0)-Number(a.deuda_atrasada||0))
+        .filter(r => getDisplayedDebtTotal(r) > 0)
+        .sort((a,b)=>getDisplayedDebtTotal(b)-getDisplayedDebtTotal(a))
         .slice(0, 10);
 
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
+          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
         </div>
 
         <div class="card">
           <div class="kpis">
-            <div class="kpi"><div class="label">Deuda total</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${total} unidades</div></div>
-            <div class="kpi"><div class="label">Deuda atrasada</div><div class="value">${fmtARS.format(deudaAtrasada)}</div><div class="muted">Cuotas vencidas con saldo</div></div>
+            <div class="kpi"><div class="label">Deuda operativa activa</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${total} activos actuales</div></div>
+            <div class="kpi"><div class="label">Estado 2025</div><div class="value">${fmtARS.format(toNumber(r25.deuda_total_2025))}</div><div class="muted">${Number(r25.saldados || 0)} saldados · ${Number(r25.con_deuda || 0)} con deuda</div></div>
+            <div class="kpi"><div class="label">2026 hasta abril</div><div class="value">${fmtARS.format(toNumber(r26.deuda_total_hasta_abril))}</div><div class="muted">${Number(r26.al_dia_hasta_abril || 0)} al día · ${Number(r26.con_deuda_hasta_abril || 0)} con deuda</div></div>
             <div class="kpi"><div class="label">Ocupación</div><div class="value">${ocupPerc}%</div><div class="muted">Ocupados: ${ocupados} | Libres: ${libres}</div></div>
-            <div class="kpi"><div class="label">Recaudado este mes</div><div class="value">${fmtARS.format(recaudado)}</div><div class="muted">Vencen en 7 días: ${(vencen7||[]).length}</div></div>
           </div>
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;">Top atrasados</h3>
+          <h3 style="margin-top:0;">Top deudores operativos</h3>
           <div class="tableWrap desktop-table">
             <table>
-              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda</th><th class="right">Arrastre 2025</th><th class="center">Acción</th></tr></thead>
+              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda total</th><th class="right">Arrastre 2025</th><th class="right">Deuda 2026</th><th class="center">Acción</th></tr></thead>
               <tbody>
                 ${top.map(r=>`
                   <tr>
@@ -5655,14 +5539,8 @@ function globalSearch(){
                     <td>${r.inquilino_nombre}</td>
                     <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
                     <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
-                    <td class="center">
-                      <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
-                        ${canUseOperationalContrato(r)
-                          ? `<button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobro</button>`
-                          : `<button class="btn primary is-disabled" type="button" disabled title="Este activo no tiene contrato operativo para cobrar desde acá.">Cobro</button>`}
-                        <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button>
-                      </div>
-                    </td>
+                    <td class="right">${fmtARS.format(toNumber(r.deuda_2026))}</td>
+                    <td class="center"><button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button></td>
                   </tr>
                 `).join('')}
               </tbody>
@@ -5677,25 +5555,15 @@ function globalSearch(){
                 </div>
                 <div class="mobile-tenant">${r.inquilino_nombre}</div>
                 <div class="mobile-meta-grid">
-                  <div class="mobile-meta">
-                    <div class="label">Deuda total</div>
-                    <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
-                  </div>
-                  <div class="mobile-meta">
-                    <div class="label">Arrastre 2025</div>
-                    <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
-                  </div>
+                  <div class="mobile-meta"><div class="label">Deuda total</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
+                  <div class="mobile-meta"><div class="label">Arrastre 2025</div><div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div></div>
+                  <div class="mobile-meta"><div class="label">Deuda 2026</div><div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div></div>
                 </div>
-                <div class="mobile-actions">
-                  ${canUseOperationalContrato(r)
-                    ? `<button class="btn primary" onclick="openPagoFromInicio('${r.contrato_id}')">Cobro</button>`
-                    : `<button class="btn primary is-disabled" type="button" disabled title="Este activo no tiene contrato operativo para cobrar desde acá.">Cobro</button>`}
-                  <button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button>
-                </div>
+                <div class="mobile-actions"><button class="btn" onclick="openDetalleFromInicio('${r.contrato_id}')">Detalle</button></div>
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? 'El botón de cobro queda en pausa hasta reconstruir pagos/recibos.' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
@@ -5735,6 +5603,7 @@ function globalSearch(){
       openActivoModal();
     }
 
+
     function renderUnidades(){
       const q = ($('globalSearch')?.value || '').trim().toLowerCase();
       const filtro = $('filtro').value;
@@ -5759,11 +5628,6 @@ function globalSearch(){
       if (mobileList) mobileList.innerHTML = '';
 
       rows.forEach(r => {
-        const escaped = JSON.stringify(r).replace(/'/g,"&#39;");
-        const payButton = canUseOperationalContrato(r)
-          ? `<button class="btn primary" onclick='openPagoModal(${escaped})'>Cobro</button>`
-          : `<button class="btn primary is-disabled" type="button" disabled title="Este activo viene de auditoría y no tiene contrato operativo para cobrar desde acá.">Cobro</button>`;
-
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${r.local_codigo}</b></td>
@@ -5773,7 +5637,7 @@ function globalSearch(){
           <td class="center">${Number(r.meses_adeudados||0)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
-            ${payButton}
+            <button class="btn is-disabled" type="button" disabled title="Cobros y recibos en pausa hasta la auditoría.">Cobro</button>
             <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
           </td>
         `;
@@ -5789,25 +5653,13 @@ function globalSearch(){
             </div>
             <div class="mobile-tenant">${r.inquilino_nombre}</div>
             <div class="mobile-meta-grid">
-              <div class="mobile-meta">
-                <div class="label">Deuda total</div>
-                <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
-              </div>
-              <div class="mobile-meta">
-                <div class="label">Arrastre 2025</div>
-                <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
-              </div>
-              <div class="mobile-meta">
-                <div class="label">Deuda 2026</div>
-                <div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div>
-              </div>
-              <div class="mobile-meta">
-                <div class="label">Meses</div>
-                <div class="value">${Number(r.meses_adeudados||0)}</div>
-              </div>
+              <div class="mobile-meta"><div class="label">Deuda total</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
+              <div class="mobile-meta"><div class="label">Arrastre 2025</div><div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div></div>
+              <div class="mobile-meta"><div class="label">Deuda 2026</div><div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div></div>
+              <div class="mobile-meta"><div class="label">Meses</div><div class="value">${Number(r.meses_adeudados||0)}</div></div>
             </div>
             <div class="mobile-actions">
-              ${payButton}
+              <button class="btn is-disabled" type="button" disabled title="Cobros y recibos en pausa hasta la auditoría.">Cobro</button>
               <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
             </div>
           `;
@@ -5832,7 +5684,7 @@ function globalSearch(){
       }
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
-      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos...</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta auditoría.</td></tr>`;
 
       loadDetalle(r);
       requestAnimationFrame(() => {
@@ -5963,57 +5815,31 @@ function globalSearch(){
       }
     }
 
+
     async function loadDetalle(r){
       const seq = ++detalleLoadSeq;
       try{
-        if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle...';
+        if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle operativo...';
         const statusInfo = getContratoStatus(r || {});
-        if ($('detalleMeta')) $('detalleMeta').textContent = `${r?.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
+        if ($('detalleMeta')) $('detalleMeta').textContent = `Contrato: ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
         if ($('detalleBadge')) $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
 
-        // Primer render inmediato con los datos disponibles.
-        renderDetalleInfo(r, []);
-
-        let rows = await fetchDetalleOperativoRows(r);
+        const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
 
-        if (!rows.length && r?.reconstructed){
-          rows = await fetchDetalleReconstruidoRows(r);
-          if (seq !== detalleLoadSeq) return;
-        }
-
-        if (!rows.length && canUseOperationalContrato(r)){
-          const { data, error } = await sb
-            .from('v_cobranzas')
-            .select('*')
-            .eq('contrato_id', r.contrato_id)
-            .order('vencimiento', { ascending:true });
-          if (seq !== detalleLoadSeq) return;
-          if (error){
-            console.warn('Fallback v_cobranzas detalle:', error.message);
-          } else {
-            rows = data || [];
-          }
-        }
-
-        if (seq !== detalleLoadSeq) return;
         detalleCuotasActuales = rows || [];
         renderDetalleInfo(r, rows || []);
         renderDetalleDebtRows(rows || []);
 
-        if (canUseOperationalContrato(r)){
-          await loadDetalleRecibos();
-        } else {
-          if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Este activo no tiene contrato operativo vinculado para consultar recibos.</td></tr>`;
-          if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
-        }
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta reconstrucción/auditoría.</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
-        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle de cuotas.</td></tr>`;
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = '';
+        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos en pausa.</td></tr>`;
       }
     }
 
