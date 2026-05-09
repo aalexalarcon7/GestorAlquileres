@@ -8099,10 +8099,8 @@ function globalSearch(){
       let pagosError = null;
       let contratosError = null;
 
-      // IMPORTANTE:
-      // Recibos internos ahora debe leer SOLO la base operativa nueva.
-      // No usamos v_pagos_detallados ni pagos viejos, porque traen importaciones históricas
-      // y recibos de Excel que no están auditados con la base limpia.
+      // Fuente limpia y mínima: pagos_operativos.
+      // Pedimos solamente columnas que sabemos que existen para evitar que Supabase rechace toda la consulta.
       try{
         localStorage.removeItem(RECEIPTS_CACHE_KEY);
         localStorage.removeItem(MANUAL_RECEIPTS_KEY);
@@ -8110,10 +8108,11 @@ function globalSearch(){
 
       const { data, error } = await sb
         .from('pagos_operativos')
-        .select('id, contrato_id, local_id, inquilino_id, codigo_local, nombre_inquilino, fecha_pago, monto, medio, referencia, periodo_aplicado, observacion, created_at, updated_at')
+        .select('id, contrato_id, fecha_pago, monto, created_at')
         .order('created_at', { ascending:false });
 
       if (error){
+        console.error('Error leyendo pagos_operativos para recibos:', error);
         pagos = [];
         pagosError = error;
       } else {
@@ -8129,6 +8128,7 @@ function globalSearch(){
           .in('id', contratoIds);
         contratosMeta = metaData || [];
         contratosError = metaError;
+        if (metaError) console.warn('Error leyendo metadatos de contratos para recibos:', metaError);
       }
 
       const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
@@ -8137,32 +8137,36 @@ function globalSearch(){
         const inq = meta.inquilinos || {};
         const local = meta.locales || {};
         const montoTotal = Number(item.monto || 0);
-        const paymentKey = String(item.id || item.pago_id || '');
-        const numero = item.referencia || buildReciboNumero({
-          id: item.id,
-          pago_id: item.id,
-          fecha_pago: item.fecha_pago,
-          referencia: item.referencia
-        }, true);
+        const paymentKey = String(item.id || '');
+        const numero = `REC-${String(item.id || '').padStart(6, '0')}`;
+        const fecha = item.fecha_pago || item.created_at || null;
 
         return {
-          ...item,
           id: item.id,
+          recibo_id: item.id,
           pago_id: item.id,
-          monto_total: montoTotal,
+          contrato_id: item.contrato_id || null,
+          fecha_pago: fecha,
+          created_at: item.created_at || fecha,
+          medio: 'EFECTIVO',
+          referencia: numero,
+          numero_recibo: numero,
+          recibo_base: numero,
+          periodo_aplicado: '',
+          detalle_aplicacion: 'Cobro operativo registrado desde la página.',
+          descripcion_pago: 'Cobro operativo registrado desde la página.',
           monto_alquiler: montoTotal,
           monto_impuesto: 0,
           impuesto_porcentaje: 0,
-          descripcion_pago: String(item.observacion || paymentDescriptionMap[paymentKey] || paymentDescriptionMap[numero] || '').trim(),
-          periodo_aplicado: String(item.periodo_aplicado || '').trim(),
-          detalle_aplicacion: String(item.periodo_aplicado || '').trim(),
-          __cache_key: paymentKey || numero,
-          numero_recibo: numero,
-          inquilino_nombre: item.nombre_inquilino || inq.nombre || '—',
+          monto_total: montoTotal,
+          monto: montoTotal,
+          inquilino_nombre: inq.nombre || '—',
           telefono: inq.telefono || '',
           email: inq.email || '',
           documento: inq.documento || '',
-          local_codigo: item.codigo_local || local.codigo_local || local.codigo || '—'
+          local_codigo: local.codigo_local || local.codigo || '—',
+          __source_table: 'pagos_operativos',
+          __cache_key: paymentKey || numero
         };
       });
 
