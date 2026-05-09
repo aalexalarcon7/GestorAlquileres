@@ -8207,87 +8207,73 @@ function globalSearch(){
       `;
     }
 
-    async function fetchRecibosInternosData(){
-      let pagos = [];
-      let pagosError = null;
+    function normalizeReciboOperativoRow(item){
+      const reciboId = item.recibo_id ?? item.id ?? item.pago_id ?? item.numero_recibo ?? '';
+      const numero = String(item.numero_recibo || item.referencia || item.recibo_base || reciboId || 'SIN_RECIBO').trim();
+      const monto = Number(item.monto ?? item.monto_total ?? 0);
+      const periodo = String(item.periodo || item.periodo_aplicado || '').trim();
+      const observacion = String(item.observacion || item.detalle_aplicacion || '').trim();
+      return {
+        ...item,
+        id: `REC-OP-${reciboId}`,
+        recibo_id: reciboId,
+        pago_id: null,
+        contrato_id: item.contrato_id || null,
+        fecha_pago: item.fecha_pago || item.created_at || null,
+        created_at: item.created_at || item.fecha_pago || null,
+        medio: item.medio || 'Histórico Excel',
+        referencia: numero,
+        numero_recibo: numero,
+        periodo_aplicado: periodo,
+        detalle_aplicacion: observacion,
+        descripcion_pago: observacion || periodo,
+        monto_alquiler: monto,
+        monto_impuesto: 0,
+        impuesto_porcentaje: 0,
+        monto_total: monto,
+        monto: monto,
+        inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || '—',
+        telefono: item.telefono || '',
+        email: item.email || '',
+        documento: item.documento || '',
+        local_codigo: item.codigo_local || item.local_codigo || '—',
+        __source_table: 'recibos_operativos',
+        __cache_key: `REC-OP-${reciboId}`
+      };
+    }
 
-      const tries = [
-        () => sb.from('v_pagos_detallados').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto_alquiler, monto_impuesto, monto_total, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
-        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto, monto_alquiler, monto_impuesto, impuesto_porcentaje, periodo_aplicado, detalle_aplicacion').order('fecha_pago', { ascending:false }),
-        () => sb.from('pagos').select('id, contrato_id, fecha_pago, medio, referencia, created_at, monto').order('fecha_pago', { ascending:false })
+    async function fetchRecibosInternosData(){
+      let recibos = [];
+      let recibosError = null;
+
+      const selects = [
+        'recibo_id, contrato_id, local_id, inquilino_id, codigo_local, nombre_inquilino, numero_recibo, recibo_base, anio, mes, periodo, fecha_pago, monto, origen, fuente_hoja, observacion, created_at, updated_at',
+        '*'
       ];
 
-      for (const getQuery of tries){
-        const { data, error } = await getQuery();
+      for (const sel of selects){
+        const { data, error } = await sb
+          .from('vw_recibos_operativos')
+          .select(sel)
+          .order('fecha_pago', { ascending:false });
         if (!error){
-          pagos = data || [];
-          pagosError = null;
+          recibos = data || [];
+          recibosError = null;
           break;
         }
-        pagosError = error;
+        recibosError = error;
       }
 
-      const contratoIds = [...new Set((pagos || []).map(x => String(x.contrato_id || '')).filter(Boolean))];
-      let contratosMeta = [];
-      let contratosError = null;
-      if (contratoIds.length){
-        const { data, error } = await sb
-          .from('contratos')
-          .select('id, locales(codigo), inquilinos(nombre,telefono,email,documento)')
-          .in('id', contratoIds);
-        contratosMeta = data || [];
-        contratosError = error;
-      }
+      const dbRows = (recibos || []).map(normalizeReciboOperativoRow);
 
-      const metaMap = new Map((contratosMeta || []).map(item => [String(item.id), item]));
-      const dbRows = (pagos || []).map(item => {
-        const meta = metaMap.get(String(item.contrato_id || '')) || {};
-        const inq = meta.inquilinos || {};
-        const local = meta.locales || {};
-        const montoTotal = Number(item.monto_total ?? item.monto ?? ((Number(item.monto_alquiler || 0) + Number(item.monto_impuesto || 0))));
-        const paymentKey = String(item.id || item.pago_id || '');
-        return {
-          ...item,
-          monto_total: montoTotal,
-          monto_alquiler: Number(item.monto_alquiler || (item.monto && !item.monto_impuesto ? item.monto : 0) || 0),
-          monto_impuesto: Number(item.monto_impuesto || 0),
-          impuesto_porcentaje: Number(item.impuesto_porcentaje || 0),
-          descripcion_pago: String(paymentDescriptionMap[paymentKey] || paymentDescriptionMap[buildReciboNumero(item, true)] || item.descripcion_pago || item.detalle_aplicacion || '').trim(),
-          periodo_aplicado: String(item.periodo_aplicado || '').trim(),
-          detalle_aplicacion: String(item.detalle_aplicacion || '').trim(),
-          __cache_key: paymentKey || buildReciboNumero(item, true),
-          numero_recibo: buildReciboNumero(item, true),
-          inquilino_nombre: inq.nombre || '—',
-          telefono: inq.telefono || '',
-          email: inq.email || '',
-          documento: inq.documento || '',
-          local_codigo: local.codigo || '—'
-        };
-      });
-
-      const manualReceipts = loadManualReceipts();
-      const mergedMap = new Map();
-      [...dbRows, ...(Array.isArray(recibosInternosCache) ? recibosInternosCache : []), ...(Array.isArray(manualReceipts) ? manualReceipts : [])].forEach(item => {
-        if (!item) return;
-        const key = String(item.id || item.pago_id || item.numero_recibo || item.__cache_key || '');
-        if (!key) return;
-        const previous = mergedMap.get(key) || {};
-        mergedMap.set(key, {
-          ...previous,
-          ...item,
-          descripcion_pago: String(item.descripcion_pago || previous.descripcion_pago || paymentDescriptionMap[key] || paymentDescriptionMap[item.numero_recibo || ''] || '').trim(),
-          periodo_aplicado: String(item.periodo_aplicado || previous.periodo_aplicado || '').trim(),
-          detalle_aplicacion: String(item.detalle_aplicacion || previous.detalle_aplicacion || '').trim(),
-          __cache_key: key,
-          numero_recibo: item.numero_recibo || previous.numero_recibo || buildReciboNumero(item, true)
-        });
-      });
-
-      const rows = [...mergedMap.values()];
+      // Fuente limpia: solo recibos operativos cargados desde Excel y mapeados por contrato exacto.
+      // No mezclamos localStorage ni pagos históricos viejos para evitar cruces por nombres parecidos.
+      const rows = [...dbRows];
+      saveManualReceipts([]);
 
       rows.sort((a,b) => {
-        const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
-        const timeB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
+        const timeA = new Date(a.fecha_pago || a.created_at || 0).getTime() || 0;
+        const timeB = new Date(b.fecha_pago || b.created_at || 0).getTime() || 0;
         if (timeA !== timeB) return timeB - timeA;
 
         const numA = parseInt(String(a.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
@@ -8298,11 +8284,11 @@ function globalSearch(){
         const keyB = String(b.id || b.pago_id || b.__cache_key || '');
         return keyB.localeCompare(keyA);
       });
+
       recibosInternosCache = rows;
       saveReceiptsCache();
-      saveManualReceipts(rows);
 
-      return { rows, pagosError, contratosError };
+      return { rows, pagosError: recibosError, contratosError: null };
     }
 
     function renderRecibosKPIs(rows){
@@ -8676,17 +8662,22 @@ function globalSearch(){
       const numero = item.numero_recibo || item.referencia || 'sin número';
       const local = item.local_codigo || '—';
       const locatario = item.inquilino_nombre || '—';
-      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nSi el recibo tiene un pago asociado en la base, también se eliminará ese pago.\n\n¿Continuar?`);
+      const ok = confirm(`Vas a eliminar el recibo ${numero} de ${locatario} (${local}).\n\nEsto elimina solo el recibo operativo que ve la página. No modifica la deuda ni los pagos históricos importados.\n\n¿Continuar?`);
       if (!ok) return;
 
-      const pagoId = String(item.id || item.pago_id || '').trim();
+      const reciboOperativoId = String(item.recibo_id || '').trim();
+      const pagoId = String(item.pago_id || item.id || '').trim();
       const looksLikeStoredPayment = !!pagoId
+        && item.__source_table !== 'recibos_operativos'
         && pagoId !== String(item.numero_recibo || '').trim()
         && !pagoId.startsWith('REC-')
         && !pagoId.startsWith('tmp-');
 
       try{
-        if (looksLikeStoredPayment){
+        if (item.__source_table === 'recibos_operativos' && reciboOperativoId){
+          const { error } = await sb.from('recibos_operativos').delete().eq('id', reciboOperativoId);
+          if (error) throw error;
+        } else if (looksLikeStoredPayment){
           const { error } = await sb.from('pagos').delete().eq('id', pagoId);
           if (error) throw error;
         }
@@ -10083,17 +10074,29 @@ function globalSearch(){
 
     async function fetchPagosRows(contratoId){
       const selects = [
-        'id, contrato_id, fecha_pago, monto, medio, referencia, created_at',
-        'id, contrato_id, fecha_pago, monto, medio, created_at',
-        'id, contrato_id, fecha_pago, monto, created_at'
+        'recibo_id, contrato_id, fecha_pago, monto, numero_recibo, periodo, origen, created_at',
+        '*'
       ];
 
       let lastError = null;
       for (const sel of selects){
-        let q = sb.from('pagos').select(sel).order('fecha_pago', { ascending:false });
+        let q = sb.from('vw_recibos_operativos').select(sel).order('fecha_pago', { ascending:false });
         if (!isAllContratos(contratoId)) q = q.eq('contrato_id', contratoId);
         const { data, error } = await q;
-        if (!error) return { data: data || [], error: null };
+        if (!error){
+          const rows = (data || []).map(item => ({
+            id: `REC-OP-${item.recibo_id || item.id || item.numero_recibo || ''}`,
+            recibo_id: item.recibo_id || item.id || null,
+            contrato_id: item.contrato_id || null,
+            fecha_pago: item.fecha_pago || item.created_at || null,
+            monto: Number(item.monto || item.monto_total || 0),
+            medio: item.origen || 'Histórico Excel',
+            referencia: item.numero_recibo || item.referencia || null,
+            periodo_aplicado: item.periodo || item.periodo_aplicado || '',
+            created_at: item.created_at || item.fecha_pago || null
+          }));
+          return { data: rows, error: null };
+        }
         lastError = error;
       }
       return { data: [], error: lastError };
