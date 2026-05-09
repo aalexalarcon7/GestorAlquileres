@@ -3783,7 +3783,7 @@ td:last-child{
               <div>
                 <div class="loginEyebrow">Acceso seguro</div>
                 <h2 id="loginTitle">Login</h2>
-                <p class="loginLead">Ingresá para administrar alquileres, pagos, documentos e informes desde un solo lugar.</p>
+                <p class="loginLead"></p>
               </div>
             </div>
 
@@ -3866,7 +3866,7 @@ td:last-child{
                   <tr>
                     <th style="width:120px;">Código</th>
                     <th>Inquilino</th>
-                    <th class="right">Deuda real</th>
+                    <th class="right">Deuda total</th>
                     <th class="right">Arrastre 2025</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
@@ -4194,6 +4194,8 @@ td:last-child{
     let activosReconstruidosMap = new Map();
     let activosReconstruidosLoadError = '';
     let deudaRealActualRows = [];
+    let deudaRealActualByContrato = new Map();
+    let deudaRealActualReady = false;
     let deudaRealActualLoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
@@ -5402,124 +5404,143 @@ td:last-child{
       });
     }
 
-    function groupDeudaRealActualRows(rows){
+    function getSortValueFromDebtRow(row){
+      const y = Number(row?.anio || 0);
+      const m = Number(row?.mes || 0);
+      if (y && m) return y * 100 + m;
+      const periodo = String(row?.periodo || '');
+      const match = periodo.match(/(\d{2})\/(\d{4})/);
+      if (match) return Number(match[2]) * 100 + Number(match[1]);
+      return 999999;
+    }
+
+    function rebuildDeudaRealActualMap(rows){
       const map = new Map();
-      (rows || []).forEach(item => {
-        const contratoId = String(item?.contrato_id || '').trim();
-        if (!contratoId) return;
-        if (!map.has(contratoId)){
-          map.set(contratoId, {
-            contrato_id: item.contrato_id,
-            codigo_local: item.codigo_local || '—',
-            nombre_inquilino: item.nombre_inquilino || '—',
-            saldo: 0,
-            monto_total: 0,
-            monto_pagado: 0,
-            cuotas: 0,
-            parciales: 0,
-            pendientes: 0,
-            meses: new Set(),
-            min_anio: Number(item.anio || 0),
-            min_mes: Number(item.mes || 0)
-          });
+      for (const r of (rows || [])){
+        const contratoId = r?.contrato_id;
+        if (contratoId == null) continue;
+        const key = String(contratoId);
+        const saldo = toNumber(r?.saldo);
+        if (saldo <= 0) continue;
+        const current = map.get(key) || {
+          contrato_id: contratoId,
+          codigo_local: r?.codigo_local || '—',
+          nombre_inquilino: r?.nombre_inquilino || '—',
+          saldo: 0,
+          cuotas: 0,
+          arrastre_2025: 0,
+          parciales: 0,
+          pendientes: 0,
+          periodo_mas_viejo: r?.periodo || '—',
+          sort_mas_viejo: getSortValueFromDebtRow(r),
+          rows: []
+        };
+
+        current.saldo = round2(current.saldo + saldo);
+        current.cuotas += 1;
+        current.rows.push(r);
+        if (Number(r?.anio || 0) < 2026) current.arrastre_2025 = round2(current.arrastre_2025 + saldo);
+        if (String(r?.estado || '').toUpperCase() === 'PARCIAL') current.parciales += 1;
+        if (String(r?.estado || '').toUpperCase() === 'PENDIENTE') current.pendientes += 1;
+
+        const sortValue = getSortValueFromDebtRow(r);
+        if (sortValue < current.sort_mas_viejo){
+          current.sort_mas_viejo = sortValue;
+          current.periodo_mas_viejo = r?.periodo || current.periodo_mas_viejo;
         }
-        const acc = map.get(contratoId);
-        acc.codigo_local = item.codigo_local || acc.codigo_local;
-        acc.nombre_inquilino = item.nombre_inquilino || acc.nombre_inquilino;
-        acc.saldo = round2(acc.saldo + toNumber(item.saldo));
-        acc.monto_total = round2(acc.monto_total + toNumber(item.monto_total));
-        acc.monto_pagado = round2(acc.monto_pagado + toNumber(item.monto_pagado));
-        acc.cuotas += 1;
-        if (String(item.estado || '').toUpperCase() === 'PARCIAL') acc.parciales += 1;
-        if (String(item.estado || '').toUpperCase() === 'PENDIENTE') acc.pendientes += 1;
-        acc.meses.add(String(item.periodo || '').trim());
-        const anio = Number(item.anio || 0);
-        const mes = Number(item.mes || 0);
-        if (!acc.min_anio || anio < acc.min_anio || (anio === acc.min_anio && mes < acc.min_mes)){
-          acc.min_anio = anio;
-          acc.min_mes = mes;
-        }
-      });
+
+        if (!current.codigo_local || current.codigo_local === '—') current.codigo_local = r?.codigo_local || '—';
+        if (!current.nombre_inquilino || current.nombre_inquilino === '—') current.nombre_inquilino = r?.nombre_inquilino || '—';
+        map.set(key, current);
+      }
       return map;
-    }
-
-    function getDeudaRealActualStats(rows = deudaRealActualRows){
-      const source = Array.isArray(rows) ? rows : [];
-      const contratos = new Set(source.map(r => String(r.contrato_id || '')).filter(Boolean));
-      const total = source.reduce((sum, item) => sum + toNumber(item.saldo), 0);
-      const parciales = source.filter(item => String(item.estado || '').toUpperCase() === 'PARCIAL').length;
-      const pendientes = source.filter(item => String(item.estado || '').toUpperCase() === 'PENDIENTE').length;
-      return {
-        cuotas: source.length,
-        contratos: contratos.size,
-        total: round2(total),
-        parciales,
-        pendientes
-      };
-    }
-
-    function applyDeudaRealActualToUnit(row, group){
-      if (!group) return row;
-      const saldo = toNumber(group.saldo);
-      return {
-        ...row,
-        local_codigo: group.codigo_local || row.local_codigo,
-        local_code_normalized: normLocalCode(group.codigo_local || row.local_codigo || row.local_code_normalized),
-        inquilino_nombre: group.nombre_inquilino || row.inquilino_nombre,
-        deuda_total: saldo,
-        deuda_atrasada: saldo,
-        deuda_total_2025_2026: saldo,
-        deuda_arrastre_2025: 0,
-        deuda_2026: saldo,
-        meses_adeudados: Number(group.cuotas || 0),
-        meses_adeudados_total: Number(group.cuotas || 0),
-        deuda_real_actual: true,
-        deuda_real_cuotas: Number(group.cuotas || 0),
-        deuda_real_parciales: Number(group.parciales || 0),
-        deuda_real_pendientes: Number(group.pendientes || 0)
-      };
-    }
-
-    function buildUnitFromDeudaRealActualGroup(group){
-      const code = normLocalCode(group?.codigo_local || '');
-      const saldo = toNumber(group?.saldo);
-      return {
-        contrato_id: group?.contrato_id,
-        local_codigo: group?.codigo_local || code || '—',
-        local_code_normalized: code,
-        inquilino_nombre: group?.nombre_inquilino || '—',
-        deuda_total: saldo,
-        deuda_atrasada: saldo,
-        deuda_total_2025_2026: saldo,
-        deuda_arrastre_2025: 0,
-        deuda_2026: saldo,
-        meses_adeudados: Number(group?.cuotas || 0),
-        meses_adeudados_total: Number(group?.cuotas || 0),
-        deuda_real_actual: true,
-        deuda_real_cuotas: Number(group?.cuotas || 0),
-        deuda_real_parciales: Number(group?.parciales || 0),
-        deuda_real_pendientes: Number(group?.pendientes || 0),
-        reconstructed: false
-      };
     }
 
     async function refreshDeudaRealActualData(){
       deudaRealActualLoadError = '';
-      try{
-        const { data, error } = await sb
-          .from('vw_deuda_real_actual')
-          .select('*')
-          .order('nombre_inquilino', { ascending:true })
-          .order('anio', { ascending:true })
-          .order('mes', { ascending:true });
-        if (error) throw error;
-        deudaRealActualRows = data || [];
-      } catch (error){
+      deudaRealActualReady = false;
+      const { data, error } = await sb
+        .from('vw_deuda_real_actual')
+        .select('cuota_id,contrato_id,codigo_local,nombre_inquilino,periodo,anio,mes,monto_total,monto_pagado,saldo,estado')
+        .order('saldo', { ascending:false });
+
+      if (error){
         deudaRealActualRows = [];
-        deudaRealActualLoadError = error?.message || String(error);
+        deudaRealActualByContrato = new Map();
+        deudaRealActualLoadError = error.message || String(error);
         console.warn('No se pudo leer vw_deuda_real_actual:', deudaRealActualLoadError);
+        return;
       }
-      return deudaRealActualRows;
+
+      deudaRealActualRows = Array.isArray(data) ? data : [];
+      deudaRealActualByContrato = rebuildDeudaRealActualMap(deudaRealActualRows);
+      deudaRealActualReady = true;
+    }
+
+    function getRealDebtSummaryByContrato(contratoId){
+      if (!deudaRealActualReady || contratoId == null) return null;
+      return deudaRealActualByContrato.get(String(contratoId)) || null;
+    }
+
+    function applyRealDebtToUnit(unit){
+      if (!unit || !deudaRealActualReady) return unit;
+      const summary = getRealDebtSummaryByContrato(unit.contrato_id);
+      const saldo = toNumber(summary?.saldo);
+      const arrastre = toNumber(summary?.arrastre_2025);
+      const cuotas = Number(summary?.cuotas || 0);
+      return {
+        ...unit,
+        deuda_real_actual: saldo,
+        deuda_total: saldo,
+        deuda_total_2025_2026: saldo,
+        deuda_atrasada: saldo,
+        deuda_arrastre_2025: arrastre,
+        meses_adeudados: cuotas,
+        meses_adeudados_total: cuotas,
+        periodo_mas_viejo_deuda: summary?.periodo_mas_viejo || unit?.periodo_mas_viejo_deuda || null,
+        cuotas_con_deuda: cuotas,
+      };
+    }
+
+    function buildUnitFromRealDebtSummary(summary){
+      return {
+        contrato_id: summary.contrato_id,
+        local_codigo: summary.codigo_local || '—',
+        local_code_normalized: summary.codigo_local || '—',
+        inquilino_nombre: summary.nombre_inquilino || '—',
+        deuda_real_actual: toNumber(summary.saldo),
+        deuda_total: toNumber(summary.saldo),
+        deuda_total_2025_2026: toNumber(summary.saldo),
+        deuda_atrasada: toNumber(summary.saldo),
+        deuda_arrastre_2025: toNumber(summary.arrastre_2025),
+        meses_adeudados: Number(summary.cuotas || 0),
+        meses_adeudados_total: Number(summary.cuotas || 0),
+        cuotas_con_deuda: Number(summary.cuotas || 0),
+        periodo_mas_viejo_deuda: summary.periodo_mas_viejo || null,
+        __from_deuda_real_actual: true,
+      };
+    }
+
+    function getDebtTopRows(){
+      const rows = deudaRealActualReady
+        ? [...deudaRealActualByContrato.values()].map(summary => {
+            const unit = unidades.find(u => String(u.contrato_id) === String(summary.contrato_id));
+            return {
+              ...(unit || buildUnitFromRealDebtSummary(summary)),
+              contrato_id: summary.contrato_id,
+              local_codigo: summary.codigo_local || unit?.local_codigo || '—',
+              inquilino_nombre: summary.nombre_inquilino || unit?.inquilino_nombre || '—',
+              deuda_total: toNumber(summary.saldo),
+              deuda_total_2025_2026: toNumber(summary.saldo),
+              deuda_atrasada: toNumber(summary.saldo),
+              deuda_arrastre_2025: toNumber(summary.arrastre_2025),
+              cuotas_con_deuda: Number(summary.cuotas || 0),
+              periodo_mas_viejo_deuda: summary.periodo_mas_viejo || '—',
+            };
+          })
+        : [...unidades].filter(r => getDisplayedDebtTotal(r) > 0);
+
+      return rows.sort((a,b)=>getDisplayedDebtTotal(b)-getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
     }
 
     function getDisplayedDebtTotal(row){
@@ -5591,11 +5612,8 @@ function globalSearch(){
 
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
-      await Promise.all([
-        refreshActivosReconstruidosData(),
-        refreshDeudaRealActualData()
-      ]);
-      const deudaRealMap = groupDeudaRealActualRows(deudaRealActualRows);
+      await refreshActivosReconstruidosData();
+      await refreshDeudaRealActualData();
 
       const { data, error } = await sb.from('v_deuda_por_contrato').select('*').order('deuda_total', { ascending:false });
       if (error){ $('unitsMsg').textContent = error.message; return; }
@@ -5612,20 +5630,18 @@ function globalSearch(){
         mergedRows.push(buildSyntheticReconstructedUnit(recon));
       });
 
-      let unidadesBase = dedupeUnitsByLocalCode(mergedRows).map(row => {
-        const group = deudaRealMap.get(String(row.contrato_id || ''));
-        return group ? applyDeudaRealActualToUnit(row, group) : row;
-      });
+      unidades = dedupeUnitsByLocalCode(mergedRows).map(applyRealDebtToUnit);
 
-      const existingContratoIds = new Set(unidadesBase.map(row => String(row.contrato_id || '')).filter(Boolean));
-      deudaRealMap.forEach((group, contratoId) => {
-        if (!existingContratoIds.has(String(contratoId))){
-          unidadesBase.push(buildUnitFromDeudaRealActualGroup(group));
+      if (deudaRealActualReady){
+        const existingContratoIds = new Set(unidades.map(u => String(u.contrato_id)));
+        for (const summary of deudaRealActualByContrato.values()){
+          if (!existingContratoIds.has(String(summary.contrato_id))){
+            unidades.push(buildUnitFromRealDebtSummary(summary));
+          }
         }
-      });
+      }
 
-      unidades = unidadesBase
-        .filter(row => getDisplayedDebtTotal(row) > 0 || !row.deuda_real_actual)
+      unidades = unidades
         .sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
@@ -5660,10 +5676,13 @@ function globalSearch(){
     }
 
     async function renderInicio(){
-      const deudaRealStats = getDeudaRealActualStats();
       const total = unidades.length;
-      const deudaTotal = deudaRealStats.total || unidades.reduce((a,r)=>a+Number(r.deuda_total||0),0);
-      const deudaAtrasada = deudaTotal;
+      const debtRows = getDebtTopRows();
+      const deudaTotal = debtRows.reduce((a,r)=>a+getDisplayedDebtTotal(r),0);
+      const cuotasConDeuda = deudaRealActualReady
+        ? deudaRealActualRows.filter(r => toNumber(r?.saldo) > 0).length
+        : debtRows.reduce((a,r)=>a+Number(r?.cuotas_con_deuda || r?.meses_adeudados || 0),0);
+      const contratosConDeuda = debtRows.length;
       const ocupados = total;
       const libres = 0;
       const ocupPerc = total ? 100 : 0;
@@ -5686,11 +5705,10 @@ function globalSearch(){
         .lt('fecha_pago', nms);
 
       const recaudado = (pagosMes||[]).reduce((a,p)=>a+Number(p.monto||0),0);
-
-      const top = [...unidades]
-        .filter(r => Number(r.deuda_atrasada||0) > 0)
-        .sort((a,b)=>Number(b.deuda_atrasada||0)-Number(a.deuda_atrasada||0))
-        .slice(0, 10);
+      const top = debtRows.slice(0, 10);
+      const deudaFuenteNota = deudaRealActualReady
+        ? 'Fuente: deuda real actual de contratos activos hasta mayo 2026.'
+        : 'No se pudo leer vw_deuda_real_actual; se usa respaldo anterior.';
 
       $('viewInicio').innerHTML = `
         <div class="card">
@@ -5699,25 +5717,28 @@ function globalSearch(){
 
         <div class="card">
           <div class="kpis">
-            <div class="kpi"><div class="label">Deuda real actual</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">Solo contratos activos hasta mayo 2026</div></div>
-            <div class="kpi"><div class="label">Cuotas con deuda</div><div class="value">${deudaRealStats.cuotas || 0}</div><div class="muted">Pendientes o parciales</div></div>
-            <div class="kpi"><div class="label">Contratos con deuda</div><div class="value">${deudaRealStats.contratos || total}</div><div class="muted">Activos afectados</div></div>
+            <div class="kpi"><div class="label">Deuda real actual</div><div class="value">${fmtARS.format(deudaTotal)}</div><div class="muted">${contratosConDeuda} contratos con deuda</div></div>
+            <div class="kpi"><div class="label">Cuotas con deuda</div><div class="value">${cuotasConDeuda}</div><div class="muted">Pendientes o parciales</div></div>
+            <div class="kpi"><div class="label">Ocupación</div><div class="value">${ocupPerc}%</div><div class="muted">Ocupados: ${ocupados} | Libres: ${libres}</div></div>
             <div class="kpi"><div class="label">Recaudado este mes</div><div class="value">${fmtARS.format(recaudado)}</div><div class="muted">Vencen en 7 días: ${(vencen7||[]).length}</div></div>
           </div>
+          <div class="muted" style="margin-top:10px;">${deudaFuenteNota}</div>
         </div>
 
         <div class="card">
-          <h3 style="margin-top:0;">Top atrasados</h3>
+          <h3 style="margin-top:0;">Top deudores reales</h3>
+          <div class="muted" style="margin-bottom:10px;">Ordenado por saldo real pendiente de contratos activos.</div>
           <div class="tableWrap desktop-table">
             <table>
-              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Deuda</th><th class="right">Arrastre 2025</th><th class="center">Acción</th></tr></thead>
+              <thead><tr><th>Código</th><th>Inquilino</th><th class="right">Saldo real</th><th class="center">Cuotas</th><th>Período más viejo</th><th class="center">Acción</th></tr></thead>
               <tbody>
                 ${top.map(r=>`
                   <tr>
-                    <td><b>${r.local_codigo}</b></td>
-                    <td>${r.inquilino_nombre}</td>
-                    <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
-                    <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
+                    <td><b>${r.local_codigo || '—'}</b></td>
+                    <td>${r.inquilino_nombre || '—'}</td>
+                    <td class="right"><b>${fmtARS.format(getDisplayedDebtTotal(r))}</b></td>
+                    <td class="center">${Number(r.cuotas_con_deuda || r.meses_adeudados || 0)}</td>
+                    <td>${r.periodo_mas_viejo_deuda || '—'}</td>
                     <td class="center">
                       <div style="display:flex; gap:8px; justify-content:center; flex-wrap:wrap;">
                         ${canUseOperationalContrato(r)
@@ -5735,18 +5756,22 @@ function globalSearch(){
             ${top.map(r=>`
               <article class="mobile-data-card">
                 <div class="mobile-card-top">
-                  <span class="mobile-code">${r.local_codigo}</span>
+                  <span class="mobile-code">${r.local_codigo || '—'}</span>
                   ${badgeEstado(r)}
                 </div>
-                <div class="mobile-tenant">${r.inquilino_nombre}</div>
+                <div class="mobile-tenant">${r.inquilino_nombre || '—'}</div>
                 <div class="mobile-meta-grid">
                   <div class="mobile-meta">
-                    <div class="label">Deuda real</div>
+                    <div class="label">Saldo real</div>
                     <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
                   </div>
                   <div class="mobile-meta">
-                    <div class="label">Arrastre 2025</div>
-                    <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
+                    <div class="label">Cuotas</div>
+                    <div class="value">${Number(r.cuotas_con_deuda || r.meses_adeudados || 0)}</div>
+                  </div>
+                  <div class="mobile-meta">
+                    <div class="label">Más viejo</div>
+                    <div class="value">${r.periodo_mas_viejo_deuda || '—'}</div>
                   </div>
                 </div>
                 <div class="mobile-actions">
@@ -5758,7 +5783,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? '' : 'No hay deuda real pendiente 🎉'}</div>
         </div>
       `;
     }
@@ -5857,8 +5882,8 @@ function globalSearch(){
                 <div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div>
               </div>
               <div class="mobile-meta">
-                <div class="label">Cuotas con deuda</div>
-                <div class="value">${Number(r.deuda_real_cuotas || r.meses_adeudados || 0)}</div>
+                <div class="label">Arrastre 2025</div>
+                <div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div>
               </div>
               <div class="mobile-meta">
                 <div class="label">Deuda 2026</div>
@@ -7344,7 +7369,7 @@ function globalSearch(){
     }
 
     function buildInqCache(){
-      const debtByContrato = new Map(unidades.map(u => [u.contrato_id, u]));
+      const debtByContrato = new Map(unidades.map(u => [String(u.contrato_id), u]));
       const byId = new Map();
 
       for (const c of contratosActivos){
@@ -7367,10 +7392,12 @@ function globalSearch(){
           contratos: [],
         };
 
-        const d = debtByContrato.get(c.id);
-        const deuda_total = Number(d?.deuda_total || 0);
-        const deuda_atrasada = Number(d?.deuda_atrasada || 0);
-        const meses_adeudados = Number(d?.meses_adeudados || 0);
+        const d = debtByContrato.get(String(c.id));
+        const real = getRealDebtSummaryByContrato(c.id);
+        const deuda_total = deudaRealActualReady ? toNumber(real?.saldo) : Number(d?.deuda_total || 0);
+        const deuda_atrasada = deudaRealActualReady ? deuda_total : Number(d?.deuda_atrasada || 0);
+        const meses_adeudados = deudaRealActualReady ? Number(real?.cuotas || 0) : Number(d?.meses_adeudados || 0);
+        const deuda_arrastre_2025 = deudaRealActualReady ? toNumber(real?.arrastre_2025) : toNumber(d?.deuda_arrastre_2025);
         const contratoStatus = getContratoStatus(d || { contrato_id: c.id, deuda_total, deuda_atrasada });
 
         row.contratos_activos += 1;
@@ -7383,6 +7410,7 @@ function globalSearch(){
           local_codigo: c.locales?.codigo || d?.local_codigo || '—',
           deuda_total,
           deuda_atrasada,
+          deuda_arrastre_2025,
           meses_adeudados,
           inquilino_nombre: nombre,
         });
@@ -8476,7 +8504,6 @@ function globalSearch(){
                 <div class="section-hero-icon">🧾</div>
                 <div>
                   <h2 class="section-hero-title">Recibos internos</h2>
-                  <p class="section-hero-sub">Historial de recibos generados. La revisión de recibos pendientes/no imputables ya no se muestra en esta página; la deuda real se toma desde contratos activos.</p>
                 </div>
               </div>
 
