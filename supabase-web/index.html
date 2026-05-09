@@ -8528,6 +8528,8 @@ function globalSearch(){
       saveReceiptNumberMap();
     }
 
+    const deletingRecibosKeys = new Set();
+
     async function deleteReciboById(id){
       const item = getReciboById(id);
       if (!item){
@@ -8540,11 +8542,14 @@ function globalSearch(){
       const locatario = item.inquilino_nombre || '—';
       const pagoIdRaw = item.pago_id || item.recibo_id || item.id || '';
       const pagoId = Number(pagoIdRaw);
+      const deleteKey = String(pagoId || getReciboKey(item) || id || '').trim();
 
       if (!Number.isFinite(pagoId) || pagoId <= 0){
         alert('Este recibo no tiene un pago operativo válido asociado para eliminar.');
         return;
       }
+
+      if (deletingRecibosKeys.has(deleteKey)) return;
 
       const ok = confirm(
         `Vas a eliminar el recibo ${numero} de ${locatario} (${local}).
@@ -8557,6 +8562,17 @@ function globalSearch(){
       );
       if (!ok) return;
 
+      deletingRecibosKeys.add(deleteKey);
+      const deleteButtons = Array.from(document.querySelectorAll('.recibo-danger-zone .btn.danger, button.btn.danger'));
+      deleteButtons.forEach(btn => {
+        if (String(btn.textContent || '').toLowerCase().includes('eliminar recibo')){
+          btn.dataset.prevText = btn.textContent;
+          btn.textContent = 'Eliminando...';
+          btn.disabled = true;
+          btn.classList.add('is-disabled');
+        }
+      });
+
       try{
         const { data, error } = await sb.rpc('eliminar_recibo_operativo', { p_pago_id: pagoId });
         if (error) throw error;
@@ -8566,7 +8582,10 @@ function globalSearch(){
           throw new Error(result.mensaje || 'La base rechazó la eliminación del recibo.');
         }
 
+        // Eliminación optimista: lo sacamos de la UI al instante para que no requiera un segundo click.
         removeReciboFromLocalCaches(item);
+        recibosInternosCache = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
+          .filter(row => !sameReciboIdentity(row, item) && String(row.pago_id || row.id || row.recibo_id || '') !== String(pagoId));
 
         if (reciboActual && sameReciboIdentity(reciboActual, item)){
           reciboActual = null;
@@ -8578,12 +8597,35 @@ function globalSearch(){
           localStorage.removeItem(MANUAL_RECEIPTS_KEY);
         } catch(e){}
 
+        if (route === 'recibos') await renderRecibosPage();
         await refreshAll();
         if (route === 'recibos') await renderRecibosPage();
+
+        // Segundo refresco corto para evitar que Supabase/localStorage muestre una copia vieja.
+        setTimeout(async () => {
+          try{
+            try{
+              localStorage.removeItem(RECEIPTS_CACHE_KEY);
+              localStorage.removeItem(MANUAL_RECEIPTS_KEY);
+            } catch(e){}
+            if (route === 'recibos') await renderRecibosPage();
+          } catch(e){ console.warn('No se pudo hacer el refresco final de recibos', e); }
+        }, 350);
+
         showPagoSuccessToast(result?.mensaje || `Se eliminó el recibo ${numero}.`);
       } catch (error){
         console.error(error);
         alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
+      } finally {
+        deletingRecibosKeys.delete(deleteKey);
+        deleteButtons.forEach(btn => {
+          btn.disabled = false;
+          btn.classList.remove('is-disabled');
+          if (btn.dataset.prevText){
+            btn.textContent = btn.dataset.prevText;
+            delete btn.dataset.prevText;
+          }
+        });
       }
     }
 
