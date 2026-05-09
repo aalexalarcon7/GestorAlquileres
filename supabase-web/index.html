@@ -3896,6 +3896,7 @@ td:last-child{
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
                 <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
+                <button class="btn danger" onclick="deleteActivoActual()">Borrar activo</button>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
@@ -4119,6 +4120,7 @@ td:last-child{
       </section>
 
       <div class="activo-modal-actions">
+        <button class="btn danger" onclick="deleteActivoActual()">Borrar activo</button>
         <button class="btn primary" onclick="saveActivoModal()">Guardar cambios</button>
       </div>
     </div>
@@ -4610,6 +4612,12 @@ td:last-child{
       const tolerance = 1;
 
       if (deudaTotal <= 0) {
+        const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
+        if (deudaMesActual > tolerance) {
+          return isBeforeOrOnCurrentDueDay()
+            ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
+            : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+        }
         return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
       }
 
@@ -5001,9 +5009,11 @@ td:last-child{
     async function refreshActivosReconstruidosData(){
       activosReconstruidosLoadError = '';
 
-      const [estado2025Rows, estado2026Rows] = await Promise.all([
+      const ymActualEstado = getYearMonthParts(today());
+      const [estado2025Rows, estado2026Rows, detalleMesActualRows] = await Promise.all([
         fetchSupabaseRowsSafe('vw_estado_2025_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'),
-        fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr')
+        fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'),
+        fetchSupabaseRowsSafe('vw_detalle_mensual_operativo', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado')
       ]);
 
       const nextMap = new Map();
@@ -5029,6 +5039,10 @@ td:last-child{
             estado_2025: null,
             estado_2026_hasta_abril: null,
             meses_deuda_texto_2026: '',
+            deuda_mes_actual: 0,
+            monto_mes_actual: 0,
+            pagado_mes_actual: 0,
+            estado_mes_actual: null,
             manual_override: true
           });
         }
@@ -5055,6 +5069,18 @@ td:last-child{
         entry.estado_2026_hasta_abril = row.estado_2026_hasta_abril || null;
         entry.meses_deuda_texto_2026 = row.meses_deuda_texto || '';
       });
+
+      (detalleMesActualRows || [])
+        .filter(row => Number(row.anio) === Number(ymActualEstado.year) && Number(row.mes) === Number(ymActualEstado.month))
+        .forEach(row => {
+          const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
+          if (!entry) return;
+          if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
+          entry.deuda_mes_actual = toNumber(row.saldo);
+          entry.monto_mes_actual = toNumber(row.monto_total);
+          entry.pagado_mes_actual = toNumber(row.monto_pagado);
+          entry.estado_mes_actual = row.estado || null;
+        });
 
       nextMap.forEach(entry => {
         entry.deuda_total_2025_2026 = round2(toNumber(entry.deuda_arrastre_2025) + toNumber(entry.deuda_total_2026));
@@ -5098,6 +5124,10 @@ td:last-child{
         tipo_deuda_2026: recon.tipo_deuda_2026 || null,
         meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
         meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
+        deuda_mes_actual: toNumber(recon.deuda_mes_actual),
+        monto_mes_actual: toNumber(recon.monto_mes_actual),
+        pagado_mes_actual: toNumber(recon.pagado_mes_actual),
+        estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true
       };
@@ -5124,6 +5154,10 @@ td:last-child{
         tipo_deuda_2026: recon.tipo_deuda_2026 || null,
         meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
         meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
+        deuda_mes_actual: toNumber(recon.deuda_mes_actual),
+        monto_mes_actual: toNumber(recon.monto_mes_actual),
+        pagado_mes_actual: toNumber(recon.pagado_mes_actual),
+        estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true,
         synthetic: true
@@ -7075,6 +7109,66 @@ function globalSearch(){
       if (refreshed) {
         selected = refreshed;
         openDetalle(refreshed);
+      }
+    }
+
+
+    async function deleteActivoActual(){
+      const msg = $('activoModalMsg') || $('unitsMsg');
+      const unidad = selected;
+      if (!unidad?.contrato_id) {
+        alert('Primero abrí el detalle de un activo.');
+        return;
+      }
+      if (!canUseOperationalContrato(unidad)) {
+        alert('Este activo no tiene contrato operativo para borrar desde acá.');
+        return;
+      }
+
+      const contratoId = unidad.contrato_id;
+      const label = `${unidad.local_codigo || '—'} · ${unidad.inquilino_nombre || '—'}`;
+      const ok = askConfirm(
+        `¿Dar de baja este activo?\n\n${label}\n\nSe quitará de la pantalla, se limpiará su deuda/estado operativo y el contrato quedará INACTIVO. No se tocarán pagos ni recibos históricos.`
+      );
+      if (!ok) return;
+
+      if (msg) msg.textContent = 'Dando de baja activo...';
+
+      try {
+        const contrato = getContratoActivoRow(contratoId) || {};
+        const obsPrev = contrato?.observaciones || '';
+        const obsBaja = `${obsPrev ? obsPrev + ' | ' : ''}Activo dado de baja desde la web el ${today()}.`;
+
+        let upd = await sb.from('contratos')
+          .update({ estado:'INACTIVO', fecha_baja: today(), observaciones: obsBaja })
+          .eq('id', contratoId);
+
+        if (upd?.error && /fecha_baja/i.test(upd.error.message || '')) {
+          upd = await sb.from('contratos')
+            .update({ estado:'INACTIVO', observaciones: obsBaja })
+            .eq('id', contratoId);
+        }
+
+        if (upd?.error) throw upd.error;
+
+        const cleanupResults = await Promise.all([
+          sb.from('deuda_actual_operativa').delete().eq('contrato_id', contratoId),
+          sb.from('estado_cuenta_2026_abril_operativa').delete().eq('contrato_id', contratoId),
+          sb.from('estado_cuenta_2025_operativa').delete().eq('contrato_id', contratoId)
+        ]);
+
+        const failed = cleanupResults.find(r => r?.error);
+        if (failed?.error) throw failed.error;
+
+        closeActivoModal();
+        selected = null;
+        if ($('detalleCard')) $('detalleCard').style.display = 'none';
+        await refreshAll();
+        if (msg) msg.textContent = 'Activo dado de baja correctamente.';
+      } catch (err) {
+        console.error(err);
+        if (msg) msg.textContent = err?.message || 'No se pudo borrar el activo.';
+        alert(err?.message || 'No se pudo borrar el activo.');
       }
     }
 
