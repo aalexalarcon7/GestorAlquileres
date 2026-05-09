@@ -3895,8 +3895,11 @@ td:last-child{
                 <div>
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
-                <button class="btn" onclick="openActivoModal('full')">Editar activo</button>
-                <button class="btn danger" onclick="deleteActivoActual()">Borrar activo</button>
+                <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Cobro</button>
+                  <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
+                  <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
+                </div>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
 
@@ -5728,7 +5731,7 @@ function globalSearch(){
           <td class="center">${getDisplayedMonthsOwed(r)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
-            <button class="btn primary" type="button" onclick="openPagoModal(unidades.find(u => String(u.contrato_id) === String(r.contrato_id)) || r)">Cobro</button>
+            <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
             <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
           </td>
         `;
@@ -5750,7 +5753,7 @@ function globalSearch(){
               <div class="mobile-meta"><div class="label">Meses</div><div class="value">${getDisplayedMonthsOwed(r)}</div></div>
             </div>
             <div class="mobile-actions">
-              <button class="btn primary" type="button" onclick="openPagoModal(unidades.find(u => String(u.contrato_id) === String(r.contrato_id)) || r)">Cobro</button>
+              <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
               <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
             </div>
           `;
@@ -6630,6 +6633,16 @@ function globalSearch(){
       }
 
       return { alquiler, impPct, impuesto, total };
+    }
+
+    function openPagoModalByContrato(contratoId){
+      const row = unidades.find(u => String(u.contrato_id) === String(contratoId))
+        || (selected && String(selected.contrato_id) === String(contratoId) ? selected : null);
+      if (!row) {
+        alert('No se encontró el activo para cobrar. Actualizá la página y probá de nuevo.');
+        return;
+      }
+      return openPagoModal(row);
     }
 
     async function openPagoModal(r){
@@ -11015,8 +11028,16 @@ function globalSearch(){
 
     async function openPagoModal(r){
       if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
+      const contratoBase = getContratoActivoRow(r.contrato_id) || {};
+      r = {
+        ...r,
+        local_codigo: r.local_codigo || contratoBase.codigo_local || contratoBase.codigo || '—',
+        inquilino_nombre: r.inquilino_nombre || contratoBase.nombre_inquilino || contratoBase.inquilino_nombre || contratoBase?.inquilinos?.nombre || '—'
+      };
       modalContrato = r;
-      $('modalBack').style.display = 'flex';
+      const modal = $('modalBack');
+      if (!modal) return alert('No se encontró el modal de cobro en el HTML.');
+      modal.style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo || '—'} — ${r.inquilino_nombre || '—'} | Deuda visible: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
       $('mFecha').value = today();
       if ($('mReferencia')) $('mReferencia').value = '';
@@ -11178,6 +11199,7 @@ function globalSearch(){
 
     // Exponer funciones operativas para los onclick inline del HTML.
     window.openPagoModal = openPagoModal;
+    window.openPagoModalByContrato = openPagoModalByContrato;
     window.closePagoModal = closePagoModal;
     window.registrarPagoModal = registrarPagoModal;
     window.refreshPaymentPeriodOptions = refreshPaymentPeriodOptions;
