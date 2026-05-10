@@ -11635,7 +11635,13 @@ function globalSearch(){
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
-          p_observacion: observacionFinal
+          p_observacion: observacionFinal,
+          // Estos campos son necesarios para que Supabase guarde y devuelva exactamente
+          // el número manual, el impuesto fijo y la descripción en el recibo.
+          p_numero_recibo: numeroManual || null,
+          p_monto_alquiler: alquilerBase,
+          p_monto_impuesto: impuestoFijo,
+          p_descripcion_pago: observacionFinal
         };
         const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
         if (error) {
