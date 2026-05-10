@@ -3950,9 +3950,9 @@ td:last-child{
 
             <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
               <div>
-                <h3 style="margin:0;">Recibos</h3>
+                <h3 style="margin:0;">Recibos vinculados</h3>
               </div>
-              <button class="btn" onclick="openDocumentosFromDetalle()">Abrir recibos</button>
+              <button class="btn" onclick="openDocumentosFromDetalle()">Ver todos en Recibos</button>
             </div>
 
 
@@ -4239,7 +4239,7 @@ td:last-child{
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
-    let recibosPageState = { query:'', local:'TODOS', month:'' };
+    let recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -5778,7 +5778,7 @@ function globalSearch(){
       }
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
-      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta auditoría.</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
 
       loadDetalle(r);
       requestAnimationFrame(() => {
@@ -5910,6 +5910,174 @@ function globalSearch(){
     }
 
 
+    function inferReciboYearMonth(item={}){
+      let anio = Number(item.anio || 0);
+      let mes = Number(item.mes || 0);
+      const periodo = String(item.periodo_aplicado || item.periodo || '').trim();
+      const fecha = String(item.fecha_pago || item.created_at || '').trim();
+
+      if ((!anio || !mes) && /^\d{1,2}\/\d{4}$/.test(periodo)){
+        const [m, y] = periodo.split('/');
+        mes = Number(m) || mes;
+        anio = Number(y) || anio;
+      }
+
+      if ((!anio || !mes) && /^\d{4}-\d{2}/.test(fecha)){
+        anio = anio || Number(fecha.slice(0,4));
+        mes = mes || Number(fecha.slice(5,7));
+      }
+
+      return { anio, mes };
+    }
+
+    function reciboDedupeKey(item={}){
+      const ym = inferReciboYearMonth(item);
+      const contrato = String(item.contrato_id || '').trim();
+      const numero = String(item.numero_recibo || item.referencia || '').trim();
+      const monto = Number(item.monto_total ?? item.monto ?? 0).toFixed(2);
+      if (contrato && numero) return `${contrato}|${numero}|${ym.anio || ''}|${ym.mes || ''}|${monto}`;
+      return String(item.id || item.recibo_id || item.pago_id || item.__cache_key || numero || Math.random());
+    }
+
+    function mergeRecibosRows(...groups){
+      const byKey = new Map();
+      groups.flat().filter(Boolean).forEach(item => {
+        const key = reciboDedupeKey(item);
+        const current = byKey.get(key) || {};
+        byKey.set(key, { ...current, ...item });
+      });
+      return [...byKey.values()];
+    }
+
+    function getContratoForRecibo(item={}){
+      return contratosActivos.find(c => String(c.id) === String(item.contrato_id)) || null;
+    }
+
+    function mapReciboHistoricoRow(item={}){
+      const contrato = getContratoForRecibo(item) || {};
+      const inq = contrato?.inquilinos || {};
+      const local = contrato?.locales || {};
+      const ym = inferReciboYearMonth(item);
+      const numero = item.numero_recibo || item.referencia || `HIST-${String(item.id || '').padStart(6, '0')}`;
+      const montoTotal = Number(item.monto ?? item.monto_total ?? 0);
+      const fecha = item.fecha_pago || null;
+      const periodo = item.periodo || (ym.anio && ym.mes ? `${String(ym.mes).padStart(2,'0')}/${ym.anio}` : '');
+
+      return {
+        id: item.id ? `hist-${item.id}` : `hist-${item.contrato_id || 'sin-contrato'}-${numero}-${ym.anio || ''}-${ym.mes || ''}`,
+        recibo_id: item.id ? `hist-${item.id}` : null,
+        pago_id: item.id ? `hist-${item.id}` : null,
+        contrato_id: item.contrato_id || null,
+        anio: ym.anio || null,
+        mes: ym.mes || null,
+        fecha_pago: fecha,
+        created_at: fecha,
+        medio: item.medio || 'EFECTIVO',
+        referencia: item.referencia || numero,
+        numero_recibo: numero,
+        recibo_base: item.recibo_base || numero,
+        periodo_aplicado: periodo,
+        detalle_aplicacion: item.observacion || 'Recibo histórico operativo.',
+        descripcion_pago: item.observacion || 'Recibo histórico operativo.',
+        monto_alquiler: montoTotal,
+        monto_impuesto: 0,
+        impuesto_porcentaje: 0,
+        monto_total: montoTotal,
+        monto: montoTotal,
+        inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || inq.nombre || '—',
+        telefono: inq.telefono || '',
+        email: inq.email || '',
+        documento: inq.documento || '',
+        local_codigo: item.codigo_local || local.codigo || '—',
+        observacion: item.observacion || '',
+        origen: item.origen || 'HISTORICO_MANUAL_1X1',
+        __source_table: 'recibos_historicos_operativos',
+        __cache_key: `hist-${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
+      };
+    }
+
+    function isReciboHistoricoInterno(item={}){
+      const numero = String(item.numero_recibo || item.referencia || '').trim().toUpperCase();
+      const origen = String(item.origen || item.__source_table || '').toUpperCase();
+      return numero.startsWith('EXCEL') || numero.startsWith('INT') || origen.includes('HISTORICO');
+    }
+
+    function getDetalleRecibosVinculados(row, recibosRows=[]){
+      if (!row) return [];
+      const contratoId = String(row?.contrato_id || '').trim();
+      const code = normLocalCode(row?.local_codigo || row?.codigo_local || row?.local_code_normalized || '');
+      const name = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
+
+      return (recibosRows || []).filter(item => {
+        if (contratoId && item?.contrato_id && String(item.contrato_id) === contratoId) return true;
+        const itemCode = normLocalCode(item?.local_codigo || item?.codigo_local || '');
+        const itemName = normalizeDetalleName(item?.inquilino_nombre || item?.nombre_inquilino || '');
+        return !!(code && itemCode === code && name && itemName === name);
+      }).sort((a,b) => {
+        const ay = Number(a.anio || inferReciboYearMonth(a).anio || 0);
+        const by = Number(b.anio || inferReciboYearMonth(b).anio || 0);
+        if (ay !== by) return by - ay;
+        const am = Number(a.mes || inferReciboYearMonth(a).mes || 0);
+        const bm = Number(b.mes || inferReciboYearMonth(b).mes || 0);
+        if (am !== bm) return bm - am;
+        const da = new Date(a.fecha_pago || a.created_at || 0).getTime() || 0;
+        const db = new Date(b.fecha_pago || b.created_at || 0).getTime() || 0;
+        if (da !== db) return db - da;
+        return String(b.numero_recibo || '').localeCompare(String(a.numero_recibo || ''));
+      });
+    }
+
+    function renderDetalleRecibosRows(rows){
+      if (!rows.length){
+        return `<tr><td colspan="8" class="center">No hay recibos cargados para este contrato.</td></tr>`;
+      }
+
+      return rows.map(item => {
+        const interno = isReciboHistoricoInterno(item);
+        const tipoClass = interno ? 'b-warn' : 'b-ok';
+        const tipoLabel = interno ? 'Interno / Histórico' : 'Real';
+        const key = getReciboKey(item);
+        const ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
+        return `
+          <tr>
+            <td><span class="badge ${tipoClass}">${tipoLabel}</span></td>
+            <td><b>${escapeHtml(item.numero_recibo || '—')}</b></td>
+            <td>${escapeHtml(ref)}</td>
+            <td>${formatDateDisplay(item.fecha_pago || item.created_at)}</td>
+            <td>${item.created_at ? formatDateTimeDisplay(item.created_at) : '—'}</td>
+            <td class="right"><b>${fmtARS.format(Number(item.monto_total ?? item.monto ?? 0))}</b></td>
+            <td>${escapeHtml(item.medio || 'EFECTIVO')}</td>
+            <td class="center">
+              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function loadDetalleRecibos(row, seq){
+      try{
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
+
+        const { rows } = await fetchRecibosInternosData();
+        if (seq !== detalleLoadSeq) return;
+
+        const vinculados = getDetalleRecibosVinculados(row, rows || []);
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = renderDetalleRecibosRows(vinculados);
+        if ($('detDocsMsg')) {
+          $('detDocsMsg').textContent = vinculados.length
+            ? `${vinculados.length} recibo(s) vinculado(s) al contrato ${row?.contrato_id || '—'}.`
+            : 'No hay recibos cargados para este contrato.';
+        }
+      } catch (err){
+        console.error('loadDetalleRecibos error', err);
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = String(err?.message || err || 'Error al cargar recibos.');
+      }
+    }
+
+
     async function loadDetalle(r){
       const seq = ++detalleLoadSeq;
       try{
@@ -5925,15 +6093,14 @@ function globalSearch(){
         renderDetalleInfo(r, rows || []);
         renderDetalleDebtRows(rows || []);
 
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta reconstrucción/auditoría.</td></tr>`;
-        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
+        await loadDetalleRecibos(r, seq);
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
         if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos en pausa.</td></tr>`;
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
       }
     }
 
@@ -6796,7 +6963,7 @@ function globalSearch(){
         saveManualReceipts(manualReceipts);
         saveReceiptsCache();
 
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+        recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
 
         await refreshAll();
 
@@ -7565,11 +7732,11 @@ function globalSearch(){
         alert('Este activo no tiene contrato operativo vinculado para filtrar recibos.');
         return;
       }
-      const local = String(selected?.local_codigo || '').trim();
       recibosPageState = {
         ...recibosPageState,
-        local: local || 'TODOS',
-        query: local ? '' : String(selected?.inquilino_nombre || ''),
+        contratoId: String(selected.contrato_id),
+        local: 'TODOS',
+        query: '',
         month: ''
       };
       setRoute('recibos');
@@ -8116,11 +8283,14 @@ function globalSearch(){
           const montoTotal = Number(item.monto_total ?? item.monto ?? 0);
           const numero = item.numero_recibo || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
           const fecha = item.fecha_pago || item.created_at || null;
+          const ym = inferReciboYearMonth({ ...item, periodo_aplicado: item.periodo_aplicado || item.periodo, fecha_pago: fecha });
           return {
             id: item.id || item.recibo_id,
             recibo_id: item.recibo_id || item.id,
             pago_id: item.pago_id || item.recibo_id || item.id,
             contrato_id: item.contrato_id || null,
+            anio: ym.anio || item.anio || null,
+            mes: ym.mes || item.mes || null,
             fecha_pago: fecha,
             created_at: item.created_at || fecha,
             medio: item.medio || 'EFECTIVO',
@@ -8140,11 +8310,20 @@ function globalSearch(){
             email: item.email || '',
             documento: item.documento || '',
             local_codigo: item.codigo_local || item.local_codigo || '—',
+            observacion: item.observacion || '',
+            origen: item.origen || item.fuente_hoja || '',
             __source_table: item.fuente_hoja || 'pagos_operativos_rpc',
-            __cache_key: String(item.pago_id || item.recibo_id || numero)
+            __cache_key: `${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
           };
         });
       }
+
+      const historicosRaw = await fetchSupabaseRowsSafe(
+        'recibos_historicos_operativos',
+        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,medio,referencia,observacion,origen'
+      );
+      const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
+      rows = mergeRecibosRows(rows, historicos);
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -8186,8 +8365,10 @@ function globalSearch(){
       const query = String(recibosPageState.query || '').trim().toLowerCase();
       const local = String(recibosPageState.local || 'TODOS');
       const month = String(recibosPageState.month || '');
+      const contratoId = String(recibosPageState.contratoId || '').trim();
 
       return (rows || []).filter(item => {
+        if (contratoId && String(item.contrato_id || '') !== contratoId) return false;
         if (local !== 'TODOS' && String(item.local_codigo || '') !== local) return false;
         if (month && String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
         if (!query) return true;
@@ -8241,7 +8422,7 @@ function globalSearch(){
     }
 
     function clearRecibosFilters(){
-      recibosPageState = { query:'', local:'TODOS', month:'' };
+      recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
       if ($('recibosSearch')) $('recibosSearch').value = '';
       if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
       if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
@@ -8350,8 +8531,8 @@ function globalSearch(){
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
       // mostramos todo para no "perder" el recibo recién generado.
-      if (!filteredRows.length && rows.length){
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+      if (!filteredRows.length && rows.length && !String(recibosPageState.contratoId || '').trim()){
+        recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
         filteredRows = [...rows];
       }
 
@@ -8460,7 +8641,7 @@ function globalSearch(){
 
 
     function getReciboKey(item){
-      return String(item?.id || item?.pago_id || item?.numero_recibo || item?.__cache_key || '');
+      return String(item?.id || item?.pago_id || item?.__cache_key || item?.numero_recibo || '');
     }
 
     function getReciboById(id){
