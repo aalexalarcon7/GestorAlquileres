@@ -4252,6 +4252,7 @@ td:last-child{
     const PAYMENT_DESCRIPTION_MAP_KEY = 'ga_payment_description_map_v1';
     const RECEIPTS_CACHE_KEY = 'ga_receipts_cache_v1';
     const MANUAL_RECEIPTS_KEY = 'ga_manual_receipts_v1';
+    const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
 
     const ACCENT_PALETTES = {
       azul: {
@@ -4478,6 +4479,123 @@ td:last-child{
 
     function saveManualReceipts(rows){
       try { localStorage.setItem(MANUAL_RECEIPTS_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch (e){}
+    }
+
+
+    function loadCobroReceiptOverrides(){
+      try{
+        const parsed = JSON.parse(localStorage.getItem(COBRO_RECEIPT_OVERRIDES_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch(e){
+        return [];
+      }
+    }
+
+    function saveCobroReceiptOverrides(rows){
+      try{
+        const clean = (Array.isArray(rows) ? rows : []).slice(0, 120);
+        localStorage.setItem(COBRO_RECEIPT_OVERRIDES_KEY, JSON.stringify(clean));
+      } catch(e){}
+    }
+
+    function receiptOverrideMatchScore(row={}, override={}){
+      if (!row || !override) return -1;
+      let score = 0;
+      const rowContrato = String(row.contrato_id || '').trim();
+      const ovContrato = String(override.contrato_id || '').trim();
+      if (ovContrato && rowContrato && rowContrato === ovContrato) score += 8;
+      else if (ovContrato && rowContrato && rowContrato !== ovContrato) return -1;
+
+      const rowFecha = String(row.fecha_pago || row.created_at || '').slice(0,10);
+      const ovFecha = String(override.fecha_pago || '').slice(0,10);
+      if (ovFecha && rowFecha && rowFecha === ovFecha) score += 4;
+
+      const rowMonto = Number(row.monto_total ?? row.monto ?? 0);
+      const ovMonto = Number(override.monto_total ?? override.monto ?? 0);
+      if (Number.isFinite(rowMonto) && Number.isFinite(ovMonto) && Math.abs(rowMonto - ovMonto) < 0.01) score += 6;
+
+      const rowId = String(row.id || row.pago_id || row.recibo_id || '').trim();
+      const ovId = String(override.id || override.pago_id || override.recibo_id || '').trim();
+      if (ovId && rowId && rowId === ovId) score += 10;
+
+      const rowNumero = String(row.numero_recibo || row.referencia || '').trim();
+      const ovNumero = String(override.numero_recibo || override.referencia || '').trim();
+      if (ovNumero && rowNumero && rowNumero === ovNumero) score += 5;
+      return score;
+    }
+
+    function buildReceiptOverridePatch(override={}, row={}){
+      const numero = String(override.numero_recibo || override.referencia || row.numero_recibo || row.referencia || '').trim();
+      const descripcion = String(override.descripcion_pago || override.observacion || row.descripcion_pago || row.observacion || '').trim();
+      const total = Number(override.monto_total ?? override.monto ?? row.monto_total ?? row.monto ?? 0);
+      const alquiler = Number(override.monto_alquiler ?? row.monto_alquiler ?? total);
+      const impuesto = Number(override.monto_impuesto ?? row.monto_impuesto ?? 0);
+      return {
+        ...row,
+        ...override,
+        numero_recibo: numero || row.numero_recibo,
+        recibo_base: numero || row.recibo_base || row.numero_recibo,
+        referencia: numero || row.referencia,
+        descripcion_pago: descripcion || row.descripcion_pago || 'Cobro operativo registrado desde la página.',
+        detalle_aplicacion: override.detalle_aplicacion || row.detalle_aplicacion || descripcion,
+        observacion: descripcion || row.observacion || '',
+        monto_alquiler: Number.isFinite(alquiler) ? alquiler : Number(total || 0),
+        monto_impuesto: Number.isFinite(impuesto) ? impuesto : 0,
+        impuesto_porcentaje: Number(override.impuesto_porcentaje ?? row.impuesto_porcentaje ?? 0),
+        monto_total: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
+        monto: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
+        periodo_aplicado: override.periodo_aplicado || row.periodo_aplicado || '',
+        __manual_override: true
+      };
+    }
+
+    function applyCobroReceiptOverrides(rows){
+      const overrides = loadCobroReceiptOverrides();
+      if (!overrides.length) return rows || [];
+      const result = [...(rows || [])];
+
+      overrides.forEach(override => {
+        let bestIndex = -1;
+        let bestScore = -1;
+        result.forEach((row, idx) => {
+          const score = receiptOverrideMatchScore(row, override);
+          if (score > bestScore) {
+            bestScore = score;
+            bestIndex = idx;
+          }
+        });
+
+        if (bestIndex >= 0 && bestScore >= 10) {
+          result[bestIndex] = buildReceiptOverridePatch(override, result[bestIndex]);
+        } else if (override?.contrato_id && override?.monto_total) {
+          result.unshift(buildReceiptOverridePatch(override, {
+            id: override.id || `override-${override.created_at || Date.now()}`,
+            pago_id: override.pago_id || override.id || `override-${override.created_at || Date.now()}`,
+            recibo_id: override.recibo_id || override.id || null,
+            created_at: override.created_at || new Date().toISOString()
+          }));
+        }
+      });
+      return result;
+    }
+
+    function saveCobroReceiptOverride(override){
+      if (!override || !override.contrato_id) return;
+      const rows = loadCobroReceiptOverrides();
+      const next = {
+        ...override,
+        created_at: override.created_at || new Date().toISOString()
+      };
+      const idx = rows.findIndex(row => receiptOverrideMatchScore(row, next) >= 10);
+      if (idx >= 0) rows[idx] = { ...rows[idx], ...next };
+      else rows.unshift(next);
+      saveCobroReceiptOverrides(rows);
+    }
+
+    function removeCobroReceiptOverrideForItem(item){
+      const rows = loadCobroReceiptOverrides();
+      const next = rows.filter(row => receiptOverrideMatchScore(item || {}, row) < 10);
+      if (next.length !== rows.length) saveCobroReceiptOverrides(next);
     }
 
     let paymentDescriptionMap = {};
@@ -5607,7 +5725,7 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted" style="margin-top:6px;"></div>
+          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
         </div>
 
         <div class="card">
@@ -8279,7 +8397,7 @@ function globalSearch(){
       } else {
         rows = (data || []).map(item => {
           const montoTotal = Number(item.monto_total ?? item.monto ?? 0);
-          const numero = item.numero_recibo || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
+          const numero = item.numero_recibo || item.referencia || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
           const fecha = item.fecha_pago || item.created_at || null;
           const ym = inferReciboYearMonth({ ...item, periodo_aplicado: item.periodo_aplicado || item.periodo, fecha_pago: fecha });
           return {
@@ -8322,6 +8440,7 @@ function globalSearch(){
       );
       const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
       rows = mergeRecibosRows(rows, historicos);
+      rows = applyCobroReceiptOverrides(rows);
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -8705,6 +8824,7 @@ function globalSearch(){
       });
       savePaymentDescriptionMap();
       saveReceiptNumberMap();
+      removeCobroReceiptOverrideForItem(item);
     }
 
     const deletingRecibosKeys = new Set();
@@ -11262,48 +11382,146 @@ function globalSearch(){
       return (pagoCuotasPendientesActuales || [])[0] || getDetalleCuotasPendientesParaCobro()[0] || null;
     }
 
-    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, numeroManual, observacionFinal }){
+    async function updateFirstMatchingRowSafe(table, target, patch){
+      if (!target?.id || !patch || !Object.keys(patch).length) return null;
+      const attempts = [
+        patch,
+        Object.fromEntries(Object.entries(patch).filter(([k]) => !['descripcion_pago','monto_alquiler','monto_impuesto','impuesto_porcentaje','periodo_aplicado','detalle_aplicacion','updated_at'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','numero_recibo','recibo_base','observacion'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','observacion'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia'].includes(k)))
+      ].filter(obj => obj && Object.keys(obj).length);
+
+      for (const attempt of attempts){
+        try{
+          const { data, error } = await sb.from(table).update(attempt).eq('id', target.id).select('id').maybeSingle();
+          if (!error) return data || target;
+          const msg = String(error.message || error);
+          if (!/column|schema cache|updated_at|descripcion_pago|monto_alquiler|monto_impuesto|impuesto_porcentaje|periodo_aplicado|detalle_aplicacion/i.test(msg)) {
+            console.warn(`No se pudo actualizar ${table}:`, msg);
+            return null;
+          }
+        } catch(e){
+          console.warn(`No se pudo actualizar ${table}:`, e?.message || e);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    async function findRecentPaymentLike({ contratoId, fechaPago, monto }){
+      if (!contratoId) return null;
+      try{
+        const { data, error } = await sb
+          .from('pagos')
+          .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
+          .eq('contrato_id', contratoId)
+          .order('created_at', { ascending:false })
+          .limit(30);
+        if (error) return null;
+        const rows = Array.isArray(data) ? data : [];
+        const fechaKey = String(fechaPago || '').slice(0,10);
+        const montoNum = Number(monto || 0);
+        return rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - montoNum) < 0.01) || rows[0] || null;
+      } catch(e){
+        return null;
+      }
+    }
+
+    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, numeroManual, observacionFinal, alquilerBase, impuestoFijo, periodoTexto, detalleAplicacion }){
       const numero = String(numeroManual || '').trim();
       const obs = String(observacionFinal || '').trim();
-      if (!contratoId || (!numero && !obs)) return null;
+      const total = Number(monto || 0);
+      const alquiler = Number(alquilerBase || 0);
+      const impuesto = Number(impuestoFijo || 0);
+      const periodo = String(periodoTexto || '').trim();
+      const detalle = String(detalleAplicacion || obs || '').trim();
 
-      const { data, error } = await sb
-        .from('recibos_historicos_operativos')
-        .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,created_at')
-        .eq('contrato_id', contratoId)
-        .order('created_at', { ascending:false })
-        .limit(20);
+      if (!contratoId) return null;
 
-      if (error) {
-        console.warn('No se pudo buscar el recibo recién creado para ajustar número/descripcion:', error.message || error);
-        return null;
+      const overrideBase = {
+        contrato_id: Number(contratoId),
+        fecha_pago: fechaPago,
+        monto_total: total,
+        monto: total,
+        monto_alquiler: alquiler,
+        monto_impuesto: impuesto,
+        impuesto_porcentaje: 0,
+        numero_recibo: numero || null,
+        referencia: numero || null,
+        descripcion_pago: obs || null,
+        observacion: obs || null,
+        periodo_aplicado: periodo || null,
+        detalle_aplicacion: detalle || null,
+        medio: $('mMedio')?.value || 'EFECTIVO',
+        inquilino_nombre: modalContrato?.inquilino_nombre || modalContrato?.nombre_inquilino || '',
+        local_codigo: modalContrato?.local_codigo || modalContrato?.codigo_local || '',
+        created_at: new Date().toISOString()
+      };
+
+      // Guardamos un override local para que la UI muestre inmediatamente el N°, impuesto y descripción
+      // aunque la RPC devuelva un REC-00000 genérico o no exponga columnas nuevas.
+      if (numero || obs || impuesto > 0) saveCobroReceiptOverride(overrideBase);
+
+      let updated = null;
+
+      // 1) Intentar actualizar el pago operativo. listar_recibos_operativos normalmente lee desde pagos,
+      // por eso esta parte es clave para que no vuelva a aparecer REC-00000.
+      const pagoTarget = await findRecentPaymentLike({ contratoId:Number(contratoId), fechaPago, monto:total });
+      if (pagoTarget?.id){
+        const pagoPatch = {
+          referencia: numero || pagoTarget.referencia || null,
+          descripcion_pago: obs || null,
+          observacion: obs || null,
+          monto_alquiler: alquiler,
+          monto_impuesto: impuesto,
+          impuesto_porcentaje: 0,
+          periodo_aplicado: periodo || null,
+          detalle_aplicacion: detalle || null,
+          updated_at: new Date().toISOString()
+        };
+        const pagoUpd = await updateFirstMatchingRowSafe('pagos', pagoTarget, pagoPatch);
+        if (pagoUpd) {
+          updated = { ...(updated || {}), pago_id: pagoTarget.id };
+          saveCobroReceiptOverride({ ...overrideBase, pago_id: pagoTarget.id, id: pagoTarget.id });
+        }
       }
 
-      const rows = Array.isArray(data) ? data : [];
-      const fechaKey = String(fechaPago || '').slice(0,10);
-      const montoNum = Number(monto || 0);
-      const target = rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - montoNum) < 0.01) || rows[0];
-      if (!target?.id) return null;
+      // 2) Intentar actualizar recibos_historicos_operativos si la RPC generó/copió ahí el comprobante.
+      try{
+        const { data, error } = await sb
+          .from('recibos_historicos_operativos')
+          .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,created_at')
+          .eq('contrato_id', contratoId)
+          .order('created_at', { ascending:false })
+          .limit(30);
 
-      const patch = {};
-      if (numero){
-        patch.numero_recibo = numero;
-        patch.recibo_base = numero;
-        patch.referencia = numero;
+        if (!error){
+          const rows = Array.isArray(data) ? data : [];
+          const fechaKey = String(fechaPago || '').slice(0,10);
+          const target = rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - total) < 0.01) || rows[0];
+          if (target?.id){
+            const histPatch = {
+              numero_recibo: numero || target.numero_recibo || null,
+              recibo_base: numero || target.numero_recibo || null,
+              referencia: numero || target.referencia || null,
+              observacion: obs || target.observacion || null,
+              updated_at: new Date().toISOString()
+            };
+            const histUpd = await updateFirstMatchingRowSafe('recibos_historicos_operativos', target, histPatch);
+            if (histUpd) {
+              updated = { ...(updated || {}), id: target.id, numero_recibo: numero || target.numero_recibo };
+              saveCobroReceiptOverride({ ...overrideBase, recibo_id: `hist-${target.id}` });
+            }
+          }
+        } else {
+          console.warn('No se pudo buscar el recibo histórico recién creado:', error.message || error);
+        }
+      } catch(e){
+        console.warn('No se pudo ajustar recibos_historicos_operativos:', e?.message || e);
       }
-      if (obs) patch.observacion = obs;
-      patch.updated_at = new Date().toISOString();
 
-      let upd = await sb.from('recibos_historicos_operativos').update(patch).eq('id', target.id).select('id,numero_recibo,referencia,observacion').maybeSingle();
-      if (upd.error && /updated_at|column/i.test(String(upd.error.message || ''))){
-        delete patch.updated_at;
-        upd = await sb.from('recibos_historicos_operativos').update(patch).eq('id', target.id).select('id,numero_recibo,referencia,observacion').maybeSingle();
-      }
-      if (upd.error){
-        console.warn('No se pudo ajustar número/descripcion del recibo:', upd.error.message || upd.error);
-        return null;
-      }
-      return upd.data || null;
+      return updated || overrideBase;
     }
 
     async function refreshPaymentPeriodOptions(row, keepValue=false){
@@ -11438,7 +11656,11 @@ function globalSearch(){
           fechaPago: args.p_fecha_pago,
           monto: amount,
           numeroManual,
-          observacionFinal
+          observacionFinal,
+          alquilerBase,
+          impuestoFijo,
+          periodoTexto,
+          detalleAplicacion: desgloseCobro
         });
 
         if (msgEl) {
