@@ -4012,13 +4012,11 @@ td:last-child{
           <label class="muted" style="font-size:12px;">Alquiler</label>
           <input id="mAlquiler" placeholder="Monto alquiler" style="width:220px" oninput="recalcularCobroModal()">
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:150px;">
-          <label class="muted" style="font-size:12px;">% impuesto</label>
-          <input id="mImpPct" type="number" min="0" step="0.01" placeholder="Ej: 10" style="width:140px" oninput="recalcularCobroModal()">
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
-          <label class="muted" style="font-size:12px;">Impuesto</label>
-          <input id="mImpMonto" placeholder="Impuesto" style="width:180px; font-weight:800;" readonly>
+        <input id="mImpPct" type="hidden" value="0">
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+          <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
+          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;">Monto fijo, no porcentaje.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -6788,14 +6786,14 @@ function globalSearch(){
 
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      const impPct = parsePercentInput($('mImpPct')?.value || 0);
-      const impuesto = round2(alquiler * impPct / 100);
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
       const total = round2(alquiler + impuesto);
+      const impPct = 0;
 
-      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(impuesto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
       if ($('mPeriodoAplicado')) {
-        const preview = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
+        const preview = getPaymentApplicationPreview(modalContrato || {}, total, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
         $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
       }
 
@@ -6819,7 +6817,7 @@ function globalSearch(){
       $('mFecha').value = today();
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
-      if ($('mImpPct')) $('mImpPct').value = '';
+      if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
       if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
@@ -6847,20 +6845,20 @@ function globalSearch(){
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
 
         const alquilerStr = parseMoneyToDecimalString($('mAlquiler')?.value || '');
-        const impPct = parsePercentInput($('mImpPct')?.value || 0);
+        const impuestoStr = parseMoneyToDecimalString($('mImpMonto')?.value || '') || '0.00';
+        const impPct = 0;
 
         if (!alquilerStr){
           msgEl.textContent = 'Monto de alquiler inválido.';
           return;
         }
 
-        if (impPct < 0){
-          msgEl.textContent = 'El porcentaje de impuesto no puede ser negativo.';
+        const alquilerNum = Number(alquilerStr);
+        const impuestoNum = Number(impuestoStr);
+        if (impuestoNum < 0){
+          msgEl.textContent = 'El impuesto a sumar no puede ser negativo.';
           return;
         }
-
-        const alquilerNum = Number(alquilerStr);
-        const impuestoNum = round2(alquilerNum * impPct / 100);
         const totalNum = round2(alquilerNum + impuestoNum);
 
         const montoAlquiler = alquilerNum.toFixed(2);
@@ -6889,7 +6887,7 @@ function globalSearch(){
           referencia: referencia || null,
           monto_alquiler: Number(montoAlquiler),
           monto_impuesto: Number(montoImpuesto),
-          impuesto_porcentaje: Number(impPct),
+          impuesto_porcentaje: 0,
           periodo_aplicado: periodoAplicado,
           detalle_aplicacion: applicationPlan.detalle || periodoAplicado
         };
@@ -8111,7 +8109,7 @@ function globalSearch(){
       const amountGap = 12;
       const amountW = (contentWidth - (amountGap * 2)) / 3;
       drawAmountCard(startX, amountY, amountW, 104, 'Alquiler', alquiler);
-      drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, `${impuestoPct.toFixed(2)}%`);
+      drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
       drawAmountCard(startX + (amountW + amountGap) * 2, amountY, amountW, 104, 'Total recibido', total, '', true);
 
       const footerY = amountY + 128;
@@ -8179,7 +8177,7 @@ function globalSearch(){
         `Fecha de pago: ${formatDateDisplay(item.fecha_pago || item.created_at)}`,
         item.created_at ? `Registrado: ${formatDateTimeDisplay(item.created_at)}` : null,
         `Alquiler: ${fmtARS.format(Number(item.monto_alquiler || 0))}`,
-        `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${item.impuesto_porcentaje != null ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
+        `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${Number(item.impuesto_porcentaje || 0) > 0 ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
         `Total: ${fmtARS.format(Number(item.monto_total || item.monto || 0))}`,
         `Medio de pago: ${item.medio || '—'}`,
         item.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : null,
@@ -8245,7 +8243,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct.toFixed(2)}%</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
@@ -8465,7 +8463,7 @@ function globalSearch(){
           </td>
           <td class="right">
             <div class="recibos-cell-title">${fmtARS.format(Number(item.monto_impuesto || 0))}</div>
-            <span class="contact-sub">${Number(item.impuesto_porcentaje || 0).toFixed(2)}%</span>
+            <span class="contact-sub">${Number(item.impuesto_porcentaje || 0) > 0 ? `${Number(item.impuesto_porcentaje || 0).toFixed(2)}%` : 'Monto fijo'}</span>
           </td>
           <td class="right">
             <div class="recibos-cell-title"><strong>${fmtARS.format(Number(item.monto_total || 0))}</strong></div>
@@ -11236,10 +11234,11 @@ function globalSearch(){
 
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      if ($('mImpPct')) $('mImpPct').value = '';
-      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(0);
-      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(alquiler);
-      return { alquiler, impPct:0, impuesto:0, total:alquiler };
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+      const total = round2(alquiler + impuesto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
+      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      return { alquiler, impPct:0, impuesto, total };
     }
 
     async function openPagoModal(r){
@@ -11266,6 +11265,8 @@ function globalSearch(){
       const oldest = rows.find(x => toNumber(x.saldo) > 0);
       const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
+      if ($('mImpMonto')) $('mImpMonto').value = '';
       await refreshPaymentPeriodOptions(r, false);
       recalcularCobroModal();
     }
@@ -11277,11 +11278,17 @@ function globalSearch(){
       try{
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
-        const amount = parseMoneyToNumber($('mAlquiler')?.value || '');
+        const alquilerBase = parseMoneyToNumber($('mAlquiler')?.value || '');
+        const impuestoFijo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+        const amount = round2(alquilerBase + impuestoFijo);
         if (amount <= 0){
           if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
           return;
         }
+        const descripcionBase = String($('mDescripcion')?.value || '').trim();
+        const desgloseCobro = impuestoFijo > 0
+          ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
+          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
         const choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
         const args = {
           p_contrato_id: Number(modalContrato.contrato_id),
@@ -11291,7 +11298,7 @@ function globalSearch(){
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: String($('mReferencia')?.value || '').trim() || null,
-          p_observacion: String($('mDescripcion')?.value || '').trim() || null
+          p_observacion: [descripcionBase, desgloseCobro].filter(Boolean).join(' | ') || null
         };
         const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
         if (error) {
