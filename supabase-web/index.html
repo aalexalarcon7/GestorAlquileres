@@ -4026,8 +4026,8 @@ td:last-child{
 
       <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
-          <label class="muted" style="font-size:12px;">N° recibo</label>
-          <input id="mReferencia" placeholder="N° recibo" style="width:180px">
+          <label class="muted" style="font-size:12px;">N° recibo manual</label>
+          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
           <label class="muted" style="font-size:12px;">Medio de pago</label>
@@ -11204,18 +11204,116 @@ function globalSearch(){
       return { auto:false, anio:Number(m[1]), mes:Number(m[2]) };
     }
 
+    let pagoCuotasPendientesActuales = [];
+
+    function normalizeCuotaCobroRow(row={}){
+      const sortKey = String(row.sort_key || '');
+      const anio = Number(row.anio || sortKey.slice(0,4) || 0);
+      const mes = Number(row.mes || sortKey.slice(5,7) || 0);
+      if (!anio || !mes) return null;
+      const saldo = toNumber(row.saldo);
+      const total = toNumber(row.monto_total ?? row.total);
+      const pagado = toNumber(row.monto_pagado ?? row.pagado);
+      return {
+        ...row,
+        anio,
+        mes,
+        saldo,
+        monto_total: total,
+        monto_pagado: pagado,
+        sort_key: `${anio}-${String(mes).padStart(2,'0')}`,
+        periodo: row.periodo || `${String(mes).padStart(2,'0')}/${anio}`,
+        mes_nombre: row.mes_nombre || GA_MONTH_NAMES[mes - 1] || String(mes)
+      };
+    }
+
+    function getDetalleCuotasPendientesParaCobro(){
+      return (detalleCuotasActuales || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(x => toNumber(x.saldo) > 0)
+        .sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
+    }
+
+    async function getCuotasPendientesParaCobro(contratoId){
+      let dbRows = [];
+      try{
+        dbRows = await fetchCuotasOperativasContrato(contratoId);
+      } catch(err){
+        console.warn('No se pudieron cargar cuotas operativas para cobrar:', err?.message || err);
+      }
+
+      const dbPendientes = (dbRows || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(x => toNumber(x.saldo) > 0);
+
+      const visiblesPendientes = getDetalleCuotasPendientesParaCobro();
+      const map = new Map();
+      [...dbPendientes, ...visiblesPendientes].forEach(row => {
+        const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
+        if (!map.has(key)) map.set(key, row);
+      });
+
+      return [...map.values()].sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
+    }
+
+    function getOldestPendingCuotaParaCobro(){
+      return (pagoCuotasPendientesActuales || [])[0] || getDetalleCuotasPendientesParaCobro()[0] || null;
+    }
+
+    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, numeroManual, observacionFinal }){
+      const numero = String(numeroManual || '').trim();
+      const obs = String(observacionFinal || '').trim();
+      if (!contratoId || (!numero && !obs)) return null;
+
+      const { data, error } = await sb
+        .from('recibos_historicos_operativos')
+        .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,created_at')
+        .eq('contrato_id', contratoId)
+        .order('created_at', { ascending:false })
+        .limit(20);
+
+      if (error) {
+        console.warn('No se pudo buscar el recibo recién creado para ajustar número/descripcion:', error.message || error);
+        return null;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      const fechaKey = String(fechaPago || '').slice(0,10);
+      const montoNum = Number(monto || 0);
+      const target = rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - montoNum) < 0.01) || rows[0];
+      if (!target?.id) return null;
+
+      const patch = {};
+      if (numero){
+        patch.numero_recibo = numero;
+        patch.recibo_base = numero;
+        patch.referencia = numero;
+      }
+      if (obs) patch.observacion = obs;
+      patch.updated_at = new Date().toISOString();
+
+      let upd = await sb.from('recibos_historicos_operativos').update(patch).eq('id', target.id).select('id,numero_recibo,referencia,observacion').maybeSingle();
+      if (upd.error && /updated_at|column/i.test(String(upd.error.message || ''))){
+        delete patch.updated_at;
+        upd = await sb.from('recibos_historicos_operativos').update(patch).eq('id', target.id).select('id,numero_recibo,referencia,observacion').maybeSingle();
+      }
+      if (upd.error){
+        console.warn('No se pudo ajustar número/descripcion del recibo:', upd.error.message || upd.error);
+        return null;
+      }
+      return upd.data || null;
+    }
+
     async function refreshPaymentPeriodOptions(row, keepValue=false){
       const el = $('mPeriodoAplicado');
       if (!el) return;
-      const previous = keepValue ? String(el.value || 'AUTO') : 'AUTO';
-      let rows = [];
-      try{
-        rows = await fetchCuotasOperativasContrato(row?.contrato_id || modalContrato?.contrato_id);
-      } catch(err){
-        console.warn('No se pudieron cargar cuotas operativas:', err?.message || err);
-      }
+      const previous = keepValue ? String(el.value || 'AUTO') : '';
+      const contratoId = row?.contrato_id || modalContrato?.contrato_id;
+      const pendientes = await getCuotasPendientesParaCobro(contratoId);
+      pagoCuotasPendientesActuales = pendientes;
 
-      const pendientes = rows.filter(x => toNumber(x.saldo) > 0);
       const options = [{ value:'AUTO', label:'Automático: deuda más antigua' }];
       pendientes.forEach(x => {
         options.push({
@@ -11224,12 +11322,16 @@ function globalSearch(){
         });
       });
 
-      if (!pendientes.length){
-        options[0] = { value:'AUTO', label:'Sin deuda pendiente visible' };
-      }
-
       el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
-      el.value = options.some(opt => opt.value === previous) ? previous : 'AUTO';
+
+      if (previous && options.some(opt => opt.value === previous)) {
+        el.value = previous;
+      } else if (pendientes[0]) {
+        // Por defecto se selecciona la deuda más vieja. Así el cobro no cae en un mes incorrecto.
+        el.value = cuotaChoiceValue(pendientes[0]);
+      } else {
+        el.value = 'AUTO';
+      }
     }
 
     function recalcularCobroModal(){
@@ -11260,9 +11362,9 @@ function globalSearch(){
       populatePaymentMethodSelect('mMedio');
       if ($('modalMsg')) $('modalMsg').textContent = '';
 
-      let rows = [];
-      try{ rows = await fetchCuotasOperativasContrato(r.contrato_id); } catch(e){ console.warn(e); }
-      const oldest = rows.find(x => toNumber(x.saldo) > 0);
+      const pendientes = await getCuotasPendientesParaCobro(r.contrato_id);
+      pagoCuotasPendientesActuales = pendientes;
+      const oldest = pendientes[0];
       const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
       if ($('mImpPct')) $('mImpPct').value = '0';
@@ -11285,11 +11387,28 @@ function globalSearch(){
           if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
           return;
         }
+
+        const numeroManual = String($('mReferencia')?.value || '').trim();
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
           ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
           : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
-        const choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+
+        let choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+        if (choice.auto){
+          const oldest = getOldestPendingCuotaParaCobro();
+          if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
+        }
+
+        const periodoTexto = choice.auto
+          ? 'deuda más antigua'
+          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`;
+        const observacionFinal = [
+          descripcionBase,
+          `Aplicado a: ${periodoTexto}`,
+          desgloseCobro
+        ].filter(Boolean).join(' | ') || null;
+
         const args = {
           p_contrato_id: Number(modalContrato.contrato_id),
           p_anio: choice.anio,
@@ -11297,8 +11416,8 @@ function globalSearch(){
           p_monto_pago: amount,
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
-          p_referencia: String($('mReferencia')?.value || '').trim() || null,
-          p_observacion: [descripcionBase, desgloseCobro].filter(Boolean).join(' | ') || null
+          p_referencia: numeroManual || null,
+          p_observacion: observacionFinal
         };
         const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
         if (error) {
@@ -11313,7 +11432,19 @@ function globalSearch(){
         }
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
-        if (msgEl) msgEl.textContent = res?.mensaje || 'Cobro registrado correctamente.';
+
+        const metadataPatch = await forceCobroReceiptMetadata({
+          contratoId: Number(modalContrato.contrato_id),
+          fechaPago: args.p_fecha_pago,
+          monto: amount,
+          numeroManual,
+          observacionFinal
+        });
+
+        if (msgEl) {
+          const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
+          msgEl.textContent = `${res?.mensaje || 'Cobro registrado correctamente.'}${numeroMsg ? ` Recibo: ${numeroMsg}.` : ''}`;
+        }
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
         if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
