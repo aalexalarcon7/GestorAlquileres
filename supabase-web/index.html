@@ -4114,6 +4114,17 @@ td:last-child{
         <input id="inqDoc" placeholder="Documento" style="width:180px;">
       </div>
 
+      <div id="inqCreateActivoFields" style="display:none;margin-top:14px;border:1px solid var(--line);border-radius:18px;padding:14px;background:#f8fafc;">
+        <div style="font-weight:900;margin-bottom:8px;">Unidad / activo</div>
+        <div class="muted" style="font-size:12px;margin-bottom:10px;">Para que aparezca en Activos, cargá el código de la unidad/local. Si lo dejás vacío, se guarda solo como locatario sin activo.</div>
+        <div class="row">
+          <input id="inqLocalCodigo" placeholder="Código unidad/local. Ej: PTO108" style="width:190px;">
+          <input id="inqMontoMensual" placeholder="Alquiler mensual inicial" style="width:210px;">
+          <input id="inqDiaVencimiento" placeholder="Día venc. Ej: 10" style="width:140px;">
+          <input id="inqFechaInicio" type="date" style="width:170px;">
+        </div>
+      </div>
+
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
         <button class="btn primary" onclick="saveInqModal()">Guardar</button>
       </div>
@@ -5667,6 +5678,7 @@ function globalSearch(){
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
       await refreshContratosActivos();
+      await refreshInquilinosSinContrato();
       await refreshActivosReconstruidosData();
 
       const baseRows = (contratosActivos || [])
@@ -5728,7 +5740,7 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted" style="margin-top:6px;"></div>
+          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
         </div>
 
         <div class="card">
@@ -7525,6 +7537,7 @@ function globalSearch(){
 
     // ===== Inquilinos (lista + detalle) =====
     let contratosActivos = [];          // contratos activos con locales + inquilinos
+    let inquilinosSinContrato = [];     // inquilinos cargados pero sin contrato activo
     let inqCache = [];                  // resumen por inquilino
     let selectedInqId = null;
     let lastGlobalQuery = "";
@@ -7542,6 +7555,33 @@ function globalSearch(){
         return;
       }
       contratosActivos = data || [];
+    }
+
+    async function refreshInquilinosSinContrato(){
+      try{
+        const { data, error } = await sb
+          .from('inquilinos')
+          .select('id,nombre,telefono,email,documento');
+
+        if (error){
+          console.warn('refreshInquilinosSinContrato:', error.message);
+          inquilinosSinContrato = [];
+          return;
+        }
+
+        const activosIds = new Set(
+          (contratosActivos || [])
+            .map(c => String(c.inquilinos?.id || c.inquilino_id || ''))
+            .filter(Boolean)
+        );
+
+        inquilinosSinContrato = (data || [])
+          .filter(inq => inq?.id && !activosIds.has(String(inq.id)))
+          .filter(inq => !isSinAsignarName(inq?.nombre || ''));
+      } catch (e){
+        console.warn('refreshInquilinosSinContrato:', e?.message || e);
+        inquilinosSinContrato = [];
+      }
     }
 
     function buildInqCache(){
@@ -7591,6 +7631,25 @@ function globalSearch(){
         byId.set(inqId, row);
       }
 
+      for (const inq of (inquilinosSinContrato || [])){
+        const inqId = inq?.id;
+        if (!inqId || byId.has(inqId)) continue;
+        const nombre = (inq?.nombre || '').trim() || '—';
+        byId.set(inqId, {
+          inquilino_id: inqId,
+          nombre,
+          telefono: inq?.telefono || null,
+          email: inq?.email || null,
+          documento: inq?.documento || null,
+          contratos_activos: 0,
+          deuda_total: 0,
+          deuda_atrasada: 0,
+          vence_pronto: 0,
+          contratos: [],
+          sin_contrato: true,
+        });
+      }
+
       let list = [...byId.values()];
 
       // Orden: primero los que deben más, luego nombre
@@ -7600,6 +7659,7 @@ function globalSearch(){
     }
 
     function inqBadge(inq){
+      if (inq?.sin_contrato || Number(inq?.contratos_activos || 0) === 0) return `<span class="badge b-info">SIN ACTIVO</span>`;
       if (inq.deuda_atrasada > 0) return `<span class="badge b-bad">ATRASADO</span>`;
       if (Number(inq.vence_pronto || 0) > 0) return `<span class="badge b-warn">VENCE PRONTO</span>`;
       return `<span class="badge b-ok">AL DÍA</span>`;
@@ -7736,7 +7796,13 @@ function globalSearch(){
       $('inqUnits').textContent = `Unidades: ${inq.contratos_activos}`;
 
       const tb = $('tbInqContracts');
-      tb.innerHTML = inq.contratos
+      const contratos = Array.isArray(inq.contratos) ? inq.contratos : [];
+      if (!contratos.length){
+        tb.innerHTML = `<tr><td colspan="5" class="center">Este locatario todavía no tiene activo/contrato asignado.</td></tr>`;
+        $('inqDetailMsg').textContent = 'Para que aparezca en Activos, crealo nuevamente indicando código de unidad/local o asignale un contrato.';
+        return;
+      }
+      tb.innerHTML = contratos
         .sort((a,b)=> (b.deuda_atrasada - a.deuda_atrasada) || a.local_codigo.localeCompare(b.local_codigo))
         .map(c => `
           <tr>
@@ -7783,17 +7849,99 @@ function globalSearch(){
         $('inqTel').value = inq.telefono || '';
         $('inqEmail').value = inq.email || '';
         $('inqDoc').value = inq.documento || '';
+        const extra = $('inqCreateActivoFields');
+        if (extra) extra.style.display = 'none';
       } else {
-        $('inqModalTitle').textContent = 'Nuevo inquilino';
+        $('inqModalTitle').textContent = 'Nuevo locatario / activo';
         $('inqNombre').value = '';
         $('inqTel').value = '';
         $('inqEmail').value = '';
         $('inqDoc').value = '';
+        const extra = $('inqCreateActivoFields');
+        if (extra) extra.style.display = 'block';
+        if ($('inqLocalCodigo')) $('inqLocalCodigo').value = '';
+        if ($('inqMontoMensual')) $('inqMontoMensual').value = '';
+        if ($('inqDiaVencimiento')) $('inqDiaVencimiento').value = '10';
+        if ($('inqFechaInicio')) $('inqFechaInicio').value = today();
       }
     }
 
     function closeInqModal(){
       $('modalInqBack').style.display = 'none';
+    }
+
+    async function findLocalByCodigoFlexible(codigo){
+      const code = String(codigo || '').trim();
+      if (!code) return null;
+      const attempts = [
+        () => sb.from('locales').select('id,codigo,codigo_local').eq('codigo', code).maybeSingle(),
+        () => sb.from('locales').select('id,codigo,codigo_local').eq('codigo_local', code).maybeSingle(),
+      ];
+      for (const fn of attempts){
+        try{
+          const { data, error } = await fn();
+          if (!error && data?.id) return data;
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function createLocalFlexible(codigo){
+      const code = String(codigo || '').trim();
+      if (!code) throw new Error('El código de la unidad/local es obligatorio.');
+
+      const existing = await findLocalByCodigoFlexible(code);
+      if (existing?.id) return existing;
+
+      const payloads = [
+        { codigo: code, codigo_local: code },
+        { codigo: code },
+        { codigo_local: code },
+      ];
+      let lastError = null;
+      for (const payload of payloads){
+        try{
+          const { data, error } = await sb.from('locales').insert(payload).select('id,codigo,codigo_local').single();
+          if (!error && data?.id) return data;
+          lastError = error;
+          if (error && /duplicate|unique/i.test(error.message || '')){
+            const again = await findLocalByCodigoFlexible(code);
+            if (again?.id) return again;
+          }
+        } catch (e){
+          lastError = e;
+        }
+      }
+      throw new Error(lastError?.message || 'No se pudo crear la unidad/local.');
+    }
+
+    async function createContratoFlexible({ localId, inquilinoId, montoMensual, diaVencimiento, fechaInicio }){
+      const base = {
+        local_id: localId,
+        inquilino_id: inquilinoId,
+        estado: 'ACTIVO',
+        monto_mensual: montoMensual || 0,
+        impuesto_mensual: 0,
+        dia_vencimiento: diaVencimiento || 10,
+        fecha_inicio: fechaInicio || today(),
+      };
+      const payloads = [
+        base,
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO', monto_mensual: montoMensual || 0, dia_vencimiento: diaVencimiento || 10, fecha_inicio: fechaInicio || today() },
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO', monto_mensual: montoMensual || 0 },
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO' },
+      ];
+      let lastError = null;
+      for (const payload of payloads){
+        try{
+          const { data, error } = await sb.from('contratos').insert(payload).select('id').single();
+          if (!error && data?.id) return data;
+          lastError = error;
+        } catch (e){
+          lastError = e;
+        }
+      }
+      throw new Error(lastError?.message || 'No se pudo crear el contrato activo.');
     }
 
     async function saveInqModal(){
@@ -7823,13 +7971,65 @@ function globalSearch(){
         renderInquilinoDetail();
         closeInqModal();
       } else {
+        const codigoLocal = ($('inqLocalCodigo')?.value || '').trim();
+        const montoRaw = ($('inqMontoMensual')?.value || '').trim();
+        const diaRaw = ($('inqDiaVencimiento')?.value || '').trim();
+        const fechaInicio = ($('inqFechaInicio')?.value || '').trim() || today();
+        const montoMensual = montoRaw ? parseModalNumber(montoRaw) : 0;
+        const diaVencimiento = diaRaw ? Number(diaRaw) : 10;
+
+        if (montoRaw && montoMensual === null) {
+          $('inqModalMsg').textContent = 'El alquiler mensual no tiene un formato válido.';
+          return;
+        }
+        if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31) {
+          $('inqModalMsg').textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+          return;
+        }
+
+        $('inqModalMsg').textContent = codigoLocal ? 'Creando locatario, unidad y contrato...' : 'Creando locatario...';
+
         const { data, error } = await sb.from('inquilinos').insert(payload).select('id').single();
         if (error) { $('inqModalMsg').textContent = error.message; return; }
 
-        $('inqModalMsg').textContent = 'Creado ✅';
+        let newContratoId = null;
+        try{
+          if (codigoLocal){
+            const local = await createLocalFlexible(codigoLocal);
+            const contrato = await createContratoFlexible({
+              localId: local.id,
+              inquilinoId: data.id,
+              montoMensual,
+              diaVencimiento,
+              fechaInicio,
+            });
+            newContratoId = contrato.id;
+          }
+        } catch (e){
+          $('inqModalMsg').textContent = e?.message || 'El locatario se creó, pero no se pudo crear el activo/contrato.';
+          alert('El locatario se creó, pero no se pudo crear el activo/contrato: ' + ($('inqModalMsg').textContent || 'Error'));
+          await refreshAll();
+          await refreshInquilinosSinContrato();
+          buildInqCache();
+          return;
+        }
+
+        $('inqModalMsg').textContent = codigoLocal ? 'Locatario y activo creados ✅' : 'Locatario creado ✅';
         closeInqModal();
-        // Nota: aparecerá en la lista cuando tenga un contrato activo asignado
-        alert('Inquilino creado. Para verlo en la lista, asignalo a un contrato.');
+        await refreshAll();
+
+        if (newContratoId){
+          setRoute('activos');
+          const nuevo = unidades.find(x => String(x.contrato_id) === String(newContratoId));
+          if (nuevo) openDetalle(nuevo);
+          else alert('Locatario y contrato creados. Si no lo ves todavía, apretá Refrescar o Ctrl + F5.');
+        } else {
+          setRoute('inquilinos');
+          selectedInqId = data.id;
+          buildInqCache();
+          renderInquilinosPage();
+          alert('Locatario creado sin activo. Ahora aparece en Inquilinos como “Sin activo”.');
+        }
       }
     }
 
@@ -8364,7 +8564,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : ''}</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
