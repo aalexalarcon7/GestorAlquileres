@@ -3841,11 +3841,14 @@ td:last-child{
 
         <section id="viewActivos" style="display:none;">
           <div class="card">
-            <div class="row" style="justify-content:space-between;">
+            <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
               </div>
-              <span class="badge b-info" id="unitsCount">0 resultados</span>
+              <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                <button class="btn primary" type="button" onclick="openInqModal('create')">Agregar locatario</button>
+                <span class="badge b-info" id="unitsCount">0 resultados</span>
+              </div>
             </div>
 
             <div class="row" style="margin-top:12px;">
