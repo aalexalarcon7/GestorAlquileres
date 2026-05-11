@@ -4019,7 +4019,7 @@ td:last-child{
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;">Monto fijo, no porcentaje.</span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -5740,7 +5740,7 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
+          <div class="muted" style="margin-top:6px;"></div>
         </div>
 
         <div class="card">
@@ -8564,7 +8564,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : ''}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
