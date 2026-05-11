@@ -11643,11 +11643,11 @@ function globalSearch(){
           p_monto_impuesto: impuestoFijo,
           p_descripcion_pago: observacionFinal
         };
-        const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
+        const { data, error } = await sb.rpc('registrar_cobro_operativo_v2', args);
         if (error) {
           const raw = error.message || String(error);
-          if (/registrar_cobro_operativo|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función registrar_cobro_operativo en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
+          if (/registrar_cobro_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función registrar_cobro_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
           }
           if (/permission|permiso|denied|42501/i.test(raw)) {
             throw new Error('Permiso denegado para registrar cobros. Ejecutá el SQL hotfix de permisos. Detalle: ' + raw);
