@@ -8705,12 +8705,26 @@ function globalSearch(){
       });
     }
 
-    function updateRecibosFiltersFromUI(){
-      recibosPageState.query = $('recibosSearch')?.value || '';
-      recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
-      recibosPageState.month = $('recibosMonthFilter')?.value || '';
-      renderRecibosPage();
-    }
+    function updateRecibosHistoryFromState(){
+  const body = $('recibosBody');
+  if (!body){
+    renderRecibosPage();
+    return;
+  }
+
+  const filteredRows = applyRecibosPageFilters(recibosInternosCache || []);
+  body.innerHTML = renderRecibosHistoryRows(filteredRows);
+
+  const count = $('recibosCountPill');
+  if (count) count.textContent = `${filteredRows.length} visibles`;
+}
+
+function updateRecibosFiltersFromUI(){
+  recibosPageState.query = $('recibosSearch')?.value || '';
+  recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
+  recibosPageState.month = $('recibosMonthFilter')?.value || '';
+  updateRecibosHistoryFromState();
+}
 
 
     function buildReciboPreviewData({ pagoId, fecha, medio, referencia, reciboNumero, alquilerNum, impuestoNum, impPct, totalNum, contratoId, descripcionPago, periodoAplicado, detalleAplicacion }){
@@ -8746,7 +8760,7 @@ function globalSearch(){
       if ($('recibosSearch')) $('recibosSearch').value = '';
       if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
       if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
-      renderRecibosPage();
+      updateRecibosHistoryFromState();
     }
 
     function closeShareMenu(node){
@@ -8929,7 +8943,7 @@ function globalSearch(){
                 </div>
               </div>
               <div class="recibos-toolbar-actions">
-                <span class="recibos-count-pill">${filteredRows.length} visibles</span>
+                <span id="recibosCountPill" class="recibos-count-pill">${filteredRows.length} visibles</span>
                 <button class="btn" onclick="clearRecibosFilters()">Limpiar filtros</button>
               </div>
             </div>
