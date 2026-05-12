@@ -4019,7 +4019,7 @@ td:last-child{
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;">Monto fijo, no porcentaje.</span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -8322,167 +8322,124 @@ function globalSearch(){
 
       const doc = new jsPDFCtor({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const centerX = pageWidth / 2;
+      const contentWidth = 512;
+      const startX = (pageWidth - contentWidth) / 2;
 
       const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
       const registrado = item?.created_at ? formatDateTimeDisplay(item.created_at) : '—';
-      const medio = item?.medio || '—';
-      const periodo = item?.periodo_aplicado || item?.periodo || '';
-      const locatario = item?.inquilino_nombre || '—';
-      const documento = item?.documento || '—';
-      const telefonoEmail = [item?.telefono, item?.email].filter(Boolean).join(' · ') || '—';
-      const unidad = item?.local_codigo || '—';
       const impuestoPct = Number(item?.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item?.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item?.monto_impuesto || 0));
       const total = fmtARS.format(Number(item?.monto_total || item?.monto || 0));
+      const periodoAplicado = item?.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : `Referencia: ${item?.referencia || '—'}`;
 
-      const colors = {
-        ink: [15, 23, 42],
-        muted: [71, 85, 105],
-        label: [100, 116, 139],
-        line: [203, 213, 225],
-        softLine: [226, 232, 240],
-        soft: [248, 250, 252],
-        dark: [15, 23, 42],
-        chip: [51, 65, 85],
-        chipLine: [71, 85, 105],
-        white: [255, 255, 255]
-      };
-
-      const setColor = (color) => doc.setTextColor(color[0], color[1], color[2]);
-      const textWidth = (value) => doc.getTextWidth(String(value || ''));
-      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = colors.ink) => {
+      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = [15,23,42]) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
-        setColor(color);
-        const text = String(value || '');
-        doc.text(text, xCenter - textWidth(text) / 2, y);
+        doc.setTextColor(color[0], color[1], color[2]);
+        const width = doc.getTextWidth(String(value || ''));
+        doc.text(String(value || ''), xCenter - width / 2, y);
       };
-      const leftText = (value, x, y, size = 12, weight = 'normal', color = colors.ink) => {
+
+      const drawCenteredLines = (lines, xCenter, startY, size = 11, weight = 'normal', color = [71,85,105], lineHeight = 14) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
-        setColor(color);
-        doc.text(String(value || ''), x, y);
+        doc.setTextColor(color[0], color[1], color[2]);
+        lines.filter(Boolean).forEach((line, idx) => {
+          const w = doc.getTextWidth(String(line));
+          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
+        });
       };
-      const fitText = (value, maxWidth, size = 10, minSize = 7) => {
-        let current = size;
-        doc.setFontSize(current);
-        while (current > minSize && textWidth(value) > maxWidth) {
-          current -= 0.5;
-          doc.setFontSize(current);
-        }
-        return current;
-      };
-      const drawRounded = (x, y, w, h, r, fillColor, strokeColor = null) => {
-        if (fillColor) doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
-        if (strokeColor) doc.setDrawColor(strokeColor[0], strokeColor[1], strokeColor[2]);
-        doc.roundedRect(x, y, w, h, r, r, strokeColor ? 'FD' : 'F');
-      };
-      const drawChip = (x, y, w, h, value, size = 9) => {
-        drawRounded(x, y, w, h, h / 2, colors.chip, colors.chipLine);
-        const fontSize = fitText(value, w - 18, size, 6.5);
-        centerText(value, x + w / 2, y + h / 2 + 3.5, fontSize, 'bold', colors.white);
-      };
-      const drawCenteredWrapped = (value, xCenter, y, maxWidth, size = 10, color = colors.muted, lineHeight = 13) => {
+
+      const drawParagraphCentered = (value, xCenter, startY, maxWidth, size = 10.5, color = [100,116,139], lineHeight = 14) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(size);
-        setColor(color);
-        const lines = doc.splitTextToSize(String(value || ''), maxWidth).slice(0, 2);
-        lines.forEach((line, index) => {
-          doc.text(line, xCenter - textWidth(line) / 2, y + index * lineHeight);
+        doc.setTextColor(color[0], color[1], color[2]);
+        const lines = doc.splitTextToSize(String(value || ''), maxWidth);
+        lines.forEach((line, idx) => {
+          const w = doc.getTextWidth(String(line));
+          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
         });
       };
-      const drawInfoCard = (x, y, w, h, label, main, lines = []) => {
-        drawRounded(x, y, w, h, 18, colors.soft, colors.line);
-        centerText(String(label || '').toUpperCase(), x + w / 2, y + 26, 9, 'bold', colors.label);
-        const mainSize = fitText(main, w - 42, 16, 10);
-        centerText(main, x + w / 2, y + 58, mainSize, 'bold', colors.ink);
-        lines.filter(Boolean).slice(0, 3).forEach((line, idx) => {
-          const lineSize = fitText(line, w - 36, 10, 7.5);
-          centerText(line, x + w / 2, y + 82 + idx * 17, lineSize, 'normal', colors.muted);
-        });
-      };
-      const drawAmountCard = (x, y, w, h, label, value, sub = '', dark = false) => {
-        drawRounded(x, y, w, h, 18, dark ? colors.dark : colors.soft, dark ? colors.dark : colors.line);
-        centerText(String(label || '').toUpperCase(), x + w / 2, y + 28, 9, 'bold', dark ? colors.softLine : colors.label);
-        const valueSize = fitText(value, w - 28, dark ? 20 : 19, 12);
-        centerText(value, x + w / 2, y + 63, valueSize, 'bold', dark ? colors.white : colors.ink);
-        if (sub) centerText(sub, x + w / 2, y + 84, 10, 'normal', dark ? colors.softLine : colors.muted);
+
+      const drawInfoBox = (x, y, w, h, label, main, sub1 = '', sub2 = '') => {
+        doc.setDrawColor(203, 213, 225);
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+        centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
+        centerText(main, x + (w/2), y + 58, 16, 'bold', [15,23,42]);
+        if (sub1) centerText(sub1, x + (w/2), y + 82, 10, 'normal', [71,85,105]);
+        if (sub2) centerText(sub2, x + (w/2), y + 102, 10, 'normal', [71,85,105]);
       };
 
-      // Contenedor general del comprobante, estilo similar al recibo web.
-      const cardX = 22;
-      const cardY = 24;
-      const cardW = pageWidth - 44;
-      const cardH = Math.min(710, pageHeight - 48);
-      drawRounded(cardX, cardY, cardW, cardH, 26, colors.white, colors.line);
-
-      const innerX = cardX + 24;
-      const innerW = cardW - 48;
-      const headerX = innerX;
-      const headerY = cardY + 36;
-      const headerW = innerW;
-      const headerH = 226;
-      drawRounded(headerX, headerY, headerW, headerH, 22, colors.dark);
-
-      // Logo real de la web cuando está disponible. Si no, usa iniciales como respaldo.
-      const logoSize = 66;
-      const logoX = centerX - logoSize / 2;
-      const logoY = headerY + 30;
-      const logoImg = document.querySelector('.recibo-sheet-logo.logo-image img, .sb-logo.logo-image img, #loginCard .loginBrandMark.logo-image img');
-      const logoSrc = logoImg?.getAttribute('src') || logoImg?.src || '';
-      if (logoSrc) {
-        try {
-          doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize, undefined, 'FAST');
-        } catch (error) {
-          doc.setFillColor(255, 255, 255);
-          doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
-          centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
+      const drawAmountCard = (x, y, w, h, label, value, secondary = '', dark = false) => {
+        if (dark){
+          doc.setFillColor(15,23,42);
+          doc.setDrawColor(15,23,42);
+          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [203,213,225]);
+          centerText(value, x + (w/2), y + 58, 19, 'bold', [255,255,255]);
+          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [226,232,240]);
+        } else {
+          doc.setFillColor(248,250,252);
+          doc.setDrawColor(203,213,225);
+          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
+          centerText(value, x + (w/2), y + 58, 18, 'bold', [15,23,42]);
+          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [71,85,105]);
         }
-      } else {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
-        centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
-      }
+      };
 
-      centerText('Recibo interno', centerX, headerY + 128, 27, 'bold', colors.white);
-      centerText(negocio, centerX, headerY + 153, 11.5, 'normal', colors.softLine);
+      const headerY = 38;
+      const headerH = 178;
+      const centerX = pageWidth / 2;
 
-      const chipH = 30;
-      const chipGap = 10;
-      const chipTopY = headerY + 176;
-      const nChipW = 190;
-      const pagoChipW = 132;
-      const row1W = nChipW + pagoChipW + chipGap;
-      const row1X = centerX - row1W / 2;
-      drawChip(row1X, chipTopY, nChipW, chipH, `N° ${numero}`, 8.5);
-      drawChip(row1X + nChipW + chipGap, chipTopY, pagoChipW, chipH, `Pago: ${fecha}`, 8.5);
-      drawChip(centerX - 190 / 2, chipTopY + 40, 190, chipH, `Registrado: ${registrado}`, 8.2);
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(startX, headerY, contentWidth, headerH, 24, 24, 'F');
 
-      const cardTop = headerY + headerH + 24;
+      doc.setFillColor(255,255,255);
+      doc.roundedRect(centerX - 36, headerY + 18, 72, 72, 22, 22, 'F');
+      centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, headerY + 63, 24, 'bold', [15,23,42]);
+
+      centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
+      centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
+
+
+      const badgeY = headerY + headerH + 18;
+      const badgeW1 = 170;
+      const badgeW2 = 120;
+      const totalBadgesW = badgeW1 + badgeW2 + 12;
+      const badgesX = (pageWidth - totalBadgesW) / 2;
+      doc.setFillColor(248,250,252);
+      doc.setDrawColor(203,213,225);
+      doc.roundedRect(badgesX, badgeY, badgeW1, 28, 14, 14, 'FD');
+      doc.roundedRect(badgesX + badgeW1 + 12, badgeY, badgeW2, 28, 14, 14, 'FD');
+      centerText(`N° ${numero}`, badgesX + badgeW1/2, badgeY + 18, 10, 'bold', [15,23,42]);
+      centerText(fecha, badgesX + badgeW1 + 12 + badgeW2/2, badgeY + 18, 10, 'bold', [15,23,42]);
+
+      const boxY = badgeY + 48;
       const gap = 14;
-      const infoW = (innerW - gap) / 2;
-      const infoH = 118;
-      drawInfoCard(innerX, cardTop, infoW, infoH, 'Locatario', locatario, [`Documento: ${documento}`, telefonoEmail]);
-      drawInfoCard(innerX + infoW + gap, cardTop, infoW, infoH, 'Detalle del cobro', `Unidad ${unidad}`, [`Medio de pago: ${medio}`, periodo ? `Aplicado a: ${periodo}` : '', `N° recibo: ${numero}`]);
+      const boxW = (contentWidth - gap) / 2;
+      drawInfoBox(startX, boxY, boxW, 118, 'Locatario', item?.inquilino_nombre || '—', `Documento: ${item?.documento || '—'}`, `${item?.telefono || '—'} · ${item?.email || '—'}`);
+      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Registrado: ${registrado}`, periodoAplicado);
 
-      const amountsY = cardTop + infoH + 20;
+      const amountY = boxY + 138;
       const amountGap = 12;
-      const amountW = (innerW - amountGap * 2) / 3;
-      drawAmountCard(innerX, amountsY, amountW, 104, 'Alquiler', alquiler);
-      drawAmountCard(innerX + amountW + amountGap, amountsY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
-      drawAmountCard(innerX + (amountW + amountGap) * 2, amountsY, amountW, 104, 'Total recibido', total, '', true);
+      const amountW = (contentWidth - (amountGap * 2)) / 3;
+      drawAmountCard(startX, amountY, amountW, 104, 'Alquiler', alquiler);
+      drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
+      drawAmountCard(startX + (amountW + amountGap) * 2, amountY, amountW, 104, 'Total recibido', total, '', true);
 
-      const footerY = amountsY + 130;
-      doc.setDrawColor(148, 163, 184);
+      const footerY = amountY + 128;
+      doc.setDrawColor(148,163,184);
       doc.setLineDashPattern([4, 4], 0);
-      doc.line(innerX + 12, footerY, innerX + innerW - 12, footerY);
+      doc.line(startX + 12, footerY, startX + contentWidth - 12, footerY);
       doc.setLineDashPattern([], 0);
-      drawCenteredWrapped('Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.', centerX, footerY + 24, innerW - 56, 10.5, colors.muted, 14);
+      const note = 'Comprobante interno no fiscal · generado para archivo administrativo.';
+      drawParagraphCentered(note, centerX, footerY + 18, contentWidth - 56, 10.5, [100,116,139], 14);
 
       return doc.output('blob');
     }
@@ -8607,7 +8564,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : ''}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
@@ -8748,20 +8705,11 @@ function globalSearch(){
       });
     }
 
-    function updateRecibosHistoryFromState(){
-      const rows = Array.isArray(recibosInternosCache) ? recibosInternosCache : [];
-      const filteredRows = applyRecibosPageFilters(rows);
-      const body = $('recibosBody');
-      if (body) body.innerHTML = renderRecibosHistoryRows(filteredRows);
-      const count = $('recibosCountPill');
-      if (count) count.textContent = `${filteredRows.length} visibles`;
-    }
-
     function updateRecibosFiltersFromUI(){
       recibosPageState.query = $('recibosSearch')?.value || '';
       recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
       recibosPageState.month = $('recibosMonthFilter')?.value || '';
-      updateRecibosHistoryFromState();
+      renderRecibosPage();
     }
 
 
@@ -8798,7 +8746,7 @@ function globalSearch(){
       if ($('recibosSearch')) $('recibosSearch').value = '';
       if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
       if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
-      updateRecibosHistoryFromState();
+      renderRecibosPage();
     }
 
     function closeShareMenu(node){
@@ -8981,7 +8929,7 @@ function globalSearch(){
                 </div>
               </div>
               <div class="recibos-toolbar-actions">
-                <span id="recibosCountPill" class="recibos-count-pill">${filteredRows.length} visibles</span>
+                <span class="recibos-count-pill">${filteredRows.length} visibles</span>
                 <button class="btn" onclick="clearRecibosFilters()">Limpiar filtros</button>
               </div>
             </div>
