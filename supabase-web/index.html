@@ -5609,7 +5609,7 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
+          <div class="muted" style="margin-top:6px;"></div>
         </div>
 
         <div class="card">
@@ -5778,7 +5778,7 @@ function globalSearch(){
       }
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
-      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta auditoría.</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos...</td></tr>`;
 
       loadDetalle(r);
       requestAnimationFrame(() => {
@@ -5925,7 +5925,9 @@ function globalSearch(){
         renderDetalleInfo(r, rows || []);
         renderDetalleDebtRows(rows || []);
 
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos y pagos en pausa hasta reconstrucción/auditoría.</td></tr>`;
+        if (seq === detalleLoadSeq) {
+          await loadDetalleDocs();
+        }
         if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
@@ -8209,6 +8211,7 @@ function globalSearch(){
       const filteredRows = applyRecibosPageFilters(rows);
       const body = $('recibosBody');
       if (body) body.innerHTML = renderRecibosHistoryRows(filteredRows);
+
       const count = $('recibosCountPill');
       if (count) count.textContent = `${filteredRows.length} visibles`;
     }
