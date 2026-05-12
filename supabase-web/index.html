@@ -3841,11 +3841,14 @@ td:last-child{
 
         <section id="viewActivos" style="display:none;">
           <div class="card">
-            <div class="row" style="justify-content:space-between;">
+            <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
               <div>
                 <h2 style="margin:0;">Activos</h2>
               </div>
-              <span class="badge b-info" id="unitsCount">0 resultados</span>
+              <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                <button class="btn primary" type="button" onclick="openInqModal('create')">Agregar locatario</button>
+                <span class="badge b-info" id="unitsCount">0 resultados</span>
+              </div>
             </div>
 
             <div class="row" style="margin-top:12px;">
@@ -3950,9 +3953,9 @@ td:last-child{
 
             <div class="row detalle-section-head" style="justify-content:space-between;align-items:end;">
               <div>
-                <h3 style="margin:0;">Recibos</h3>
+                <h3 style="margin:0;">Recibos vinculados</h3>
               </div>
-              <button class="btn" onclick="openDocumentosFromDetalle()">Abrir recibos</button>
+              <button class="btn" onclick="openDocumentosFromDetalle()">Ver todos en Recibos</button>
             </div>
 
 
@@ -4012,13 +4015,11 @@ td:last-child{
           <label class="muted" style="font-size:12px;">Alquiler</label>
           <input id="mAlquiler" placeholder="Monto alquiler" style="width:220px" oninput="recalcularCobroModal()">
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:150px;">
-          <label class="muted" style="font-size:12px;">% impuesto</label>
-          <input id="mImpPct" type="number" min="0" step="0.01" placeholder="Ej: 10" style="width:140px" oninput="recalcularCobroModal()">
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
-          <label class="muted" style="font-size:12px;">Impuesto</label>
-          <input id="mImpMonto" placeholder="Impuesto" style="width:180px; font-weight:800;" readonly>
+        <input id="mImpPct" type="hidden" value="0">
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+          <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
+          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;">Monto fijo, no porcentaje.</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -4028,8 +4029,8 @@ td:last-child{
 
       <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
-          <label class="muted" style="font-size:12px;">N° recibo</label>
-          <input id="mReferencia" placeholder="N° recibo" style="width:180px">
+          <label class="muted" style="font-size:12px;">N° recibo manual</label>
+          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
           <label class="muted" style="font-size:12px;">Medio de pago</label>
@@ -4111,6 +4112,17 @@ td:last-child{
         <input id="inqTel" placeholder="Teléfono" style="width:180px;">
         <input id="inqEmail" placeholder="Email" style="width:220px;">
         <input id="inqDoc" placeholder="Documento" style="width:180px;">
+      </div>
+
+      <div id="inqCreateActivoFields" style="display:none;margin-top:14px;border:1px solid var(--line);border-radius:18px;padding:14px;background:#f8fafc;">
+        <div style="font-weight:900;margin-bottom:8px;">Unidad / activo</div>
+        <div class="muted" style="font-size:12px;margin-bottom:10px;">Para que aparezca en Activos, cargá el código de la unidad/local. Si lo dejás vacío, se guarda solo como locatario sin activo.</div>
+        <div class="row">
+          <input id="inqLocalCodigo" placeholder="Código unidad/local. Ej: PTO108" style="width:190px;">
+          <input id="inqMontoMensual" placeholder="Alquiler mensual inicial" style="width:210px;">
+          <input id="inqDiaVencimiento" placeholder="Día venc. Ej: 10" style="width:140px;">
+          <input id="inqFechaInicio" type="date" style="width:170px;">
+        </div>
       </div>
 
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
@@ -4239,7 +4251,7 @@ td:last-child{
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
-    let recibosPageState = { query:'', local:'TODOS', month:'' };
+    let recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -4254,6 +4266,7 @@ td:last-child{
     const PAYMENT_DESCRIPTION_MAP_KEY = 'ga_payment_description_map_v1';
     const RECEIPTS_CACHE_KEY = 'ga_receipts_cache_v1';
     const MANUAL_RECEIPTS_KEY = 'ga_manual_receipts_v1';
+    const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
 
     const ACCENT_PALETTES = {
       azul: {
@@ -4480,6 +4493,123 @@ td:last-child{
 
     function saveManualReceipts(rows){
       try { localStorage.setItem(MANUAL_RECEIPTS_KEY, JSON.stringify(Array.isArray(rows) ? rows : [])); } catch (e){}
+    }
+
+
+    function loadCobroReceiptOverrides(){
+      try{
+        const parsed = JSON.parse(localStorage.getItem(COBRO_RECEIPT_OVERRIDES_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed : [];
+      } catch(e){
+        return [];
+      }
+    }
+
+    function saveCobroReceiptOverrides(rows){
+      try{
+        const clean = (Array.isArray(rows) ? rows : []).slice(0, 120);
+        localStorage.setItem(COBRO_RECEIPT_OVERRIDES_KEY, JSON.stringify(clean));
+      } catch(e){}
+    }
+
+    function receiptOverrideMatchScore(row={}, override={}){
+      if (!row || !override) return -1;
+      let score = 0;
+      const rowContrato = String(row.contrato_id || '').trim();
+      const ovContrato = String(override.contrato_id || '').trim();
+      if (ovContrato && rowContrato && rowContrato === ovContrato) score += 8;
+      else if (ovContrato && rowContrato && rowContrato !== ovContrato) return -1;
+
+      const rowFecha = String(row.fecha_pago || row.created_at || '').slice(0,10);
+      const ovFecha = String(override.fecha_pago || '').slice(0,10);
+      if (ovFecha && rowFecha && rowFecha === ovFecha) score += 4;
+
+      const rowMonto = Number(row.monto_total ?? row.monto ?? 0);
+      const ovMonto = Number(override.monto_total ?? override.monto ?? 0);
+      if (Number.isFinite(rowMonto) && Number.isFinite(ovMonto) && Math.abs(rowMonto - ovMonto) < 0.01) score += 6;
+
+      const rowId = String(row.id || row.pago_id || row.recibo_id || '').trim();
+      const ovId = String(override.id || override.pago_id || override.recibo_id || '').trim();
+      if (ovId && rowId && rowId === ovId) score += 10;
+
+      const rowNumero = String(row.numero_recibo || row.referencia || '').trim();
+      const ovNumero = String(override.numero_recibo || override.referencia || '').trim();
+      if (ovNumero && rowNumero && rowNumero === ovNumero) score += 5;
+      return score;
+    }
+
+    function buildReceiptOverridePatch(override={}, row={}){
+      const numero = String(override.numero_recibo || override.referencia || row.numero_recibo || row.referencia || '').trim();
+      const descripcion = String(override.descripcion_pago || override.observacion || row.descripcion_pago || row.observacion || '').trim();
+      const total = Number(override.monto_total ?? override.monto ?? row.monto_total ?? row.monto ?? 0);
+      const alquiler = Number(override.monto_alquiler ?? row.monto_alquiler ?? total);
+      const impuesto = Number(override.monto_impuesto ?? row.monto_impuesto ?? 0);
+      return {
+        ...row,
+        ...override,
+        numero_recibo: numero || row.numero_recibo,
+        recibo_base: numero || row.recibo_base || row.numero_recibo,
+        referencia: numero || row.referencia,
+        descripcion_pago: descripcion || row.descripcion_pago || 'Cobro operativo registrado desde la página.',
+        detalle_aplicacion: override.detalle_aplicacion || row.detalle_aplicacion || descripcion,
+        observacion: descripcion || row.observacion || '',
+        monto_alquiler: Number.isFinite(alquiler) ? alquiler : Number(total || 0),
+        monto_impuesto: Number.isFinite(impuesto) ? impuesto : 0,
+        impuesto_porcentaje: Number(override.impuesto_porcentaje ?? row.impuesto_porcentaje ?? 0),
+        monto_total: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
+        monto: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
+        periodo_aplicado: override.periodo_aplicado || row.periodo_aplicado || '',
+        __manual_override: true
+      };
+    }
+
+    function applyCobroReceiptOverrides(rows){
+      const overrides = loadCobroReceiptOverrides();
+      if (!overrides.length) return rows || [];
+      const result = [...(rows || [])];
+
+      overrides.forEach(override => {
+        let bestIndex = -1;
+        let bestScore = -1;
+        result.forEach((row, idx) => {
+          const score = receiptOverrideMatchScore(row, override);
+          if (score > bestScore) {
+            bestScore = score;
+            bestIndex = idx;
+          }
+        });
+
+        if (bestIndex >= 0 && bestScore >= 10) {
+          result[bestIndex] = buildReceiptOverridePatch(override, result[bestIndex]);
+        } else if (override?.contrato_id && override?.monto_total) {
+          result.unshift(buildReceiptOverridePatch(override, {
+            id: override.id || `override-${override.created_at || Date.now()}`,
+            pago_id: override.pago_id || override.id || `override-${override.created_at || Date.now()}`,
+            recibo_id: override.recibo_id || override.id || null,
+            created_at: override.created_at || new Date().toISOString()
+          }));
+        }
+      });
+      return result;
+    }
+
+    function saveCobroReceiptOverride(override){
+      if (!override || !override.contrato_id) return;
+      const rows = loadCobroReceiptOverrides();
+      const next = {
+        ...override,
+        created_at: override.created_at || new Date().toISOString()
+      };
+      const idx = rows.findIndex(row => receiptOverrideMatchScore(row, next) >= 10);
+      if (idx >= 0) rows[idx] = { ...rows[idx], ...next };
+      else rows.unshift(next);
+      saveCobroReceiptOverrides(rows);
+    }
+
+    function removeCobroReceiptOverrideForItem(item){
+      const rows = loadCobroReceiptOverrides();
+      const next = rows.filter(row => receiptOverrideMatchScore(item || {}, row) < 10);
+      if (next.length !== rows.length) saveCobroReceiptOverrides(next);
     }
 
     let paymentDescriptionMap = {};
@@ -5548,6 +5678,7 @@ function globalSearch(){
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
       await refreshContratosActivos();
+      await refreshInquilinosSinContrato();
       await refreshActivosReconstruidosData();
 
       const baseRows = (contratosActivos || [])
@@ -5778,7 +5909,7 @@ function globalSearch(){
       }
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
-      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos...</td></tr>`;
+      if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
 
       loadDetalle(r);
       requestAnimationFrame(() => {
@@ -5910,6 +6041,174 @@ function globalSearch(){
     }
 
 
+    function inferReciboYearMonth(item={}){
+      let anio = Number(item.anio || 0);
+      let mes = Number(item.mes || 0);
+      const periodo = String(item.periodo_aplicado || item.periodo || '').trim();
+      const fecha = String(item.fecha_pago || item.created_at || '').trim();
+
+      if ((!anio || !mes) && /^\d{1,2}\/\d{4}$/.test(periodo)){
+        const [m, y] = periodo.split('/');
+        mes = Number(m) || mes;
+        anio = Number(y) || anio;
+      }
+
+      if ((!anio || !mes) && /^\d{4}-\d{2}/.test(fecha)){
+        anio = anio || Number(fecha.slice(0,4));
+        mes = mes || Number(fecha.slice(5,7));
+      }
+
+      return { anio, mes };
+    }
+
+    function reciboDedupeKey(item={}){
+      const ym = inferReciboYearMonth(item);
+      const contrato = String(item.contrato_id || '').trim();
+      const numero = String(item.numero_recibo || item.referencia || '').trim();
+      const monto = Number(item.monto_total ?? item.monto ?? 0).toFixed(2);
+      if (contrato && numero) return `${contrato}|${numero}|${ym.anio || ''}|${ym.mes || ''}|${monto}`;
+      return String(item.id || item.recibo_id || item.pago_id || item.__cache_key || numero || Math.random());
+    }
+
+    function mergeRecibosRows(...groups){
+      const byKey = new Map();
+      groups.flat().filter(Boolean).forEach(item => {
+        const key = reciboDedupeKey(item);
+        const current = byKey.get(key) || {};
+        byKey.set(key, { ...current, ...item });
+      });
+      return [...byKey.values()];
+    }
+
+    function getContratoForRecibo(item={}){
+      return contratosActivos.find(c => String(c.id) === String(item.contrato_id)) || null;
+    }
+
+    function mapReciboHistoricoRow(item={}){
+      const contrato = getContratoForRecibo(item) || {};
+      const inq = contrato?.inquilinos || {};
+      const local = contrato?.locales || {};
+      const ym = inferReciboYearMonth(item);
+      const numero = item.numero_recibo || item.referencia || `HIST-${String(item.id || '').padStart(6, '0')}`;
+      const montoTotal = Number(item.monto ?? item.monto_total ?? 0);
+      const fecha = item.fecha_pago || null;
+      const periodo = item.periodo || (ym.anio && ym.mes ? `${String(ym.mes).padStart(2,'0')}/${ym.anio}` : '');
+
+      return {
+        id: item.id ? `hist-${item.id}` : `hist-${item.contrato_id || 'sin-contrato'}-${numero}-${ym.anio || ''}-${ym.mes || ''}`,
+        recibo_id: item.id ? `hist-${item.id}` : null,
+        pago_id: item.id ? `hist-${item.id}` : null,
+        contrato_id: item.contrato_id || null,
+        anio: ym.anio || null,
+        mes: ym.mes || null,
+        fecha_pago: fecha,
+        created_at: fecha,
+        medio: item.medio || 'EFECTIVO',
+        referencia: item.referencia || numero,
+        numero_recibo: numero,
+        recibo_base: item.recibo_base || numero,
+        periodo_aplicado: periodo,
+        detalle_aplicacion: item.observacion || 'Recibo histórico operativo.',
+        descripcion_pago: item.observacion || 'Recibo histórico operativo.',
+        monto_alquiler: montoTotal,
+        monto_impuesto: 0,
+        impuesto_porcentaje: 0,
+        monto_total: montoTotal,
+        monto: montoTotal,
+        inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || inq.nombre || '—',
+        telefono: inq.telefono || '',
+        email: inq.email || '',
+        documento: inq.documento || '',
+        local_codigo: item.codigo_local || local.codigo || '—',
+        observacion: item.observacion || '',
+        origen: item.origen || 'HISTORICO_MANUAL_1X1',
+        __source_table: 'recibos_historicos_operativos',
+        __cache_key: `hist-${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
+      };
+    }
+
+    function isReciboHistoricoInterno(item={}){
+      const numero = String(item.numero_recibo || item.referencia || '').trim().toUpperCase();
+      const origen = String(item.origen || item.__source_table || '').toUpperCase();
+      return numero.startsWith('EXCEL') || numero.startsWith('INT') || origen.includes('HISTORICO');
+    }
+
+    function getDetalleRecibosVinculados(row, recibosRows=[]){
+      if (!row) return [];
+      const contratoId = String(row?.contrato_id || '').trim();
+      const code = normLocalCode(row?.local_codigo || row?.codigo_local || row?.local_code_normalized || '');
+      const name = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
+
+      return (recibosRows || []).filter(item => {
+        if (contratoId && item?.contrato_id && String(item.contrato_id) === contratoId) return true;
+        const itemCode = normLocalCode(item?.local_codigo || item?.codigo_local || '');
+        const itemName = normalizeDetalleName(item?.inquilino_nombre || item?.nombre_inquilino || '');
+        return !!(code && itemCode === code && name && itemName === name);
+      }).sort((a,b) => {
+        const ay = Number(a.anio || inferReciboYearMonth(a).anio || 0);
+        const by = Number(b.anio || inferReciboYearMonth(b).anio || 0);
+        if (ay !== by) return by - ay;
+        const am = Number(a.mes || inferReciboYearMonth(a).mes || 0);
+        const bm = Number(b.mes || inferReciboYearMonth(b).mes || 0);
+        if (am !== bm) return bm - am;
+        const da = new Date(a.fecha_pago || a.created_at || 0).getTime() || 0;
+        const db = new Date(b.fecha_pago || b.created_at || 0).getTime() || 0;
+        if (da !== db) return db - da;
+        return String(b.numero_recibo || '').localeCompare(String(a.numero_recibo || ''));
+      });
+    }
+
+    function renderDetalleRecibosRows(rows){
+      if (!rows.length){
+        return `<tr><td colspan="8" class="center">No hay recibos cargados para este contrato.</td></tr>`;
+      }
+
+      return rows.map(item => {
+        const interno = isReciboHistoricoInterno(item);
+        const tipoClass = interno ? 'b-warn' : 'b-ok';
+        const tipoLabel = interno ? 'Interno / Histórico' : 'Real';
+        const key = getReciboKey(item);
+        const ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
+        return `
+          <tr>
+            <td><span class="badge ${tipoClass}">${tipoLabel}</span></td>
+            <td><b>${escapeHtml(item.numero_recibo || '—')}</b></td>
+            <td>${escapeHtml(ref)}</td>
+            <td>${formatDateDisplay(item.fecha_pago || item.created_at)}</td>
+            <td>${item.created_at ? formatDateTimeDisplay(item.created_at) : '—'}</td>
+            <td class="right"><b>${fmtARS.format(Number(item.monto_total ?? item.monto ?? 0))}</b></td>
+            <td>${escapeHtml(item.medio || 'EFECTIVO')}</td>
+            <td class="center">
+              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function loadDetalleRecibos(row, seq){
+      try{
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
+
+        const { rows } = await fetchRecibosInternosData();
+        if (seq !== detalleLoadSeq) return;
+
+        const vinculados = getDetalleRecibosVinculados(row, rows || []);
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = renderDetalleRecibosRows(vinculados);
+        if ($('detDocsMsg')) {
+          $('detDocsMsg').textContent = vinculados.length
+            ? `${vinculados.length} recibo(s) vinculado(s) al contrato ${row?.contrato_id || '—'}.`
+            : 'No hay recibos cargados para este contrato.';
+        }
+      } catch (err){
+        console.error('loadDetalleRecibos error', err);
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
+        if ($('detDocsMsg')) $('detDocsMsg').textContent = String(err?.message || err || 'Error al cargar recibos.');
+      }
+    }
+
+
     async function loadDetalle(r){
       const seq = ++detalleLoadSeq;
       try{
@@ -5925,17 +6224,14 @@ function globalSearch(){
         renderDetalleInfo(r, rows || []);
         renderDetalleDebtRows(rows || []);
 
-        if (seq === detalleLoadSeq) {
-          await loadDetalleDocs();
-        }
-        if ($('detDocsMsg')) $('detDocsMsg').textContent = '';
+        await loadDetalleRecibos(r, seq);
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
         if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Recibos en pausa.</td></tr>`;
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
       }
     }
 
@@ -6623,14 +6919,14 @@ function globalSearch(){
 
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      const impPct = parsePercentInput($('mImpPct')?.value || 0);
-      const impuesto = round2(alquiler * impPct / 100);
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
       const total = round2(alquiler + impuesto);
+      const impPct = 0;
 
-      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(impuesto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
       if ($('mPeriodoAplicado')) {
-        const preview = getPaymentApplicationPreview(modalContrato || {}, alquiler, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
+        const preview = getPaymentApplicationPreview(modalContrato || {}, total, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
         $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
       }
 
@@ -6654,7 +6950,7 @@ function globalSearch(){
       $('mFecha').value = today();
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
-      if ($('mImpPct')) $('mImpPct').value = '';
+      if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mImpMonto')) $('mImpMonto').value = '';
       if ($('mTotal')) $('mTotal').value = '';
       if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
@@ -6682,20 +6978,20 @@ function globalSearch(){
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
 
         const alquilerStr = parseMoneyToDecimalString($('mAlquiler')?.value || '');
-        const impPct = parsePercentInput($('mImpPct')?.value || 0);
+        const impuestoStr = parseMoneyToDecimalString($('mImpMonto')?.value || '') || '0.00';
+        const impPct = 0;
 
         if (!alquilerStr){
           msgEl.textContent = 'Monto de alquiler inválido.';
           return;
         }
 
-        if (impPct < 0){
-          msgEl.textContent = 'El porcentaje de impuesto no puede ser negativo.';
+        const alquilerNum = Number(alquilerStr);
+        const impuestoNum = Number(impuestoStr);
+        if (impuestoNum < 0){
+          msgEl.textContent = 'El impuesto a sumar no puede ser negativo.';
           return;
         }
-
-        const alquilerNum = Number(alquilerStr);
-        const impuestoNum = round2(alquilerNum * impPct / 100);
         const totalNum = round2(alquilerNum + impuestoNum);
 
         const montoAlquiler = alquilerNum.toFixed(2);
@@ -6724,7 +7020,7 @@ function globalSearch(){
           referencia: referencia || null,
           monto_alquiler: Number(montoAlquiler),
           monto_impuesto: Number(montoImpuesto),
-          impuesto_porcentaje: Number(impPct),
+          impuesto_porcentaje: 0,
           periodo_aplicado: periodoAplicado,
           detalle_aplicacion: applicationPlan.detalle || periodoAplicado
         };
@@ -6798,7 +7094,7 @@ function globalSearch(){
         saveManualReceipts(manualReceipts);
         saveReceiptsCache();
 
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+        recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
 
         await refreshAll();
 
@@ -7241,6 +7537,7 @@ function globalSearch(){
 
     // ===== Inquilinos (lista + detalle) =====
     let contratosActivos = [];          // contratos activos con locales + inquilinos
+    let inquilinosSinContrato = [];     // inquilinos cargados pero sin contrato activo
     let inqCache = [];                  // resumen por inquilino
     let selectedInqId = null;
     let lastGlobalQuery = "";
@@ -7258,6 +7555,33 @@ function globalSearch(){
         return;
       }
       contratosActivos = data || [];
+    }
+
+    async function refreshInquilinosSinContrato(){
+      try{
+        const { data, error } = await sb
+          .from('inquilinos')
+          .select('id,nombre,telefono,email,documento');
+
+        if (error){
+          console.warn('refreshInquilinosSinContrato:', error.message);
+          inquilinosSinContrato = [];
+          return;
+        }
+
+        const activosIds = new Set(
+          (contratosActivos || [])
+            .map(c => String(c.inquilinos?.id || c.inquilino_id || ''))
+            .filter(Boolean)
+        );
+
+        inquilinosSinContrato = (data || [])
+          .filter(inq => inq?.id && !activosIds.has(String(inq.id)))
+          .filter(inq => !isSinAsignarName(inq?.nombre || ''));
+      } catch (e){
+        console.warn('refreshInquilinosSinContrato:', e?.message || e);
+        inquilinosSinContrato = [];
+      }
     }
 
     function buildInqCache(){
@@ -7307,6 +7631,25 @@ function globalSearch(){
         byId.set(inqId, row);
       }
 
+      for (const inq of (inquilinosSinContrato || [])){
+        const inqId = inq?.id;
+        if (!inqId || byId.has(inqId)) continue;
+        const nombre = (inq?.nombre || '').trim() || '—';
+        byId.set(inqId, {
+          inquilino_id: inqId,
+          nombre,
+          telefono: inq?.telefono || null,
+          email: inq?.email || null,
+          documento: inq?.documento || null,
+          contratos_activos: 0,
+          deuda_total: 0,
+          deuda_atrasada: 0,
+          vence_pronto: 0,
+          contratos: [],
+          sin_contrato: true,
+        });
+      }
+
       let list = [...byId.values()];
 
       // Orden: primero los que deben más, luego nombre
@@ -7316,6 +7659,7 @@ function globalSearch(){
     }
 
     function inqBadge(inq){
+      if (inq?.sin_contrato || Number(inq?.contratos_activos || 0) === 0) return `<span class="badge b-info">SIN ACTIVO</span>`;
       if (inq.deuda_atrasada > 0) return `<span class="badge b-bad">ATRASADO</span>`;
       if (Number(inq.vence_pronto || 0) > 0) return `<span class="badge b-warn">VENCE PRONTO</span>`;
       return `<span class="badge b-ok">AL DÍA</span>`;
@@ -7452,7 +7796,13 @@ function globalSearch(){
       $('inqUnits').textContent = `Unidades: ${inq.contratos_activos}`;
 
       const tb = $('tbInqContracts');
-      tb.innerHTML = inq.contratos
+      const contratos = Array.isArray(inq.contratos) ? inq.contratos : [];
+      if (!contratos.length){
+        tb.innerHTML = `<tr><td colspan="5" class="center">Este locatario todavía no tiene activo/contrato asignado.</td></tr>`;
+        $('inqDetailMsg').textContent = 'Para que aparezca en Activos, crealo nuevamente indicando código de unidad/local o asignale un contrato.';
+        return;
+      }
+      tb.innerHTML = contratos
         .sort((a,b)=> (b.deuda_atrasada - a.deuda_atrasada) || a.local_codigo.localeCompare(b.local_codigo))
         .map(c => `
           <tr>
@@ -7499,17 +7849,99 @@ function globalSearch(){
         $('inqTel').value = inq.telefono || '';
         $('inqEmail').value = inq.email || '';
         $('inqDoc').value = inq.documento || '';
+        const extra = $('inqCreateActivoFields');
+        if (extra) extra.style.display = 'none';
       } else {
-        $('inqModalTitle').textContent = 'Nuevo inquilino';
+        $('inqModalTitle').textContent = 'Nuevo locatario / activo';
         $('inqNombre').value = '';
         $('inqTel').value = '';
         $('inqEmail').value = '';
         $('inqDoc').value = '';
+        const extra = $('inqCreateActivoFields');
+        if (extra) extra.style.display = 'block';
+        if ($('inqLocalCodigo')) $('inqLocalCodigo').value = '';
+        if ($('inqMontoMensual')) $('inqMontoMensual').value = '';
+        if ($('inqDiaVencimiento')) $('inqDiaVencimiento').value = '10';
+        if ($('inqFechaInicio')) $('inqFechaInicio').value = today();
       }
     }
 
     function closeInqModal(){
       $('modalInqBack').style.display = 'none';
+    }
+
+    async function findLocalByCodigoFlexible(codigo){
+      const code = String(codigo || '').trim();
+      if (!code) return null;
+      const attempts = [
+        () => sb.from('locales').select('id,codigo,codigo_local').eq('codigo', code).maybeSingle(),
+        () => sb.from('locales').select('id,codigo,codigo_local').eq('codigo_local', code).maybeSingle(),
+      ];
+      for (const fn of attempts){
+        try{
+          const { data, error } = await fn();
+          if (!error && data?.id) return data;
+        } catch (_) {}
+      }
+      return null;
+    }
+
+    async function createLocalFlexible(codigo){
+      const code = String(codigo || '').trim();
+      if (!code) throw new Error('El código de la unidad/local es obligatorio.');
+
+      const existing = await findLocalByCodigoFlexible(code);
+      if (existing?.id) return existing;
+
+      const payloads = [
+        { codigo: code, codigo_local: code },
+        { codigo: code },
+        { codigo_local: code },
+      ];
+      let lastError = null;
+      for (const payload of payloads){
+        try{
+          const { data, error } = await sb.from('locales').insert(payload).select('id,codigo,codigo_local').single();
+          if (!error && data?.id) return data;
+          lastError = error;
+          if (error && /duplicate|unique/i.test(error.message || '')){
+            const again = await findLocalByCodigoFlexible(code);
+            if (again?.id) return again;
+          }
+        } catch (e){
+          lastError = e;
+        }
+      }
+      throw new Error(lastError?.message || 'No se pudo crear la unidad/local.');
+    }
+
+    async function createContratoFlexible({ localId, inquilinoId, montoMensual, diaVencimiento, fechaInicio }){
+      const base = {
+        local_id: localId,
+        inquilino_id: inquilinoId,
+        estado: 'ACTIVO',
+        monto_mensual: montoMensual || 0,
+        impuesto_mensual: 0,
+        dia_vencimiento: diaVencimiento || 10,
+        fecha_inicio: fechaInicio || today(),
+      };
+      const payloads = [
+        base,
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO', monto_mensual: montoMensual || 0, dia_vencimiento: diaVencimiento || 10, fecha_inicio: fechaInicio || today() },
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO', monto_mensual: montoMensual || 0 },
+        { local_id: localId, inquilino_id: inquilinoId, estado: 'ACTIVO' },
+      ];
+      let lastError = null;
+      for (const payload of payloads){
+        try{
+          const { data, error } = await sb.from('contratos').insert(payload).select('id').single();
+          if (!error && data?.id) return data;
+          lastError = error;
+        } catch (e){
+          lastError = e;
+        }
+      }
+      throw new Error(lastError?.message || 'No se pudo crear el contrato activo.');
     }
 
     async function saveInqModal(){
@@ -7539,13 +7971,65 @@ function globalSearch(){
         renderInquilinoDetail();
         closeInqModal();
       } else {
+        const codigoLocal = ($('inqLocalCodigo')?.value || '').trim();
+        const montoRaw = ($('inqMontoMensual')?.value || '').trim();
+        const diaRaw = ($('inqDiaVencimiento')?.value || '').trim();
+        const fechaInicio = ($('inqFechaInicio')?.value || '').trim() || today();
+        const montoMensual = montoRaw ? parseModalNumber(montoRaw) : 0;
+        const diaVencimiento = diaRaw ? Number(diaRaw) : 10;
+
+        if (montoRaw && montoMensual === null) {
+          $('inqModalMsg').textContent = 'El alquiler mensual no tiene un formato válido.';
+          return;
+        }
+        if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31) {
+          $('inqModalMsg').textContent = 'El día de vencimiento debe estar entre 1 y 31.';
+          return;
+        }
+
+        $('inqModalMsg').textContent = codigoLocal ? 'Creando locatario, unidad y contrato...' : 'Creando locatario...';
+
         const { data, error } = await sb.from('inquilinos').insert(payload).select('id').single();
         if (error) { $('inqModalMsg').textContent = error.message; return; }
 
-        $('inqModalMsg').textContent = 'Creado ✅';
+        let newContratoId = null;
+        try{
+          if (codigoLocal){
+            const local = await createLocalFlexible(codigoLocal);
+            const contrato = await createContratoFlexible({
+              localId: local.id,
+              inquilinoId: data.id,
+              montoMensual,
+              diaVencimiento,
+              fechaInicio,
+            });
+            newContratoId = contrato.id;
+          }
+        } catch (e){
+          $('inqModalMsg').textContent = e?.message || 'El locatario se creó, pero no se pudo crear el activo/contrato.';
+          alert('El locatario se creó, pero no se pudo crear el activo/contrato: ' + ($('inqModalMsg').textContent || 'Error'));
+          await refreshAll();
+          await refreshInquilinosSinContrato();
+          buildInqCache();
+          return;
+        }
+
+        $('inqModalMsg').textContent = codigoLocal ? 'Locatario y activo creados ✅' : 'Locatario creado ✅';
         closeInqModal();
-        // Nota: aparecerá en la lista cuando tenga un contrato activo asignado
-        alert('Inquilino creado. Para verlo en la lista, asignalo a un contrato.');
+        await refreshAll();
+
+        if (newContratoId){
+          setRoute('activos');
+          const nuevo = unidades.find(x => String(x.contrato_id) === String(newContratoId));
+          if (nuevo) openDetalle(nuevo);
+          else alert('Locatario y contrato creados. Si no lo ves todavía, apretá Refrescar o Ctrl + F5.');
+        } else {
+          setRoute('inquilinos');
+          selectedInqId = data.id;
+          buildInqCache();
+          renderInquilinosPage();
+          alert('Locatario creado sin activo. Ahora aparece en Inquilinos como “Sin activo”.');
+        }
       }
     }
 
@@ -7567,11 +8051,11 @@ function globalSearch(){
         alert('Este activo no tiene contrato operativo vinculado para filtrar recibos.');
         return;
       }
-      const local = String(selected?.local_codigo || '').trim();
       recibosPageState = {
         ...recibosPageState,
-        local: local || 'TODOS',
-        query: local ? '' : String(selected?.inquilino_nombre || ''),
+        contratoId: String(selected.contrato_id),
+        local: 'TODOS',
+        query: '',
         month: ''
       };
       setRoute('recibos');
@@ -7838,124 +8322,167 @@ function globalSearch(){
 
       const doc = new jsPDFCtor({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
-      const contentWidth = 512;
-      const startX = (pageWidth - contentWidth) / 2;
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const centerX = pageWidth / 2;
 
       const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
-
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
       const registrado = item?.created_at ? formatDateTimeDisplay(item.created_at) : '—';
+      const medio = item?.medio || '—';
+      const periodo = item?.periodo_aplicado || item?.periodo || '';
+      const locatario = item?.inquilino_nombre || '—';
+      const documento = item?.documento || '—';
+      const telefonoEmail = [item?.telefono, item?.email].filter(Boolean).join(' · ') || '—';
+      const unidad = item?.local_codigo || '—';
       const impuestoPct = Number(item?.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item?.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item?.monto_impuesto || 0));
       const total = fmtARS.format(Number(item?.monto_total || item?.monto || 0));
-      const periodoAplicado = item?.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : `Referencia: ${item?.referencia || '—'}`;
 
-      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = [15,23,42]) => {
-        doc.setFont('helvetica', weight);
-        doc.setFontSize(size);
-        doc.setTextColor(color[0], color[1], color[2]);
-        const width = doc.getTextWidth(String(value || ''));
-        doc.text(String(value || ''), xCenter - width / 2, y);
+      const colors = {
+        ink: [15, 23, 42],
+        muted: [71, 85, 105],
+        label: [100, 116, 139],
+        line: [203, 213, 225],
+        softLine: [226, 232, 240],
+        soft: [248, 250, 252],
+        dark: [15, 23, 42],
+        chip: [51, 65, 85],
+        chipLine: [71, 85, 105],
+        white: [255, 255, 255]
       };
 
-      const drawCenteredLines = (lines, xCenter, startY, size = 11, weight = 'normal', color = [71,85,105], lineHeight = 14) => {
+      const setColor = (color) => doc.setTextColor(color[0], color[1], color[2]);
+      const textWidth = (value) => doc.getTextWidth(String(value || ''));
+      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = colors.ink) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
-        doc.setTextColor(color[0], color[1], color[2]);
-        lines.filter(Boolean).forEach((line, idx) => {
-          const w = doc.getTextWidth(String(line));
-          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
-        });
+        setColor(color);
+        const text = String(value || '');
+        doc.text(text, xCenter - textWidth(text) / 2, y);
       };
-
-      const drawParagraphCentered = (value, xCenter, startY, maxWidth, size = 10.5, color = [100,116,139], lineHeight = 14) => {
+      const leftText = (value, x, y, size = 12, weight = 'normal', color = colors.ink) => {
+        doc.setFont('helvetica', weight);
+        doc.setFontSize(size);
+        setColor(color);
+        doc.text(String(value || ''), x, y);
+      };
+      const fitText = (value, maxWidth, size = 10, minSize = 7) => {
+        let current = size;
+        doc.setFontSize(current);
+        while (current > minSize && textWidth(value) > maxWidth) {
+          current -= 0.5;
+          doc.setFontSize(current);
+        }
+        return current;
+      };
+      const drawRounded = (x, y, w, h, r, fillColor, strokeColor = null) => {
+        if (fillColor) doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
+        if (strokeColor) doc.setDrawColor(strokeColor[0], strokeColor[1], strokeColor[2]);
+        doc.roundedRect(x, y, w, h, r, r, strokeColor ? 'FD' : 'F');
+      };
+      const drawChip = (x, y, w, h, value, size = 9) => {
+        drawRounded(x, y, w, h, h / 2, colors.chip, colors.chipLine);
+        const fontSize = fitText(value, w - 18, size, 6.5);
+        centerText(value, x + w / 2, y + h / 2 + 3.5, fontSize, 'bold', colors.white);
+      };
+      const drawCenteredWrapped = (value, xCenter, y, maxWidth, size = 10, color = colors.muted, lineHeight = 13) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(size);
-        doc.setTextColor(color[0], color[1], color[2]);
-        const lines = doc.splitTextToSize(String(value || ''), maxWidth);
-        lines.forEach((line, idx) => {
-          const w = doc.getTextWidth(String(line));
-          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
+        setColor(color);
+        const lines = doc.splitTextToSize(String(value || ''), maxWidth).slice(0, 2);
+        lines.forEach((line, index) => {
+          doc.text(line, xCenter - textWidth(line) / 2, y + index * lineHeight);
         });
       };
-
-      const drawInfoBox = (x, y, w, h, label, main, sub1 = '', sub2 = '') => {
-        doc.setDrawColor(203, 213, 225);
-        doc.setFillColor(248, 250, 252);
-        doc.roundedRect(x, y, w, h, 18, 18, 'FD');
-        centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
-        centerText(main, x + (w/2), y + 58, 16, 'bold', [15,23,42]);
-        if (sub1) centerText(sub1, x + (w/2), y + 82, 10, 'normal', [71,85,105]);
-        if (sub2) centerText(sub2, x + (w/2), y + 102, 10, 'normal', [71,85,105]);
+      const drawInfoCard = (x, y, w, h, label, main, lines = []) => {
+        drawRounded(x, y, w, h, 18, colors.soft, colors.line);
+        centerText(String(label || '').toUpperCase(), x + w / 2, y + 26, 9, 'bold', colors.label);
+        const mainSize = fitText(main, w - 42, 16, 10);
+        centerText(main, x + w / 2, y + 58, mainSize, 'bold', colors.ink);
+        lines.filter(Boolean).slice(0, 3).forEach((line, idx) => {
+          const lineSize = fitText(line, w - 36, 10, 7.5);
+          centerText(line, x + w / 2, y + 82 + idx * 17, lineSize, 'normal', colors.muted);
+        });
+      };
+      const drawAmountCard = (x, y, w, h, label, value, sub = '', dark = false) => {
+        drawRounded(x, y, w, h, 18, dark ? colors.dark : colors.soft, dark ? colors.dark : colors.line);
+        centerText(String(label || '').toUpperCase(), x + w / 2, y + 28, 9, 'bold', dark ? colors.softLine : colors.label);
+        const valueSize = fitText(value, w - 28, dark ? 20 : 19, 12);
+        centerText(value, x + w / 2, y + 63, valueSize, 'bold', dark ? colors.white : colors.ink);
+        if (sub) centerText(sub, x + w / 2, y + 84, 10, 'normal', dark ? colors.softLine : colors.muted);
       };
 
-      const drawAmountCard = (x, y, w, h, label, value, secondary = '', dark = false) => {
-        if (dark){
-          doc.setFillColor(15,23,42);
-          doc.setDrawColor(15,23,42);
-          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
-          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [203,213,225]);
-          centerText(value, x + (w/2), y + 58, 19, 'bold', [255,255,255]);
-          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [226,232,240]);
-        } else {
-          doc.setFillColor(248,250,252);
-          doc.setDrawColor(203,213,225);
-          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
-          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
-          centerText(value, x + (w/2), y + 58, 18, 'bold', [15,23,42]);
-          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [71,85,105]);
+      // Contenedor general del comprobante, estilo similar al recibo web.
+      const cardX = 22;
+      const cardY = 24;
+      const cardW = pageWidth - 44;
+      const cardH = Math.min(710, pageHeight - 48);
+      drawRounded(cardX, cardY, cardW, cardH, 26, colors.white, colors.line);
+
+      const innerX = cardX + 24;
+      const innerW = cardW - 48;
+      const headerX = innerX;
+      const headerY = cardY + 36;
+      const headerW = innerW;
+      const headerH = 226;
+      drawRounded(headerX, headerY, headerW, headerH, 22, colors.dark);
+
+      // Logo real de la web cuando está disponible. Si no, usa iniciales como respaldo.
+      const logoSize = 66;
+      const logoX = centerX - logoSize / 2;
+      const logoY = headerY + 30;
+      const logoImg = document.querySelector('.recibo-sheet-logo.logo-image img, .sb-logo.logo-image img, #loginCard .loginBrandMark.logo-image img');
+      const logoSrc = logoImg?.getAttribute('src') || logoImg?.src || '';
+      if (logoSrc) {
+        try {
+          doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize, undefined, 'FAST');
+        } catch (error) {
+          doc.setFillColor(255, 255, 255);
+          doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
+          centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
         }
-      };
+      } else {
+        doc.setFillColor(255, 255, 255);
+        doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
+        centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
+      }
 
-      const headerY = 38;
-      const headerH = 178;
-      const centerX = pageWidth / 2;
+      centerText('Recibo interno', centerX, headerY + 128, 27, 'bold', colors.white);
+      centerText(negocio, centerX, headerY + 153, 11.5, 'normal', colors.softLine);
 
-      doc.setFillColor(15, 23, 42);
-      doc.roundedRect(startX, headerY, contentWidth, headerH, 24, 24, 'F');
+      const chipH = 30;
+      const chipGap = 10;
+      const chipTopY = headerY + 176;
+      const nChipW = 190;
+      const pagoChipW = 132;
+      const row1W = nChipW + pagoChipW + chipGap;
+      const row1X = centerX - row1W / 2;
+      drawChip(row1X, chipTopY, nChipW, chipH, `N° ${numero}`, 8.5);
+      drawChip(row1X + nChipW + chipGap, chipTopY, pagoChipW, chipH, `Pago: ${fecha}`, 8.5);
+      drawChip(centerX - 190 / 2, chipTopY + 40, 190, chipH, `Registrado: ${registrado}`, 8.2);
 
-      doc.setFillColor(255,255,255);
-      doc.roundedRect(centerX - 36, headerY + 18, 72, 72, 22, 22, 'F');
-      centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, headerY + 63, 24, 'bold', [15,23,42]);
-
-      centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
-      centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
-
-
-      const badgeY = headerY + headerH + 18;
-      const badgeW1 = 170;
-      const badgeW2 = 120;
-      const totalBadgesW = badgeW1 + badgeW2 + 12;
-      const badgesX = (pageWidth - totalBadgesW) / 2;
-      doc.setFillColor(248,250,252);
-      doc.setDrawColor(203,213,225);
-      doc.roundedRect(badgesX, badgeY, badgeW1, 28, 14, 14, 'FD');
-      doc.roundedRect(badgesX + badgeW1 + 12, badgeY, badgeW2, 28, 14, 14, 'FD');
-      centerText(`N° ${numero}`, badgesX + badgeW1/2, badgeY + 18, 10, 'bold', [15,23,42]);
-      centerText(fecha, badgesX + badgeW1 + 12 + badgeW2/2, badgeY + 18, 10, 'bold', [15,23,42]);
-
-      const boxY = badgeY + 48;
+      const cardTop = headerY + headerH + 24;
       const gap = 14;
-      const boxW = (contentWidth - gap) / 2;
-      drawInfoBox(startX, boxY, boxW, 118, 'Locatario', item?.inquilino_nombre || '—', `Documento: ${item?.documento || '—'}`, `${item?.telefono || '—'} · ${item?.email || '—'}`);
-      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Registrado: ${registrado}`, periodoAplicado);
+      const infoW = (innerW - gap) / 2;
+      const infoH = 118;
+      drawInfoCard(innerX, cardTop, infoW, infoH, 'Locatario', locatario, [`Documento: ${documento}`, telefonoEmail]);
+      drawInfoCard(innerX + infoW + gap, cardTop, infoW, infoH, 'Detalle del cobro', `Unidad ${unidad}`, [`Medio de pago: ${medio}`, periodo ? `Aplicado a: ${periodo}` : '', `N° recibo: ${numero}`]);
 
-      const amountY = boxY + 138;
+      const amountsY = cardTop + infoH + 20;
       const amountGap = 12;
-      const amountW = (contentWidth - (amountGap * 2)) / 3;
-      drawAmountCard(startX, amountY, amountW, 104, 'Alquiler', alquiler);
-      drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, `${impuestoPct.toFixed(2)}%`);
-      drawAmountCard(startX + (amountW + amountGap) * 2, amountY, amountW, 104, 'Total recibido', total, '', true);
+      const amountW = (innerW - amountGap * 2) / 3;
+      drawAmountCard(innerX, amountsY, amountW, 104, 'Alquiler', alquiler);
+      drawAmountCard(innerX + amountW + amountGap, amountsY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
+      drawAmountCard(innerX + (amountW + amountGap) * 2, amountsY, amountW, 104, 'Total recibido', total, '', true);
 
-      const footerY = amountY + 128;
-      doc.setDrawColor(148,163,184);
+      const footerY = amountsY + 130;
+      doc.setDrawColor(148, 163, 184);
       doc.setLineDashPattern([4, 4], 0);
-      doc.line(startX + 12, footerY, startX + contentWidth - 12, footerY);
+      doc.line(innerX + 12, footerY, innerX + innerW - 12, footerY);
       doc.setLineDashPattern([], 0);
-      const note = 'Comprobante interno no fiscal · generado para archivo administrativo.';
-      drawParagraphCentered(note, centerX, footerY + 18, contentWidth - 56, 10.5, [100,116,139], 14);
+      drawCenteredWrapped('Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.', centerX, footerY + 24, innerW - 56, 10.5, colors.muted, 14);
 
       return doc.output('blob');
     }
@@ -8014,7 +8541,7 @@ function globalSearch(){
         `Fecha de pago: ${formatDateDisplay(item.fecha_pago || item.created_at)}`,
         item.created_at ? `Registrado: ${formatDateTimeDisplay(item.created_at)}` : null,
         `Alquiler: ${fmtARS.format(Number(item.monto_alquiler || 0))}`,
-        `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${item.impuesto_porcentaje != null ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
+        `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${Number(item.impuesto_porcentaje || 0) > 0 ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
         `Total: ${fmtARS.format(Number(item.monto_total || item.monto || 0))}`,
         `Medio de pago: ${item.medio || '—'}`,
         item.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : null,
@@ -8080,7 +8607,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct.toFixed(2)}%</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
@@ -8116,13 +8643,16 @@ function globalSearch(){
       } else {
         rows = (data || []).map(item => {
           const montoTotal = Number(item.monto_total ?? item.monto ?? 0);
-          const numero = item.numero_recibo || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
+          const numero = item.numero_recibo || item.referencia || `REC-${String(item.recibo_id || item.id || '').padStart(6, '0')}`;
           const fecha = item.fecha_pago || item.created_at || null;
+          const ym = inferReciboYearMonth({ ...item, periodo_aplicado: item.periodo_aplicado || item.periodo, fecha_pago: fecha });
           return {
             id: item.id || item.recibo_id,
             recibo_id: item.recibo_id || item.id,
             pago_id: item.pago_id || item.recibo_id || item.id,
             contrato_id: item.contrato_id || null,
+            anio: ym.anio || item.anio || null,
+            mes: ym.mes || item.mes || null,
             fecha_pago: fecha,
             created_at: item.created_at || fecha,
             medio: item.medio || 'EFECTIVO',
@@ -8142,11 +8672,21 @@ function globalSearch(){
             email: item.email || '',
             documento: item.documento || '',
             local_codigo: item.codigo_local || item.local_codigo || '—',
+            observacion: item.observacion || '',
+            origen: item.origen || item.fuente_hoja || '',
             __source_table: item.fuente_hoja || 'pagos_operativos_rpc',
-            __cache_key: String(item.pago_id || item.recibo_id || numero)
+            __cache_key: `${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
           };
         });
       }
+
+      const historicosRaw = await fetchSupabaseRowsSafe(
+        'recibos_historicos_operativos',
+        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,medio,referencia,observacion,origen'
+      );
+      const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
+      rows = mergeRecibosRows(rows, historicos);
+      rows = applyCobroReceiptOverrides(rows);
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -8188,8 +8728,10 @@ function globalSearch(){
       const query = String(recibosPageState.query || '').trim().toLowerCase();
       const local = String(recibosPageState.local || 'TODOS');
       const month = String(recibosPageState.month || '');
+      const contratoId = String(recibosPageState.contratoId || '').trim();
 
       return (rows || []).filter(item => {
+        if (contratoId && String(item.contrato_id || '') !== contratoId) return false;
         if (local !== 'TODOS' && String(item.local_codigo || '') !== local) return false;
         if (month && String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
         if (!query) return true;
@@ -8211,7 +8753,6 @@ function globalSearch(){
       const filteredRows = applyRecibosPageFilters(rows);
       const body = $('recibosBody');
       if (body) body.innerHTML = renderRecibosHistoryRows(filteredRows);
-
       const count = $('recibosCountPill');
       if (count) count.textContent = `${filteredRows.length} visibles`;
     }
@@ -8253,7 +8794,7 @@ function globalSearch(){
     }
 
     function clearRecibosFilters(){
-      recibosPageState = { query:'', local:'TODOS', month:'' };
+      recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
       if ($('recibosSearch')) $('recibosSearch').value = '';
       if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
       if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
@@ -8296,7 +8837,7 @@ function globalSearch(){
           </td>
           <td class="right">
             <div class="recibos-cell-title">${fmtARS.format(Number(item.monto_impuesto || 0))}</div>
-            <span class="contact-sub">${Number(item.impuesto_porcentaje || 0).toFixed(2)}%</span>
+            <span class="contact-sub">${Number(item.impuesto_porcentaje || 0) > 0 ? `${Number(item.impuesto_porcentaje || 0).toFixed(2)}%` : 'Monto fijo'}</span>
           </td>
           <td class="right">
             <div class="recibos-cell-title"><strong>${fmtARS.format(Number(item.monto_total || 0))}</strong></div>
@@ -8362,8 +8903,8 @@ function globalSearch(){
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
       // mostramos todo para no "perder" el recibo recién generado.
-      if (!filteredRows.length && rows.length){
-        recibosPageState = { query:'', local:'TODOS', month:'' };
+      if (!filteredRows.length && rows.length && !String(recibosPageState.contratoId || '').trim()){
+        recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
         filteredRows = [...rows];
       }
 
@@ -8472,7 +9013,7 @@ function globalSearch(){
 
 
     function getReciboKey(item){
-      return String(item?.id || item?.pago_id || item?.numero_recibo || item?.__cache_key || '');
+      return String(item?.id || item?.pago_id || item?.__cache_key || item?.numero_recibo || '');
     }
 
     function getReciboById(id){
@@ -8538,9 +9079,22 @@ function globalSearch(){
       });
       savePaymentDescriptionMap();
       saveReceiptNumberMap();
+      removeCobroReceiptOverrideForItem(item);
     }
 
     const deletingRecibosKeys = new Set();
+
+    function getReciboNumericIdForDelete(item){
+      const candidates = [item?.recibo_id, item?.id, item?.pago_id, item?.hist_id, item?.recibo_historico_id];
+      for (const raw of candidates){
+        const txt = String(raw ?? '').trim();
+        if (!txt) continue;
+        if (/^\d+$/.test(txt)) return Number(txt);
+        const hist = txt.match(/^hist-(\d+)$/i);
+        if (hist) return Number(hist[1]);
+      }
+      return null;
+    }
 
     async function deleteReciboById(id){
       const item = getReciboById(id);
@@ -8552,12 +9106,12 @@ function globalSearch(){
       const numero = item.numero_recibo || item.referencia || 'sin número';
       const local = item.local_codigo || '—';
       const locatario = item.inquilino_nombre || '—';
-      const pagoIdRaw = item.pago_id || item.recibo_id || item.id || '';
-      const pagoId = Number(pagoIdRaw);
-      const deleteKey = String(pagoId || getReciboKey(item) || id || '').trim();
+      const reciboDbId = getReciboNumericIdForDelete(item);
+      const pagoId = reciboDbId;
+      const deleteKey = String(reciboDbId || getReciboKey(item) || id || '').trim();
 
-      if (!Number.isFinite(pagoId) || pagoId <= 0){
-        alert('Este recibo no tiene un pago operativo válido asociado para eliminar.');
+      if (!Number.isFinite(reciboDbId) || reciboDbId <= 0){
+        alert('Este recibo no tiene un ID de recibo histórico válido para eliminar.');
         return;
       }
 
@@ -8586,8 +9140,18 @@ function globalSearch(){
       });
 
       try{
-        const { data, error } = await sb.rpc('eliminar_recibo_operativo', { p_pago_id: pagoId });
-        if (error) throw error;
+        const { data, error } = await sb.rpc('eliminar_recibo_operativo_v2', {
+          p_recibo_id: reciboDbId,
+          p_numero_recibo: String(item.numero_recibo || item.referencia || '').trim() || null,
+          p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null
+        });
+        if (error) {
+          const raw = error.message || String(error);
+          if (/eliminar_recibo_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función eliminar_recibo_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación segura y probá de nuevo. Detalle: ' + raw);
+          }
+          throw error;
+        }
 
         const result = Array.isArray(data) ? data[0] : data;
         if (result && result.ok === false){
@@ -9466,6 +10030,33 @@ function globalSearch(){
       return Number.isFinite(d.getTime()) ? d.getMonth() : -1;
     }
 
+    function balanceMonthIndexFromCobro(item){
+      const mes = Number(item?.mes || 0);
+      if (mes >= 1 && mes <= 12) return mes - 1;
+      const periodo = String(item?.periodo_aplicado || item?.periodo || '').trim();
+      const match = periodo.match(/(\d{1,2})\s*[\/\-]\s*(\d{4})/);
+      if (match){
+        const parsedMes = Number(match[1]);
+        if (parsedMes >= 1 && parsedMes <= 12) return parsedMes - 1;
+      }
+      return monthIndexFromDate(item?.fecha_pago || item?.created_at);
+    }
+
+    function balanceYearFromCobro(item){
+      const anio = Number(item?.anio || 0);
+      if (anio >= 2000 && anio <= 2100) return anio;
+      const periodo = String(item?.periodo_aplicado || item?.periodo || '').trim();
+      const match = periodo.match(/(\d{1,2})\s*[\/\-]\s*(\d{4})/);
+      if (match){
+        const parsedYear = Number(match[2]);
+        if (parsedYear >= 2000 && parsedYear <= 2100) return parsedYear;
+      }
+      const rawDate = item?.fecha_pago || item?.created_at;
+      if (!rawDate) return 0;
+      const d = new Date(`${String(rawDate).slice(0,10)}T00:00:00`);
+      return Number.isFinite(d.getTime()) ? d.getFullYear() : 0;
+    }
+
     function daysInMonth(year, monthIndex){
       return new Date(year, monthIndex + 1, 0).getDate();
     }
@@ -9499,8 +10090,8 @@ function globalSearch(){
     function findLastBalanceMonthWithData(pagos, gastos, fallbackMonth){
       const months = [];
       (pagos || []).forEach(item => {
-        const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
-        if (idx >= 0 && Number(item.monto || 0) !== 0) months.push(idx);
+        const idx = balanceMonthIndexFromCobro(item);
+        if (idx >= 0 && Number(item.monto_total ?? item.monto ?? 0) !== 0) months.push(idx);
       });
       (gastos || []).forEach(item => {
         const idx = monthIndexFromDate(item.fecha || item.created_at);
@@ -9513,7 +10104,7 @@ function globalSearch(){
 
     function hasBalanceMovementsInMonth(pagos, gastos, monthIndex){
       const m = Number(monthIndex);
-      return (pagos || []).some(item => monthIndexFromDate(item.fecha_pago || item.created_at) === m && Number(item.monto || 0) !== 0)
+      return (pagos || []).some(item => balanceMonthIndexFromCobro(item) === m && Number(item.monto_total ?? item.monto ?? 0) !== 0)
         || (gastos || []).some(item => monthIndexFromDate(item.fecha || item.created_at) === m && Number(item.monto || 0) !== 0);
     }
 
@@ -9528,11 +10119,35 @@ function globalSearch(){
       const from = startOfYearISO(year);
       const to = nextYearStartISO(year);
 
-      const pagosPromise = sb
-        .from('pagos')
-        .select('id, contrato_id, fecha_pago, monto, medio, referencia, created_at')
-        .gte('fecha_pago', from)
-        .lt('fecha_pago', to);
+      let pagosData = [];
+      let pagosError = null;
+
+      try{
+        // Fuente correcta para Balance: recibos internos/históricos, no la tabla vieja pagos.
+        // Es solo lectura: no toca ni modifica recibos cargados.
+        const recibosResult = await fetchRecibosInternosData();
+        pagosError = recibosResult?.pagosError || null;
+        pagosData = (recibosResult?.rows || [])
+          .filter(item => balanceYearFromCobro(item) === Number(year))
+          .map(item => ({
+            id: item.id || item.recibo_id || item.pago_id,
+            contrato_id: item.contrato_id || null,
+            fecha_pago: item.fecha_pago || item.created_at || null,
+            created_at: item.created_at || item.fecha_pago || null,
+            anio: Number(item.anio || balanceYearFromCobro(item) || year),
+            mes: Number(item.mes || (balanceMonthIndexFromCobro(item) + 1) || 0),
+            periodo: item.periodo_aplicado || item.periodo || '',
+            monto: Number(item.monto_total ?? item.monto ?? 0),
+            monto_total: Number(item.monto_total ?? item.monto ?? 0),
+            medio: item.medio || 'EFECTIVO',
+            referencia: item.referencia || item.numero_recibo || '',
+            numero_recibo: item.numero_recibo || item.referencia || '',
+            origen: item.origen || ''
+          }));
+      } catch(e){
+        pagosError = { message: e?.message || 'No se pudieron leer los recibos para Balance.' };
+        pagosData = [];
+      }
 
       const gastosPromise = sb
         .from('gastos')
@@ -9540,42 +10155,59 @@ function globalSearch(){
         .gte('fecha', from)
         .lt('fecha', to);
 
+      const cuotasPromise = sb
+        .from('vw_detalle_mensual_operativo')
+        .select('contrato_id, codigo_local, nombre_inquilino, anio, mes, periodo, monto_total, monto_pagado, saldo, estado')
+        .eq('anio', Number(year));
+
       const contratosPromise = sb
         .from('contratos')
         .select('id, estado, monto_mensual, impuesto_mensual, fecha_inicio, fecha_fin');
 
       const [
-        { data: pagosData, error: pagosError },
         { data: gastosData, error: gastosError },
+        { data: cuotasData, error: cuotasError },
         { data: contratosData, error: contratosError }
-      ] = await Promise.all([pagosPromise, gastosPromise, contratosPromise]);
+      ] = await Promise.all([gastosPromise, cuotasPromise, contratosPromise]);
 
       return {
         pagos: pagosData || [],
         gastos: gastosData || [],
+        cuotas: cuotasData || [],
         contratos: contratosData || [],
         pagosError,
         gastosError,
+        cuotasError,
         contratosError
       };
     }
 
-    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null, contratos = []){
+    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null, contratos = [], cuotas = []){
       const facturacion = Array(12).fill(0);
       const recaudacion = Array(12).fill(0);
       const gastosMes = Array(12).fill(0);
 
-      (contratos || []).forEach(contrato => {
-        const monto = montoFacturacionContratoBalance(contrato);
-        if (!monto) return;
-        for (let idx = 0; idx < 12; idx++){
-          if (contratoAplicaMesBalance(contrato, year, idx)) facturacion[idx] += monto;
-        }
-      });
+      const cuotasDelAnio = (cuotas || []).filter(cuota => Number(cuota?.anio) === Number(year));
+      if (cuotasDelAnio.length){
+        cuotasDelAnio.forEach(cuota => {
+          const mes = Number(cuota?.mes || 0);
+          const idx = mes - 1;
+          if (idx >= 0 && idx < 12) facturacion[idx] += Math.max(0, Number(cuota?.monto_total || 0));
+        });
+      } else {
+        // Fallback viejo: si por permisos no se puede leer la vista de cuotas, usa contratos.
+        (contratos || []).forEach(contrato => {
+          const monto = montoFacturacionContratoBalance(contrato);
+          if (!monto) return;
+          for (let idx = 0; idx < 12; idx++){
+            if (contratoAplicaMesBalance(contrato, year, idx)) facturacion[idx] += monto;
+          }
+        });
+      }
 
       (pagos || []).forEach(item => {
-        const idx = monthIndexFromDate(item.fecha_pago || item.created_at);
-        if (idx >= 0) recaudacion[idx] += Number(item.monto || 0);
+        const idx = balanceMonthIndexFromCobro(item);
+        if (idx >= 0 && idx < 12) recaudacion[idx] += Number(item.monto_total ?? item.monto ?? 0);
       });
 
       (gastos || []).forEach(item => {
@@ -9907,7 +10539,7 @@ function globalSearch(){
               <tbody id="balanceBody"></tbody>
             </table>
           </div>
-          <div class="balance-table-note">La facturación proyectada se calcula con los contratos activos del mes. Cuando no hay facturación o saldo, los porcentajes se muestran en 0% para evitar errores de división.</div>
+          <div class="balance-table-note">La facturación proyectada se calcula con las cuotas operativas del mes. La recaudación sale de los recibos vinculados. Cuando no hay facturación o saldo, los porcentajes se muestran en 0% para evitar errores de división.</div>
         </div>
 
         <div class="balance-grid">
@@ -9949,7 +10581,7 @@ function globalSearch(){
 
       const year = Number(yearInput?.value || currentYear);
       let selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
-      const { pagos, gastos, contratos, pagosError, gastosError, contratosError } = await fetchBalanceData(year);
+      const { pagos, gastos, contratos, cuotas, pagosError, gastosError, cuotasError, contratosError } = await fetchBalanceData(year);
       if (renderSeq !== balancePageState.renderSeq) return;
 
       if (!balancePageState.monthManual && !hasBalanceMovementsInMonth(pagos, gastos, selectedMonthIndex)){
@@ -9958,7 +10590,7 @@ function globalSearch(){
         if (monthInput) monthInput.value = String(selectedMonthIndex);
       }
 
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex, contratos);
+      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex, contratos, cuotas);
       const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
       if (balanceQuery){
         rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
@@ -9998,10 +10630,11 @@ function globalSearch(){
       }
       if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
       if (!summary.facturacionActual){
-        messages.push(`No hay facturación proyectada para ${selectedMonthLabel}.`);
+        messages.push(`No hay cuotas/facturación cargada para ${selectedMonthLabel}.`);
       }
       if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
-      if (contratosError) messages.push(`Contratos: ${contratosError.message}`);
+      if (cuotasError) messages.push(`Cuotas: ${cuotasError.message}`);
+      if (contratosError && !(cuotas || []).length) messages.push(`Contratos: ${contratosError.message}`);
       if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
 
       renderBalanceCharts(rows);
@@ -11037,18 +11670,214 @@ function globalSearch(){
       return { auto:false, anio:Number(m[1]), mes:Number(m[2]) };
     }
 
+    let pagoCuotasPendientesActuales = [];
+
+    function normalizeCuotaCobroRow(row={}){
+      const sortKey = String(row.sort_key || '');
+      const anio = Number(row.anio || sortKey.slice(0,4) || 0);
+      const mes = Number(row.mes || sortKey.slice(5,7) || 0);
+      if (!anio || !mes) return null;
+      const saldo = toNumber(row.saldo);
+      const total = toNumber(row.monto_total ?? row.total);
+      const pagado = toNumber(row.monto_pagado ?? row.pagado);
+      return {
+        ...row,
+        anio,
+        mes,
+        saldo,
+        monto_total: total,
+        monto_pagado: pagado,
+        sort_key: `${anio}-${String(mes).padStart(2,'0')}`,
+        periodo: row.periodo || `${String(mes).padStart(2,'0')}/${anio}`,
+        mes_nombre: row.mes_nombre || GA_MONTH_NAMES[mes - 1] || String(mes)
+      };
+    }
+
+    function getDetalleCuotasPendientesParaCobro(){
+      return (detalleCuotasActuales || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(x => toNumber(x.saldo) > 0)
+        .sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
+    }
+
+    async function getCuotasPendientesParaCobro(contratoId){
+      let dbRows = [];
+      try{
+        dbRows = await fetchCuotasOperativasContrato(contratoId);
+      } catch(err){
+        console.warn('No se pudieron cargar cuotas operativas para cobrar:', err?.message || err);
+      }
+
+      const dbPendientes = (dbRows || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(x => toNumber(x.saldo) > 0);
+
+      const visiblesPendientes = getDetalleCuotasPendientesParaCobro();
+      const map = new Map();
+      [...dbPendientes, ...visiblesPendientes].forEach(row => {
+        const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
+        if (!map.has(key)) map.set(key, row);
+      });
+
+      return [...map.values()].sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
+    }
+
+    function getOldestPendingCuotaParaCobro(){
+      return (pagoCuotasPendientesActuales || [])[0] || getDetalleCuotasPendientesParaCobro()[0] || null;
+    }
+
+    async function updateFirstMatchingRowSafe(table, target, patch){
+      if (!target?.id || !patch || !Object.keys(patch).length) return null;
+      const attempts = [
+        patch,
+        Object.fromEntries(Object.entries(patch).filter(([k]) => !['descripcion_pago','monto_alquiler','monto_impuesto','impuesto_porcentaje','periodo_aplicado','detalle_aplicacion','updated_at'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','numero_recibo','recibo_base','observacion'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','observacion'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia'].includes(k)))
+      ].filter(obj => obj && Object.keys(obj).length);
+
+      for (const attempt of attempts){
+        try{
+          const { data, error } = await sb.from(table).update(attempt).eq('id', target.id).select('id').maybeSingle();
+          if (!error) return data || target;
+          const msg = String(error.message || error);
+          if (!/column|schema cache|updated_at|descripcion_pago|monto_alquiler|monto_impuesto|impuesto_porcentaje|periodo_aplicado|detalle_aplicacion/i.test(msg)) {
+            console.warn(`No se pudo actualizar ${table}:`, msg);
+            return null;
+          }
+        } catch(e){
+          console.warn(`No se pudo actualizar ${table}:`, e?.message || e);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    async function findRecentPaymentLike({ contratoId, fechaPago, monto }){
+      if (!contratoId) return null;
+      try{
+        const { data, error } = await sb
+          .from('pagos')
+          .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
+          .eq('contrato_id', contratoId)
+          .order('created_at', { ascending:false })
+          .limit(30);
+        if (error) return null;
+        const rows = Array.isArray(data) ? data : [];
+        const fechaKey = String(fechaPago || '').slice(0,10);
+        const montoNum = Number(monto || 0);
+        return rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - montoNum) < 0.01) || rows[0] || null;
+      } catch(e){
+        return null;
+      }
+    }
+
+    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, numeroManual, observacionFinal, alquilerBase, impuestoFijo, periodoTexto, detalleAplicacion }){
+      const numero = String(numeroManual || '').trim();
+      const obs = String(observacionFinal || '').trim();
+      const total = Number(monto || 0);
+      const alquiler = Number(alquilerBase || 0);
+      const impuesto = Number(impuestoFijo || 0);
+      const periodo = String(periodoTexto || '').trim();
+      const detalle = String(detalleAplicacion || obs || '').trim();
+
+      if (!contratoId) return null;
+
+      const overrideBase = {
+        contrato_id: Number(contratoId),
+        fecha_pago: fechaPago,
+        monto_total: total,
+        monto: total,
+        monto_alquiler: alquiler,
+        monto_impuesto: impuesto,
+        impuesto_porcentaje: 0,
+        numero_recibo: numero || null,
+        referencia: numero || null,
+        descripcion_pago: obs || null,
+        observacion: obs || null,
+        periodo_aplicado: periodo || null,
+        detalle_aplicacion: detalle || null,
+        medio: $('mMedio')?.value || 'EFECTIVO',
+        inquilino_nombre: modalContrato?.inquilino_nombre || modalContrato?.nombre_inquilino || '',
+        local_codigo: modalContrato?.local_codigo || modalContrato?.codigo_local || '',
+        created_at: new Date().toISOString()
+      };
+
+      // Guardamos un override local para que la UI muestre inmediatamente el N°, impuesto y descripción
+      // aunque la RPC devuelva un REC-00000 genérico o no exponga columnas nuevas.
+      if (numero || obs || impuesto > 0) saveCobroReceiptOverride(overrideBase);
+
+      let updated = null;
+
+      // 1) Intentar actualizar el pago operativo. listar_recibos_operativos normalmente lee desde pagos,
+      // por eso esta parte es clave para que no vuelva a aparecer REC-00000.
+      const pagoTarget = await findRecentPaymentLike({ contratoId:Number(contratoId), fechaPago, monto:total });
+      if (pagoTarget?.id){
+        const pagoPatch = {
+          referencia: numero || pagoTarget.referencia || null,
+          descripcion_pago: obs || null,
+          observacion: obs || null,
+          monto_alquiler: alquiler,
+          monto_impuesto: impuesto,
+          impuesto_porcentaje: 0,
+          periodo_aplicado: periodo || null,
+          detalle_aplicacion: detalle || null,
+          updated_at: new Date().toISOString()
+        };
+        const pagoUpd = await updateFirstMatchingRowSafe('pagos', pagoTarget, pagoPatch);
+        if (pagoUpd) {
+          updated = { ...(updated || {}), pago_id: pagoTarget.id };
+          saveCobroReceiptOverride({ ...overrideBase, pago_id: pagoTarget.id, id: pagoTarget.id });
+        }
+      }
+
+      // 2) Intentar actualizar recibos_historicos_operativos si la RPC generó/copió ahí el comprobante.
+      try{
+        const { data, error } = await sb
+          .from('recibos_historicos_operativos')
+          .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,created_at')
+          .eq('contrato_id', contratoId)
+          .order('created_at', { ascending:false })
+          .limit(30);
+
+        if (!error){
+          const rows = Array.isArray(data) ? data : [];
+          const fechaKey = String(fechaPago || '').slice(0,10);
+          const target = rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - total) < 0.01) || rows[0];
+          if (target?.id){
+            const histPatch = {
+              numero_recibo: numero || target.numero_recibo || null,
+              recibo_base: numero || target.numero_recibo || null,
+              referencia: numero || target.referencia || null,
+              observacion: obs || target.observacion || null,
+              updated_at: new Date().toISOString()
+            };
+            const histUpd = await updateFirstMatchingRowSafe('recibos_historicos_operativos', target, histPatch);
+            if (histUpd) {
+              updated = { ...(updated || {}), id: target.id, numero_recibo: numero || target.numero_recibo };
+              saveCobroReceiptOverride({ ...overrideBase, recibo_id: `hist-${target.id}` });
+            }
+          }
+        } else {
+          console.warn('No se pudo buscar el recibo histórico recién creado:', error.message || error);
+        }
+      } catch(e){
+        console.warn('No se pudo ajustar recibos_historicos_operativos:', e?.message || e);
+      }
+
+      return updated || overrideBase;
+    }
+
     async function refreshPaymentPeriodOptions(row, keepValue=false){
       const el = $('mPeriodoAplicado');
       if (!el) return;
-      const previous = keepValue ? String(el.value || 'AUTO') : 'AUTO';
-      let rows = [];
-      try{
-        rows = await fetchCuotasOperativasContrato(row?.contrato_id || modalContrato?.contrato_id);
-      } catch(err){
-        console.warn('No se pudieron cargar cuotas operativas:', err?.message || err);
-      }
+      const previous = keepValue ? String(el.value || 'AUTO') : '';
+      const contratoId = row?.contrato_id || modalContrato?.contrato_id;
+      const pendientes = await getCuotasPendientesParaCobro(contratoId);
+      pagoCuotasPendientesActuales = pendientes;
 
-      const pendientes = rows.filter(x => toNumber(x.saldo) > 0);
       const options = [{ value:'AUTO', label:'Automático: deuda más antigua' }];
       pendientes.forEach(x => {
         options.push({
@@ -11057,20 +11886,25 @@ function globalSearch(){
         });
       });
 
-      if (!pendientes.length){
-        options[0] = { value:'AUTO', label:'Sin deuda pendiente visible' };
-      }
-
       el.innerHTML = options.map(opt => `<option value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</option>`).join('');
-      el.value = options.some(opt => opt.value === previous) ? previous : 'AUTO';
+
+      if (previous && options.some(opt => opt.value === previous)) {
+        el.value = previous;
+      } else if (pendientes[0]) {
+        // Por defecto se selecciona la deuda más vieja. Así el cobro no cae en un mes incorrecto.
+        el.value = cuotaChoiceValue(pendientes[0]);
+      } else {
+        el.value = 'AUTO';
+      }
     }
 
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      if ($('mImpPct')) $('mImpPct').value = '';
-      if ($('mImpMonto')) $('mImpMonto').value = formatMoneyInputValue(0);
-      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(alquiler);
-      return { alquiler, impPct:0, impuesto:0, total:alquiler };
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+      const total = round2(alquiler + impuesto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
+      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      return { alquiler, impPct:0, impuesto, total };
     }
 
     async function openPagoModal(r){
@@ -11092,11 +11926,13 @@ function globalSearch(){
       populatePaymentMethodSelect('mMedio');
       if ($('modalMsg')) $('modalMsg').textContent = '';
 
-      let rows = [];
-      try{ rows = await fetchCuotasOperativasContrato(r.contrato_id); } catch(e){ console.warn(e); }
-      const oldest = rows.find(x => toNumber(x.saldo) > 0);
+      const pendientes = await getCuotasPendientesParaCobro(r.contrato_id);
+      pagoCuotasPendientesActuales = pendientes;
+      const oldest = pendientes[0];
       const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
+      if ($('mImpMonto')) $('mImpMonto').value = '';
       await refreshPaymentPeriodOptions(r, false);
       recalcularCobroModal();
     }
@@ -11108,12 +11944,35 @@ function globalSearch(){
       try{
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
-        const amount = parseMoneyToNumber($('mAlquiler')?.value || '');
+        const alquilerBase = parseMoneyToNumber($('mAlquiler')?.value || '');
+        const impuestoFijo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+        const amount = round2(alquilerBase + impuestoFijo);
         if (amount <= 0){
           if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
           return;
         }
-        const choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+
+        const numeroManual = String($('mReferencia')?.value || '').trim();
+        const descripcionBase = String($('mDescripcion')?.value || '').trim();
+        const desgloseCobro = impuestoFijo > 0
+          ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
+          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
+
+        let choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+        if (choice.auto){
+          const oldest = getOldestPendingCuotaParaCobro();
+          if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
+        }
+
+        const periodoTexto = choice.auto
+          ? 'deuda más antigua'
+          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`;
+        const observacionFinal = [
+          descripcionBase,
+          `Aplicado a: ${periodoTexto}`,
+          desgloseCobro
+        ].filter(Boolean).join(' | ') || null;
+
         const args = {
           p_contrato_id: Number(modalContrato.contrato_id),
           p_anio: choice.anio,
@@ -11121,14 +11980,20 @@ function globalSearch(){
           p_monto_pago: amount,
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
-          p_referencia: String($('mReferencia')?.value || '').trim() || null,
-          p_observacion: String($('mDescripcion')?.value || '').trim() || null
+          p_referencia: numeroManual || null,
+          p_observacion: observacionFinal,
+          // Estos campos son necesarios para que Supabase guarde y devuelva exactamente
+          // el número manual, el impuesto fijo y la descripción en el recibo.
+          p_numero_recibo: numeroManual || null,
+          p_monto_alquiler: alquilerBase,
+          p_monto_impuesto: impuestoFijo,
+          p_descripcion_pago: observacionFinal
         };
-        const { data, error } = await sb.rpc('registrar_cobro_operativo', args);
+        const { data, error } = await sb.rpc('registrar_cobro_operativo_v2', args);
         if (error) {
           const raw = error.message || String(error);
-          if (/registrar_cobro_operativo|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función registrar_cobro_operativo en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
+          if (/registrar_cobro_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función registrar_cobro_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
           }
           if (/permission|permiso|denied|42501/i.test(raw)) {
             throw new Error('Permiso denegado para registrar cobros. Ejecutá el SQL hotfix de permisos. Detalle: ' + raw);
@@ -11137,7 +12002,23 @@ function globalSearch(){
         }
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
-        if (msgEl) msgEl.textContent = res?.mensaje || 'Cobro registrado correctamente.';
+
+        const metadataPatch = await forceCobroReceiptMetadata({
+          contratoId: Number(modalContrato.contrato_id),
+          fechaPago: args.p_fecha_pago,
+          monto: amount,
+          numeroManual,
+          observacionFinal,
+          alquilerBase,
+          impuestoFijo,
+          periodoTexto,
+          detalleAplicacion: desgloseCobro
+        });
+
+        if (msgEl) {
+          const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
+          msgEl.textContent = `${res?.mensaje || 'Cobro registrado correctamente.'}${numeroMsg ? ` Recibo: ${numeroMsg}.` : ''}`;
+        }
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
         if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
