@@ -4002,7 +4002,15 @@ td:last-child{
       <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
+          <input
+           id="mFecha"
+           type="text"
+           inputmode="numeric"
+          placeholder="dd/mm/aaaa"
+          style="width:160px"
+         onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())"
+>
+
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
@@ -7070,7 +7078,12 @@ function todayISO(){
       if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
       if ($('mPeriodoAplicado')) {
-        const preview = getPaymentApplicationPreview(modalContrato || {}, total, $('mFecha')?.value || today(), getSelectedPaymentPeriodChoice());
+        const preview = getPaymentApplicationPreview(
+        modalContrato || {},
+        total,
+        dateARToISO($('mFecha')?.value || dateISOToAR(today())),
+        getSelectedPaymentPeriodChoice()
+);
         $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
       }
 
@@ -7116,7 +7129,7 @@ function todayISO(){
       msgEl.textContent = 'Procesando cobro...';
 
       try{
-        const fecha = $('mFecha').value || today();
+        const fecha = dateARToISO($('mFecha')?.value || dateISOToAR(today()));
         const medio = $('mMedio').value;
         const referencia = String($('mReferencia')?.value || '').trim();
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
@@ -12123,7 +12136,7 @@ function deleteReciboActual(){
       if (!modal) return alert('No se encontró el modal de cobro en el HTML.');
       modal.style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo || '—'} — ${r.inquilino_nombre || '—'} | Deuda visible: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
-      $('mFecha').value = today();
+      $('mFecha').value = dateISOToAR(today());
       if ($('mReferencia')) $('mReferencia').value = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
       populatePaymentMethodSelect('mMedio');
@@ -12181,7 +12194,7 @@ function deleteReciboActual(){
           p_anio: choice.anio,
           p_mes: choice.mes,
           p_monto_pago: amount,
-          p_fecha_pago: $('mFecha')?.value || today(),
+          p_fecha_pago: fecha,
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
