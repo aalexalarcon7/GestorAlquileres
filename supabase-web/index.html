@@ -3734,7 +3734,7 @@ td:last-child{
       </nav>
 
       <div class="sb-footer">
-        <button class="btn danger" onclick="logout()"><span>Salir</span></button>
+        <button class="btn danger" type="button" onclick="logout()"><span>Salir</span></button>
       </div>
     </aside>
 
@@ -5017,12 +5017,70 @@ td:last-child{
       }
     }
 
-    async function logout(){
-      authRecoveryMode = false;
-      toggleForgotPassword(false);
-      showPasswordRecoveryMode(false);
-      await sb.auth.signOut();
-    }
+    let isLoggingOut = false;
+
+async function logout(){
+  if (isLoggingOut) return;
+  isLoggingOut = true;
+
+  const btns = Array.from(document.querySelectorAll('button'))
+    .filter(btn => String(btn.textContent || '').trim().toLowerCase() === 'salir');
+
+  btns.forEach(btn => {
+    btn.dataset.prevText = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('is-disabled');
+    btn.innerHTML = '<span>Saliendo...</span>';
+  });
+
+  try {
+    authRecoveryMode = false;
+    toggleForgotPassword(false);
+    showPasswordRecoveryMode(false);
+
+    // Limpiar estado local inmediatamente para no depender solo del evento de Supabase.
+    user = null;
+    selected = null;
+    reciboActual = null;
+
+    try {
+      localStorage.removeItem('currentRoute');
+      sessionStorage.removeItem('splashShown');
+    } catch (_) {}
+
+    // Cerrar sesión en Supabase.
+    const { error } = await sb.auth.signOut({ scope: 'local' });
+    if (error) throw error;
+
+    // Forzar UI de login al instante.
+    toggle(false, null);
+    setLoginMessage('', '');
+
+    // Evita que quede una pantalla vieja renderizada.
+    if ($('app')) $('app').style.display = 'none';
+    if ($('login')) $('login').style.display = '';
+
+  } catch (e) {
+    console.error('Error cerrando sesión:', e);
+
+    // Igual intentamos dejar la sesión visualmente cerrada.
+    user = null;
+    toggle(false, null);
+
+    alert(`No se pudo cerrar sesión correctamente: ${e?.message || e}`);
+  } finally {
+    isLoggingOut = false;
+
+    btns.forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('is-disabled');
+      if (btn.dataset.prevText) {
+        btn.innerHTML = btn.dataset.prevText;
+        delete btn.dataset.prevText;
+      }
+    });
+  }
+}
 
         function isSinAsignarName(name){
       return String(name || '').startsWith('SIN ASIGNAR - ');
