@@ -4002,7 +4002,7 @@ td:last-child{
       <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" inputmode="numeric" placeholder="dd/mm/aaaa" style="width:160px" oninput="formatFechaCobroInput(this)" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
+          <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
@@ -7091,7 +7091,7 @@ function todayISO(){
       modalContrato = r;
       $('modalBack').style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
-      $('mFecha').value = dateISOToAR(today());
+      $('mFecha').value = today();
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
       if ($('mImpPct')) $('mImpPct').value = '0';
@@ -7116,7 +7116,7 @@ function todayISO(){
       msgEl.textContent = 'Procesando cobro...';
 
       try{
-        const fecha = dateARToISO($('mFecha')?.value || dateISOToAR(today()));
+        const fechaPago = $('mFecha')?.value || today();
         const medio = $('mMedio').value;
         const referencia = String($('mReferencia')?.value || '').trim();
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
@@ -12181,7 +12181,7 @@ function deleteReciboActual(){
           p_anio: choice.anio,
           p_mes: choice.mes,
           p_monto_pago: amount,
-          p_fecha_pago: fecha,
+          p_fecha_pago: fechaPago,
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
