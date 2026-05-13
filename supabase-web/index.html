@@ -4014,7 +4014,7 @@ td:last-child{
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
-          <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
+          <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="actualizarImpuestoSugeridoCobro(); recalcularCobroModal()">
             <option value="AUTO">Automático: deuda más antigua</option>
           </select>
           <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;"></span>
@@ -4026,7 +4026,7 @@ td:last-child{
         <input id="mImpPct" type="hidden" value="0">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
-          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
+          <input id="mImpMonto" inputmode="decimal" placeholder="Impuesto" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
           <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
@@ -7108,7 +7108,19 @@ function todayISO(){
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
       if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mImpMonto')) $('mImpMonto').value = '';
+      if ($('mImpMonto')) {
+      const periodo = getPeriodoSeleccionadoCobro();
+
+      const impuestoSugerido = getImpuestoSugeridoParaCobro(
+      r.contrato_id,
+      periodo.anio,
+      periodo.mes
+    );
+
+  $('mImpMonto').value = impuestoSugerido > 0
+    ? formatMoneyInputValue(impuestoSugerido)
+    : '';
+}
       if ($('mTotal')) $('mTotal').value = '';
       if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
       populatePaymentMethodSelect('mMedio');
@@ -12122,6 +12134,135 @@ function deleteReciboActual(){
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
       return { alquiler, impPct:0, impuesto, total };
     }
+
+function getImpuestoSugeridoParaCobro(contratoId, anioSeleccionado = null, mesSeleccionado = null){
+  const contratoKey = String(contratoId || '');
+
+  const recibos = Array.isArray(recibosInternosCache) ? recibosInternosCache : [];
+
+  const candidatosRecibos = recibos
+    .filter(r => {
+      const mismoContrato = String(r.contrato_id || '') === contratoKey;
+      const impuesto = Number(r.monto_impuesto || 0);
+
+      if (!mismoContrato || impuesto <= 0) return false;
+
+      const anio = Number(r.anio || 0);
+      const mes = Number(r.mes || 0);
+
+      if (anioSeleccionado && mesSeleccionado) {
+        const periodoRecibo = anio * 100 + mes;
+        const periodoActual = Number(anioSeleccionado) * 100 + Number(mesSeleccionado);
+
+        // Toma impuestos anteriores o del mismo período,
+        // nunca de meses futuros.
+        return periodoRecibo <= periodoActual;
+      }
+
+      return true;
+    })
+    .map(r => ({
+      anio: Number(r.anio || 0),
+      mes: Number(r.mes || 0),
+      monto_impuesto: Number(r.monto_impuesto || 0),
+      source: 'recibo'
+    }));
+
+  const pagos = Array.isArray(pagosCache) ? pagosCache : [];
+
+  const candidatosPagos = pagos
+    .filter(p => {
+      const mismoContrato = String(p.contrato_id || '') === contratoKey;
+      const impuesto = Number(p.monto_impuesto || 0);
+
+      if (!mismoContrato || impuesto <= 0) return false;
+
+      const anio = Number(p.anio_aplicado || p.anio || 0);
+      const mes = Number(p.mes_aplicado || p.mes || 0);
+
+      if (anioSeleccionado && mesSeleccionado) {
+        const periodoPago = anio * 100 + mes;
+        const periodoActual = Number(anioSeleccionado) * 100 + Number(mesSeleccionado);
+
+        return periodoPago <= periodoActual;
+      }
+
+      return true;
+    })
+    .map(p => ({
+      anio: Number(p.anio_aplicado || p.anio || 0),
+      mes: Number(p.mes_aplicado || p.mes || 0),
+      monto_impuesto: Number(p.monto_impuesto || 0),
+      source: 'pago'
+    }));
+
+  const candidatos = [...candidatosRecibos, ...candidatosPagos]
+    .filter(x => x.anio > 0 && x.mes > 0 && x.monto_impuesto > 0)
+    .sort((a, b) => {
+      const pa = a.anio * 100 + a.mes;
+      const pb = b.anio * 100 + b.mes;
+      return pb - pa;
+    });
+
+  return candidatos[0] ? candidatos[0].monto_impuesto : 0;
+}
+
+
+function getPeriodoSeleccionadoCobro(){
+  const choice = getSelectedPaymentPeriodChoice?.();
+
+  if (choice && choice.anio && choice.mes) {
+    return {
+      anio: Number(choice.anio),
+      mes: Number(choice.mes)
+    };
+  }
+
+  const select = $('mPeriodoAplicado');
+
+  if (select?.value) {
+    const raw = String(select.value);
+
+    const match = raw.match(/(\d{4})[-/](\d{1,2})|(\d{1,2})[-/](\d{4})/);
+
+    if (match) {
+      if (match[1] && match[2]) {
+        return {
+          anio: Number(match[1]),
+          mes: Number(match[2])
+        };
+      }
+
+      if (match[3] && match[4]) {
+        return {
+          anio: Number(match[4]),
+          mes: Number(match[3])
+        };
+      }
+    }
+  }
+
+  return {
+    anio: null,
+    mes: null
+  };
+}
+
+function actualizarImpuestoSugeridoCobro(){
+  if (!$('mImpMonto') || !modalContrato) return;
+
+  const periodo = getPeriodoSeleccionadoCobro();
+
+  const impuestoSugerido = getImpuestoSugeridoParaCobro(
+    modalContrato.contrato_id,
+    periodo.anio,
+    periodo.mes
+  );
+
+  $('mImpMonto').value = impuestoSugerido > 0
+    ? formatMoneyInputValue(impuestoSugerido)
+    : '';
+}
 
     async function openPagoModal(r){
       if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
