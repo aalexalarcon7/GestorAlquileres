@@ -9044,134 +9044,205 @@ function updateRecibosFiltersFromUI(){
       removeCobroReceiptOverrideForItem(item);
     }
 
-    const deletingRecibosKeys = new Set();
+   const deletingRecibosKeys = new Set();
 
-    function getReciboNumericIdForDelete(item){
-      const candidates = [item?.recibo_id, item?.id, item?.pago_id, item?.hist_id, item?.recibo_historico_id];
-      for (const raw of candidates){
-        const txt = String(raw ?? '').trim();
-        if (!txt) continue;
-        if (/^\d+$/.test(txt)) return Number(txt);
-        const hist = txt.match(/^hist-(\d+)$/i);
-        if (hist) return Number(hist[1]);
-      }
-      return null;
+function positiveIntOrNull(value){
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  const hist = raw.match(/^hist-(\d+)$/i);
+  if (hist) {
+    const n = Number(hist[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  return null;
+}
+
+function positiveNumberOrNull(value){
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function isHistoricalLikeReceipt(item){
+  const text = [
+    item?.__source_table,
+    item?.origen,
+    item?.fuente_hoja,
+    item?.id,
+    item?.recibo_id
+  ].map(v => String(v || '').toLowerCase()).join(' ');
+
+  return text.includes('recibos_historicos')
+    || text.includes('hist-')
+    || text.includes('historico')
+    || text.includes('excel');
+}
+
+function getReciboDbIdForDelete(item){
+  const candidates = [
+    item?.recibo_id,
+    item?.recibo_historico_id,
+    item?.hist_id,
+    item?.id
+  ];
+
+  for (const value of candidates){
+    const n = positiveIntOrNull(value);
+    if (n) return n;
+  }
+
+  return null;
+}
+
+function getPagoDbIdForDelete(item){
+  /*
+    Importante:
+    Si el item viene de recibos_historicos_operativos, NO confiamos en item.pago_id,
+    porque en algunas versiones del index se llenaba con el id del recibo histórico.
+    En ese caso la RPC resuelve por recibo_id + numero_recibo.
+  */
+  if (isHistoricalLikeReceipt(item)) return null;
+
+  const candidates = [
+    item?.pago_id,
+    item?.id
+  ];
+
+  for (const value of candidates){
+    const n = positiveIntOrNull(value);
+    if (n) return n;
+  }
+
+  return null;
+}
+
+function getDeleteButtonSet(){
+  return Array.from(document.querySelectorAll('button.btn.danger'))
+    .filter(btn => String(btn.textContent || '').toLowerCase().includes('eliminar'));
+}
+
+async function deleteReciboById(id){
+  const item = getReciboById(id);
+
+  if (!item){
+    alert('No se encontró el recibo para eliminar.');
+    return;
+  }
+
+  const numero = String(item.numero_recibo || item.referencia || '').trim();
+  const local = item.local_codigo || item.codigo_local || '—';
+  const locatario = item.inquilino_nombre || item.nombre_inquilino || '—';
+
+  const pagoId = getPagoDbIdForDelete(item);
+  const reciboId = getReciboDbIdForDelete(item);
+
+  const contratoId = positiveIntOrNull(item.contrato_id);
+  const anio = positiveNumberOrNull(item.anio);
+  const mes = positiveNumberOrNull(item.mes);
+
+  const deleteKey = [
+    pagoId ? `pago-${pagoId}` : '',
+    reciboId ? `recibo-${reciboId}` : '',
+    numero ? `num-${numero}` : '',
+    contratoId ? `contrato-${contratoId}` : '',
+    anio && mes ? `${anio}-${mes}` : ''
+  ].filter(Boolean).join('|') || String(id || '');
+
+  if (!pagoId && !reciboId && !numero){
+    alert('Este recibo no tiene identificador suficiente para eliminar.');
+    return;
+  }
+
+  if (deletingRecibosKeys.has(deleteKey)) return;
+
+  const ok = confirm(
+    `Vas a eliminar el recibo ${numero || 'sin número'} de ${locatario} (${local}).\n\n` +
+    `Esto debe revertir el cobro completo de la cuota, incluyendo alquiler e impuesto.\n\n` +
+    `¿Continuar?`
+  );
+
+  if (!ok) return;
+
+  deletingRecibosKeys.add(deleteKey);
+
+  const deleteButtons = getDeleteButtonSet();
+  deleteButtons.forEach(btn => {
+    btn.dataset.prevText = btn.textContent;
+    btn.textContent = 'Eliminando...';
+    btn.disabled = true;
+    btn.classList.add('is-disabled');
+  });
+
+  try{
+    const payload = {
+      p_pago_id: pagoId,
+      p_recibo_id: reciboId,
+      p_numero_recibo: numero || null,
+      p_contrato_id: contratoId,
+      p_anio: anio,
+      p_mes: mes
+    };
+
+    const { data, error } = await sb.rpc('eliminar_recibo_operativo', payload);
+
+    if (error) throw error;
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (result && result.ok === false){
+      throw new Error(result.mensaje || 'No se pudo eliminar el recibo.');
     }
 
-    async function deleteReciboById(id){
-      const item = getReciboById(id);
-      if (!item){
-        alert('No se encontró el recibo para eliminar.');
-        return;
-      }
+    removeReciboFromLocalCaches(item);
 
-      const numero = item.numero_recibo || item.referencia || 'sin número';
-      const local = item.local_codigo || '—';
-      const locatario = item.inquilino_nombre || '—';
-      const reciboDbId = getReciboNumericIdForDelete(item);
-      const pagoId = reciboDbId;
-      const deleteKey = String(reciboDbId || getReciboKey(item) || id || '').trim();
+    if (typeof closeReciboModal === 'function') {
+      closeReciboModal();
+    }
 
-      if (!Number.isFinite(reciboDbId) || reciboDbId <= 0){
-        alert('Este recibo no tiene un ID de recibo histórico válido para eliminar.');
-        return;
-      }
+    await refreshAll();
 
-      if (deletingRecibosKeys.has(deleteKey)) return;
+    if (route === 'recibos') {
+      await renderRecibosPage();
+    }
 
-      const ok = confirm(
-        `Vas a eliminar el recibo ${numero} de ${locatario} (${local}).
-
-` +
-        `Esto también revierte el saldo de la cuota imputada.
-
-` +
-        `¿Continuar?`
-      );
-      if (!ok) return;
-
-      deletingRecibosKeys.add(deleteKey);
-      const deleteButtons = Array.from(document.querySelectorAll('.recibo-danger-zone .btn.danger, button.btn.danger'));
-      deleteButtons.forEach(btn => {
-        if (String(btn.textContent || '').toLowerCase().includes('eliminar recibo')){
-          btn.dataset.prevText = btn.textContent;
-          btn.textContent = 'Eliminando...';
-          btn.disabled = true;
-          btn.classList.add('is-disabled');
-        }
-      });
-
-      try{
-        const { data, error } = await sb.rpc('eliminar_recibo_operativo_v2', {
-          p_recibo_id: reciboDbId,
-          p_numero_recibo: String(item.numero_recibo || item.referencia || '').trim() || null,
-          p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null
-        });
-        if (error) {
-          const raw = error.message || String(error);
-          if (/eliminar_recibo_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función eliminar_recibo_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación segura y probá de nuevo. Detalle: ' + raw);
-          }
-          throw error;
-        }
-
-        const result = Array.isArray(data) ? data[0] : data;
-        if (result && result.ok === false){
-          throw new Error(result.mensaje || 'La base rechazó la eliminación del recibo.');
-        }
-
-        // Eliminación optimista: lo sacamos de la UI al instante para que no requiera un segundo click.
-        removeReciboFromLocalCaches(item);
-        recibosInternosCache = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
-          .filter(row => !sameReciboIdentity(row, item) && String(row.pago_id || row.id || row.recibo_id || '') !== String(pagoId));
-
-        if (reciboActual && sameReciboIdentity(reciboActual, item)){
-          reciboActual = null;
-          closeReciboModal();
-        }
-
-        try{
-          localStorage.removeItem(RECEIPTS_CACHE_KEY);
-          localStorage.removeItem(MANUAL_RECEIPTS_KEY);
-        } catch(e){}
-
-        if (route === 'recibos') await renderRecibosPage();
-        await refreshAll();
-        if (route === 'recibos') await renderRecibosPage();
-
-        // Segundo refresco corto para evitar que Supabase/localStorage muestre una copia vieja.
-        setTimeout(async () => {
-          try{
-            try{
-              localStorage.removeItem(RECEIPTS_CACHE_KEY);
-              localStorage.removeItem(MANUAL_RECEIPTS_KEY);
-            } catch(e){}
-            if (route === 'recibos') await renderRecibosPage();
-          } catch(e){ console.warn('No se pudo hacer el refresco final de recibos', e); }
-        }, 350);
-
-        showPagoSuccessToast(result?.mensaje || `Se eliminó el recibo ${numero}.`);
-      } catch (error){
-        console.error(error);
-        alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
-      } finally {
-        deletingRecibosKeys.delete(deleteKey);
-        deleteButtons.forEach(btn => {
-          btn.disabled = false;
-          btn.classList.remove('is-disabled');
-          if (btn.dataset.prevText){
-            btn.textContent = btn.dataset.prevText;
-            delete btn.dataset.prevText;
-          }
-        });
+    if (selected?.contrato_id && typeof loadDetalle === 'function') {
+      try {
+        await loadDetalle(selected);
+      } catch(e) {
+        console.warn('No se pudo refrescar el detalle luego de eliminar:', e?.message || e);
       }
     }
 
-    function deleteReciboActual(){
-      if (!reciboActual) return;
-      deleteReciboById(getReciboKey(reciboActual));
-    }
+    const msg = result?.mensaje || `Se eliminó el recibo ${numero || ''} correctamente.`;
+    showPagoSuccessToast(msg);
+  } catch(error){
+    console.error(error);
+    alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
+  } finally {
+    deletingRecibosKeys.delete(deleteKey);
 
+    deleteButtons.forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('is-disabled');
+
+      if (btn.dataset.prevText){
+        btn.textContent = btn.dataset.prevText;
+        delete btn.dataset.prevText;
+      }
+    });
+  }
+}
+
+function deleteReciboActual(){
+  if (!reciboActual) return;
+  deleteReciboById(getReciboKey(reciboActual));
+}
 
     let pagoSuccessToastTimer = null;
     function showPagoSuccessToast(message = 'Pago registrado exitosamente ✅'){
