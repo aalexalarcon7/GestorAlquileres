@@ -4002,7 +4002,7 @@ td:last-child{
       <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
           <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
+          <input id="mFecha" type="date" lang="es-AR" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
           <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
@@ -12181,7 +12181,7 @@ function deleteReciboActual(){
           p_anio: choice.anio,
           p_mes: choice.mes,
           p_monto_pago: amount,
-          p_fecha_pago: $('mFecha')?.value || today(),
+          p_fecha_pago: fecha,
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
