@@ -4205,6 +4205,14 @@ td:last-child{
     </div>
   </div>
 
+  <input
+  id="pagoFecha"
+  type="text"
+  inputmode="numeric"
+  placeholder="dd/mm/aaaa"
+  value="${dateISOToAR(todayISO())}"
+>
+
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
     <div class="recibo-preview">
@@ -5639,7 +5647,7 @@ async function logout(){
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
-          <td>${String(x.vencimiento || '—').slice(0,10)}</td>
+          <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
@@ -6299,19 +6307,97 @@ function globalSearch(){
     }
 
     function formatDateValue(value){
-      if (!value) return '';
-      try{
-        return String(value).slice(0,10);
-      } catch (e){
-        return '';
-      }
-    }
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${d}/${m}/${y}`;
+  }
+
+  const ar = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ar) {
+    const [, d, m, y] = ar;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+
+  return raw.slice(0, 10);
+}
 
     function formatMoneyInputValue(value){
       const num = Number(value || 0);
       if (!Number.isFinite(num) || num <= 0) return '';
       return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    
+    function formatDateAR(value){
+  if (!value) return '—';
+
+  const raw = String(value).trim();
+
+  // Si viene como YYYY-MM-DD
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${d}/${m}/${y}`;
+  }
+
+  // Si ya viene como DD/MM/YYYY
+  const arMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (arMatch) return raw;
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return date.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+function dateISOToAR(value){
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (!match) return raw;
+
+  const [, y, m, d] = match;
+  return `${d}/${m}/${y}`;
+}
+
+function dateARToISO(value){
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  // Si ya viene ISO, lo deja igual
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  // Convierte DD/MM/YYYY a YYYY-MM-DD
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (!match) return raw;
+
+  const [, d, m, y] = match;
+
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function todayISO(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+
+  return `${y}-${m}-${d}`;
+}
 
     function round2(n){
       return Math.round((Number(n) || 0) * 100) / 100;
@@ -6670,7 +6756,7 @@ function globalSearch(){
       if (!el) return;
 
       const previous = keepValue ? String(el.value || 'AUTO') : '';
-      const fechaPago = $('mFecha')?.value || today();
+      const fechaPago = dateARToISO($('pagoFecha')?.value || dateISOToAR(todayISO()));
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
       let stagingRow = null;
 
@@ -8300,14 +8386,40 @@ function globalSearch(){
     }
 
     function formatDateDisplay(value){
-      if (!value) return '—';
-      return String(value).slice(0, 10);
-    }
+  if (!value) return '—';
 
-    function formatDateTimeDisplay(value){
-      if (!value) return '—';
-      return String(value).slice(0, 19).replace('T', ' ');
-    }
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${d}/${m}/${y}`;
+  }
+
+  const ar = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ar) {
+    const [, d, m, y] = ar;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+
+  return raw.slice(0, 10);
+}
+
+function formatDateTimeDisplay(value){
+  if (!value) return '—';
+
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (iso) {
+    const [, y, m, d, hh, mm, ss] = iso;
+    const datePart = `${d}/${m}/${y}`;
+    const timePart = hh && mm ? ` ${hh}:${mm}${ss ? `:${ss}` : ''}` : '';
+    return `${datePart}${timePart}`;
+  }
+
+  return raw.slice(0, 19).replace('T', ' ');
+}
 
     function buildReciboNumero(pago, createIfMissing=false){
       const ref = pago?.referencia || pago?.numero_recibo || pago?.nro_recibo || pago?.recibo_numero;
