@@ -12181,7 +12181,7 @@ function deleteReciboActual(){
           p_anio: choice.anio,
           p_mes: choice.mes,
           p_monto_pago: amount,
-          p_fecha_pago: fechaPago,
+          p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
