@@ -3870,7 +3870,7 @@ td:last-child{
                     <th style="width:120px;">Código</th>
                     <th>Inquilino</th>
                     <th class="right">Deuda total</th>
-                    <th class="right">Arrastre 2025</th>
+                    <th class="right" id="thArrastre">Arrastre ant.</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
@@ -3899,7 +3899,7 @@ td:last-child{
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
                 <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Cobro</button>
+                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Registrar cobro</button>
                   <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
                   <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
                 </div>
@@ -4023,14 +4023,15 @@ td:last-child{
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
-          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
+          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900; background:var(--ok-soft); border-color:var(--ok-border); cursor:default;" readonly tabindex="-1">
+          <span id="mPeriodoHint" class="muted" style="font-size:11px;line-height:1.25;max-width:200px;display:block;"></span>
         </div>
       </div>
 
       <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
-          <label class="muted" style="font-size:12px;">N° recibo manual</label>
-          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
+          <label class="muted" style="font-size:12px;">N° recibo manual <span style="color:var(--bad);font-weight:900;" title="Recomendado">*</span></label>
+          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;" oninput="clearMsgIfAny()">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
           <label class="muted" style="font-size:12px;">Medio de pago</label>
@@ -4040,7 +4041,7 @@ td:last-child{
             <option>MERCADOPAGO</option>
           </select>
         </div>
-        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Guardar</button>
+        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Registrar cobro</button>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -4898,8 +4899,20 @@ td:last-child{
       updateTopSearchUI();
       closeSidebarIfMobile();
 
+      // Actualizar encabezado de columna "Arrastre" con el año anterior dinámico
+      const thArrastre = $('thArrastre');
+      if (thArrastre) {
+        const anioActual = new Date().getFullYear();
+        thArrastre.textContent = `Arrastre ${anioActual - 1}`;
+      }
+
       if (r === 'documentos') renderDocumentosPage();
-      if (r === 'recibos') renderRecibosPage();
+      // Guard de rerenderizado: solo re-renderiza recibos y balance si no estaban ya cargados
+      if (r === 'recibos') {
+        const el = $('viewRecibos');
+        if (!el || !el.querySelector('.recibos-grid')) renderRecibosPage();
+        else updateRecibosHistoryFromState();
+      }
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
     }
@@ -8938,15 +8951,29 @@ function updateRecibosFiltersFromUI(){
       if (details) details.open = false;
     }
 
+
     function renderRecibosHistoryRows(rows){
       if (!rows.length){
         return `<tr><td colspan="10"><div class="recibos-empty">No hay recibos visibles con los filtros actuales.</div></td></tr>`;
       }
 
-      return rows.map(item => `
+      return rows.map(item => {
+        const esHistorico = isHistoricalLikeReceipt(item);
+        const chipHistorico = esHistorico
+          ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn);margin-left:6px;" title="Recibo histórico importado. No se puede eliminar.">🔒 HISTÓRICO</span>`
+          : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-border);color:var(--ok);margin-left:6px;" title="Recibo operativo generado en el sistema.">✓ OPERATIVO</span>`;
+
+        const accionesHtml = esHistorico
+          ? `<span style="font-size:11px;color:var(--muted);padding:4px 8px;display:inline-block;" title="Los recibos históricos no se pueden eliminar desde acá.">No modificable</span>`
+          : `<button class="btn btn-sm danger" style="font-size:12px;padding:4px 10px;min-height:32px;" onclick="deleteReciboById('${getReciboKey(item)}')">Eliminar</button>`;
+
+        return `
         <tr>
           <td>
-            <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo)}</strong></div>
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+              <strong>${escapeHtml(item.numero_recibo)}</strong>
+              ${chipHistorico}
+            </div>
             <span class="contact-sub">${escapeHtml(item.referencia || 'Sin referencia')}</span>
           </td>
           <td>
@@ -9015,12 +9042,15 @@ function updateRecibosFiltersFromUI(){
                     </button>
                   </div>
                 </details>
+                ${accionesHtml}
               </div>
             </div>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
+
+
 
     async function renderRecibosPage(){
       const el = $('viewRecibos');
@@ -12107,7 +12137,47 @@ function deleteReciboActual(){
       const total = round2(alquiler + impuesto);
       if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+
+      // Actualizar hint del periodo seleccionado
+      const hint = $('mPeriodoHint');
+      if (hint) {
+        const sel = $('mPeriodoAplicado');
+        const val = sel?.value || 'AUTO';
+        if (val === 'AUTO') {
+          const oldest = getOldestPendingCuotaParaCobro();
+          hint.textContent = oldest
+            ? `→ Se aplicará a: ${oldest.mes_nombre || oldest.periodo} ${oldest.anio}`
+            : '→ Sin deuda pendiente identificada';
+        } else {
+          const chosen = sel?.selectedOptions?.[0]?.textContent || '';
+          hint.textContent = chosen ? `→ Se aplicará a: ${chosen.split('·')[0].trim()}` : '';
+        }
+      }
+
       return { alquiler, impPct:0, impuesto, total };
+    }
+
+    function autoFadeToast(elId, delayMs = 4500){
+      const el = $(elId);
+      if (!el || !el.textContent.trim()) return;
+      clearTimeout(el._fadeTimer);
+      el.style.transition = 'opacity .4s ease';
+      el.style.opacity = '1';
+      el._fadeTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => {
+          if (el.style.opacity === '0') el.textContent = '';
+          el.style.opacity = '';
+          el.style.transition = '';
+        }, 420);
+      }, delayMs);
+    }
+
+    function clearMsgIfAny(){
+      const msgEl = $('modalMsg');
+      if (msgEl && msgEl.textContent && !msgEl.textContent.includes('Registrando')) {
+        msgEl.textContent = '';
+      }
     }
 
     async function openPagoModal(r){
@@ -12156,6 +12226,14 @@ function deleteReciboActual(){
         }
 
         const numeroManual = String($('mReferencia')?.value || '').trim();
+        // VALIDACIÓN: advertir si falta número de recibo, pero no bloquear
+        if (!numeroManual) {
+          const continuar = confirm('⚠️ No ingresaste un número de recibo.\n\nEs recomendable asignar un número para poder rastrear el cobro.\n\n¿Querés continuar de todas formas?');
+          if (!continuar) {
+            if (msgEl) msgEl.textContent = '';
+            return;
+          }
+        }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
           ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
@@ -12221,6 +12299,7 @@ function deleteReciboActual(){
         if (msgEl) {
           const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
           msgEl.textContent = `${res?.mensaje || 'Cobro registrado correctamente.'}${numeroMsg ? ` Recibo: ${numeroMsg}.` : ''}`;
+          autoFadeToast('modalMsg', 2500);
         }
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
@@ -12289,6 +12368,7 @@ function deleteReciboActual(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo crear el mes.');
         if (msg) msg.textContent = res?.mensaje || 'Mes guardado correctamente.';
+        autoFadeToast('modalMesMsg', 2500);
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(selected.contrato_id));
         if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
