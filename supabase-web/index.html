@@ -4254,6 +4254,7 @@ td:last-child{
     const PAYMENT_DESCRIPTION_MAP_KEY = 'ga_payment_description_map_v1';
     const RECEIPTS_CACHE_KEY = 'ga_receipts_cache_v1';
     const MANUAL_RECEIPTS_KEY = 'ga_manual_receipts_v1';
+    const TENANT_NAME_OVERRIDES_KEY = 'ga_tenant_name_overrides_v1';
 
     const ACCENT_PALETTES = {
       azul: {
@@ -5139,6 +5140,130 @@ td:last-child{
     }
 
 
+    function loadTenantNameOverrides(){
+      try{
+        const raw = localStorage.getItem(TENANT_NAME_OVERRIDES_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+      }catch(_){
+        return {};
+      }
+    }
+
+    let tenantNameOverrides = loadTenantNameOverrides();
+
+    function saveTenantNameOverrides(){
+      try{
+        localStorage.setItem(TENANT_NAME_OVERRIDES_KEY, JSON.stringify(tenantNameOverrides || {}));
+      }catch(_){ }
+    }
+
+    function tenantOverrideKeysFromData(data={}){
+      const keys = [];
+      const contratoId = data.contrato_id || data.contratoId;
+      const inquilinoId = data.inquilino_id || data.inquilinoId;
+      const localId = data.local_id || data.localId;
+      const code = normLocalCode(data.local_codigo || data.codigo_local || data.local_code_normalized || data.codigo || '');
+
+      if (contratoId) keys.push(`contrato:${contratoId}`);
+      if (inquilinoId) keys.push(`inquilino:${inquilinoId}`);
+      if (localId) keys.push(`local:${localId}`);
+      if (code) keys.push(`codigo:${code}`);
+
+      return keys;
+    }
+
+    function setTenantNameOverride(data={}, nombre=''){
+      const cleanName = String(nombre || '').trim();
+      if (!cleanName) return;
+
+      tenantOverrideKeysFromData(data).forEach(key => {
+        tenantNameOverrides[key] = cleanName;
+      });
+
+      saveTenantNameOverrides();
+    }
+
+    function getTenantNameOverride(data={}){
+      const keys = tenantOverrideKeysFromData(data);
+      for (const key of keys){
+        const value = tenantNameOverrides?.[key];
+        if (value) return value;
+      }
+      return '';
+    }
+
+    function buildTenantOperationalNameUpdates({ nombre, inquilinoId=null, contratoId=null, localId=null, codigoLocal='' }){
+      const cleanName = String(nombre || '').trim();
+      if (!cleanName) return [];
+
+      const tables = [
+        'cuotas_operativas',
+        'deuda_actual_operativa',
+        'estado_cuenta_2025_operativa',
+        'estado_cuenta_2026_abril_operativa'
+      ];
+
+      const tasks = [];
+      const seen = new Set();
+      const codeCandidates = localCodeCandidates ? localCodeCandidates(codigoLocal || '') : [codigoLocal].filter(Boolean);
+
+      function addUpdate(table, column, value){
+        if (value === null || value === undefined || value === '') return;
+        const key = `${table}:${column}:${value}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        tasks.push(
+          sb.from(table)
+            .update({ nombre_inquilino: cleanName })
+            .eq(column, value)
+            .then(result => {
+              if (result?.error) {
+                console.warn(`No se pudo sincronizar nombre en ${table} por ${column}:`, result.error.message);
+              }
+              return { error: null, optional: true };
+            })
+            .catch(error => {
+              console.warn(`No se pudo sincronizar nombre en ${table} por ${column}:`, error?.message || error);
+              return { error: null, optional: true };
+            })
+        );
+      }
+
+      tables.forEach(table => {
+        addUpdate(table, 'inquilino_id', inquilinoId);
+        addUpdate(table, 'contrato_id', contratoId);
+        addUpdate(table, 'local_id', localId);
+        codeCandidates.forEach(code => addUpdate(table, 'codigo_local', code));
+      });
+
+      // Algunas vistas reconstruidas pueden venir de staging por código/local. Es opcional y no debe bloquear el guardado.
+      codeCandidates.forEach(code => {
+        const key = `staging_importacion_alquileres_2026_limpio:codigo_local:${code}`;
+        if (seen.has(key)) return;
+        seen.add(key);
+
+        tasks.push(
+          sb.from('staging_importacion_alquileres_2026_limpio')
+            .update({ nombre_inquilino: cleanName })
+            .eq('codigo_local', code)
+            .then(result => {
+              if (result?.error) {
+                console.warn('No se pudo sincronizar nombre en staging_importacion_alquileres_2026_limpio:', result.error.message);
+              }
+              return { error: null, optional: true };
+            })
+            .catch(error => {
+              console.warn('No se pudo sincronizar nombre en staging_importacion_alquileres_2026_limpio:', error?.message || error);
+              return { error: null, optional: true };
+            })
+        );
+      });
+
+      return tasks;
+    }
+
     function applyReconstructedDebtToUnit(baseRow){
       const key = normLocalCode(baseRow?.local_codigo || baseRow?.local_code_normalized || '');
       const recon = getActivosReconstruidosEntryByCode(key);
@@ -5147,10 +5272,12 @@ td:last-child{
       const total = toNumber(recon.deuda_total_2025_2026);
       const months = Number(recon.meses_adeudados_total || 0);
 
+      const nombreOverride = getTenantNameOverride({ ...baseRow, ...recon, local_codigo: key, local_code_normalized: key });
+
       return {
         ...baseRow,
         local_code_normalized: key,
-        inquilino_nombre: recon.nombre_raw || baseRow.inquilino_nombre,
+        inquilino_nombre: nombreOverride || recon.nombre_raw || baseRow.inquilino_nombre,
         deuda_total: total,
         deuda_atrasada: total,
         meses_adeudados: months,
@@ -5176,11 +5303,12 @@ td:last-child{
     function buildSyntheticReconstructedUnit(recon){
       const code = normLocalCode(recon.local_code_normalized);
       const total = toNumber(recon.deuda_total_2025_2026);
+      const nombreOverride = getTenantNameOverride({ ...recon, local_codigo: code, local_code_normalized: code });
       return {
         contrato_id: makeSyntheticContratoId(code),
         local_codigo: code,
         local_code_normalized: code,
-        inquilino_nombre: recon.nombre_raw || '—',
+        inquilino_nombre: nombreOverride || recon.nombre_raw || '—',
         deuda_total: total,
         deuda_atrasada: total,
         meses_adeudados: Number(recon.meses_adeudados_total || 0),
@@ -5553,9 +5681,12 @@ function globalSearch(){
       const baseRows = (contratosActivos || [])
         .map(c => {
           const codigo = c.locales?.codigo_local || c.locales?.codigo || '—';
-          const nombre = c.inquilinos?.nombre || '—';
+          const nombreBase = c.inquilinos?.nombre || '—';
+          const nombre = getTenantNameOverride({ contrato_id: c.id, inquilino_id: c.inquilino_id || c.inquilinos?.id, local_id: c.locales?.id, local_codigo: codigo }) || nombreBase;
           return {
             contrato_id: c.id,
+            local_id: c.locales?.id || null,
+            inquilino_id: c.inquilino_id || c.inquilinos?.id || null,
             local_codigo: codigo,
             local_code_normalized: normLocalCode(codigo),
             inquilino_nombre: nombre,
@@ -7112,6 +7243,8 @@ function globalSearch(){
 
         const inquilinoId = contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null;
         const contratoId = selected?.contrato_id || contrato?.id || null;
+        const localId = contrato?.locales?.id || selected?.local_id || null;
+        const codigoLocal = codigo || selected?.local_codigo || selected?.local_code_normalized || contrato?.locales?.codigo_local || contrato?.locales?.codigo || '';
 
         if (inquilinoId) {
           tasks.push(
@@ -7119,37 +7252,23 @@ function globalSearch(){
               .update({ nombre, documento, telefono, email })
               .eq('id', inquilinoId)
           );
-
-          // Mantener sincronizado el nombre visible en las tablas operativas
-          // que alimentan activos, detalle y deuda. No toca recibos históricos.
-          tasks.push(
-            sb.from('cuotas_operativas')
-              .update({ nombre_inquilino: nombre })
-              .eq('inquilino_id', inquilinoId)
-          );
-
-          tasks.push(
-            sb.from('deuda_actual_operativa')
-              .update({ nombre_inquilino: nombre })
-              .eq('inquilino_id', inquilinoId)
-          );
         }
 
-        if (contratoId) {
-          // Refuerzo por contrato_id para filas operativas que pudieran no tener
-          // inquilino_id cargado correctamente. No toca recibos históricos.
-          tasks.push(
-            sb.from('cuotas_operativas')
-              .update({ nombre_inquilino: nombre })
-              .eq('contrato_id', contratoId)
-          );
+        // Sin tocar recibos históricos: sincronizamos solo el nombre visible usado por las vistas/listados operativos.
+        setTenantNameOverride({
+          contrato_id: contratoId,
+          inquilino_id: inquilinoId,
+          local_id: localId,
+          local_codigo: codigoLocal
+        }, nombre);
 
-          tasks.push(
-            sb.from('deuda_actual_operativa')
-              .update({ nombre_inquilino: nombre })
-              .eq('contrato_id', contratoId)
-          );
-        }
+        tasks.push(...buildTenantOperationalNameUpdates({
+          nombre,
+          inquilinoId,
+          contratoId,
+          localId,
+          codigoLocal
+        }));
       }
 
       if (isAlquilerMode) {
