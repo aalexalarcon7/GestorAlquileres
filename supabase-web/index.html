@@ -8963,9 +8963,7 @@ function updateRecibosFiltersFromUI(){
           ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn);margin-left:6px;" title="Recibo histórico importado. No se puede eliminar.">🔒 HISTÓRICO</span>`
           : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-border);color:var(--ok);margin-left:6px;" title="Recibo operativo generado en el sistema.">✓ OPERATIVO</span>`;
 
-        const accionesHtml = esHistorico
-          ? `<span style="font-size:11px;color:var(--muted);padding:4px 8px;display:inline-block;" title="Los recibos históricos no se pueden eliminar desde acá.">No modificable</span>`
-          : `<button class="btn btn-sm danger" style="font-size:12px;padding:4px 10px;min-height:32px;" onclick="deleteReciboById('${getReciboKey(item)}')">Eliminar</button>`;
+
 
         return `
         <tr>
@@ -9042,7 +9040,6 @@ function updateRecibosFiltersFromUI(){
                     </button>
                   </div>
                 </details>
-                ${accionesHtml}
               </div>
             </div>
           </td>
