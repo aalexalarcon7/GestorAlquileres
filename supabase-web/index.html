@@ -3734,7 +3734,7 @@ td:last-child{
       </nav>
 
       <div class="sb-footer">
-        <button class="btn danger" onclick="logout()"><span>Salir</span></button>
+        <button class="btn danger" type="button" onclick="logout()"><span>Salir</span></button>
       </div>
     </aside>
 
@@ -3870,7 +3870,7 @@ td:last-child{
                     <th style="width:120px;">Código</th>
                     <th>Inquilino</th>
                     <th class="right">Deuda total</th>
-                    <th class="right">Arrastre 2025</th>
+                    <th class="right" id="thArrastre">Arrastre ant.</th>
                     <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
@@ -3899,7 +3899,7 @@ td:last-child{
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
                 <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Cobro</button>
+                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Registrar cobro</button>
                   <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
                   <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
                 </div>
@@ -4019,18 +4019,19 @@ td:last-child{
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;">Monto fijo, no porcentaje.</span>
+          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
-          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
+          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900; background:var(--ok-soft); border-color:var(--ok-border); cursor:default;" readonly tabindex="-1">
+          <span id="mPeriodoHint" class="muted" style="font-size:11px;line-height:1.25;max-width:200px;display:block;"></span>
         </div>
       </div>
 
       <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
-          <label class="muted" style="font-size:12px;">N° recibo manual</label>
-          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
+          <label class="muted" style="font-size:12px;">N° recibo manual <span style="color:var(--bad);font-weight:900;" title="Recomendado">*</span></label>
+          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;" oninput="clearMsgIfAny()">
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
           <label class="muted" style="font-size:12px;">Medio de pago</label>
@@ -4040,7 +4041,7 @@ td:last-child{
             <option>MERCADOPAGO</option>
           </select>
         </div>
-        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Guardar</button>
+        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Registrar cobro</button>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -4204,6 +4205,14 @@ td:last-child{
       <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
     </div>
   </div>
+
+  <input
+  id="pagoFecha"
+  type="text"
+  inputmode="numeric"
+  placeholder="dd/mm/aaaa"
+  value="${dateISOToAR(todayISO())}"
+>
 
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
@@ -4890,8 +4899,20 @@ td:last-child{
       updateTopSearchUI();
       closeSidebarIfMobile();
 
+      // Actualizar encabezado de columna "Arrastre" con el año anterior dinámico
+      const thArrastre = $('thArrastre');
+      if (thArrastre) {
+        const anioActual = new Date().getFullYear();
+        thArrastre.textContent = `Arrastre ${anioActual - 1}`;
+      }
+
       if (r === 'documentos') renderDocumentosPage();
-      if (r === 'recibos') renderRecibosPage();
+      // Guard de rerenderizado: solo re-renderiza recibos y balance si no estaban ya cargados
+      if (r === 'recibos') {
+        const el = $('viewRecibos');
+        if (!el || !el.querySelector('.recibos-grid')) renderRecibosPage();
+        else updateRecibosHistoryFromState();
+      }
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
     }
@@ -5017,12 +5038,70 @@ td:last-child{
       }
     }
 
-    async function logout(){
-      authRecoveryMode = false;
-      toggleForgotPassword(false);
-      showPasswordRecoveryMode(false);
-      await sb.auth.signOut();
-    }
+    let isLoggingOut = false;
+
+async function logout(){
+  if (isLoggingOut) return;
+  isLoggingOut = true;
+
+  const btns = Array.from(document.querySelectorAll('button'))
+    .filter(btn => String(btn.textContent || '').trim().toLowerCase() === 'salir');
+
+  btns.forEach(btn => {
+    btn.dataset.prevText = btn.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('is-disabled');
+    btn.innerHTML = '<span>Saliendo...</span>';
+  });
+
+  try {
+    authRecoveryMode = false;
+    toggleForgotPassword(false);
+    showPasswordRecoveryMode(false);
+
+    // Limpiar estado local inmediatamente para no depender solo del evento de Supabase.
+    user = null;
+    selected = null;
+    reciboActual = null;
+
+    try {
+      localStorage.removeItem('currentRoute');
+      sessionStorage.removeItem('splashShown');
+    } catch (_) {}
+
+    // Cerrar sesión en Supabase.
+    const { error } = await sb.auth.signOut({ scope: 'local' });
+    if (error) throw error;
+
+    // Forzar UI de login al instante.
+    toggle(false, null);
+    setLoginMessage('', '');
+
+    // Evita que quede una pantalla vieja renderizada.
+    if ($('app')) $('app').style.display = 'none';
+    if ($('login')) $('login').style.display = '';
+
+  } catch (e) {
+    console.error('Error cerrando sesión:', e);
+
+    // Igual intentamos dejar la sesión visualmente cerrada.
+    user = null;
+    toggle(false, null);
+
+    alert(`No se pudo cerrar sesión correctamente: ${e?.message || e}`);
+  } finally {
+    isLoggingOut = false;
+
+    btns.forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('is-disabled');
+      if (btn.dataset.prevText) {
+        btn.innerHTML = btn.dataset.prevText;
+        delete btn.dataset.prevText;
+      }
+    });
+  }
+}
 
         function isSinAsignarName(name){
       return String(name || '').startsWith('SIN ASIGNAR - ');
@@ -5581,7 +5660,7 @@ td:last-child{
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
-          <td>${String(x.vencimiento || '—').slice(0,10)}</td>
+          <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
@@ -5740,7 +5819,7 @@ function globalSearch(){
       $('viewInicio').innerHTML = `
         <div class="card">
           <h2 style="margin:0;">Inicio</h2>
-          <div class="muted" style="margin-top:6px;">Panel reconstruido desde base limpia. Pagos y recibos quedan en pausa hasta auditoría.</div>
+          <div class="muted" style="margin-top:6px;"></div>
         </div>
 
         <div class="card">
@@ -6241,19 +6320,97 @@ function globalSearch(){
     }
 
     function formatDateValue(value){
-      if (!value) return '';
-      try{
-        return String(value).slice(0,10);
-      } catch (e){
-        return '';
-      }
-    }
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${d}/${m}/${y}`;
+  }
+
+  const ar = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ar) {
+    const [, d, m, y] = ar;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+
+  return raw.slice(0, 10);
+}
 
     function formatMoneyInputValue(value){
       const num = Number(value || 0);
       if (!Number.isFinite(num) || num <= 0) return '';
       return num.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    
+    function formatDateAR(value){
+  if (!value) return '—';
+
+  const raw = String(value).trim();
+
+  // Si viene como YYYY-MM-DD
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (isoMatch) {
+    const [, y, m, d] = isoMatch;
+    return `${d}/${m}/${y}`;
+  }
+
+  // Si ya viene como DD/MM/YYYY
+  const arMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (arMatch) return raw;
+
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+
+  return date.toLocaleDateString('es-AR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric'
+  });
+}
+
+function dateISOToAR(value){
+  if (!value) return '';
+
+  const raw = String(value).trim();
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+
+  if (!match) return raw;
+
+  const [, y, m, d] = match;
+  return `${d}/${m}/${y}`;
+}
+
+function dateARToISO(value){
+  if (!value) return '';
+
+  const raw = String(value).trim();
+
+  // Si ya viene ISO, lo deja igual
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return raw;
+  }
+
+  // Convierte DD/MM/YYYY a YYYY-MM-DD
+  const match = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+
+  if (!match) return raw;
+
+  const [, d, m, y] = match;
+
+  return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+}
+
+function todayISO(){
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+
+  return `${y}-${m}-${d}`;
+}
 
     function round2(n){
       return Math.round((Number(n) || 0) * 100) / 100;
@@ -6612,7 +6769,7 @@ function globalSearch(){
       if (!el) return;
 
       const previous = keepValue ? String(el.value || 'AUTO') : '';
-      const fechaPago = $('mFecha')?.value || today();
+      const fechaPago = dateARToISO($('pagoFecha')?.value || dateISOToAR(todayISO()));
       const code = normLocalCode(row?.local_codigo || row?.local_code_normalized || row?.codigo_local || row?.codigo);
       let stagingRow = null;
 
@@ -6972,7 +7129,7 @@ function globalSearch(){
       msgEl.textContent = 'Procesando cobro...';
 
       try{
-        const fecha = $('mFecha').value || today();
+        const fechaPago = $('mFecha')?.value || today();
         const medio = $('mMedio').value;
         const referencia = String($('mReferencia')?.value || '').trim();
         const descripcionPago = String($('mDescripcion')?.value || '').trim();
@@ -7324,6 +7481,53 @@ function globalSearch(){
       if (saveBtn) saveBtn.textContent = 'Guardar cambios';
     }
 
+    async function syncNombreActivoOperativo({ inquilinoId, contratoId, nombre }){
+      // Sincronización acotada al cambio de nombre visible del activo/locatario.
+      // No toca cobros, recibos, montos, deuda ni lógica de pagos.
+      const nuevoNombre = String(nombre || '').trim();
+      if (!nuevoNombre) return;
+
+      const updates = [];
+
+      if (inquilinoId) {
+        updates.push(
+          sb.from('cuotas_operativas')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('inquilino_id', inquilinoId)
+        );
+        updates.push(
+          sb.from('deuda_actual_operativa')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('inquilino_id', inquilinoId)
+        );
+      }
+
+      if (contratoId) {
+        updates.push(
+          sb.from('cuotas_operativas')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('contrato_id', contratoId)
+        );
+        updates.push(
+          sb.from('deuda_actual_operativa')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('contrato_id', contratoId)
+        );
+      }
+
+      if (!updates.length) return;
+
+      try {
+        const results = await Promise.all(updates);
+        const failed = results.find(r => r?.error);
+        if (failed?.error) {
+          console.warn('syncNombreActivoOperativo:', failed.error.message);
+        }
+      } catch (err) {
+        console.warn('syncNombreActivoOperativo:', err?.message || err);
+      }
+    }
+
     async function saveActivoModal(){
       const msg = $('activoModalMsg');
       msg.textContent = '';
@@ -7397,6 +7601,8 @@ function globalSearch(){
       }
 
       const tasks = [];
+      const inquilinoId = contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null;
+      const contratoId = selected?.contrato_id || contrato?.id || null;
 
       if (!isAlquilerMode) {
         if (contrato?.locales?.id) {
@@ -7408,42 +7614,11 @@ function globalSearch(){
           }
         }
 
-        const inquilinoId = contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null;
-        const contratoId = selected?.contrato_id || contrato?.id || null;
-
         if (inquilinoId) {
           tasks.push(
             sb.from('inquilinos')
               .update({ nombre, documento, telefono, email })
               .eq('id', inquilinoId)
-          );
-
-          // Sincroniza solo el nombre visible en tablas operativas actuales.
-          // No toca recibos históricos, pagos, cobros, montos ni balance.
-          tasks.push(
-            sb.from('cuotas_operativas')
-              .update({ nombre_inquilino: nombre })
-              .eq('inquilino_id', inquilinoId)
-          );
-
-          tasks.push(
-            sb.from('deuda_actual_operativa')
-              .update({ nombre_inquilino: nombre })
-              .eq('inquilino_id', inquilinoId)
-          );
-        }
-
-        if (contratoId) {
-          tasks.push(
-            sb.from('cuotas_operativas')
-              .update({ nombre_inquilino: nombre })
-              .eq('contrato_id', contratoId)
-          );
-
-          tasks.push(
-            sb.from('deuda_actual_operativa')
-              .update({ nombre_inquilino: nombre })
-              .eq('contrato_id', contratoId)
           );
         }
       }
@@ -7490,6 +7665,10 @@ function globalSearch(){
       if (failed?.error) {
         msg.textContent = failed.error.message;
         return;
+      }
+
+      if (!isAlquilerMode) {
+        await syncNombreActivoOperativo({ inquilinoId, contratoId, nombre });
       }
 
       if (isAlquilerMode && detalleCuotasActuales?.length) {
@@ -8273,14 +8452,40 @@ function globalSearch(){
     }
 
     function formatDateDisplay(value){
-      if (!value) return '—';
-      return String(value).slice(0, 10);
-    }
+  if (!value) return '—';
 
-    function formatDateTimeDisplay(value){
-      if (!value) return '—';
-      return String(value).slice(0, 19).replace('T', ' ');
-    }
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) {
+    const [, y, m, d] = iso;
+    return `${d}/${m}/${y}`;
+  }
+
+  const ar = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (ar) {
+    const [, d, m, y] = ar;
+    return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  }
+
+  return raw.slice(0, 10);
+}
+
+function formatDateTimeDisplay(value){
+  if (!value) return '—';
+
+  const raw = String(value).trim();
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  if (iso) {
+    const [, y, m, d, hh, mm, ss] = iso;
+    const datePart = `${d}/${m}/${y}`;
+    const timePart = hh && mm ? ` ${hh}:${mm}${ss ? `:${ss}` : ''}` : '';
+    return `${datePart}${timePart}`;
+  }
+
+  return raw.slice(0, 19).replace('T', ' ');
+}
 
     function buildReciboNumero(pago, createIfMissing=false){
       const ref = pago?.referencia || pago?.numero_recibo || pago?.nro_recibo || pago?.recibo_numero;
@@ -8353,167 +8558,124 @@ function globalSearch(){
 
       const doc = new jsPDFCtor({ unit: 'pt', format: 'a4' });
       const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-      const centerX = pageWidth / 2;
+      const contentWidth = 512;
+      const startX = (pageWidth - contentWidth) / 2;
 
       const negocio = appSettings?.negocio?.nombre || 'Gestión de Alquileres';
+
       const numero = item?.numero_recibo || '—';
       const fecha = formatDateDisplay(item?.fecha_pago || item?.created_at);
       const registrado = item?.created_at ? formatDateTimeDisplay(item.created_at) : '—';
-      const medio = item?.medio || '—';
-      const periodo = item?.periodo_aplicado || item?.periodo || '';
-      const locatario = item?.inquilino_nombre || '—';
-      const documento = item?.documento || '—';
-      const telefonoEmail = [item?.telefono, item?.email].filter(Boolean).join(' · ') || '—';
-      const unidad = item?.local_codigo || '—';
       const impuestoPct = Number(item?.impuesto_porcentaje || 0);
       const alquiler = fmtARS.format(Number(item?.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item?.monto_impuesto || 0));
       const total = fmtARS.format(Number(item?.monto_total || item?.monto || 0));
+      const periodoAplicado = item?.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : `Referencia: ${item?.referencia || '—'}`;
 
-      const colors = {
-        ink: [15, 23, 42],
-        muted: [71, 85, 105],
-        label: [100, 116, 139],
-        line: [203, 213, 225],
-        softLine: [226, 232, 240],
-        soft: [248, 250, 252],
-        dark: [15, 23, 42],
-        chip: [51, 65, 85],
-        chipLine: [71, 85, 105],
-        white: [255, 255, 255]
-      };
-
-      const setColor = (color) => doc.setTextColor(color[0], color[1], color[2]);
-      const textWidth = (value) => doc.getTextWidth(String(value || ''));
-      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = colors.ink) => {
+      const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = [15,23,42]) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
-        setColor(color);
-        const text = String(value || '');
-        doc.text(text, xCenter - textWidth(text) / 2, y);
+        doc.setTextColor(color[0], color[1], color[2]);
+        const width = doc.getTextWidth(String(value || ''));
+        doc.text(String(value || ''), xCenter - width / 2, y);
       };
-      const leftText = (value, x, y, size = 12, weight = 'normal', color = colors.ink) => {
+
+      const drawCenteredLines = (lines, xCenter, startY, size = 11, weight = 'normal', color = [71,85,105], lineHeight = 14) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
-        setColor(color);
-        doc.text(String(value || ''), x, y);
+        doc.setTextColor(color[0], color[1], color[2]);
+        lines.filter(Boolean).forEach((line, idx) => {
+          const w = doc.getTextWidth(String(line));
+          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
+        });
       };
-      const fitText = (value, maxWidth, size = 10, minSize = 7) => {
-        let current = size;
-        doc.setFontSize(current);
-        while (current > minSize && textWidth(value) > maxWidth) {
-          current -= 0.5;
-          doc.setFontSize(current);
-        }
-        return current;
-      };
-      const drawRounded = (x, y, w, h, r, fillColor, strokeColor = null) => {
-        if (fillColor) doc.setFillColor(fillColor[0], fillColor[1], fillColor[2]);
-        if (strokeColor) doc.setDrawColor(strokeColor[0], strokeColor[1], strokeColor[2]);
-        doc.roundedRect(x, y, w, h, r, r, strokeColor ? 'FD' : 'F');
-      };
-      const drawChip = (x, y, w, h, value, size = 9) => {
-        drawRounded(x, y, w, h, h / 2, colors.chip, colors.chipLine);
-        const fontSize = fitText(value, w - 18, size, 6.5);
-        centerText(value, x + w / 2, y + h / 2 + 3.5, fontSize, 'bold', colors.white);
-      };
-      const drawCenteredWrapped = (value, xCenter, y, maxWidth, size = 10, color = colors.muted, lineHeight = 13) => {
+
+      const drawParagraphCentered = (value, xCenter, startY, maxWidth, size = 10.5, color = [100,116,139], lineHeight = 14) => {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(size);
-        setColor(color);
-        const lines = doc.splitTextToSize(String(value || ''), maxWidth).slice(0, 2);
-        lines.forEach((line, index) => {
-          doc.text(line, xCenter - textWidth(line) / 2, y + index * lineHeight);
+        doc.setTextColor(color[0], color[1], color[2]);
+        const lines = doc.splitTextToSize(String(value || ''), maxWidth);
+        lines.forEach((line, idx) => {
+          const w = doc.getTextWidth(String(line));
+          doc.text(String(line), xCenter - (w / 2), startY + (idx * lineHeight));
         });
       };
-      const drawInfoCard = (x, y, w, h, label, main, lines = []) => {
-        drawRounded(x, y, w, h, 18, colors.soft, colors.line);
-        centerText(String(label || '').toUpperCase(), x + w / 2, y + 26, 9, 'bold', colors.label);
-        const mainSize = fitText(main, w - 42, 16, 10);
-        centerText(main, x + w / 2, y + 58, mainSize, 'bold', colors.ink);
-        lines.filter(Boolean).slice(0, 3).forEach((line, idx) => {
-          const lineSize = fitText(line, w - 36, 10, 7.5);
-          centerText(line, x + w / 2, y + 82 + idx * 17, lineSize, 'normal', colors.muted);
-        });
-      };
-      const drawAmountCard = (x, y, w, h, label, value, sub = '', dark = false) => {
-        drawRounded(x, y, w, h, 18, dark ? colors.dark : colors.soft, dark ? colors.dark : colors.line);
-        centerText(String(label || '').toUpperCase(), x + w / 2, y + 28, 9, 'bold', dark ? colors.softLine : colors.label);
-        const valueSize = fitText(value, w - 28, dark ? 20 : 19, 12);
-        centerText(value, x + w / 2, y + 63, valueSize, 'bold', dark ? colors.white : colors.ink);
-        if (sub) centerText(sub, x + w / 2, y + 84, 10, 'normal', dark ? colors.softLine : colors.muted);
+
+      const drawInfoBox = (x, y, w, h, label, main, sub1 = '', sub2 = '') => {
+        doc.setDrawColor(203, 213, 225);
+        doc.setFillColor(248, 250, 252);
+        doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+        centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
+        centerText(main, x + (w/2), y + 58, 16, 'bold', [15,23,42]);
+        if (sub1) centerText(sub1, x + (w/2), y + 82, 10, 'normal', [71,85,105]);
+        if (sub2) centerText(sub2, x + (w/2), y + 102, 10, 'normal', [71,85,105]);
       };
 
-      // Contenedor general del comprobante, estilo similar al recibo web.
-      const cardX = 22;
-      const cardY = 24;
-      const cardW = pageWidth - 44;
-      const cardH = Math.min(710, pageHeight - 48);
-      drawRounded(cardX, cardY, cardW, cardH, 26, colors.white, colors.line);
-
-      const innerX = cardX + 24;
-      const innerW = cardW - 48;
-      const headerX = innerX;
-      const headerY = cardY + 36;
-      const headerW = innerW;
-      const headerH = 226;
-      drawRounded(headerX, headerY, headerW, headerH, 22, colors.dark);
-
-      // Logo real de la web cuando está disponible. Si no, usa iniciales como respaldo.
-      const logoSize = 66;
-      const logoX = centerX - logoSize / 2;
-      const logoY = headerY + 30;
-      const logoImg = document.querySelector('.recibo-sheet-logo.logo-image img, .sb-logo.logo-image img, #loginCard .loginBrandMark.logo-image img');
-      const logoSrc = logoImg?.getAttribute('src') || logoImg?.src || '';
-      if (logoSrc) {
-        try {
-          doc.addImage(logoSrc, 'PNG', logoX, logoY, logoSize, logoSize, undefined, 'FAST');
-        } catch (error) {
-          doc.setFillColor(255, 255, 255);
-          doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
-          centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
+      const drawAmountCard = (x, y, w, h, label, value, secondary = '', dark = false) => {
+        if (dark){
+          doc.setFillColor(15,23,42);
+          doc.setDrawColor(15,23,42);
+          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [203,213,225]);
+          centerText(value, x + (w/2), y + 58, 19, 'bold', [255,255,255]);
+          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [226,232,240]);
+        } else {
+          doc.setFillColor(248,250,252);
+          doc.setDrawColor(203,213,225);
+          doc.roundedRect(x, y, w, h, 18, 18, 'FD');
+          centerText(label.toUpperCase(), x + (w/2), y + 24, 10, 'bold', [100,116,139]);
+          centerText(value, x + (w/2), y + 58, 18, 'bold', [15,23,42]);
+          if (secondary) centerText(secondary, x + (w/2), y + 80, 10, 'normal', [71,85,105]);
         }
-      } else {
-        doc.setFillColor(255, 255, 255);
-        doc.roundedRect(logoX, logoY, logoSize, logoSize, 20, 20, 'F');
-        centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, logoY + 42, 22, 'bold', colors.ink);
-      }
+      };
 
-      centerText('Recibo interno', centerX, headerY + 128, 27, 'bold', colors.white);
-      centerText(negocio, centerX, headerY + 153, 11.5, 'normal', colors.softLine);
+      const headerY = 38;
+      const headerH = 178;
+      const centerX = pageWidth / 2;
 
-      const chipH = 30;
-      const chipGap = 10;
-      const chipTopY = headerY + 176;
-      const nChipW = 190;
-      const pagoChipW = 132;
-      const row1W = nChipW + pagoChipW + chipGap;
-      const row1X = centerX - row1W / 2;
-      drawChip(row1X, chipTopY, nChipW, chipH, `N° ${numero}`, 8.5);
-      drawChip(row1X + nChipW + chipGap, chipTopY, pagoChipW, chipH, `Pago: ${fecha}`, 8.5);
-      drawChip(centerX - 190 / 2, chipTopY + 40, 190, chipH, `Registrado: ${registrado}`, 8.2);
+      doc.setFillColor(15, 23, 42);
+      doc.roundedRect(startX, headerY, contentWidth, headerH, 24, 24, 'F');
 
-      const cardTop = headerY + headerH + 24;
+      doc.setFillColor(255,255,255);
+      doc.roundedRect(centerX - 36, headerY + 18, 72, 72, 22, 22, 'F');
+      centerText((negocio || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA', centerX, headerY + 63, 24, 'bold', [15,23,42]);
+
+      centerText('Recibo interno', centerX, headerY + 122, 27, 'bold', [255,255,255]);
+      centerText(negocio, centerX, headerY + 146, 12, 'normal', [226,232,240]);
+
+
+      const badgeY = headerY + headerH + 18;
+      const badgeW1 = 170;
+      const badgeW2 = 120;
+      const totalBadgesW = badgeW1 + badgeW2 + 12;
+      const badgesX = (pageWidth - totalBadgesW) / 2;
+      doc.setFillColor(248,250,252);
+      doc.setDrawColor(203,213,225);
+      doc.roundedRect(badgesX, badgeY, badgeW1, 28, 14, 14, 'FD');
+      doc.roundedRect(badgesX + badgeW1 + 12, badgeY, badgeW2, 28, 14, 14, 'FD');
+      centerText(`N° ${numero}`, badgesX + badgeW1/2, badgeY + 18, 10, 'bold', [15,23,42]);
+      centerText(fecha, badgesX + badgeW1 + 12 + badgeW2/2, badgeY + 18, 10, 'bold', [15,23,42]);
+
+      const boxY = badgeY + 48;
       const gap = 14;
-      const infoW = (innerW - gap) / 2;
-      const infoH = 118;
-      drawInfoCard(innerX, cardTop, infoW, infoH, 'Locatario', locatario, [`Documento: ${documento}`, telefonoEmail]);
-      drawInfoCard(innerX + infoW + gap, cardTop, infoW, infoH, 'Detalle del cobro', `Unidad ${unidad}`, [`Medio de pago: ${medio}`, periodo ? `Aplicado a: ${periodo}` : '', `N° recibo: ${numero}`]);
+      const boxW = (contentWidth - gap) / 2;
+      drawInfoBox(startX, boxY, boxW, 118, 'Locatario', item?.inquilino_nombre || '—', `Documento: ${item?.documento || '—'}`, `${item?.telefono || '—'} · ${item?.email || '—'}`);
+      drawInfoBox(startX + boxW + gap, boxY, boxW, 118, 'Detalle del cobro', `Unidad ${item?.local_codigo || '—'}`, `Registrado: ${registrado}`, periodoAplicado);
 
-      const amountsY = cardTop + infoH + 20;
+      const amountY = boxY + 138;
       const amountGap = 12;
-      const amountW = (innerW - amountGap * 2) / 3;
-      drawAmountCard(innerX, amountsY, amountW, 104, 'Alquiler', alquiler);
-      drawAmountCard(innerX + amountW + amountGap, amountsY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
-      drawAmountCard(innerX + (amountW + amountGap) * 2, amountsY, amountW, 104, 'Total recibido', total, '', true);
+      const amountW = (contentWidth - (amountGap * 2)) / 3;
+      drawAmountCard(startX, amountY, amountW, 104, 'Alquiler', alquiler);
+      drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
+      drawAmountCard(startX + (amountW + amountGap) * 2, amountY, amountW, 104, 'Total recibido', total, '', true);
 
-      const footerY = amountsY + 130;
-      doc.setDrawColor(148, 163, 184);
+      const footerY = amountY + 128;
+      doc.setDrawColor(148,163,184);
       doc.setLineDashPattern([4, 4], 0);
-      doc.line(innerX + 12, footerY, innerX + innerW - 12, footerY);
+      doc.line(startX + 12, footerY, startX + contentWidth - 12, footerY);
       doc.setLineDashPattern([], 0);
-      drawCenteredWrapped('Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.', centerX, footerY + 24, innerW - 56, 10.5, colors.muted, 14);
+      const note = 'Comprobante interno no fiscal · generado para archivo administrativo.';
+      drawParagraphCentered(note, centerX, footerY + 18, contentWidth - 56, 10.5, [100,116,139], 14);
 
       return doc.output('blob');
     }
@@ -8638,7 +8800,7 @@ function globalSearch(){
             <div class="recibo-amount-card">
               <div class="label">Impuesto</div>
               <div class="value">${impuesto}</div>
-              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo'}</div>
+              <div class="recibo-sheet-sub">${impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : ''}</div>
             </div>
             <div class="recibo-amount-card total">
               <div class="label">Total recibido</div>
@@ -8780,20 +8942,25 @@ function globalSearch(){
     }
 
     function updateRecibosHistoryFromState(){
-      const rows = Array.isArray(recibosInternosCache) ? recibosInternosCache : [];
-      const filteredRows = applyRecibosPageFilters(rows);
-      const body = $('recibosBody');
-      if (body) body.innerHTML = renderRecibosHistoryRows(filteredRows);
-      const count = $('recibosCountPill');
-      if (count) count.textContent = `${filteredRows.length} visibles`;
-    }
+  const body = $('recibosBody');
+  if (!body){
+    renderRecibosPage();
+    return;
+  }
 
-    function updateRecibosFiltersFromUI(){
-      recibosPageState.query = $('recibosSearch')?.value || '';
-      recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
-      recibosPageState.month = $('recibosMonthFilter')?.value || '';
-      updateRecibosHistoryFromState();
-    }
+  const filteredRows = applyRecibosPageFilters(recibosInternosCache || []);
+  body.innerHTML = renderRecibosHistoryRows(filteredRows);
+
+  const count = $('recibosCountPill');
+  if (count) count.textContent = `${filteredRows.length} visibles`;
+}
+
+function updateRecibosFiltersFromUI(){
+  recibosPageState.query = $('recibosSearch')?.value || '';
+  recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
+  recibosPageState.month = $('recibosMonthFilter')?.value || '';
+  updateRecibosHistoryFromState();
+}
 
 
     function buildReciboPreviewData({ pagoId, fecha, medio, referencia, reciboNumero, alquilerNum, impuestoNum, impPct, totalNum, contratoId, descripcionPago, periodoAplicado, detalleAplicacion }){
@@ -8837,15 +9004,27 @@ function globalSearch(){
       if (details) details.open = false;
     }
 
+
     function renderRecibosHistoryRows(rows){
       if (!rows.length){
         return `<tr><td colspan="10"><div class="recibos-empty">No hay recibos visibles con los filtros actuales.</div></td></tr>`;
       }
 
-      return rows.map(item => `
+      return rows.map(item => {
+        const esHistorico = isHistoricalLikeReceipt(item);
+        const chipHistorico = esHistorico
+          ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn);margin-left:6px;" title="Recibo histórico importado. No se puede eliminar.">🔒 HISTÓRICO</span>`
+          : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-border);color:var(--ok);margin-left:6px;" title="Recibo operativo generado en el sistema.">✓ OPERATIVO</span>`;
+
+
+
+        return `
         <tr>
           <td>
-            <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo)}</strong></div>
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
+              <strong>${escapeHtml(item.numero_recibo)}</strong>
+              ${chipHistorico}
+            </div>
             <span class="contact-sub">${escapeHtml(item.referencia || 'Sin referencia')}</span>
           </td>
           <td>
@@ -8918,8 +9097,10 @@ function globalSearch(){
             </div>
           </td>
         </tr>
-      `).join('');
+      `}).join('');
     }
+
+
 
     async function renderRecibosPage(){
       const el = $('viewRecibos');
@@ -9113,134 +9294,205 @@ function globalSearch(){
       removeCobroReceiptOverrideForItem(item);
     }
 
-    const deletingRecibosKeys = new Set();
+   const deletingRecibosKeys = new Set();
 
-    function getReciboNumericIdForDelete(item){
-      const candidates = [item?.recibo_id, item?.id, item?.pago_id, item?.hist_id, item?.recibo_historico_id];
-      for (const raw of candidates){
-        const txt = String(raw ?? '').trim();
-        if (!txt) continue;
-        if (/^\d+$/.test(txt)) return Number(txt);
-        const hist = txt.match(/^hist-(\d+)$/i);
-        if (hist) return Number(hist[1]);
-      }
-      return null;
+function positiveIntOrNull(value){
+  const raw = String(value ?? '').trim();
+  if (!raw) return null;
+
+  if (/^\d+$/.test(raw)) {
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  const hist = raw.match(/^hist-(\d+)$/i);
+  if (hist) {
+    const n = Number(hist[1]);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
+  return null;
+}
+
+function positiveNumberOrNull(value){
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function isHistoricalLikeReceipt(item){
+  const text = [
+    item?.__source_table,
+    item?.origen,
+    item?.fuente_hoja,
+    item?.id,
+    item?.recibo_id
+  ].map(v => String(v || '').toLowerCase()).join(' ');
+
+  return text.includes('recibos_historicos')
+    || text.includes('hist-')
+    || text.includes('historico')
+    || text.includes('excel');
+}
+
+function getReciboDbIdForDelete(item){
+  const candidates = [
+    item?.recibo_id,
+    item?.recibo_historico_id,
+    item?.hist_id,
+    item?.id
+  ];
+
+  for (const value of candidates){
+    const n = positiveIntOrNull(value);
+    if (n) return n;
+  }
+
+  return null;
+}
+
+function getPagoDbIdForDelete(item){
+  /*
+    Importante:
+    Si el item viene de recibos_historicos_operativos, NO confiamos en item.pago_id,
+    porque en algunas versiones del index se llenaba con el id del recibo histórico.
+    En ese caso la RPC resuelve por recibo_id + numero_recibo.
+  */
+  if (isHistoricalLikeReceipt(item)) return null;
+
+  const candidates = [
+    item?.pago_id,
+    item?.id
+  ];
+
+  for (const value of candidates){
+    const n = positiveIntOrNull(value);
+    if (n) return n;
+  }
+
+  return null;
+}
+
+function getDeleteButtonSet(){
+  return Array.from(document.querySelectorAll('button.btn.danger'))
+    .filter(btn => String(btn.textContent || '').toLowerCase().includes('eliminar'));
+}
+
+async function deleteReciboById(id){
+  const item = getReciboById(id);
+
+  if (!item){
+    alert('No se encontró el recibo para eliminar.');
+    return;
+  }
+
+  const numero = String(item.numero_recibo || item.referencia || '').trim();
+  const local = item.local_codigo || item.codigo_local || '—';
+  const locatario = item.inquilino_nombre || item.nombre_inquilino || '—';
+
+  const pagoId = getPagoDbIdForDelete(item);
+  const reciboId = getReciboDbIdForDelete(item);
+
+  const contratoId = positiveIntOrNull(item.contrato_id);
+  const anio = positiveNumberOrNull(item.anio);
+  const mes = positiveNumberOrNull(item.mes);
+
+  const deleteKey = [
+    pagoId ? `pago-${pagoId}` : '',
+    reciboId ? `recibo-${reciboId}` : '',
+    numero ? `num-${numero}` : '',
+    contratoId ? `contrato-${contratoId}` : '',
+    anio && mes ? `${anio}-${mes}` : ''
+  ].filter(Boolean).join('|') || String(id || '');
+
+  if (!pagoId && !reciboId && !numero){
+    alert('Este recibo no tiene identificador suficiente para eliminar.');
+    return;
+  }
+
+  if (deletingRecibosKeys.has(deleteKey)) return;
+
+  const ok = confirm(
+    `Vas a eliminar el recibo ${numero || 'sin número'} de ${locatario} (${local}).\n\n` +
+    `Esto debe revertir el cobro completo de la cuota, incluyendo alquiler e impuesto.\n\n` +
+    `¿Continuar?`
+  );
+
+  if (!ok) return;
+
+  deletingRecibosKeys.add(deleteKey);
+
+  const deleteButtons = getDeleteButtonSet();
+  deleteButtons.forEach(btn => {
+    btn.dataset.prevText = btn.textContent;
+    btn.textContent = 'Eliminando...';
+    btn.disabled = true;
+    btn.classList.add('is-disabled');
+  });
+
+  try{
+    const payload = {
+      p_pago_id: pagoId,
+      p_recibo_id: reciboId,
+      p_numero_recibo: numero || null,
+      p_contrato_id: contratoId,
+      p_anio: anio,
+      p_mes: mes
+    };
+
+    const { data, error } = await sb.rpc('eliminar_recibo_operativo', payload);
+
+    if (error) throw error;
+
+    const result = Array.isArray(data) ? data[0] : data;
+
+    if (result && result.ok === false){
+      throw new Error(result.mensaje || 'No se pudo eliminar el recibo.');
     }
 
-    async function deleteReciboById(id){
-      const item = getReciboById(id);
-      if (!item){
-        alert('No se encontró el recibo para eliminar.');
-        return;
-      }
+    removeReciboFromLocalCaches(item);
 
-      const numero = item.numero_recibo || item.referencia || 'sin número';
-      const local = item.local_codigo || '—';
-      const locatario = item.inquilino_nombre || '—';
-      const reciboDbId = getReciboNumericIdForDelete(item);
-      const pagoId = reciboDbId;
-      const deleteKey = String(reciboDbId || getReciboKey(item) || id || '').trim();
+    if (typeof closeReciboModal === 'function') {
+      closeReciboModal();
+    }
 
-      if (!Number.isFinite(reciboDbId) || reciboDbId <= 0){
-        alert('Este recibo no tiene un ID de recibo histórico válido para eliminar.');
-        return;
-      }
+    await refreshAll();
 
-      if (deletingRecibosKeys.has(deleteKey)) return;
+    if (route === 'recibos') {
+      await renderRecibosPage();
+    }
 
-      const ok = confirm(
-        `Vas a eliminar el recibo ${numero} de ${locatario} (${local}).
-
-` +
-        `Esto también revierte el saldo de la cuota imputada.
-
-` +
-        `¿Continuar?`
-      );
-      if (!ok) return;
-
-      deletingRecibosKeys.add(deleteKey);
-      const deleteButtons = Array.from(document.querySelectorAll('.recibo-danger-zone .btn.danger, button.btn.danger'));
-      deleteButtons.forEach(btn => {
-        if (String(btn.textContent || '').toLowerCase().includes('eliminar recibo')){
-          btn.dataset.prevText = btn.textContent;
-          btn.textContent = 'Eliminando...';
-          btn.disabled = true;
-          btn.classList.add('is-disabled');
-        }
-      });
-
-      try{
-        const { data, error } = await sb.rpc('eliminar_recibo_operativo_v2', {
-          p_recibo_id: reciboDbId,
-          p_numero_recibo: String(item.numero_recibo || item.referencia || '').trim() || null,
-          p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null
-        });
-        if (error) {
-          const raw = error.message || String(error);
-          if (/eliminar_recibo_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función eliminar_recibo_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación segura y probá de nuevo. Detalle: ' + raw);
-          }
-          throw error;
-        }
-
-        const result = Array.isArray(data) ? data[0] : data;
-        if (result && result.ok === false){
-          throw new Error(result.mensaje || 'La base rechazó la eliminación del recibo.');
-        }
-
-        // Eliminación optimista: lo sacamos de la UI al instante para que no requiera un segundo click.
-        removeReciboFromLocalCaches(item);
-        recibosInternosCache = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
-          .filter(row => !sameReciboIdentity(row, item) && String(row.pago_id || row.id || row.recibo_id || '') !== String(pagoId));
-
-        if (reciboActual && sameReciboIdentity(reciboActual, item)){
-          reciboActual = null;
-          closeReciboModal();
-        }
-
-        try{
-          localStorage.removeItem(RECEIPTS_CACHE_KEY);
-          localStorage.removeItem(MANUAL_RECEIPTS_KEY);
-        } catch(e){}
-
-        if (route === 'recibos') await renderRecibosPage();
-        await refreshAll();
-        if (route === 'recibos') await renderRecibosPage();
-
-        // Segundo refresco corto para evitar que Supabase/localStorage muestre una copia vieja.
-        setTimeout(async () => {
-          try{
-            try{
-              localStorage.removeItem(RECEIPTS_CACHE_KEY);
-              localStorage.removeItem(MANUAL_RECEIPTS_KEY);
-            } catch(e){}
-            if (route === 'recibos') await renderRecibosPage();
-          } catch(e){ console.warn('No se pudo hacer el refresco final de recibos', e); }
-        }, 350);
-
-        showPagoSuccessToast(result?.mensaje || `Se eliminó el recibo ${numero}.`);
-      } catch (error){
-        console.error(error);
-        alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
-      } finally {
-        deletingRecibosKeys.delete(deleteKey);
-        deleteButtons.forEach(btn => {
-          btn.disabled = false;
-          btn.classList.remove('is-disabled');
-          if (btn.dataset.prevText){
-            btn.textContent = btn.dataset.prevText;
-            delete btn.dataset.prevText;
-          }
-        });
+    if (selected?.contrato_id && typeof loadDetalle === 'function') {
+      try {
+        await loadDetalle(selected);
+      } catch(e) {
+        console.warn('No se pudo refrescar el detalle luego de eliminar:', e?.message || e);
       }
     }
 
-    function deleteReciboActual(){
-      if (!reciboActual) return;
-      deleteReciboById(getReciboKey(reciboActual));
-    }
+    const msg = result?.mensaje || `Se eliminó el recibo ${numero || ''} correctamente.`;
+    showPagoSuccessToast(msg);
+  } catch(error){
+    console.error(error);
+    alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
+  } finally {
+    deletingRecibosKeys.delete(deleteKey);
 
+    deleteButtons.forEach(btn => {
+      btn.disabled = false;
+      btn.classList.remove('is-disabled');
+
+      if (btn.dataset.prevText){
+        btn.textContent = btn.dataset.prevText;
+        delete btn.dataset.prevText;
+      }
+    });
+  }
+}
+
+function deleteReciboActual(){
+  if (!reciboActual) return;
+  deleteReciboById(getReciboKey(reciboActual));
+}
 
     let pagoSuccessToastTimer = null;
     function showPagoSuccessToast(message = 'Pago registrado exitosamente ✅'){
@@ -11935,7 +12187,47 @@ function globalSearch(){
       const total = round2(alquiler + impuesto);
       if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+
+      // Actualizar hint del periodo seleccionado
+      const hint = $('mPeriodoHint');
+      if (hint) {
+        const sel = $('mPeriodoAplicado');
+        const val = sel?.value || 'AUTO';
+        if (val === 'AUTO') {
+          const oldest = getOldestPendingCuotaParaCobro();
+          hint.textContent = oldest
+            ? `→ Se aplicará a: ${oldest.mes_nombre || oldest.periodo} ${oldest.anio}`
+            : '→ Sin deuda pendiente identificada';
+        } else {
+          const chosen = sel?.selectedOptions?.[0]?.textContent || '';
+          hint.textContent = chosen ? `→ Se aplicará a: ${chosen.split('·')[0].trim()}` : '';
+        }
+      }
+
       return { alquiler, impPct:0, impuesto, total };
+    }
+
+    function autoFadeToast(elId, delayMs = 4500){
+      const el = $(elId);
+      if (!el || !el.textContent.trim()) return;
+      clearTimeout(el._fadeTimer);
+      el.style.transition = 'opacity .4s ease';
+      el.style.opacity = '1';
+      el._fadeTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        setTimeout(() => {
+          if (el.style.opacity === '0') el.textContent = '';
+          el.style.opacity = '';
+          el.style.transition = '';
+        }, 420);
+      }, delayMs);
+    }
+
+    function clearMsgIfAny(){
+      const msgEl = $('modalMsg');
+      if (msgEl && msgEl.textContent && !msgEl.textContent.includes('Registrando')) {
+        msgEl.textContent = '';
+      }
     }
 
     async function openPagoModal(r){
@@ -11984,6 +12276,14 @@ function globalSearch(){
         }
 
         const numeroManual = String($('mReferencia')?.value || '').trim();
+        // VALIDACIÓN: advertir si falta número de recibo, pero no bloquear
+        if (!numeroManual) {
+          const continuar = confirm('⚠️ No ingresaste un número de recibo.\n\nEs recomendable asignar un número para poder rastrear el cobro.\n\n¿Querés continuar de todas formas?');
+          if (!continuar) {
+            if (msgEl) msgEl.textContent = '';
+            return;
+          }
+        }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
           ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
@@ -12049,6 +12349,7 @@ function globalSearch(){
         if (msgEl) {
           const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
           msgEl.textContent = `${res?.mensaje || 'Cobro registrado correctamente.'}${numeroMsg ? ` Recibo: ${numeroMsg}.` : ''}`;
+          autoFadeToast('modalMsg', 2500);
         }
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
@@ -12117,6 +12418,7 @@ function globalSearch(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo crear el mes.');
         if (msg) msg.textContent = res?.mensaje || 'Mes guardado correctamente.';
+        autoFadeToast('modalMesMsg', 2500);
         await refreshAll();
         const refreshed = unidades.find(x => String(x.contrato_id) === String(selected.contrato_id));
         if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
