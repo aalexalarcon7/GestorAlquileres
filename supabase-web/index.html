@@ -3940,7 +3940,6 @@ td:last-child{
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
-                    <th class="right">Impuesto</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -4203,10 +4202,16 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-      
     </div>
   </div>
 
+  <input
+  id="pagoFecha"
+  type="text"
+  inputmode="numeric"
+  placeholder="dd/mm/aaaa"
+  value="${dateISOToAR(todayISO())}"
+>
 
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
@@ -5598,96 +5603,6 @@ async function logout(){
       return `2026-${String(idx + 1).padStart(2,'0')}`;
     }
 
-
-    function extractPaymentPeriodSortKeys(pago){
-      const sources = [
-        pago?.periodo_aplicado,
-        pago?.periodo,
-        pago?.detalle_aplicacion,
-        pago?.descripcion_pago,
-        pago?.observacion,
-        pago?.referencia,
-        paymentDescriptionMap?.[String(pago?.id || '')],
-        paymentDescriptionMap?.[String(pago?.pago_id || '')],
-        paymentDescriptionMap?.[String(pago?.referencia || '')]
-      ].filter(Boolean).join(' · ');
-
-      const keys = new Set();
-      const addKey = (year, month) => {
-        const y = Number(year);
-        const m = Number(month);
-        if (y >= 2000 && m >= 1 && m <= 12) keys.add(`${y}-${String(m).padStart(2,'0')}`);
-      };
-
-      // Si el recibo/pago ya trae año y mes explícitos, usamos eso primero.
-      // Esto evita depender solamente de textos como "Mayo 2026" o de la fecha de cobro.
-      if (pago?.anio && pago?.mes) addKey(pago.anio, pago.mes);
-
-      const monthNames = GA_MONTH_NAMES.join('|');
-      let match;
-
-      const monthYearRegex = new RegExp(`(${monthNames})\\s+(20\\d{2})`, 'gi');
-      while ((match = monthYearRegex.exec(sources)) !== null){
-        const idx = GA_MONTH_NAMES.findIndex(name => name.toLowerCase() === String(match[1]).toLowerCase());
-        if (idx >= 0) addKey(match[2], idx + 1);
-      }
-
-      const yearDashMonthNameRegex = new RegExp(`(20\\d{2})\\s*[-/]\\s*(${monthNames})`, 'gi');
-      while ((match = yearDashMonthNameRegex.exec(sources)) !== null){
-        const idx = GA_MONTH_NAMES.findIndex(name => name.toLowerCase() === String(match[2]).toLowerCase());
-        if (idx >= 0) addKey(match[1], idx + 1);
-      }
-
-      const slashRegex = /\b(0?[1-9]|1[0-2])\/(20\d{2})\b/g;
-      while ((match = slashRegex.exec(sources)) !== null){
-        addKey(match[2], match[1]);
-      }
-
-      const isoRegex = /\b(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\b/g;
-      while ((match = isoRegex.exec(sources)) !== null){
-        addKey(match[1], match[2]);
-      }
-
-      if (!keys.size){
-        const fecha = String(pago?.fecha_pago || pago?.created_at || '').trim();
-        const dateMatch = fecha.match(/^(20\d{2})-(\d{2})/);
-        if (dateMatch) addKey(dateMatch[1], dateMatch[2]);
-      }
-
-      return [...keys];
-    }
-
-    function applyImpuestosToDebtRows(rows, pagos){
-      const detalleRows = Array.isArray(rows) ? rows : [];
-      detalleRows.forEach(row => { row.impuesto = toNumber(row.impuesto); });
-
-      if (!Array.isArray(pagos) || !pagos.length) return detalleRows;
-
-      const impuestoByKey = new Map();
-      pagos.forEach(pago => {
-        const impuesto = toNumber(pago?.monto_impuesto);
-        if (impuesto <= 0) return;
-
-        const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
-        if (!keys.length) return;
-
-        const importePorPeriodo = round2(impuesto / keys.length);
-        keys.forEach((key, index) => {
-          const importe = index === keys.length - 1
-            ? round2(impuesto - importePorPeriodo * (keys.length - 1))
-            : importePorPeriodo;
-          impuestoByKey.set(key, round2(toNumber(impuestoByKey.get(key)) + importe));
-        });
-      });
-
-      detalleRows.forEach(row => {
-        const key = String(row?.sort_key || '').slice(0, 7);
-        row.impuesto = round2(toNumber(impuestoByKey.get(key)));
-      });
-
-      return detalleRows;
-    }
-
     function applyPaymentApplicationsToDebtRows(rows, pagos){
       if (!Array.isArray(rows) || !Array.isArray(pagos) || !pagos.length) return rows;
 
@@ -5730,7 +5645,7 @@ async function logout(){
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="7" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -5747,7 +5662,6 @@ async function logout(){
           <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
-          <td class="right">${fmtARS.format(toNumber(x.impuesto))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
@@ -5952,7 +5866,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? 'El botón de cobro queda en pausa hasta reconstruir pagos/recibos.' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
@@ -6072,7 +5986,7 @@ function globalSearch(){
         $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
       }
       renderDetalleInfo(r, []);
-      if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="8" class="center">Cargando cuotas y deuda...</td></tr>`;
+      if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
       if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
 
       loadDetalle(r);
@@ -6384,41 +6298,17 @@ function globalSearch(){
         const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
 
-        const pagosAplicados = await fetchPagoAplicacionesDetalle(r);
-        if (seq !== detalleLoadSeq) return;
+        detalleCuotasActuales = rows || [];
+        renderDetalleInfo(r, rows || []);
+        renderDetalleDebtRows(rows || []);
 
-        let recibosVinculados = [];
-        try {
-          const recibosResult = await fetchRecibosInternosData();
-          if (seq !== detalleLoadSeq) return;
-          recibosVinculados = getDetalleRecibosVinculados(r, recibosResult.rows || []);
-        } catch (recErr) {
-          console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
-        }
-
-        const fuentesImpuesto = [
-          ...(Array.isArray(pagosAplicados) ? pagosAplicados : []),
-          ...(Array.isArray(recibosVinculados) ? recibosVinculados : [])
-        ];
-
-        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
-
-        detalleCuotasActuales = rowsConImpuesto || [];
-        renderDetalleInfo(r, rowsConImpuesto || []);
-        renderDetalleDebtRows(rowsConImpuesto || []);
-
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = renderDetalleRecibosRows(recibosVinculados || []);
-        if ($('detDocsMsg')) {
-          $('detDocsMsg').textContent = recibosVinculados.length
-            ? `${recibosVinculados.length} recibo(s) vinculado(s) al contrato ${r?.contrato_id || '—'}.`
-            : 'No hay recibos cargados para este contrato.';
-        }
+        await loadDetalleRecibos(r, seq);
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
-        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="8" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
         if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
       }
     }
@@ -12120,6 +12010,110 @@ function deleteReciboActual(){
       return (pagoCuotasPendientesActuales || [])[0] || getDetalleCuotasPendientesParaCobro()[0] || null;
     }
 
+    function buildCobroCuotasAllocationPlan(totalAlquiler, selectedChoice){
+      const totalDisponible = round2(toNumber(totalAlquiler));
+      const pendientes = (pagoCuotasPendientesActuales || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(x => toNumber(x.saldo) > 0)
+        .sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
+
+      if (totalDisponible <= 0 || !pendientes.length){
+        return {
+          allocations: [],
+          totalAplicado: 0,
+          sobrante: totalDisponible,
+          periodoTexto: selectedChoice?.auto ? 'deuda más antigua' : '',
+          detalleTexto: ''
+        };
+      }
+
+      let startIndex = 0;
+      if (selectedChoice && !selectedChoice.auto){
+        const idx = pendientes.findIndex(x => Number(x.anio) === Number(selectedChoice.anio) && Number(x.mes) === Number(selectedChoice.mes));
+        if (idx >= 0) startIndex = idx;
+      }
+
+      let remaining = totalDisponible;
+      const allocations = [];
+
+      for (const cuota of pendientes.slice(startIndex)){
+        if (remaining <= 0.009) break;
+        const saldo = Math.max(0, toNumber(cuota.saldo));
+        if (saldo <= 0.009) continue;
+        const aplicado = round2(Math.min(remaining, saldo));
+        if (aplicado <= 0.009) continue;
+
+        allocations.push({
+          ...cuota,
+          aplicado,
+          old_monto_total: toNumber(cuota.monto_total),
+          old_monto_pagado: toNumber(cuota.monto_pagado),
+          old_saldo: saldo
+        });
+        remaining = round2(remaining - aplicado);
+      }
+
+      const totalAplicado = round2(allocations.reduce((acc, x) => acc + toNumber(x.aplicado), 0));
+      const periodoTexto = allocations.length
+        ? allocations.map(x => `${x.mes_nombre || GA_MONTH_NAMES[Number(x.mes || 1) - 1] || x.mes} ${x.anio}`).join(' + ')
+        : (selectedChoice?.auto ? 'deuda más antigua' : '');
+      const detalleTexto = allocations.length
+        ? allocations.map(x => `${x.mes_nombre || GA_MONTH_NAMES[Number(x.mes || 1) - 1] || x.mes} ${x.anio}: ${fmtARS.format(toNumber(x.aplicado))}`).join(' · ')
+        : '';
+
+      return {
+        allocations,
+        totalAplicado,
+        sobrante: round2(remaining),
+        periodoTexto,
+        detalleTexto
+      };
+    }
+
+    async function applyCobroCuotasAllocationPlan(plan){
+      const allocations = Array.isArray(plan?.allocations) ? plan.allocations : [];
+      if (!allocations.length) return;
+
+      for (const item of allocations){
+        const total = toNumber(item.old_monto_total || item.monto_total);
+        const pagadoAnterior = toNumber(item.old_monto_pagado || 0);
+        const aplicado = toNumber(item.aplicado);
+        const nuevoPagado = round2(Math.min(total, pagadoAnterior + aplicado));
+        const nuevoSaldo = round2(Math.max(0, total - nuevoPagado));
+        const nuevoEstado = nuevoSaldo <= 0.009 ? 'PAGADO' : (nuevoPagado > 0 ? 'PARCIAL' : 'PENDIENTE');
+        const patch = {
+          monto_pagado: nuevoPagado,
+          saldo: nuevoSaldo,
+          estado: nuevoEstado
+        };
+
+        let query = sb.from('cuotas_operativas').update(patch);
+        if (item.id || item.detalle_id){
+          query = query.eq('id', item.id || item.detalle_id);
+        } else {
+          query = query
+            .eq('contrato_id', Number(modalContrato?.contrato_id || item.contrato_id))
+            .eq('anio', Number(item.anio))
+            .eq('mes', Number(item.mes));
+        }
+
+        const { error } = await query;
+        if (error) throw error;
+
+        const cached = (detalleCuotasActuales || []).find(r => String(r.detalle_id || r.id || '') === String(item.detalle_id || item.id || ''))
+          || (detalleCuotasActuales || []).find(r => Number(r.anio || String(r.sort_key || '').slice(0,4)) === Number(item.anio) && Number(r.mes || String(r.sort_key || '').slice(5,7)) === Number(item.mes));
+        if (cached){
+          cached.pagado = nuevoPagado;
+          cached.monto_pagado = nuevoPagado;
+          cached.saldo = nuevoSaldo;
+          cached.estado_detalle = nuevoEstado;
+          cached.estado = nuevoEstado;
+          cached.dias_atraso = getDetalleDiasAtraso(Number(item.anio), Number(item.mes), nuevoSaldo, nuevoEstado);
+        }
+      }
+    }
+
     async function updateFirstMatchingRowSafe(table, target, patch){
       if (!target?.id || !patch || !Object.keys(patch).length) return null;
       const attempts = [
@@ -12404,13 +12398,23 @@ function deleteReciboActual(){
           if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
         }
 
-        const periodoTexto = choice.auto
+        const allocationPlan = buildCobroCuotasAllocationPlan(alquilerBase, choice);
+        const firstAllocation = allocationPlan.allocations[0] || null;
+        if (firstAllocation){
+          choice = { auto:false, anio:Number(firstAllocation.anio), mes:Number(firstAllocation.mes) };
+        }
+
+        const periodoTexto = allocationPlan.periodoTexto || (choice.auto
           ? 'deuda más antigua'
-          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`;
+          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`);
+        const detalleAplicacion = allocationPlan.detalleTexto
+          ? `Distribución del alquiler: ${allocationPlan.detalleTexto}${allocationPlan.sobrante > 0 ? ` · Sobrante sin aplicar: ${fmtARS.format(allocationPlan.sobrante)}` : ''}`
+          : desgloseCobro;
         const observacionFinal = [
           descripcionBase,
           `Aplicado a: ${periodoTexto}`,
-          desgloseCobro
+          desgloseCobro,
+          allocationPlan.detalleTexto ? detalleAplicacion : ''
         ].filter(Boolean).join(' | ') || null;
 
         const args = {
@@ -12443,6 +12447,10 @@ function deleteReciboActual(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
 
+        if (allocationPlan.allocations.length > 1 || (allocationPlan.allocations[0] && toNumber(allocationPlan.allocations[0].aplicado) < alquilerBase)){
+          await applyCobroCuotasAllocationPlan(allocationPlan);
+        }
+
         const metadataPatch = await forceCobroReceiptMetadata({
           contratoId: Number(modalContrato.contrato_id),
           fechaPago: args.p_fecha_pago,
@@ -12452,7 +12460,7 @@ function deleteReciboActual(){
           alquilerBase,
           impuestoFijo,
           periodoTexto,
-          detalleAplicacion: desgloseCobro
+          detalleAplicacion
         });
 
         if (msgEl) {
