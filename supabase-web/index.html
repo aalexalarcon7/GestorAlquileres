@@ -3857,6 +3857,7 @@ td:last-child{
                 <option value="ATRASADOS">Atrasados</option>
                 <option value="VENCE_PRONTO">Vence pronto</option>
                 <option value="AL_DIA">Al día</option>
+                <option value="OCULTOS">Ocultos</option>
               </select>
               <button class="btn" onclick="clearFilters()">Limpiar</button>
             </div>
@@ -3899,9 +3900,11 @@ td:last-child{
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
                 <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Registrar cobro</button>
-                  <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
-                  <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
+                <button class="btn primary" type="button" onclick="openPagoModal(selected)">Registrar cobro</button>
+                <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
+                <button class="btn" type="button" onclick="toggleOcultarActivoActual()">Ocultar activo</button>
+                <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
+                </div>
                 </div>
               </div>
               <div class="detail-info-grid" id="detalleInfoGrid"></div>
@@ -4183,8 +4186,11 @@ td:last-child{
       </section>
 
       <div class="activo-modal-actions">
+        <div class="activo-modal-actions">
+        <button class="btn" onclick="toggleOcultarActivoActual()">Ocultar activo</button>
         <button class="btn danger" onclick="deleteActivoActual()">Borrar activo</button>
         <button class="btn primary" onclick="saveActivoModal()">Guardar cambios</button>
+        </div>
       </div>
     </div>
   </div>
@@ -6077,9 +6083,15 @@ function globalSearch(){
         );
       }
 
-      if (filtro === 'ATRASADOS') rows = rows.filter(r => getContratoStatus(r).key === 'ATRASADO');
-      else if (filtro === 'VENCE_PRONTO') rows = rows.filter(r => getContratoStatus(r).key === 'VENCE_PRONTO');
-      else if (filtro === 'AL_DIA') rows = rows.filter(r => getContratoStatus(r).key === 'AL_DIA');
+      if (filtro === 'OCULTOS') {
+  rows = rows.filter(r => r.oculto === true);
+} else {
+  rows = rows.filter(r => r.oculto !== true);
+
+  if (filtro === 'ATRASADOS') rows = rows.filter(r => getContratoStatus(r).key === 'ATRASADO');
+  else if (filtro === 'VENCE_PRONTO') rows = rows.filter(r => getContratoStatus(r).key === 'VENCE_PRONTO');
+  else if (filtro === 'AL_DIA') rows = rows.filter(r => getContratoStatus(r).key === 'AL_DIA');
+}
 
       $('unitsCount').textContent = `${rows.length} resultados`;
 
@@ -12803,6 +12815,67 @@ if (!numeroManual || numeroManual.toLowerCase() === 'generando...') {
       }
     }
 
+    async function toggleOcultarActivoActual(){
+  const msg = $('activoModalMsg') || $('unitsMsg');
+  const unidad = selected;
+
+  if (!unidad?.contrato_id) {
+    alert('Primero abrí el detalle de un activo.');
+    return;
+  }
+
+  const contratoId = unidad.contrato_id;
+  const estaOculto = unidad.oculto === true;
+
+  const label = `${unidad.local_codigo || '—'} · ${unidad.inquilino_nombre || '—'}`;
+  const ok = askConfirm(
+    estaOculto
+      ? `¿Restaurar este activo?\n\n${label}\n\nVolverá a aparecer en la lista principal.`
+      : `¿Ocultar este activo?\n\n${label}\n\nNo se borrará nada. Solo dejará de aparecer en la lista principal.`
+  );
+
+  if (!ok) return;
+
+  try {
+    if (msg) msg.textContent = estaOculto ? 'Restaurando activo...' : 'Ocultando activo...';
+
+    const payload = estaOculto
+      ? {
+          oculto: false,
+          oculto_at: null,
+          oculto_motivo: null
+        }
+      : {
+          oculto: true,
+          oculto_at: new Date().toISOString(),
+          oculto_motivo: 'Ocultado desde la web'
+        };
+
+    const { error } = await sb
+      .from('contratos')
+      .update(payload)
+      .eq('id', contratoId);
+
+    if (error) throw error;
+
+    closeActivoModal();
+    selected = null;
+    if ($('detalleCard')) $('detalleCard').style.display = 'none';
+
+    await refreshAll();
+
+    if (msg) msg.textContent = estaOculto
+      ? 'Activo restaurado correctamente.'
+      : 'Activo ocultado correctamente.';
+  } catch (err) {
+    console.error(err);
+    if (msg) msg.textContent = err?.message || 'No se pudo actualizar el activo.';
+    alert(err?.message || 'No se pudo actualizar el activo.');
+  }
+}
+
+window.toggleOcultarActivoActual = toggleOcultarActivoActual;
+
     // Exponer funciones operativas para los onclick inline del HTML.
     window.openPagoModal = openPagoModal;
     window.openPagoModalByContrato = openPagoModalByContrato;
@@ -12814,6 +12887,7 @@ if (!numeroManual || numeroManual.toLowerCase() === 'generando...') {
     window.closeAgregarMesModal = closeAgregarMesModal;
     window.guardarMesOperativo = guardarMesOperativo;
     window.deleteActivoActual = deleteActivoActual;
+    window.toggleOcultarActivoActual = toggleOcultarActivoActual;
 
     init();
   
