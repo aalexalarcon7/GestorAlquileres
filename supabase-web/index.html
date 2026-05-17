@@ -4734,6 +4734,39 @@ td:last-child{
       return `${prefix}-${String(number).padStart(digits, '0')}`;
     }
 
+    async function sugerirNumeroReciboSeguro(){
+      try {
+      const { data, error } = await sb.rpc('sugerir_siguiente_numero_recibo');
+
+      if (!error && data) {
+        return String(data).trim();
+      }
+
+    console.warn('No se pudo sugerir número desde Supabase:', error?.message || error);
+  } catch (e) {
+    console.warn('Error sugiriendo número de recibo:', e?.message || e);
+  }
+
+  // Fallback local si falla Supabase
+  return nextReciboPreview();
+}
+
+async function cargarNumeroReciboAutomatico(){
+  const input = $('mReferencia');
+  if (!input) return;
+
+  input.value = 'Generando...';
+  input.disabled = true;
+
+  try {
+    const numero = await sugerirNumeroReciboSeguro();
+    input.value = numero || '';
+  } finally {
+    input.disabled = false;
+  }
+}
+
+
     function isReciboNumeroDuplicado(numero){
       if (!numero) return false;
       const norm = String(numero).trim().toUpperCase();
@@ -12391,7 +12424,10 @@ function deleteReciboActual(){
       modal.style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo || '—'} — ${r.inquilino_nombre || '—'} | Deuda visible: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
       $('mFecha').value = today();
-      if ($('mReferencia')) $('mReferencia').value = '';
+      if ($('mReferencia')) {
+      $('mReferencia').value = '';
+      await cargarNumeroReciboAutomatico();
+   }
       if ($('mDescripcion')) $('mDescripcion').value = '';
       populatePaymentMethodSelect('mMedio');
       if ($('modalMsg')) $('modalMsg').textContent = '';
@@ -12547,16 +12583,18 @@ async function registrarPagoModal(){
           return;
         }
 
-        const numeroManual = String($('mReferencia')?.value || '').trim();
+        let numeroManual = String($('mReferencia')?.value || '').trim();
+
+if (!numeroManual || numeroManual.toLowerCase() === 'generando...') {
+  numeroManual = await sugerirNumeroReciboSeguro();
+  if ($('mReferencia')) $('mReferencia').value = numeroManual;
+}
         // VALIDACIÓN 1: advertir si falta número de recibo, pero no bloquear
-        if (!numeroManual) {
-          const continuar = confirm('⚠️ No ingresaste un número de recibo.\n\nEs recomendable asignar un número para poder rastrear el cobro.\n\n¿Querés continuar de todas formas?');
-          if (!continuar) {
-            if (msgEl) msgEl.textContent = '';
-            if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
-            return;
-          }
-        }
+        if (numeroManual && isReciboNumeroDuplicado(numeroManual)) {
+  if (msgEl) msgEl.textContent = `⚠️ El N° de recibo "${numeroManual}" ya existe. Cambialo antes de guardar.`;
+  if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
+  return;
+}
         // VALIDACIÓN 2: número de recibo duplicado — bloquea el guardado
         if (numeroManual && isReciboNumeroDuplicado(numeroManual)) {
           if (msgEl) msgEl.textContent = `⚠️ El N° de recibo "${numeroManual}" ya existe. Cambialo antes de guardar.`;
