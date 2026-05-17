@@ -4202,17 +4202,10 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
+
     </div>
   </div>
 
-  <input
-  id="pagoFecha"
-  type="text"
-  inputmode="numeric"
-  placeholder="dd/mm/aaaa"
-  value="${dateISOToAR(todayISO())}"
->
 
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
@@ -5867,7 +5860,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? 'El botón de cobro queda en pausa hasta reconstruir pagos/recibos.' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
