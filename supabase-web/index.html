@@ -5609,10 +5609,13 @@ async function logout(){
     function extractPaymentPeriodSortKeys(pago){
       const sources = [
         pago?.periodo_aplicado,
+        pago?.periodo,
         pago?.detalle_aplicacion,
         pago?.descripcion_pago,
+        pago?.observacion,
         pago?.referencia,
         paymentDescriptionMap?.[String(pago?.id || '')],
+        paymentDescriptionMap?.[String(pago?.pago_id || '')],
         paymentDescriptionMap?.[String(pago?.referencia || '')]
       ].filter(Boolean).join(' · ');
 
@@ -5622,6 +5625,10 @@ async function logout(){
         const m = Number(month);
         if (y >= 2000 && m >= 1 && m <= 12) keys.add(`${y}-${String(m).padStart(2,'0')}`);
       };
+
+      // Si el recibo/pago ya trae año y mes explícitos, usamos eso primero.
+      // Esto evita depender solamente de textos como "Mayo 2026" o de la fecha de cobro.
+      if (pago?.anio && pago?.mes) addKey(pago.anio, pago.mes);
 
       const monthNames = GA_MONTH_NAMES.join('|');
       let match;
@@ -6387,13 +6394,32 @@ function globalSearch(){
         const pagosAplicados = await fetchPagoAplicacionesDetalle(r);
         if (seq !== detalleLoadSeq) return;
 
-        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], pagosAplicados || []);
+        let recibosVinculados = [];
+        try {
+          const recibosResult = await fetchRecibosInternosData();
+          if (seq !== detalleLoadSeq) return;
+          recibosVinculados = getDetalleRecibosVinculados(r, recibosResult.rows || []);
+        } catch (recErr) {
+          console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
+        }
+
+        const fuentesImpuesto = [
+          ...(Array.isArray(pagosAplicados) ? pagosAplicados : []),
+          ...(Array.isArray(recibosVinculados) ? recibosVinculados : [])
+        ];
+
+        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
 
         detalleCuotasActuales = rowsConImpuesto || [];
         renderDetalleInfo(r, rowsConImpuesto || []);
         renderDetalleDebtRows(rowsConImpuesto || []);
 
-        await loadDetalleRecibos(r, seq);
+        if ($('detDocsBody')) $('detDocsBody').innerHTML = renderDetalleRecibosRows(recibosVinculados || []);
+        if ($('detDocsMsg')) {
+          $('detDocsMsg').textContent = recibosVinculados.length
+            ? `${recibosVinculados.length} recibo(s) vinculado(s) al contrato ${r?.contrato_id || '—'}.`
+            : 'No hay recibos cargados para este contrato.';
+        }
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
