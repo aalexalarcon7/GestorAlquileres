@@ -3940,7 +3940,6 @@ td:last-child{
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
-                    <th class="right">Impuesto</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -4203,9 +4202,19 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-</div>
+      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
+    </div>
   </div>
-<!-- MODAL RECIBO INTERNO -->
+
+  <input
+  id="pagoFecha"
+  type="text"
+  inputmode="numeric"
+  placeholder="dd/mm/aaaa"
+  value="${dateISOToAR(todayISO())}"
+>
+
+  <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
     <div class="recibo-preview">
       <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
@@ -5595,96 +5604,6 @@ async function logout(){
       return `2026-${String(idx + 1).padStart(2,'0')}`;
     }
 
-
-    function extractPaymentPeriodSortKeys(pago){
-      const sources = [
-        pago?.periodo_aplicado,
-        pago?.periodo,
-        pago?.detalle_aplicacion,
-        pago?.descripcion_pago,
-        pago?.observacion,
-        pago?.referencia,
-        paymentDescriptionMap?.[String(pago?.id || '')],
-        paymentDescriptionMap?.[String(pago?.pago_id || '')],
-        paymentDescriptionMap?.[String(pago?.referencia || '')]
-      ].filter(Boolean).join(' · ');
-
-      const keys = new Set();
-      const addKey = (year, month) => {
-        const y = Number(year);
-        const m = Number(month);
-        if (y >= 2000 && m >= 1 && m <= 12) keys.add(`${y}-${String(m).padStart(2,'0')}`);
-      };
-
-      // Si el recibo/pago ya trae año y mes explícitos, usamos eso primero.
-      // Esto evita depender solamente de textos como "Mayo 2026" o de la fecha de cobro.
-      if (pago?.anio && pago?.mes) addKey(pago.anio, pago.mes);
-
-      const monthNames = GA_MONTH_NAMES.join('|');
-      let match;
-
-      const monthYearRegex = new RegExp(`(${monthNames})\\s+(20\\d{2})`, 'gi');
-      while ((match = monthYearRegex.exec(sources)) !== null){
-        const idx = GA_MONTH_NAMES.findIndex(name => name.toLowerCase() === String(match[1]).toLowerCase());
-        if (idx >= 0) addKey(match[2], idx + 1);
-      }
-
-      const yearDashMonthNameRegex = new RegExp(`(20\\d{2})\\s*[-/]\\s*(${monthNames})`, 'gi');
-      while ((match = yearDashMonthNameRegex.exec(sources)) !== null){
-        const idx = GA_MONTH_NAMES.findIndex(name => name.toLowerCase() === String(match[2]).toLowerCase());
-        if (idx >= 0) addKey(match[1], idx + 1);
-      }
-
-      const slashRegex = /\b(0?[1-9]|1[0-2])\/(20\d{2})\b/g;
-      while ((match = slashRegex.exec(sources)) !== null){
-        addKey(match[2], match[1]);
-      }
-
-      const isoRegex = /\b(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\b/g;
-      while ((match = isoRegex.exec(sources)) !== null){
-        addKey(match[1], match[2]);
-      }
-
-      if (!keys.size){
-        const fecha = String(pago?.fecha_pago || pago?.created_at || '').trim();
-        const dateMatch = fecha.match(/^(20\d{2})-(\d{2})/);
-        if (dateMatch) addKey(dateMatch[1], dateMatch[2]);
-      }
-
-      return [...keys];
-    }
-
-    function applyImpuestosToDebtRows(rows, pagos){
-      const detalleRows = Array.isArray(rows) ? rows : [];
-      detalleRows.forEach(row => { row.impuesto = toNumber(row.impuesto); });
-
-      if (!Array.isArray(pagos) || !pagos.length) return detalleRows;
-
-      const impuestoByKey = new Map();
-      pagos.forEach(pago => {
-        const impuesto = toNumber(pago?.monto_impuesto);
-        if (impuesto <= 0) return;
-
-        const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
-        if (!keys.length) return;
-
-        const importePorPeriodo = round2(impuesto / keys.length);
-        keys.forEach((key, index) => {
-          const importe = index === keys.length - 1
-            ? round2(impuesto - importePorPeriodo * (keys.length - 1))
-            : importePorPeriodo;
-          impuestoByKey.set(key, round2(toNumber(impuestoByKey.get(key)) + importe));
-        });
-      });
-
-      detalleRows.forEach(row => {
-        const key = String(row?.sort_key || '').slice(0, 7);
-        row.impuesto = round2(toNumber(impuestoByKey.get(key)));
-      });
-
-      return detalleRows;
-    }
-
     function applyPaymentApplicationsToDebtRows(rows, pagos){
       if (!Array.isArray(rows) || !Array.isArray(pagos) || !pagos.length) return rows;
 
@@ -5727,7 +5646,7 @@ async function logout(){
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="7" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -5744,7 +5663,6 @@ async function logout(){
           <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
-          <td class="right">${fmtARS.format(toNumber(x.impuesto))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
@@ -6069,7 +5987,7 @@ function globalSearch(){
         $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
       }
       renderDetalleInfo(r, []);
-      if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="8" class="center">Cargando cuotas y deuda...</td></tr>`;
+      if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
       if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
 
       loadDetalle(r);
@@ -6381,41 +6299,17 @@ function globalSearch(){
         const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
 
-        const pagosAplicados = await fetchPagoAplicacionesDetalle(r);
-        if (seq !== detalleLoadSeq) return;
+        detalleCuotasActuales = rows || [];
+        renderDetalleInfo(r, rows || []);
+        renderDetalleDebtRows(rows || []);
 
-        let recibosVinculados = [];
-        try {
-          const recibosResult = await fetchRecibosInternosData();
-          if (seq !== detalleLoadSeq) return;
-          recibosVinculados = getDetalleRecibosVinculados(r, recibosResult.rows || []);
-        } catch (recErr) {
-          console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
-        }
-
-        const fuentesImpuesto = [
-          ...(Array.isArray(pagosAplicados) ? pagosAplicados : []),
-          ...(Array.isArray(recibosVinculados) ? recibosVinculados : [])
-        ];
-
-        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
-
-        detalleCuotasActuales = rowsConImpuesto || [];
-        renderDetalleInfo(r, rowsConImpuesto || []);
-        renderDetalleDebtRows(rowsConImpuesto || []);
-
-        if ($('detDocsBody')) $('detDocsBody').innerHTML = renderDetalleRecibosRows(recibosVinculados || []);
-        if ($('detDocsMsg')) {
-          $('detDocsMsg').textContent = recibosVinculados.length
-            ? `${recibosVinculados.length} recibo(s) vinculado(s) al contrato ${r?.contrato_id || '—'}.`
-            : 'No hay recibos cargados para este contrato.';
-        }
+        await loadDetalleRecibos(r, seq);
 
         if (seq === detalleLoadSeq && $('detalleMsg')) $('detalleMsg').textContent = '';
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
-        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="8" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
         if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
       }
     }
@@ -12366,132 +12260,133 @@ function deleteReciboActual(){
       recalcularCobroModal();
     }
 
-
-
-    function buildCobroCuotasDistributionPlanFromRows(rows, montoAlquiler, choice){
-      const montoDisponible = round2(toNumber(montoAlquiler));
-      const normalizedRows = (rows || [])
-        .map(normalizeCuotaCobroRow)
-        .filter(Boolean)
-        .sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
-
-      if (montoDisponible <= 0 || !normalizedRows.length){
-        return { applications: [], sobrante: montoDisponible, totalAplicado: 0 };
-      }
-
-      let startIndex = 0;
-      if (choice && !choice.auto && Number(choice.anio) && Number(choice.mes)){
-        const targetKey = `${Number(choice.anio)}-${String(Number(choice.mes)).padStart(2,'0')}`;
-        const exactIndex = normalizedRows.findIndex(row => row.sort_key === targetKey);
-        if (exactIndex >= 0) {
-          startIndex = exactIndex;
-        } else {
-          const targetNumeric = Number(choice.anio) * 100 + Number(choice.mes);
-          const nextIndex = normalizedRows.findIndex(row => (Number(row.anio) * 100 + Number(row.mes)) >= targetNumeric);
-          startIndex = nextIndex >= 0 ? nextIndex : normalizedRows.length;
-        }
-      }
-
-      let restante = montoDisponible;
-      const applications = [];
-
-      normalizedRows.slice(startIndex).forEach(row => {
-        if (restante <= 0) return;
-
-        const saldoActual = round2(Math.max(0, toNumber(row.saldo)));
-        if (saldoActual <= 0) return;
-
-        const montoTotal = round2(Math.max(0, toNumber(row.monto_total ?? row.total)));
-        const pagadoActual = round2(Math.max(0, toNumber(row.monto_pagado ?? row.pagado)));
-        const aplicado = round2(Math.min(restante, saldoActual));
-        const nuevoPagado = round2(Math.min(montoTotal, pagadoActual + aplicado));
-        const nuevoSaldo = round2(Math.max(0, montoTotal - nuevoPagado));
-        const nuevoEstado = nuevoSaldo <= 0.009 ? 'PAGADO' : (nuevoPagado > 0 ? 'PARCIAL' : 'PENDIENTE');
-
-        applications.push({
-          id: row.id || row.detalle_id,
-          contrato_id: row.contrato_id,
-          anio: row.anio,
-          mes: row.mes,
-          periodo: row.periodo || `${String(row.mes).padStart(2,'0')}/${row.anio}`,
-          mes_nombre: row.mes_nombre || GA_MONTH_NAMES[row.mes - 1] || String(row.mes),
-          monto_total: montoTotal,
-          pagado_anterior: pagadoActual,
-          saldo_anterior: saldoActual,
-          aplicado,
-          nuevo_pagado: nuevoPagado,
-          nuevo_saldo: nuevoSaldo,
-          nuevo_estado: nuevoEstado
-        });
-
-        restante = round2(restante - aplicado);
-      });
-
-      return {
-        applications,
-        sobrante: round2(Math.max(0, restante)),
-        totalAplicado: round2(montoDisponible - Math.max(0, restante))
-      };
+    
+    function buildCobroDistribuidoCuotasLabel(aplicaciones=[], sobrante=0){
+      const parts = aplicaciones.map(app => `${GA_MONTH_NAMES[Number(app.mes || 1) - 1] || app.mes} ${app.anio}: ${fmtARS.format(Number(app.monto || 0))}`);
+      if (Number(sobrante || 0) > 0) parts.push(`Sobrante sin cuota creada: ${fmtARS.format(Number(sobrante || 0))}`);
+      return parts.join(' + ') || 'deuda más antigua';
     }
 
-    async function buildCobroCuotasDistributionPlanForPago(contratoId, montoAlquiler, choice){
+    async function buildCobroDistribuidoCuotasPlan({ contratoId, montoAlquiler, choice }){
+      const amount = round2(Number(montoAlquiler || 0));
+      const plan = {
+        aplicaciones: [],
+        sobrante: amount,
+        totalAplicado: 0,
+        label: 'deuda más antigua',
+        detalle: '',
+        primeraAplicacion: null
+      };
+      if (!contratoId || amount <= 0) return plan;
+
+      let rows = [];
       try{
-        const rows = await fetchCuotasOperativasContrato(contratoId);
-        return buildCobroCuotasDistributionPlanFromRows(rows, montoAlquiler, choice);
+        rows = await fetchCuotasOperativasContrato(contratoId);
       } catch(err){
-        console.warn('No se pudo preparar la distribución del cobro por cuotas:', err?.message || err);
-        return { applications: [], sobrante: round2(toNumber(montoAlquiler)), totalAplicado: 0 };
+        console.warn('No se pudieron leer cuotas para distribuir el cobro:', err?.message || err);
+        rows = [];
       }
+
+      let pendientes = (rows || [])
+        .map(normalizeCuotaCobroRow)
+        .filter(Boolean)
+        .filter(row => toNumber(row.saldo) > 0)
+        .sort((a,b) => (Number(a.anio) - Number(b.anio)) || (Number(a.mes) - Number(b.mes)));
+
+      const selectedChoice = choice || { auto:true, anio:null, mes:null };
+      if (!selectedChoice.auto && selectedChoice.anio && selectedChoice.mes){
+        pendientes = pendientes.filter(row => {
+          const a = Number(row.anio || 0);
+          const m = Number(row.mes || 0);
+          return a > Number(selectedChoice.anio) || (a === Number(selectedChoice.anio) && m >= Number(selectedChoice.mes));
+        });
+      }
+
+      let remaining = amount;
+      for (const row of pendientes){
+        if (remaining <= 0.009) break;
+        const saldoActual = round2(toNumber(row.saldo));
+        if (saldoActual <= 0) continue;
+
+        const aplicado = round2(Math.min(remaining, saldoActual));
+        const total = round2(toNumber(row.monto_total));
+        const pagadoAnterior = round2(toNumber(row.monto_pagado));
+        const pagadoNuevo = round2(pagadoAnterior + aplicado);
+        const saldoNuevo = Math.max(0, round2(total - pagadoNuevo));
+        const estadoNuevo = saldoNuevo <= 0.009 ? 'PAGADO' : 'PARCIAL';
+
+        const app = {
+          id: row.id || row.detalle_id || null,
+          contrato_id: Number(contratoId),
+          anio: Number(row.anio),
+          mes: Number(row.mes),
+          monto_total: total,
+          monto_pagado_anterior: pagadoAnterior,
+          saldo_anterior: saldoActual,
+          monto: aplicado,
+          monto_pagado_nuevo: pagadoNuevo,
+          saldo_nuevo: saldoNuevo,
+          estado_nuevo: estadoNuevo,
+          label: `${GA_MONTH_NAMES[Number(row.mes || 1) - 1] || row.mes} ${row.anio}`
+        };
+
+        plan.aplicaciones.push(app);
+        plan.totalAplicado = round2(plan.totalAplicado + aplicado);
+        remaining = round2(remaining - aplicado);
+      }
+
+      plan.sobrante = Math.max(0, round2(remaining));
+      plan.primeraAplicacion = plan.aplicaciones[0] || null;
+      plan.label = buildCobroDistribuidoCuotasLabel(plan.aplicaciones, plan.sobrante);
+      plan.detalle = plan.aplicaciones.length
+        ? `Distribución del alquiler: ${plan.label}`
+        : `No se encontraron cuotas pendientes para aplicar el alquiler. Sobrante sin aplicar: ${fmtARS.format(plan.sobrante)}`;
+      return plan;
     }
 
     async function updateCuotaOperativaDistribuida(app){
-      if (!app?.id) return null;
+      if (!app) return null;
       const patch = {
-        monto_pagado: app.nuevo_pagado,
-        saldo: app.nuevo_saldo,
-        estado: app.nuevo_estado,
+        monto_pagado: Number(app.monto_pagado_nuevo || 0),
+        saldo: Number(app.saldo_nuevo || 0),
+        estado: app.estado_nuevo || 'PARCIAL',
         updated_at: new Date().toISOString()
       };
 
-      let { data, error } = await sb
-        .from('cuotas_operativas')
-        .update(patch)
-        .eq('id', app.id)
-        .select('id')
-        .maybeSingle();
+      const doUpdate = async (payload) => {
+        if (app.id){
+          return await sb.from('cuotas_operativas').update(payload).eq('id', app.id);
+        }
+        return await sb.from('cuotas_operativas')
+          .update(payload)
+          .eq('contrato_id', app.contrato_id)
+          .eq('anio', app.anio)
+          .eq('mes', app.mes);
+      };
 
-      if (error && /updated_at|schema cache|column/i.test(String(error.message || error))){
-        const { updated_at, ...safePatch } = patch;
-        const retry = await sb
-          .from('cuotas_operativas')
-          .update(safePatch)
-          .eq('id', app.id)
-          .select('id')
-          .maybeSingle();
-        data = retry.data;
-        error = retry.error;
+      let res = await doUpdate(patch);
+      if (res.error && /updated_at|schema cache|column/i.test(String(res.error.message || res.error))){
+        const { updated_at, ...fallbackPatch } = patch;
+        res = await doUpdate(fallbackPatch);
       }
-
-      if (error) throw error;
-      return data;
+      if (res.error) throw res.error;
+      return res.data || true;
     }
 
-    async function applyCobroCuotasDistributionPlan(plan){
-      const apps = Array.isArray(plan?.applications) ? plan.applications : [];
-      for (const app of apps){
+    async function applyCobroDistribuidoCuotasOperativasPlan(plan){
+      if (!plan || !Array.isArray(plan.aplicaciones) || !plan.aplicaciones.length) return plan;
+      for (const app of plan.aplicaciones){
         await updateCuotaOperativaDistribuida(app);
       }
-      return plan || { applications: [], sobrante: 0, totalAplicado: 0 };
+      try{
+        await sb.rpc('sync_operativo_desde_cuotas');
+      } catch(err){
+        console.warn('No se pudo sincronizar operativo después de distribuir cobro:', err?.message || err);
+      }
+      return plan;
     }
 
-    function formatCobroCuotasDistributionSummary(plan){
-      const apps = Array.isArray(plan?.applications) ? plan.applications : [];
-      if (!apps.length) return '';
-      const parts = apps.map(app => `${app.mes_nombre || app.periodo} ${app.anio}: ${fmtARS.format(toNumber(app.aplicado))}`);
-      if (toNumber(plan?.sobrante) > 0) parts.push(`Sobrante sin cuota creada: ${fmtARS.format(toNumber(plan.sobrante))}`);
-      return parts.join(' · ');
-    }
-    async function registrarPagoModal(){
+async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
       if (!modalContrato?.contrato_id) return;
@@ -12517,8 +12412,8 @@ function deleteReciboActual(){
         }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
-          ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
-          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
+          ? `Alquiler cargado: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
+          : `Alquiler cargado: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
 
         let choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
         if (choice.auto){
@@ -12526,21 +12421,20 @@ function deleteReciboActual(){
           if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
         }
 
-        const distribucionCobroCuotas = await buildCobroCuotasDistributionPlanForPago(
-          Number(modalContrato.contrato_id),
-          alquilerBase,
+        const distributionPlan = await buildCobroDistribuidoCuotasPlan({
+          contratoId: Number(modalContrato.contrato_id),
+          montoAlquiler: alquilerBase,
           choice
-        );
-        const distribucionCobroTexto = formatCobroCuotasDistributionSummary(distribucionCobroCuotas);
+        });
 
-        const periodoTexto = choice.auto
+        const periodoTexto = distributionPlan?.label || (choice.auto
           ? 'deuda más antigua'
-          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`;
+          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`);
+        const detalleAplicacion = [desgloseCobro, distributionPlan?.detalle].filter(Boolean).join(' | ');
         const observacionFinal = [
           descripcionBase,
           `Aplicado a: ${periodoTexto}`,
-          desgloseCobro,
-          distribucionCobroTexto ? `Distribución de alquiler: ${distribucionCobroTexto}` : ''
+          detalleAplicacion
         ].filter(Boolean).join(' | ') || null;
 
         const args = {
@@ -12573,7 +12467,10 @@ function deleteReciboActual(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
 
-        await applyCobroCuotasDistributionPlan(distribucionCobroCuotas);
+        // Corrección clave: la RPC registra el cobro/recibo, pero algunas versiones imputan
+        // todo el monto en una sola cuota. Acá reescribimos SOLO cuotas_operativas con la
+        // distribución correcta: cada cuota recibe como máximo su saldo y el sobrante pasa al mes siguiente.
+        await applyCobroDistribuidoCuotasOperativasPlan(distributionPlan);
 
         const metadataPatch = await forceCobroReceiptMetadata({
           contratoId: Number(modalContrato.contrato_id),
@@ -12584,7 +12481,7 @@ function deleteReciboActual(){
           alquilerBase,
           impuestoFijo,
           periodoTexto,
-          detalleAplicacion: distribucionCobroTexto ? `${desgloseCobro} · Distribución de alquiler: ${distribucionCobroTexto}` : desgloseCobro
+          detalleAplicacion
         });
 
         if (msgEl) {
