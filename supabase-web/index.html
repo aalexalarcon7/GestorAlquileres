@@ -3939,7 +3939,6 @@ td:last-child{
                     <th>Periodo</th>
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
-                    <th class="right">Impuesto</th>
                     <th class="right">Pagado</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
@@ -4703,41 +4702,10 @@ td:last-child{
     }
 
     function nextReciboPreview(){
-      // Intentar calcular el siguiente número desde los recibos reales existentes
-      const allNumeros = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
-        .map(item => String(item.numero_recibo || item.referencia || '').trim())
-        .filter(Boolean);
-
-      if (allNumeros.length) {
-        // Caso 1: todos son numéricos puros (ej: 9862, 9873)
-        const soloNumericos = allNumeros.filter(n => /^\d+$/.test(n)).map(Number);
-        if (soloNumericos.length) {
-          const max = Math.max(...soloNumericos);
-          return String(max + 1);
-        }
-        // Caso 2: formato PREFIJO-NUMERO (ej: REC-000010)
-        const conPrefijo = allNumeros
-          .map(n => { const m = n.match(/^([A-Za-z\-]+)(\d+)$/); return m ? { prefix: m[1], num: Number(m[2]), digits: m[2].length } : null; })
-          .filter(Boolean);
-        if (conPrefijo.length) {
-          conPrefijo.sort((a, b) => b.num - a.num);
-          const { prefix, num, digits } = conPrefijo[0];
-          return `${prefix}${String(num + 1).padStart(digits, '0')}`;
-        }
-      }
-
-      // Fallback: configuración de la app
       const prefix = sanitizePrefix(appSettings?.pagos?.reciboPrefijo, 'REC');
       const digits = Math.max(1, asPositiveInt(appSettings?.pagos?.reciboDigitos, 6));
       const number = asPositiveInt(appSettings?.pagos?.proximoRecibo, 1);
       return `${prefix}-${String(number).padStart(digits, '0')}`;
-    }
-
-    function isReciboNumeroDuplicado(numero){
-      if (!numero) return false;
-      const norm = String(numero).trim().toUpperCase();
-      return (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
-        .some(item => String(item.numero_recibo || item.referencia || '').trim().toUpperCase() === norm);
     }
 
     function nextContratoPreview(){
@@ -5391,7 +5359,7 @@ async function logout(){
       return {
         ...baseRow,
         local_code_normalized: key,
-        inquilino_nombre: recon.nombre_raw || baseRow.inquilino_nombre,
+        inquilino_nombre: baseRow.inquilino_nombre || recon.nombre_raw,
         deuda_total: total,
         deuda_atrasada: total,
         meses_adeudados: months,
@@ -5454,7 +5422,7 @@ async function logout(){
 
       const detalleRows = await fetchSupabaseRowsSafe(
         'vw_detalle_mensual_operativo',
-        'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,monto_impuesto,saldo,estado,origen,fuente_hoja,sort_key'
+        'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key'
       );
 
       const sameRow = (item) => {
@@ -5479,7 +5447,6 @@ async function logout(){
             periodo: `${anio} - ${item.mes_nombre || GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
             vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
             total: toNumber(item.monto_total),
-            impuesto: toNumber(item.monto_impuesto),
             pagado: toNumber(item.monto_pagado),
             saldo: toNumber(item.saldo),
             estado_detalle: estado,
@@ -5679,7 +5646,7 @@ async function logout(){
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="7" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -5691,16 +5658,10 @@ async function logout(){
         else if (String(estado).includes('SALDADA') || String(estado).includes('PAGA')) cls = 'b-ok';
 
         const tr = document.createElement('tr');
-        const impuestoCuota = toNumber(x.impuesto);
-        // Si la cuota no trae impuesto propio, intentar inferirlo del contrato activo
-        const impuestoMostrar = impuestoCuota > 0
-          ? impuestoCuota
-          : (selected ? toNumber((contratosActivos.find(c => String(c.id) === String(selected?.contrato_id)) || {}).impuesto_mensual) : 0);
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
           <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
-          <td class="right" style="color:var(--muted);font-size:12px;">${impuestoMostrar > 0 ? fmtARS.format(impuestoMostrar) : '—'}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
@@ -6057,21 +6018,8 @@ function globalSearch(){
         const estado = statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-
-        // FIX: evitar doble conteo del mes actual.
-        // deuda_total_2025_2026 puede ya incluir la cuota del mes corriente.
-        // Solo sumamos getDisplayedCurrentMonthDebt si el mes actual NO está
-        // representado dentro de deuda_total_2025_2026 (es decir, deuda_2026 = 0
-        // y deuda_mes_actual > 0 indicaría que el mes vigente aún no está contado).
-        const mesActualYaEnDeuda = reconstructed
-          ? (toNumber(r?.deuda_mes_actual) > 0 && toNumber(r?.deuda_2026) > 0)
-          : false;
-        const saldoPendiente = reconstructed
-          ? round2(toNumber(r?.deuda_total_2025_2026 ?? r?.deuda_total ?? 0) + (mesActualYaEnDeuda ? 0 : getDisplayedCurrentMonthDebt(r || {})))
-          : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
-        const deudaAtrasada = reconstructed
-          ? round2(toNumber(r?.deuda_total_2025_2026 ?? r?.deuda_total ?? 0) + (mesActualYaEnDeuda ? 0 : getDisplayedCurrentMonthDebt(r || {})))
-          : toNumber(r?.deuda_atrasada);
+        const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
+        const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
         const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato?.ajuste_porcentaje) : null;
@@ -7212,13 +7160,6 @@ function todayISO(){
           return;
         }
 
-        // VALIDACIÓN: número de recibo duplicado
-        if (referencia && isReciboNumeroDuplicado(referencia)){
-          msgEl.textContent = `⚠️ El N° de recibo "${referencia}" ya existe. Cambialo antes de guardar.`;
-          if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
-          return;
-        }
-
         if (!canUseOperationalContrato(modalContrato)){
           msgEl.textContent = 'Este activo no tiene contrato operativo para registrar el cobro.';
           return;
@@ -7540,6 +7481,53 @@ function todayISO(){
       if (saveBtn) saveBtn.textContent = 'Guardar cambios';
     }
 
+    async function syncNombreActivoOperativo({ inquilinoId, contratoId, nombre }){
+      // Sincronización acotada al cambio de nombre visible del activo/locatario.
+      // No toca cobros, recibos, montos, deuda ni lógica de pagos.
+      const nuevoNombre = String(nombre || '').trim();
+      if (!nuevoNombre) return;
+
+      const updates = [];
+
+      if (inquilinoId) {
+        updates.push(
+          sb.from('cuotas_operativas')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('inquilino_id', inquilinoId)
+        );
+        updates.push(
+          sb.from('deuda_actual_operativa')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('inquilino_id', inquilinoId)
+        );
+      }
+
+      if (contratoId) {
+        updates.push(
+          sb.from('cuotas_operativas')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('contrato_id', contratoId)
+        );
+        updates.push(
+          sb.from('deuda_actual_operativa')
+            .update({ nombre_inquilino: nuevoNombre })
+            .eq('contrato_id', contratoId)
+        );
+      }
+
+      if (!updates.length) return;
+
+      try {
+        const results = await Promise.all(updates);
+        const failed = results.find(r => r?.error);
+        if (failed?.error) {
+          console.warn('syncNombreActivoOperativo:', failed.error.message);
+        }
+      } catch (err) {
+        console.warn('syncNombreActivoOperativo:', err?.message || err);
+      }
+    }
+
     async function saveActivoModal(){
       const msg = $('activoModalMsg');
       msg.textContent = '';
@@ -7613,6 +7601,8 @@ function todayISO(){
       }
 
       const tasks = [];
+      const inquilinoId = contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null;
+      const contratoId = selected?.contrato_id || contrato?.id || null;
 
       if (!isAlquilerMode) {
         if (contrato?.locales?.id) {
@@ -7624,11 +7614,11 @@ function todayISO(){
           }
         }
 
-        if (contrato?.inquilinos?.id) {
+        if (inquilinoId) {
           tasks.push(
             sb.from('inquilinos')
               .update({ nombre, documento, telefono, email })
-              .eq('id', contrato.inquilinos.id)
+              .eq('id', inquilinoId)
           );
         }
       }
@@ -7675,6 +7665,10 @@ function todayISO(){
       if (failed?.error) {
         msg.textContent = failed.error.message;
         return;
+      }
+
+      if (!isAlquilerMode) {
+        await syncNombreActivoOperativo({ inquilinoId, contratoId, nombre });
       }
 
       if (isAlquilerMode && detalleCuotasActuales?.length) {
@@ -12290,18 +12284,10 @@ function deleteReciboActual(){
             return;
           }
         }
-
-        // VALIDACIÓN: número de recibo duplicado
-        if (numeroManual && isReciboNumeroDuplicado(numeroManual)){
-          if (msgEl) msgEl.textContent = `⚠️ El N° de recibo "${numeroManual}" ya existe. Cambialo antes de guardar.`;
-          if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
-          return;
-        }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
-        // Desglose con prioridad: impuesto primero, alquiler después (informativo en recibo)
         const desgloseCobro = impuestoFijo > 0
-          ? `Impuesto: ${fmtARS.format(impuestoFijo)} · Alquiler base: ${fmtARS.format(alquilerBase)} · Total cobrado: ${fmtARS.format(amount)}`
-          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto · Total cobrado: ${fmtARS.format(amount)}`;
+          ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
+          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
 
         let choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
         if (choice.auto){
