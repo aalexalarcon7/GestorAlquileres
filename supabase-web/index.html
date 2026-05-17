@@ -6247,7 +6247,11 @@ function globalSearch(){
         const tipoClass = interno ? 'b-warn' : 'b-ok';
         const tipoLabel = interno ? 'Interno / Histórico' : 'Real';
         const key = getReciboKey(item);
-        const ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
+        let ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
+        if (/sobrante\s+sin\s+cuota\s+creada/i.test(String(ref || ''))) {
+          const ym = inferReciboYearMonth(item);
+          ref = (ym?.anio && ym?.mes) ? `${String(Number(ym.mes || 0)).padStart(2,'0')}/${ym.anio}` : (item.referencia || '—');
+        }
         return `
           <tr>
             <td><span class="badge ${tipoClass}">${tipoLabel}</span></td>
@@ -12262,9 +12266,8 @@ function deleteReciboActual(){
 
     
     function buildCobroDistribuidoCuotasLabel(aplicaciones=[], sobrante=0){
-      const parts = aplicaciones.map(app => `${GA_MONTH_NAMES[Number(app.mes || 1) - 1] || app.mes} ${app.anio}: ${fmtARS.format(Number(app.monto || 0))}`);
-      if (Number(sobrante || 0) > 0) parts.push(`Sobrante sin cuota creada: ${fmtARS.format(Number(sobrante || 0))}`);
-      return parts.join(' + ') || 'deuda más antigua';
+      const parts = aplicaciones.map(app => `${String(Number(app.mes || 0)).padStart(2,'0')}/${app.anio}`);
+      return parts.join(' + ');
     }
 
     async function buildCobroDistribuidoCuotasPlan({ contratoId, montoAlquiler, choice }){
@@ -12429,7 +12432,7 @@ async function registrarPagoModal(){
 
         const periodoTexto = distributionPlan?.label || (choice.auto
           ? 'deuda más antigua'
-          : `${GA_MONTH_NAMES[Number(choice.mes || 1) - 1] || choice.mes} ${choice.anio}`);
+          : `${String(Number(choice.mes || 0)).padStart(2,'0')}/${choice.anio}`);
         const detalleAplicacion = [desgloseCobro, distributionPlan?.detalle].filter(Boolean).join(' | ');
         const observacionFinal = [
           descripcionBase,
