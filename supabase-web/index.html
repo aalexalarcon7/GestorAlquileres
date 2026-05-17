@@ -12525,9 +12525,12 @@ async function registrarPagoModal(){
           if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
         }
 
+        // Se pasa el total (alquiler + impuesto) para distribuir el monto real
+        // cobrado cuota por cuota. El impuesto se refleja en el recibo pero el
+        // saldo de cada cuota se reduce por el total cobrado en ese período.
         const distributionPlan = await buildCobroDistribuidoCuotasPlan({
           contratoId: Number(modalContrato.contrato_id),
-          montoAlquiler: alquilerBase,
+          montoAlquiler: amount,
           choice
         });
 
@@ -12541,17 +12544,23 @@ async function registrarPagoModal(){
           detalleAplicacion
         ].filter(Boolean).join(' | ') || null;
 
+        // ──────────────────────────────────────────────────────────────────────
+        // PASO 1: Intentar registrar el cobro en Supabase via RPC.
+        // La RPC puede imputar el monto a una sola cuota (comportamiento viejo).
+        // NO importa: en el PASO 2 corregimos la distribución cuota por cuota.
+        // ──────────────────────────────────────────────────────────────────────
+        const primeraAplicacion = distributionPlan?.primeraAplicacion;
         const args = {
           p_contrato_id: Number(modalContrato.contrato_id),
-          p_anio: choice.anio,
-          p_mes: choice.mes,
+          // Le pasamos el mes de la PRIMERA cuota del plan, para que la RPC
+          // no rechace por falta de parámetro. La distribución real la hacemos abajo.
+          p_anio: primeraAplicacion?.anio || choice.anio || new Date().getFullYear(),
+          p_mes: primeraAplicacion?.mes || choice.mes || (new Date().getMonth() + 1),
           p_monto_pago: amount,
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: $('mMedio')?.value || 'EFECTIVO',
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
-          // Estos campos son necesarios para que Supabase guarde y devuelva exactamente
-          // el número manual, el impuesto fijo y la descripción en el recibo.
           p_numero_recibo: numeroManual || null,
           p_monto_alquiler: alquilerBase,
           p_monto_impuesto: impuestoFijo,
@@ -12571,10 +12580,17 @@ async function registrarPagoModal(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
 
-        // Corrección clave: la RPC registra el cobro/recibo, pero algunas versiones imputan
-        // todo el monto en una sola cuota. Acá reescribimos SOLO cuotas_operativas con la
-        // distribución correcta: cada cuota recibe como máximo su saldo y el sobrante pasa al mes siguiente.
-        await applyCobroDistribuidoCuotasOperativasPlan(distributionPlan);
+        // ──────────────────────────────────────────────────────────────────────
+        // PASO 2: Aplicar la distribución FIFO cuota por cuota.
+        // La RPC puede haber imputado todo a una cuota. Acá reescribimos cada
+        // cuota con el saldo correcto: cada una recibe como máximo su saldo
+        // pendiente y el sobrante pasa al siguiente mes en orden cronológico.
+        // Esto no genera pagos nuevos: solo corrige monto_pagado y saldo en
+        // cuotas_operativas para que reflejen la realidad.
+        // ──────────────────────────────────────────────────────────────────────
+        if (distributionPlan?.aplicaciones?.length > 0) {
+          await applyCobroDistribuidoCuotasOperativasPlan(distributionPlan);
+        }
 
         const metadataPatch = await forceCobroReceiptMetadata({
           contratoId: Number(modalContrato.contrato_id),
