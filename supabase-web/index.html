@@ -4696,10 +4696,52 @@ td:last-child{
     }
 
     function nextReciboPreview(){
+      // Leer todos los números de recibo reales (históricos + operativos)
+      const todos = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
+        .map(item => String(item.numero_recibo || item.referencia || '').trim())
+        .filter(Boolean);
+
+      if (todos.length) {
+        // Caso A: numéricos puros (ej: 9862, 9873, 10001)
+        const numericos = todos
+          .filter(n => /^\d+$/.test(n))
+          .map(Number);
+        if (numericos.length) {
+          let candidato = Math.max(...numericos) + 1;
+          // Garantizar que no exista ya
+          while (numericos.includes(candidato)) candidato++;
+          return String(candidato);
+        }
+
+        // Caso B: PREFIJO + número (ej: REC-000010, CTR-000005)
+        const conPrefijo = todos
+          .map(n => { const m = n.match(/^([A-Za-z\-]+)(\d+)$/); return m ? { prefix: m[1], num: Number(m[2]), digits: m[2].length } : null; })
+          .filter(Boolean);
+        if (conPrefijo.length) {
+          conPrefijo.sort((a, b) => b.num - a.num);
+          const { prefix, num, digits } = conPrefijo[0];
+          const existentes = new Set(conPrefijo.map(x => x.num));
+          let candidato = num + 1;
+          while (existentes.has(candidato)) candidato++;
+          return `${prefix}${String(candidato).padStart(digits, '0')}`;
+        }
+      }
+
+      // Fallback: configuración de la app si no hay recibos cargados aún
       const prefix = sanitizePrefix(appSettings?.pagos?.reciboPrefijo, 'REC');
       const digits = Math.max(1, asPositiveInt(appSettings?.pagos?.reciboDigitos, 6));
       const number = asPositiveInt(appSettings?.pagos?.proximoRecibo, 1);
       return `${prefix}-${String(number).padStart(digits, '0')}`;
+    }
+
+    function isReciboNumeroDuplicado(numero){
+      if (!numero) return false;
+      const norm = String(numero).trim().toUpperCase();
+      return (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
+        .some(item =>
+          String(item.numero_recibo || '').trim().toUpperCase() === norm ||
+          String(item.referencia || '').trim().toUpperCase() === norm
+        );
     }
 
     function nextContratoPreview(){
@@ -12506,13 +12548,20 @@ async function registrarPagoModal(){
         }
 
         const numeroManual = String($('mReferencia')?.value || '').trim();
-        // VALIDACIÓN: advertir si falta número de recibo, pero no bloquear
+        // VALIDACIÓN 1: advertir si falta número de recibo, pero no bloquear
         if (!numeroManual) {
           const continuar = confirm('⚠️ No ingresaste un número de recibo.\n\nEs recomendable asignar un número para poder rastrear el cobro.\n\n¿Querés continuar de todas formas?');
           if (!continuar) {
             if (msgEl) msgEl.textContent = '';
+            if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
             return;
           }
+        }
+        // VALIDACIÓN 2: número de recibo duplicado — bloquea el guardado
+        if (numeroManual && isReciboNumeroDuplicado(numeroManual)) {
+          if (msgEl) msgEl.textContent = `⚠️ El N° de recibo "${numeroManual}" ya existe. Cambialo antes de guardar.`;
+          if (btn) { btn.disabled = false; btn.textContent = 'Registrar cobro'; }
+          return;
         }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
