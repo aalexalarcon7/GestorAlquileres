@@ -7113,87 +7113,108 @@ function globalSearch(){
     async function syncStagingAfterRentChange({ code, oldMonthly, newMonthly, periodKey }){
       const normalized = normLocalCode(code);
       const newM = toNumber(newMonthly);
-      if (!normalized || !Number.isFinite(newM)) throw new Error('Código o monto inválido para modificar alquiler.');
+      if (!Number.isFinite(newM) || newM < 0) throw new Error('Monto inválido para modificar alquiler.');
+      if (!selected?.contrato_id) throw new Error('No hay contrato seleccionado para modificar la cuota.');
 
       const targetKey = /^2026-\d{2}$/.test(String(periodKey || '')) ? String(periodKey) : getCurrentRentPeriodKey();
+      const targetYear = Number(targetKey.slice(0,4));
       const targetMonth = Number(targetKey.slice(5,7));
       const targetLabel = getRentPeriodLabelFromKey(targetKey);
-      const currentKey = getCurrentRentPeriodKey();
-      const currentMonth = Number(currentKey.slice(5,7));
       const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
-      const targetRow = visibleRows.find(r => String(r.sort_key) === targetKey);
+      const targetRow = visibleRows.find(r => String(r.sort_key) === targetKey) || null;
 
-      const oldVisibleTotal = targetRow ? toNumber(targetRow.total) : toNumber(oldMonthly || 0);
-      const oldVisiblePaid = targetRow ? toNumber(targetRow.pagado) : 0;
-      const oldVisibleSaldo = targetRow ? toNumber(targetRow.saldo) : Math.max(0, oldVisibleTotal - oldVisiblePaid);
+      const oldVisiblePaid = targetRow
+        ? toNumber(targetRow.monto_pagado ?? targetRow.pagado)
+        : 0;
       const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
+      const estadoNuevo = newVisibleSaldo <= 0.009
+        ? 'PAGADO'
+        : (oldVisiblePaid > 0.009 ? 'PARCIAL' : 'PENDIENTE');
 
-      // IMPORTANTE:
-      // No actualizamos staging directamente desde el frontend porque en Supabase puede estar protegido por RLS/permisos.
-      // Usamos una RPC SECURITY DEFINER que encuentra el código real del staging y actualiza la cuota elegida.
-      const rpcArgs = {
-        p_codigo: normalized,
-        p_periodo: targetKey,
-        p_monto_nuevo: Number(newM || 0),
-        p_monto_anterior: Number(oldVisibleTotal || 0),
-        p_pagado_periodo: Number(oldVisiblePaid || 0),
-        p_mes_actual: currentKey
-      };
+      const observacionBase = targetRow?.observacion || '';
+      const observacionNueva = [
+        observacionBase,
+        `Alquiler modificado desde web para ${targetLabel}: ${fmtARS.format(newM)}`
+      ].filter(Boolean).join(' | ');
 
-      const rpc = await sb.rpc('modificar_cuota_alquiler_manual', rpcArgs);
-      if (rpc.error){
-        const msg = rpc.error.message || String(rpc.error);
-        if (msg.includes('Could not find the function') || msg.includes('function') || msg.includes('modificar_cuota_alquiler_manual')){
-          throw new Error('Falta ejecutar el SQL de la función modificar_cuota_alquiler_manual en Supabase. Sin esa función, el frontend no puede modificar el staging de forma segura.');
+      // Ya no dependemos del staging_importacion_alquileres_2026_limpio.
+      // Ese staging puede no tener locales nuevos o códigos sin prefijo, por ejemplo "2323".
+      // La cuota real del sistema está en cuotas_operativas y se identifica por contrato + año + mes.
+      let updateRes = await sb
+        .from('cuotas_operativas')
+        .update({
+          monto_total: Number(newM || 0),
+          saldo: Number(newVisibleSaldo || 0),
+          estado: estadoNuevo,
+          observacion: observacionNueva
+        })
+        .eq('contrato_id', selected.contrato_id)
+        .eq('anio', targetYear)
+        .eq('mes', targetMonth)
+        .select('id,contrato_id,anio,mes,monto_total,monto_pagado,saldo,estado');
+
+      if (updateRes.error){
+        const msg = String(updateRes.error.message || '');
+        // Si alguna instalación no tiene la columna observacion, reintentamos con el payload mínimo.
+        if (/observacion/i.test(msg)){
+          updateRes = await sb
+            .from('cuotas_operativas')
+            .update({
+              monto_total: Number(newM || 0),
+              saldo: Number(newVisibleSaldo || 0),
+              estado: estadoNuevo
+            })
+            .eq('contrato_id', selected.contrato_id)
+            .eq('anio', targetYear)
+            .eq('mes', targetMonth)
+            .select('id,contrato_id,anio,mes,monto_total,monto_pagado,saldo,estado');
         }
-        throw new Error(msg);
       }
 
-      const result = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
-      if (!result || result.ok === false){
-        throw new Error(result?.mensaje || `No se pudo actualizar ${normalized} para ${targetLabel}.`);
+      if (updateRes.error) throw updateRes.error;
+
+      const updatedRows = Array.isArray(updateRes.data) ? updateRes.data : [];
+      if (!updatedRows.length){
+        throw new Error(`No se encontró la cuota operativa de ${targetLabel} para este contrato. Agregá ese mes primero y después modificá el alquiler.`);
       }
 
       if (targetRow){
         targetRow.total = newM;
+        targetRow.monto_total = newM;
         targetRow.pagado = oldVisiblePaid;
+        targetRow.monto_pagado = oldVisiblePaid;
         targetRow.saldo = newVisibleSaldo;
+        targetRow.estado = estadoNuevo;
         targetRow.estado_detalle = newVisibleSaldo <= 0.009
-          ? 'SALDADA'
-          : getEstadoSyntheticMonth(targetMonth, newVisibleSaldo);
-        targetRow.dias_atraso = String(targetRow.estado_detalle).includes('ATRASADO')
+          ? 'PAGADO'
+          : (oldVisiblePaid > 0.009 ? 'PARCIAL' : 'PENDIENTE');
+        targetRow.dias_atraso = String(targetRow.estado_detalle).includes('PENDIENTE')
           ? Math.max(0, Number(new Date().getDate()) - 10)
           : 0;
       }
 
-      const nextMonthly = toNumber(result.monto_mensual_2026);
-      const newDebt2026 = toNumber(result.deuda_2026_ene_abr);
-      const totalUpdated = toNumber(result.deuda_total);
-      const newMeses2026 = Number(result.meses_deuda_2026_ene_abr || 0);
-      const realCode = normLocalCode(result.codigo_local || normalized);
-
       const updateCached = (key) => {
         const cached = activosReconstruidosMap.get(key);
         if (!cached) return;
-        cached.monto_sugerido_2026 = nextMonthly;
-        cached.deuda_total_2026 = newDebt2026;
-        cached.deuda_total_2025_2026 = totalUpdated;
-        cached.meses_con_deuda_2026 = newMeses2026;
-        cached.meses_adeudados_total = Number(cached.meses_deuda_2025 || 0) + Number(newMeses2026 || 0);
+        cached.monto_sugerido_2026 = newM;
+        cached.monto_mensual = newM;
       };
       updateCached(normalized);
-      updateCached(realCode);
+      updateCached(normLocalCode(selected?.local_codigo || selected?.local_code_normalized));
 
-      if (selected && normLocalCode(selected.local_codigo || selected.local_code_normalized) === normalized){
-        selected.monto_sugerido_2026 = nextMonthly;
-        selected.monto = nextMonthly;
-        selected.deuda_2026 = newDebt2026;
-        selected.deuda_total_2025_2026 = totalUpdated;
-        selected.deuda_total = totalUpdated;
-        selected.meses_con_deuda_2026 = newMeses2026;
+      if (selected){
+        selected.monto_sugerido_2026 = newM;
+        selected.monto_mensual = newM;
+        selected.monto = newM;
       }
 
-      return { ok:true, targetKey, targetLabel, payload:rpcArgs, updated:1, realCode:result.codigo_local };
+      return {
+        ok:true,
+        targetKey,
+        targetLabel,
+        updated: updatedRows.length,
+        source:'cuotas_operativas'
+      };
     }
 
     async function safeInsertPagoDirect(payload){
