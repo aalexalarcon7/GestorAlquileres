@@ -4096,6 +4096,7 @@ td:last-child{
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
+                    <th class="right">Impuesto</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -5582,13 +5583,13 @@ td:last-child{
         if (!row || !canUseOperationalContrato(row) || !row.contrato_id) return [];
         let res = await sb
           .from('pagos')
-          .select('id,contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at')
+          .select('id,contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,descripcion_pago,created_at')
           .eq('contrato_id', row.contrato_id)
           .order('fecha_pago', { ascending:true });
 
         if (res.error){
           const msg = String(res.error.message || '').toLowerCase();
-          if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('column')){
+          if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('monto_impuesto') || msg.includes('descripcion_pago') || msg.includes('column')){
             res = await sb
               .from('pagos')
               .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
@@ -5680,6 +5681,90 @@ td:last-child{
       return `2026-${String(idx + 1).padStart(2,'0')}`;
     }
 
+    function extractPaymentPeriodSortKeys(pago){
+      const sources = [
+        pago?.periodo_aplicado,
+        pago?.detalle_aplicacion,
+        pago?.descripcion_pago,
+        pago?.referencia,
+        paymentDescriptionMap?.[String(pago?.id || '')],
+        paymentDescriptionMap?.[String(pago?.referencia || '')]
+      ].filter(Boolean).join(' · ');
+
+      const keys = new Set();
+      const addKey = (year, month) => {
+        const y = Number(year || 0);
+        const m = Number(month || 0);
+        if (y >= 2000 && m >= 1 && m <= 12) keys.add(`${y}-${String(m).padStart(2,'0')}`);
+      };
+
+      if (sources){
+        let match;
+        const monthNameRegex = /(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Setiembre|Octubre|Noviembre|Diciembre)\s+(20\d{2})/gi;
+        while ((match = monthNameRegex.exec(sources)) !== null){
+          const normalized = match[1].toLowerCase() === 'setiembre' ? 'septiembre' : match[1].toLowerCase();
+          const idx = GA_MONTH_NAMES.findIndex(m => m.toLowerCase() === normalized);
+          if (idx >= 0) addKey(match[2], idx + 1);
+        }
+
+        const yearMonthNameRegex = /(20\d{2})\s*-\s*(Enero|Febrero|Marzo|Abril|Mayo|Junio|Julio|Agosto|Septiembre|Setiembre|Octubre|Noviembre|Diciembre)/gi;
+        while ((match = yearMonthNameRegex.exec(sources)) !== null){
+          const normalized = match[2].toLowerCase() === 'setiembre' ? 'septiembre' : match[2].toLowerCase();
+          const idx = GA_MONTH_NAMES.findIndex(m => m.toLowerCase() === normalized);
+          if (idx >= 0) addKey(match[1], idx + 1);
+        }
+
+        const slashRegex = /(0?[1-9]|1[0-2])\/(20\d{2})/g;
+        while ((match = slashRegex.exec(sources)) !== null){
+          addKey(match[2], match[1]);
+        }
+
+        const isoRegex = /(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?/g;
+        while ((match = isoRegex.exec(sources)) !== null){
+          addKey(match[1], match[2]);
+        }
+      }
+
+      if (!keys.size){
+        const fecha = String(pago?.fecha_pago || pago?.created_at || '').trim();
+        const dateMatch = fecha.match(/^(20\d{2})-(\d{2})/);
+        if (dateMatch) addKey(dateMatch[1], dateMatch[2]);
+      }
+
+      return [...keys];
+    }
+
+    function applyImpuestosToDebtRows(rows, pagos){
+      const detalleRows = Array.isArray(rows) ? rows : [];
+      detalleRows.forEach(row => { row.impuesto = toNumber(row.impuesto); });
+
+      if (!Array.isArray(pagos) || !pagos.length) return detalleRows;
+
+      const impuestoByKey = new Map();
+      pagos.forEach(pago => {
+        const impuesto = toNumber(pago?.monto_impuesto);
+        if (impuesto <= 0) return;
+
+        const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+        if (!keys.length) return;
+
+        const importePorPeriodo = round2(impuesto / keys.length);
+        keys.forEach((key, index) => {
+          const importe = index === keys.length - 1
+            ? round2(impuesto - importePorPeriodo * (keys.length - 1))
+            : importePorPeriodo;
+          impuestoByKey.set(key, round2(toNumber(impuestoByKey.get(key)) + importe));
+        });
+      });
+
+      detalleRows.forEach(row => {
+        const key = String(row?.sort_key || '').slice(0, 7);
+        row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+      });
+
+      return detalleRows;
+    }
+
     function applyPaymentApplicationsToDebtRows(rows, pagos){
       if (!Array.isArray(rows) || !Array.isArray(pagos) || !pagos.length) return rows;
 
@@ -5722,7 +5807,7 @@ td:last-child{
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="7" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -5739,6 +5824,7 @@ td:last-child{
           <td>${String(x.vencimiento || '—').slice(0,10)}</td>
           <td class="right">${fmtARS.format(toNumber(x.total))}</td>
           <td class="right">${fmtARS.format(toNumber(x.pagado))}</td>
+          <td class="right">${fmtARS.format(toNumber(x.impuesto))}</td>
           <td class="right">${fmtARS.format(toNumber(x.saldo))}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
@@ -6400,9 +6486,28 @@ function globalSearch(){
         const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
 
-        detalleCuotasActuales = rows || [];
-        renderDetalleInfo(r, rows || []);
-        renderDetalleDebtRows(rows || []);
+        const pagosAplicados = await fetchPagoAplicacionesDetalle(r);
+        if (seq !== detalleLoadSeq) return;
+
+        let recibosVinculadosParaImpuestos = [];
+        try {
+          const recibosResult = await fetchRecibosInternosData();
+          if (seq !== detalleLoadSeq) return;
+          recibosVinculadosParaImpuestos = getDetalleRecibosVinculados(r, recibosResult.rows || []);
+        } catch (recErr) {
+          console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
+        }
+
+        const fuentesImpuesto = [
+          ...(Array.isArray(pagosAplicados) ? pagosAplicados : []),
+          ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
+        ];
+
+        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
+
+        detalleCuotasActuales = rowsConImpuesto || [];
+        renderDetalleInfo(r, rowsConImpuesto || []);
+        renderDetalleDebtRows(rowsConImpuesto || []);
 
         await loadDetalleRecibos(r, seq);
 
@@ -6410,7 +6515,7 @@ function globalSearch(){
       } catch (err){
         console.error('loadDetalle error', err);
         if ($('detalleMsg')) $('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
-        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+        if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="8" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
         if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
       }
     }
