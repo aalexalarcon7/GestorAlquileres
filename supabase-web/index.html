@@ -7176,83 +7176,49 @@ function globalSearch(){
       ].filter(Boolean).join(' | ');
 
       let writeRes;
+      const payloadUpdate = {
+        monto_total: Number(newM || 0),
+        monto_pagado: Number(pagadoExistente || 0),
+        saldo: Number(newSaldo || 0),
+        estado: estadoNuevo,
+        observacion: observacionNueva,
+        updated_at: new Date().toISOString()
+      };
 
-      if (cuotaReal?.id) {
-        const payload = {
-          monto_total: Number(newM || 0),
-          monto_pagado: Number(pagadoExistente || 0),
-          saldo: Number(newSaldo || 0),
-          estado: estadoNuevo,
-          observacion: observacionNueva,
-          updated_at: new Date().toISOString()
-        };
-
-        writeRes = await sb
+      // IMPORTANTE:
+      // Modificar alquiler NO debe insertar una cuota nueva desde el frontend.
+      // Si intenta hacer insert/upsert, Supabase puede bloquearlo por RLS y aparece:
+      // "new row violates row-level security policy for table cuotas_operativas".
+      // Acá solo actualizamos la cuota real del mes elegido. Si no existe,
+      // se informa para crearla desde "Agregar mes" y luego volver a modificarla.
+      const applyUpdate = async (payload) => {
+        let query = sb
           .from('cuotas_operativas')
-          .update(payload)
-          .eq('id', cuotaReal.id)
-          .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+          .update(payload);
 
-        if (writeRes.error) {
-          const msg = String(writeRes.error.message || '');
-          if (/observacion|updated_at|column|schema cache/i.test(msg)) {
-            writeRes = await sb
-              .from('cuotas_operativas')
-              .update({
-                monto_total: Number(newM || 0),
-                monto_pagado: Number(pagadoExistente || 0),
-                saldo: Number(newSaldo || 0),
-                estado: estadoNuevo
-              })
-              .eq('id', cuotaReal.id)
-              .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado');
-          }
+        if (cuotaReal?.id) {
+          query = query.eq('id', cuotaReal.id);
+        } else {
+          query = query
+            .eq('contrato_id', selected.contrato_id)
+            .eq('anio', targetYear)
+            .eq('mes', targetMonth);
         }
-      } else {
-        // Si el mes todavía no existe en cuotas_operativas, lo creamos.
-        // Esto evita el error de “Agregá ese mes primero” cuando el mes fue agregado
-        // pero todavía no estaba sincronizado en el detalle.
-        const fullInsert = {
-          contrato_id: selected.contrato_id,
-          local_id: contrato?.locales?.id || selected?.local_id || null,
-          inquilino_id: contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null,
-          codigo_local: selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local || normalized || null,
-          nombre_inquilino: selected?.inquilino_nombre || selected?.nombre_inquilino || contrato?.inquilinos?.nombre || null,
-          anio: targetYear,
-          mes: targetMonth,
-          periodo: periodoTexto,
-          vencimiento: vencimientoISO,
-          monto_total: Number(newM || 0),
-          monto_pagado: Number(pagadoExistente || 0),
-          saldo: Number(newSaldo || 0),
-          estado: estadoNuevo,
-          observacion: observacionNueva,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
 
-        writeRes = await sb
-          .from('cuotas_operativas')
-          .insert(fullInsert)
-          .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+      };
 
-        if (writeRes.error) {
-          const msg = String(writeRes.error.message || '');
-          if (/local_id|inquilino_id|codigo_local|nombre_inquilino|vencimiento|observacion|created_at|updated_at|column|schema cache/i.test(msg)) {
-            writeRes = await sb
-              .from('cuotas_operativas')
-              .insert({
-                contrato_id: selected.contrato_id,
-                anio: targetYear,
-                mes: targetMonth,
-                periodo: periodoTexto,
-                monto_total: Number(newM || 0),
-                monto_pagado: Number(pagadoExistente || 0),
-                saldo: Number(newSaldo || 0),
-                estado: estadoNuevo
-              })
-              .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado');
-          }
+      writeRes = await applyUpdate(payloadUpdate);
+
+      if (writeRes.error) {
+        const msg = String(writeRes.error.message || '');
+        if (/observacion|updated_at|column|schema cache/i.test(msg)) {
+          writeRes = await applyUpdate({
+            monto_total: Number(newM || 0),
+            monto_pagado: Number(pagadoExistente || 0),
+            saldo: Number(newSaldo || 0),
+            estado: estadoNuevo
+          });
         }
       }
 
