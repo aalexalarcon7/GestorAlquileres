@@ -6217,6 +6217,21 @@ function globalSearch(){
       });
     }
 
+    function setDetalleBadge(row){
+      const badge = $('detalleBadge');
+      if (!badge) return;
+
+      if (row?.oculto === true) {
+        badge.className = 'badge b-info';
+        badge.textContent = `OCULTO · ${fmtARS.format(getDisplayedDebtTotal(row || {}))}`;
+        return;
+      }
+
+      const statusInfo = getContratoStatus(row || {});
+      badge.className = `badge ${statusInfo.className || 'b-info'}`;
+      badge.textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(row || {}))}`;
+    }
+
     function openDetalle(r){
       selected = r;
       updateOcultarActivoButtons(r);
@@ -6228,14 +6243,7 @@ function globalSearch(){
       // Pintado inmediato: evita que el detalle quede vacío mientras Supabase responde.
       if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle...';
       if ($('detalleMeta')) $('detalleMeta').textContent = `${r?.reconstructed ? 'Fuente: Auditoría' : 'Contrato:'} ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
-      if ($('detalleBadge')) {
-        if (r?.oculto === true) {
-          $('detalleBadge').textContent = `OCULTO · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
-        } else {
-          const statusInfo = getContratoStatus(r || {});
-          $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
-        }
-      }
+      setDetalleBadge(r);
       renderDetalleInfo(r, []);
       if ($('detalleBody')) $('detalleBody').innerHTML = `<tr><td colspan="7" class="center">Cargando cuotas y deuda...</td></tr>`;
       if ($('detDocsBody')) $('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">Cargando recibos vinculados...</td></tr>`;
@@ -6265,7 +6273,7 @@ function globalSearch(){
 
         const reconstructed = !!r?.reconstructed;
         const statusInfo = getContratoStatus(r || {});
-        const estado = statusInfo.label;
+        const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
         const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
@@ -6544,7 +6552,7 @@ function globalSearch(){
         if ($('detalleMsg')) $('detalleMsg').textContent = 'Cargando detalle operativo...';
         const statusInfo = getContratoStatus(r || {});
         if ($('detalleMeta')) $('detalleMeta').textContent = `Contrato: ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
-        if ($('detalleBadge')) $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(r || {}))}`;
+        setDetalleBadge(r);
 
         const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
@@ -12428,85 +12436,111 @@ function globalSearch(){
 
 
     async function toggleOcultarActivoActual(){
-      const msg = $('activoModalMsg') || $('unitsMsg');
       const unidad = selected;
+      const msgUnits = $('unitsMsg');
+      const msgModal = $('activoModalMsg');
+      const setMsg = (text) => {
+        if (msgUnits) msgUnits.textContent = text || '';
+        if (msgModal) msgModal.textContent = text || '';
+      };
 
-      if (!unidad?.contrato_id) {
-        alert('Primero abrí el detalle de un activo.');
+      if (!unidad?.contrato_id || String(unidad.contrato_id).startsWith('synthetic-')) {
+        alert('Primero abrí el detalle de un activo operativo. Este activo no tiene contrato operativo para ocultar/restaurar.');
         return;
       }
 
       const contratoId = unidad.contrato_id;
       const estaOculto = unidad.oculto === true;
+      const nuevoEstadoOculto = !estaOculto;
 
       const label = `${unidad.local_codigo || '—'} · ${unidad.inquilino_nombre || '—'}`;
       const ok = askConfirm(
         estaOculto
           ? `¿Restaurar este activo?\n\n${label}\n\nVolverá a aparecer en la lista principal.`
-          : `¿Ocultar este activo?\n\n${label}\n\nNo se borrará nada. Solo dejará de aparecer en la lista principal.`
+          : `¿Ocultar este activo?\n\n${label}\n\nNo se borra nada: quedan guardados recibos, cuotas, deudas y datos. Después lo vas a ver desde el filtro Ocultos.`
       );
 
       if (!ok) return;
 
       try {
-        if (msg) msg.textContent = estaOculto ? 'Restaurando activo...' : 'Ocultando activo...';
+        setMsg(estaOculto ? 'Restaurando activo...' : 'Ocultando activo...');
 
-        const payload = estaOculto
+        const payload = nuevoEstadoOculto
           ? {
-              oculto: false,
-              oculto_at: null,
-              oculto_motivo: null
-            }
-          : {
               oculto: true,
               oculto_at: new Date().toISOString(),
               oculto_motivo: 'Ocultado desde la web'
+            }
+          : {
+              oculto: false,
+              oculto_at: null,
+              oculto_motivo: null
             };
 
-        const { error } = await sb
+        const { data, error } = await sb
           .from('contratos')
           .update(payload)
-          .eq('id', contratoId);
+          .eq('id', contratoId)
+          .select('id, oculto, oculto_at, oculto_motivo')
+          .maybeSingle();
 
         if (error) throw error;
 
-        const nuevoEstadoOculto = !estaOculto;
-        selected = {
+        const estadoConfirmado = data?.oculto === true;
+        const ocultoAtConfirmado = data?.oculto_at ?? payload.oculto_at ?? null;
+        const ocultoMotivoConfirmado = data?.oculto_motivo ?? payload.oculto_motivo ?? null;
+
+        contratosActivos = (contratosActivos || []).map(c => {
+          if (String(c.id) !== String(contratoId)) return c;
+          return {
+            ...c,
+            oculto: estadoConfirmado,
+            oculto_at: ocultoAtConfirmado,
+            oculto_motivo: ocultoMotivoConfirmado
+          };
+        });
+
+        unidades = (unidades || []).map(r => {
+          if (String(r.contrato_id) !== String(contratoId)) return r;
+          return {
+            ...r,
+            oculto: estadoConfirmado,
+            oculto_at: ocultoAtConfirmado,
+            oculto_motivo: ocultoMotivoConfirmado
+          };
+        });
+
+        if ($('globalSearch')) $('globalSearch').value = '';
+        if ($('q')) $('q').value = '';
+        if ($('filtro')) $('filtro').value = estadoConfirmado ? 'OCULTOS' : 'TODOS';
+
+        await refreshUnidades();
+
+        const actualizado = (unidades || []).find(r => String(r.contrato_id) === String(contratoId)) || {
           ...unidad,
-          oculto: nuevoEstadoOculto,
-          oculto_at: payload.oculto_at || null,
-          oculto_motivo: payload.oculto_motivo || null
+          oculto: estadoConfirmado,
+          oculto_at: ocultoAtConfirmado,
+          oculto_motivo: ocultoMotivoConfirmado
         };
-        updateOcultarActivoButtons(selected);
 
-        if ($('detalleBadge')) {
-          if (nuevoEstadoOculto) {
-            $('detalleBadge').textContent = `OCULTO · ${fmtARS.format(getDisplayedDebtTotal(selected || {}))}`;
-          } else {
-            const statusInfo = getContratoStatus(selected || {});
-            $('detalleBadge').textContent = `${statusInfo.label} · ${fmtARS.format(getDisplayedDebtTotal(selected || {}))}`;
-          }
-        }
-
-        await refreshAll();
-
-        if ($('filtro')) {
-          $('filtro').value = nuevoEstadoOculto ? 'OCULTOS' : 'TODOS';
-        }
-
+        selected = actualizado;
+        updateOcultarActivoButtons(actualizado);
+        setDetalleBadge(actualizado);
         renderUnidades();
 
-        if ($('detalleCard')) {
-          $('detalleCard').style.display = nuevoEstadoOculto ? 'none' : 'block';
-        }
+        if ($('detalleCard')) $('detalleCard').style.display = 'block';
+        renderDetalleInfo(actualizado, detalleCuotasActuales || []);
+        loadDetalle(actualizado);
 
-        if (msg) msg.textContent = nuevoEstadoOculto
-          ? 'Activo ocultado correctamente. Podés verlo desde el filtro Ocultos.'
-          : 'Activo restaurado correctamente.';
+        setMsg(estadoConfirmado
+          ? 'Activo ocultado correctamente. Ahora aparece en el filtro Ocultos con la etiqueta OCULTO.'
+          : 'Activo restaurado correctamente. Ahora vuelve a aparecer en Todos.'
+        );
       } catch (err) {
         console.error(err);
-        if (msg) msg.textContent = err?.message || 'No se pudo actualizar el activo.';
-        alert(err?.message || 'No se pudo actualizar el activo.');
+        const text = err?.message || 'No se pudo actualizar el activo.';
+        setMsg(text);
+        alert(text);
       }
     }
 
