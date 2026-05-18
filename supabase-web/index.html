@@ -4855,6 +4855,37 @@ td:last-child{
       return `${prefix}-${String(number).padStart(digits, '0')}`;
     }
 
+
+    async function sugerirNumeroReciboSeguro(){
+      try {
+        const { data, error } = await sb.rpc('sugerir_siguiente_numero_recibo');
+        if (!error && data) {
+          const numero = String(data).trim();
+          if (numero) return numero;
+        }
+        if (error) console.warn('No se pudo sugerir número de recibo desde Supabase:', error?.message || error);
+      } catch (e) {
+        console.warn('Error sugiriendo número de recibo desde Supabase:', e?.message || e);
+      }
+      return nextReciboPreview();
+    }
+
+    async function cargarNumeroReciboAutomatico(){
+      const input = $('mReferencia');
+      if (!input) return '';
+
+      input.value = 'Generando...';
+      input.disabled = true;
+
+      try {
+        const numero = await sugerirNumeroReciboSeguro();
+        input.value = numero || '';
+        return numero || '';
+      } finally {
+        input.disabled = false;
+      }
+    }
+
     function nextContratoPreview(){
       const prefix = sanitizePrefix(appSettings?.documentos?.contratoPrefijo, 'CTR');
       const number = asPositiveInt(appSettings?.documentos?.proximoContrato, 1);
@@ -12156,6 +12187,7 @@ function globalSearch(){
       $('mFecha').value = today();
       if ($('mReferencia')) $('mReferencia').value = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
+      await cargarNumeroReciboAutomatico();
       populatePaymentMethodSelect('mMedio');
       if ($('modalMsg')) $('modalMsg').textContent = '';
 
@@ -12185,7 +12217,11 @@ function globalSearch(){
           return;
         }
 
-        const numeroManual = String($('mReferencia')?.value || '').trim();
+        let numeroManual = String($('mReferencia')?.value || '').trim();
+        if (!numeroManual || numeroManual.toLowerCase() === 'generando...') {
+          numeroManual = await sugerirNumeroReciboSeguro();
+          if ($('mReferencia')) $('mReferencia').value = numeroManual;
+        }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobro = impuestoFijo > 0
           ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
