@@ -7121,77 +7121,176 @@ function globalSearch(){
       const targetMonth = Number(targetKey.slice(5,7));
       const targetLabel = getRentPeriodLabelFromKey(targetKey);
       const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
-      const targetRow = visibleRows.find(r => String(r.sort_key) === targetKey) || null;
+      let targetRow = visibleRows.find(r => String(r.sort_key) === targetKey) || null;
 
-      const oldVisiblePaid = targetRow
-        ? toNumber(targetRow.monto_pagado ?? targetRow.pagado)
-        : 0;
-      const newVisibleSaldo = Math.max(0, round2(newM - oldVisiblePaid));
-      const estadoNuevo = newVisibleSaldo <= 0.009
-        ? 'PAGADO'
-        : (oldVisiblePaid > 0.009 ? 'PARCIAL' : 'PENDIENTE');
-
-      const observacionBase = targetRow?.observacion || '';
-      const observacionNueva = [
-        observacionBase,
-        `Alquiler modificado desde web para ${targetLabel}: ${fmtARS.format(newM)}`
-      ].filter(Boolean).join(' | ');
-
-      // Ya no dependemos del staging_importacion_alquileres_2026_limpio.
-      // Ese staging puede no tener locales nuevos o códigos sin prefijo, por ejemplo "2323".
-      // La cuota real del sistema está en cuotas_operativas y se identifica por contrato + año + mes.
-      let updateRes = await sb
+      // Fuente real: cuotas_operativas. Primero leemos la cuota del mes elegido,
+      // porque la tabla visible puede estar desactualizada después de agregar meses
+      // o de cambiar el alquiler sin recargar toda la página.
+      let cuotaReal = null;
+      let readRes = await sb
         .from('cuotas_operativas')
-        .update({
-          monto_total: Number(newM || 0),
-          saldo: Number(newVisibleSaldo || 0),
-          estado: estadoNuevo,
-          observacion: observacionNueva
-        })
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento')
         .eq('contrato_id', selected.contrato_id)
         .eq('anio', targetYear)
         .eq('mes', targetMonth)
-        .select('id,contrato_id,anio,mes,monto_total,monto_pagado,saldo,estado');
+        .maybeSingle();
 
-      if (updateRes.error){
-        const msg = String(updateRes.error.message || '');
-        // Si alguna instalación no tiene la columna observacion, reintentamos con el payload mínimo.
-        if (/observacion/i.test(msg)){
-          updateRes = await sb
+      if (readRes.error) {
+        const msg = String(readRes.error.message || '');
+        // Fallback por si alguna base no tiene columna vencimiento.
+        if (/vencimiento|column|schema cache/i.test(msg)) {
+          readRes = await sb
             .from('cuotas_operativas')
-            .update({
-              monto_total: Number(newM || 0),
-              saldo: Number(newVisibleSaldo || 0),
-              estado: estadoNuevo
-            })
+            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion')
             .eq('contrato_id', selected.contrato_id)
             .eq('anio', targetYear)
             .eq('mes', targetMonth)
-            .select('id,contrato_id,anio,mes,monto_total,monto_pagado,saldo,estado');
+            .maybeSingle();
         }
       }
 
-      if (updateRes.error) throw updateRes.error;
+      if (readRes.error) throw readRes.error;
+      cuotaReal = readRes.data || null;
 
-      const updatedRows = Array.isArray(updateRes.data) ? updateRes.data : [];
+      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id) || {};
+      const diaVencimientoRaw = Number($('actDiaVencimiento')?.value || contrato?.dia_vencimiento || 10);
+      const diaVencimiento = Number.isInteger(diaVencimientoRaw) && diaVencimientoRaw >= 1 && diaVencimientoRaw <= 31 ? diaVencimientoRaw : 10;
+      const vencimientoISO = `${targetYear}-${String(targetMonth).padStart(2,'0')}-${String(diaVencimiento).padStart(2,'0')}`;
+      const periodoTexto = cuotaReal?.periodo || targetRow?.periodo || `${String(targetMonth).padStart(2,'0')}/${targetYear}`;
+
+      // Monto ya pagado de alquiler para esa cuota. No se reinicia: se mantiene
+      // y se recalcula el saldo con el nuevo monto del alquiler.
+      const pagadoExistente = cuotaReal
+        ? toNumber(cuotaReal.monto_pagado)
+        : toNumber(targetRow?.monto_pagado ?? targetRow?.pagado);
+
+      const newSaldo = round2(Math.max(0, newM - pagadoExistente));
+      const estadoNuevo = newSaldo <= 0.009
+        ? 'PAGADO'
+        : (pagadoExistente > 0.009 ? 'PARCIAL' : 'PENDIENTE');
+
+      const observacionBase = cuotaReal?.observacion || targetRow?.observacion || '';
+      const observacionNueva = [
+        observacionBase,
+        `Alquiler modificado desde web para ${targetLabel}: ${fmtARS.format(newM)}. Pagado conservado: ${fmtARS.format(pagadoExistente)}. Saldo recalculado: ${fmtARS.format(newSaldo)}.`
+      ].filter(Boolean).join(' | ');
+
+      let writeRes;
+
+      if (cuotaReal?.id) {
+        const payload = {
+          monto_total: Number(newM || 0),
+          monto_pagado: Number(pagadoExistente || 0),
+          saldo: Number(newSaldo || 0),
+          estado: estadoNuevo,
+          observacion: observacionNueva,
+          updated_at: new Date().toISOString()
+        };
+
+        writeRes = await sb
+          .from('cuotas_operativas')
+          .update(payload)
+          .eq('id', cuotaReal.id)
+          .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+
+        if (writeRes.error) {
+          const msg = String(writeRes.error.message || '');
+          if (/observacion|updated_at|column|schema cache/i.test(msg)) {
+            writeRes = await sb
+              .from('cuotas_operativas')
+              .update({
+                monto_total: Number(newM || 0),
+                monto_pagado: Number(pagadoExistente || 0),
+                saldo: Number(newSaldo || 0),
+                estado: estadoNuevo
+              })
+              .eq('id', cuotaReal.id)
+              .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado');
+          }
+        }
+      } else {
+        // Si el mes todavía no existe en cuotas_operativas, lo creamos.
+        // Esto evita el error de “Agregá ese mes primero” cuando el mes fue agregado
+        // pero todavía no estaba sincronizado en el detalle.
+        const fullInsert = {
+          contrato_id: selected.contrato_id,
+          local_id: contrato?.locales?.id || selected?.local_id || null,
+          inquilino_id: contrato?.inquilinos?.id || contrato?.inquilino_id || selected?.inquilino_id || null,
+          codigo_local: selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local || normalized || null,
+          nombre_inquilino: selected?.inquilino_nombre || selected?.nombre_inquilino || contrato?.inquilinos?.nombre || null,
+          anio: targetYear,
+          mes: targetMonth,
+          periodo: periodoTexto,
+          vencimiento: vencimientoISO,
+          monto_total: Number(newM || 0),
+          monto_pagado: Number(pagadoExistente || 0),
+          saldo: Number(newSaldo || 0),
+          estado: estadoNuevo,
+          observacion: observacionNueva,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        writeRes = await sb
+          .from('cuotas_operativas')
+          .insert(fullInsert)
+          .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+
+        if (writeRes.error) {
+          const msg = String(writeRes.error.message || '');
+          if (/local_id|inquilino_id|codigo_local|nombre_inquilino|vencimiento|observacion|created_at|updated_at|column|schema cache/i.test(msg)) {
+            writeRes = await sb
+              .from('cuotas_operativas')
+              .insert({
+                contrato_id: selected.contrato_id,
+                anio: targetYear,
+                mes: targetMonth,
+                periodo: periodoTexto,
+                monto_total: Number(newM || 0),
+                monto_pagado: Number(pagadoExistente || 0),
+                saldo: Number(newSaldo || 0),
+                estado: estadoNuevo
+              })
+              .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado');
+          }
+        }
+      }
+
+      if (writeRes.error) throw writeRes.error;
+      const updatedRows = Array.isArray(writeRes.data) ? writeRes.data : [];
       if (!updatedRows.length){
-        throw new Error(`No se encontró la cuota operativa de ${targetLabel} para este contrato. Agregá ese mes primero y después modificá el alquiler.`);
+        throw new Error(`No se pudo guardar la cuota operativa de ${targetLabel}.`);
       }
 
-      if (targetRow){
-        targetRow.total = newM;
-        targetRow.monto_total = newM;
-        targetRow.pagado = oldVisiblePaid;
-        targetRow.monto_pagado = oldVisiblePaid;
-        targetRow.saldo = newVisibleSaldo;
-        targetRow.estado = estadoNuevo;
-        targetRow.estado_detalle = newVisibleSaldo <= 0.009
-          ? 'PAGADO'
-          : (oldVisiblePaid > 0.009 ? 'PARCIAL' : 'PENDIENTE');
-        targetRow.dias_atraso = String(targetRow.estado_detalle).includes('PENDIENTE')
-          ? Math.max(0, Number(new Date().getDate()) - 10)
-          : 0;
+      const patched = updatedRows[0] || {};
+      if (!targetRow){
+        targetRow = {
+          sort_key: targetKey,
+          periodo: patched.periodo || periodoTexto,
+          vencimiento: vencimientoISO
+        };
+        detalleCuotasActuales.push(targetRow);
+        detalleCuotasActuales.sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
       }
+
+      targetRow.total = newM;
+      targetRow.monto_total = newM;
+      targetRow.pagado = pagadoExistente;
+      targetRow.monto_pagado = pagadoExistente;
+      targetRow.saldo = newSaldo;
+      targetRow.estado = estadoNuevo;
+      targetRow.estado_detalle = newSaldo <= 0.009
+        ? 'PAGADO'
+        : (pagadoExistente > 0.009 ? 'PARCIAL' : 'PENDIENTE');
+      targetRow.dias_atraso = targetRow.estado_detalle === 'PENDIENTE'
+        ? Math.max(0, Number(new Date().getDate()) - diaVencimiento)
+        : 0;
+      targetRow.periodo = patched.periodo || targetRow.periodo || periodoTexto;
+      targetRow.vencimiento = targetRow.vencimiento || vencimientoISO;
+      targetRow.observacion = observacionNueva;
+
+      // Recalculamos las columnas visuales que usan impuesto en Cuotas y deuda.
+      enrichDebtRowsWithImpuestoTotals(detalleCuotasActuales);
 
       const updateCached = (key) => {
         const cached = activosReconstruidosMap.get(key);
@@ -7208,12 +7307,19 @@ function globalSearch(){
         selected.monto = newM;
       }
 
+      // Si existe la RPC, sincronizamos los resúmenes operativos sin bloquear el guardado.
+      try {
+        await sb.rpc('sync_operativo_desde_cuotas');
+      } catch (syncErr) {
+        console.warn('No se pudo sincronizar operativo desde cuotas:', syncErr?.message || syncErr);
+      }
+
       return {
         ok:true,
         targetKey,
         targetLabel,
         updated: updatedRows.length,
-        source:'cuotas_operativas'
+        source: cuotaReal?.id ? 'cuotas_operativas_update' : 'cuotas_operativas_insert'
       };
     }
 
