@@ -3848,6 +3848,30 @@ td:last-child{
     }
   </style>
 
+
+  <style id="multipagoMediosPagoStyles">
+    .multi-pay-box{
+      width:100%;
+      margin-top:12px;
+      padding:14px;
+      border:1px solid var(--border);
+      border-radius:22px;
+      background:var(--surface-soft);
+    }
+    .multi-pay-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+    .multi-pay-title{font-size:12px;font-weight:950;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);}
+    .multi-pay-sub{margin-top:4px;font-size:11px;color:var(--muted);line-height:1.35;}
+    .multi-pay-list{display:grid;gap:10px;}
+    .multi-pay-row{display:grid;grid-template-columns:minmax(150px,.8fr) minmax(140px,.65fr) minmax(180px,1fr) 44px;gap:10px;align-items:center;}
+    .multi-pay-row select,.multi-pay-row input{width:100% !important;min-width:0 !important;}
+    .multi-pay-remove{width:44px !important;min-width:44px !important;padding:0 !important;color:var(--bad) !important;}
+    .multi-pay-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px;}
+    .multi-pay-summary{min-height:38px;display:flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid var(--border);border-radius:999px;background:var(--card);color:var(--muted);font-size:12px;font-weight:900;text-align:center;}
+    .multi-pay-summary.ok{background:var(--ok-soft);border-color:var(--ok-border);color:var(--text);}
+    .multi-pay-summary.bad{background:var(--bad-soft);border-color:var(--bad-border);color:var(--text);}
+    @media (max-width:720px){.multi-pay-row{grid-template-columns:1fr}.multi-pay-remove{width:100% !important;min-width:0 !important}.multi-pay-footer .btn,.multi-pay-summary{width:100%;}}
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -4187,15 +4211,22 @@ td:last-child{
           <label class="muted" style="font-size:12px;">N° recibo manual</label>
           <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:170px;">
-          <label class="muted" style="font-size:12px;">Medio de pago</label>
-          <select id="mMedio" style="width:160px">
-            <option>EFECTIVO</option>
-            <option>TRANSFERENCIA</option>
-            <option>MERCADOPAGO</option>
-          </select>
-        </div>
+        <input id="mMedio" type="hidden" value="EFECTIVO">
         <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Guardar</button>
+      </div>
+
+      <div class="multi-pay-box" id="mMediosPagoBox">
+        <div class="multi-pay-head">
+          <div>
+            <div class="multi-pay-title">Medios de pago</div>
+            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma debe coincidir con el total a cobrar.</div>
+          </div>
+        </div>
+        <div class="multi-pay-list" id="mMediosPagoList"></div>
+        <div class="multi-pay-footer">
+          <button class="btn" type="button" onclick="addPagoMedioRow()">+ Agregar medio</button>
+          <div class="multi-pay-summary" id="mMediosPagoResumen">Medios: $ 0,00</div>
+        </div>
       </div>
 
       <div class="row" style="margin-top:10px;">
@@ -4357,6 +4388,7 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
+      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
     </div>
   </div>
 
@@ -7655,7 +7687,8 @@ function globalSearch(){
       $('modalMsg').textContent = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
       await refreshPaymentPeriodOptions(r, false);
-      recalcularCobroModal();
+      const cobroInicial = recalcularCobroModal();
+      initPagoMediosRows(cobroInicial.total);
     }
 
     function closePagoModal(){
@@ -12317,6 +12350,117 @@ function globalSearch(){
 
     let pagoCuotasPendientesActuales = [];
 
+    let pagoMediosRows = [];
+    let pagoMediosAutoSync = true;
+
+    function pagoMedioUid(){ return `mp_${Date.now()}_${Math.random().toString(16).slice(2)}`; }
+
+    function getMedioPagoGeneral(rows){
+      const valid = (Array.isArray(rows) ? rows : getPagoMediosFromUI()).filter(r => Number(r.monto || 0) > 0);
+      if (!valid.length) return $('mMedio')?.value || 'EFECTIVO';
+      return valid.length > 1 ? 'MIXTO' : valid[0].medio;
+    }
+
+    function buildMediosPagoDetalle(rows){
+      const valid = (Array.isArray(rows) ? rows : getPagoMediosFromUI()).filter(r => Number(r.monto || 0) > 0);
+      return valid.map(r => `${r.medio}: ${fmtARS.format(Number(r.monto || 0))}${r.referencia ? ` (${r.referencia})` : ''}`).join(' · ');
+    }
+
+    function renderPagoMediosRows(){
+      const list = $('mMediosPagoList');
+      if (!list) return;
+      const methods = enabledPaymentMethods();
+      if (!Array.isArray(pagoMediosRows) || !pagoMediosRows.length){
+        pagoMediosRows = [{ uid:pagoMedioUid(), medio:methods[0] || 'EFECTIVO', monto:'', referencia:'' }];
+      }
+      list.innerHTML = pagoMediosRows.map((row) => {
+        const medio = methods.includes(row.medio) ? row.medio : (methods[0] || 'EFECTIVO');
+        const options = methods.map(method => `<option value="${escapeHtml(method)}" ${method === medio ? 'selected' : ''}>${escapeHtml(method)}</option>`).join('');
+        const canRemove = pagoMediosRows.length > 1;
+        return `
+          <div class="multi-pay-row" data-uid="${escapeHtml(row.uid)}">
+            <select class="mp-medio" onchange="updatePagoMedioRow('${escapeHtml(row.uid)}','medio',this.value)">${options}</select>
+            <input class="mp-monto" inputmode="decimal" placeholder="Monto" value="${escapeHtml(row.monto || '')}" oninput="updatePagoMedioRow('${escapeHtml(row.uid)}','monto',this.value,true)">
+            <input class="mp-ref" placeholder="Referencia / comprobante" value="${escapeHtml(row.referencia || '')}" oninput="updatePagoMedioRow('${escapeHtml(row.uid)}','referencia',this.value)">
+            <button class="btn multi-pay-remove" type="button" ${canRemove ? '' : 'disabled'} onclick="removePagoMedioRow('${escapeHtml(row.uid)}')">×</button>
+          </div>
+        `;
+      }).join('');
+      updatePagoMediosResumen();
+    }
+
+    function initPagoMediosRows(total){
+      const methods = enabledPaymentMethods();
+      const medio = methods[0] || 'EFECTIVO';
+      pagoMediosAutoSync = true;
+      pagoMediosRows = [{ uid:pagoMedioUid(), medio, monto:formatMoneyInputValue(Number(total || 0)), referencia:'' }];
+      if ($('mMedio')) $('mMedio').value = medio;
+      renderPagoMediosRows();
+    }
+
+    function syncPagoMediosConTotal(total){
+      if (!$('mMediosPagoList')) return;
+      if (!pagoMediosAutoSync) { updatePagoMediosResumen(); return; }
+      const methods = enabledPaymentMethods();
+      const medio = pagoMediosRows?.[0]?.medio || methods[0] || 'EFECTIVO';
+      pagoMediosRows = [{ uid:pagoMediosRows?.[0]?.uid || pagoMedioUid(), medio, monto:formatMoneyInputValue(Number(total || 0)), referencia:pagoMediosRows?.[0]?.referencia || '' }];
+      if ($('mMedio')) $('mMedio').value = medio;
+      renderPagoMediosRows();
+    }
+
+    function updatePagoMedioRow(uid, field, value, touched=false){
+      pagoMediosRows = (pagoMediosRows || []).map(row => row.uid === uid ? { ...row, [field]: value } : row);
+      if (touched || field === 'medio') pagoMediosAutoSync = false;
+      const medios = getPagoMediosFromUI();
+      if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
+      updatePagoMediosResumen();
+    }
+
+    function addPagoMedioRow(){
+      const methods = enabledPaymentMethods();
+      pagoMediosAutoSync = false;
+      pagoMediosRows = [...(pagoMediosRows || []), { uid:pagoMedioUid(), medio:methods[0] || 'EFECTIVO', monto:'', referencia:'' }];
+      renderPagoMediosRows();
+    }
+
+    function removePagoMedioRow(uid){
+      if ((pagoMediosRows || []).length <= 1) return;
+      pagoMediosAutoSync = false;
+      pagoMediosRows = pagoMediosRows.filter(row => row.uid !== uid);
+      renderPagoMediosRows();
+    }
+
+    function getPagoMediosFromUI(){
+      const list = $('mMediosPagoList');
+      if (!list) {
+        const medio = $('mMedio')?.value || 'EFECTIVO';
+        const monto = parseMoneyToNumber($('mTotal')?.value || '0');
+        return monto > 0 ? [{ medio, monto, referencia:'' }] : [];
+      }
+      return Array.from(list.querySelectorAll('.multi-pay-row')).map(row => ({
+        medio: String(row.querySelector('.mp-medio')?.value || 'EFECTIVO').trim().toUpperCase(),
+        monto: round2(parseMoneyToNumber(row.querySelector('.mp-monto')?.value || '')),
+        referencia: String(row.querySelector('.mp-ref')?.value || '').trim()
+      })).filter(row => row.medio && row.monto > 0);
+    }
+
+    function updatePagoMediosResumen(){
+      const el = $('mMediosPagoResumen');
+      if (!el) return;
+      const totalCobro = round2(parseMoneyToNumber($('mTotal')?.value || ''));
+      const medios = getPagoMediosFromUI();
+      const totalMedios = round2(medios.reduce((acc, row) => acc + Number(row.monto || 0), 0));
+      const diff = round2(totalCobro - totalMedios);
+      el.classList.remove('ok','bad');
+      if (Math.abs(diff) <= 0.01 && totalCobro > 0) {
+        el.classList.add('ok');
+        el.textContent = `Medios correctos: ${fmtARS.format(totalMedios)}`;
+      } else {
+        el.classList.add('bad');
+        el.textContent = `Medios: ${fmtARS.format(totalMedios)} · Diferencia: ${fmtARS.format(diff)}`;
+      }
+    }
+
     function normalizeCuotaCobroRow(row={}){
       const sortKey = String(row.sort_key || '');
       const anio = Number(row.anio || sortKey.slice(0,4) || 0);
@@ -12461,7 +12605,7 @@ function globalSearch(){
         observacion: obs || null,
         periodo_aplicado: periodo || null,
         detalle_aplicacion: detalle || null,
-        medio: $('mMedio')?.value || 'EFECTIVO',
+        medio: getMedioPagoGeneral(),
         inquilino_nombre: modalContrato?.inquilino_nombre || modalContrato?.nombre_inquilino || '',
         local_codigo: modalContrato?.local_codigo || modalContrato?.codigo_local || '',
         created_at: new Date().toISOString()
@@ -12566,6 +12710,7 @@ function globalSearch(){
       const total = round2(alquiler + impuesto);
       if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      syncPagoMediosConTotal(total);
       return { alquiler, impPct:0, impuesto, total };
     }
 
@@ -12586,7 +12731,7 @@ function globalSearch(){
       if ($('mReferencia')) $('mReferencia').value = '';
       if ($('mDescripcion')) $('mDescripcion').value = '';
       await cargarNumeroReciboAutomatico();
-      populatePaymentMethodSelect('mMedio');
+      if ($('mMedio')) $('mMedio').value = enabledPaymentMethods()[0] || 'EFECTIVO';
       if ($('modalMsg')) $('modalMsg').textContent = '';
 
       const pendientes = await getCuotasPendientesParaCobro(r.contrato_id);
@@ -12615,15 +12760,32 @@ function globalSearch(){
           return;
         }
 
+        const mediosPago = getPagoMediosFromUI();
+        const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
+        if (!mediosPago.length){
+          if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
+          return;
+        }
+        if (Math.abs(totalMediosPago - amount) > 0.01){
+          if (msgEl) msgEl.textContent = `La suma de los medios de pago (${fmtARS.format(totalMediosPago)}) debe coincidir con el total a cobrar (${fmtARS.format(amount)}).`;
+          return;
+        }
+        const medioGeneral = getMedioPagoGeneral(mediosPago);
+        const detalleMediosPago = buildMediosPagoDetalle(mediosPago);
+        if ($('mMedio')) $('mMedio').value = medioGeneral;
+
         let numeroManual = String($('mReferencia')?.value || '').trim();
         if (!numeroManual || numeroManual.toLowerCase() === 'generando...') {
           numeroManual = await sugerirNumeroReciboSeguro();
           if ($('mReferencia')) $('mReferencia').value = numeroManual;
         }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
-        const desgloseCobro = impuestoFijo > 0
+        const desgloseCobroBase = impuestoFijo > 0
           ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
           : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
+        const desgloseCobro = detalleMediosPago
+          ? `${desgloseCobroBase} · Medios de pago: ${detalleMediosPago}`
+          : desgloseCobroBase;
 
         let choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
         if (choice.auto){
@@ -12646,7 +12808,7 @@ function globalSearch(){
           p_mes: choice.mes,
           p_monto_pago: amount,
           p_fecha_pago: $('mFecha')?.value || today(),
-          p_medio: $('mMedio')?.value || 'EFECTIVO',
+          p_medio: medioGeneral,
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
           // Estos campos son necesarios para que Supabase guarde y devuelva exactamente
@@ -12654,13 +12816,18 @@ function globalSearch(){
           p_numero_recibo: numeroManual || null,
           p_monto_alquiler: alquilerBase,
           p_monto_impuesto: impuestoFijo,
-          p_descripcion_pago: observacionFinal
+          p_descripcion_pago: observacionFinal,
+          p_medios_pago: mediosPago.map(row => ({
+            medio: row.medio,
+            monto: Number(row.monto || 0),
+            referencia: row.referencia || null
+          }))
         };
-        const { data, error } = await sb.rpc('registrar_cobro_operativo_v2', args);
+        const { data, error } = await sb.rpc('registrar_cobro_operativo_v3_multipago', args);
         if (error) {
           const raw = error.message || String(error);
-          if (/registrar_cobro_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función registrar_cobro_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
+          if (/registrar_cobro_operativo_v3_multipago|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función registrar_cobro_operativo_v3_multipago en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
           }
           if (/permission|permiso|denied|42501/i.test(raw)) {
             throw new Error('Permiso denegado para registrar cobros. Ejecutá el SQL hotfix de permisos. Detalle: ' + raw);
@@ -12909,6 +13076,9 @@ function globalSearch(){
     window.registrarPagoModal = registrarPagoModal;
     window.refreshPaymentPeriodOptions = refreshPaymentPeriodOptions;
     window.recalcularCobroModal = recalcularCobroModal;
+    window.addPagoMedioRow = addPagoMedioRow;
+    window.removePagoMedioRow = removePagoMedioRow;
+    window.updatePagoMedioRow = updatePagoMedioRow;
     window.openAgregarMesModal = openAgregarMesModal;
     window.closeAgregarMesModal = closeAgregarMesModal;
     window.guardarMesOperativo = guardarMesOperativo;
