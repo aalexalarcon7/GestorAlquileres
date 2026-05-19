@@ -4219,7 +4219,7 @@ td:last-child{
         <div class="multi-pay-head">
           <div>
             <div class="multi-pay-title">Medios de pago</div>
-            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma debe coincidir con el total a cobrar.</div>
+            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios actualiza automáticamente el total de arriba; el impuesto se descuenta del alquiler para no cargar doble.</div>
           </div>
         </div>
         <div class="multi-pay-list" id="mMediosPagoList"></div>
@@ -12408,12 +12408,33 @@ function globalSearch(){
       renderPagoMediosRows();
     }
 
+    function getTotalMediosPago(){
+      const medios = getPagoMediosFromUI();
+      return round2(medios.reduce((acc, row) => acc + Number(row.monto || 0), 0));
+    }
+
+    function syncCobroDesdeMediosPago(){
+      const totalMedios = getTotalMediosPago();
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+      const alquiler = round2(Math.max(totalMedios - impuesto, 0));
+
+      if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
+      if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(alquiler) : '';
+      if ($('mImpPct')) $('mImpPct').value = '0';
+
+      const medios = getPagoMediosFromUI();
+      if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
+      updatePagoMediosResumen();
+      return { alquiler, impPct:0, impuesto, total:totalMedios };
+    }
+
     function updatePagoMedioRow(uid, field, value, touched=false){
       pagoMediosRows = (pagoMediosRows || []).map(row => row.uid === uid ? { ...row, [field]: value } : row);
       if (touched || field === 'medio') pagoMediosAutoSync = false;
       const medios = getPagoMediosFromUI();
       if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
-      updatePagoMediosResumen();
+      if (touched) syncCobroDesdeMediosPago();
+      else updatePagoMediosResumen();
     }
 
     function addPagoMedioRow(){
@@ -12421,6 +12442,7 @@ function globalSearch(){
       pagoMediosAutoSync = false;
       pagoMediosRows = [...(pagoMediosRows || []), { uid:pagoMedioUid(), medio:methods[0] || 'EFECTIVO', monto:'', referencia:'' }];
       renderPagoMediosRows();
+      syncCobroDesdeMediosPago();
     }
 
     function removePagoMedioRow(uid){
@@ -12428,6 +12450,7 @@ function globalSearch(){
       pagoMediosAutoSync = false;
       pagoMediosRows = pagoMediosRows.filter(row => row.uid !== uid);
       renderPagoMediosRows();
+      syncCobroDesdeMediosPago();
     }
 
     function getPagoMediosFromUI(){
@@ -12705,11 +12728,20 @@ function globalSearch(){
     }
 
     function recalcularCobroModal(){
-      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+
+      // Si el usuario ya cargó montos en “Medios de pago”, esa suma pasa a ser
+      // el total real cobrado. El impuesto se descuenta del alquiler para que
+      // no haya que escribir dos veces el mismo importe ni se cargue doble.
+      const totalMedios = getTotalMediosPago();
+      if (!pagoMediosAutoSync && totalMedios > 0) {
+        return syncCobroDesdeMediosPago();
+      }
+
+      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const total = round2(alquiler + impuesto);
       if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(total);
+      if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
       syncPagoMediosConTotal(total);
       return { alquiler, impPct:0, impuesto, total };
     }
