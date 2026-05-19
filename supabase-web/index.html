@@ -4357,7 +4357,7 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-      
+      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
     </div>
   </div>
 
@@ -5367,49 +5367,40 @@ td:last-child{
       activosReconstruidosLoadError = '';
 
       const ymActualEstado = getYearMonthParts(today());
-      const [estado2025Rows, estado2026Rows, detalleMesActualRows, pagosImpuestoRows, recibosImpuestoRows] = await Promise.all([
+      const [estado2025Rows, estado2026Rows, detalleMesActualRows, recibosMesActualRows] = await Promise.all([
         fetchSupabaseRowsSafe('vw_estado_2025_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'),
         fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'),
         fetchSupabaseRowsSafe('vw_detalle_mensual_operativo', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado'),
-        fetchSupabaseRowsSafe('pagos', 'id,contrato_id,fecha_pago,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,descripcion_pago,created_at'),
-        fetchSupabaseRowsSafe('recibos_historicos_operativos', 'id,contrato_id,fecha_pago,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,numero_recibo,created_at')
+        fetchSupabaseRowsSafe('recibos_historicos_operativos', 'contrato_id,codigo_local,nombre_inquilino,anio,mes,fecha_pago,created_at,monto_impuesto,periodo_aplicado,detalle_aplicacion')
       ]);
 
-      const currentSortKey = `${ymActualEstado.year}-${String(ymActualEstado.month).padStart(2, '0')}`;
-
-      function collectCurrentMonthImpuestos(items){
-        const map = new Map();
-        (items || []).forEach(item => {
-          const contratoId = String(item?.contrato_id || '').trim();
-          const impuesto = toNumber(item?.monto_impuesto);
-          if (!contratoId || impuesto <= 0) return;
-
-          const keys = extractPaymentPeriodSortKeys(item).filter(Boolean);
-          if (!keys.includes(currentSortKey)) return;
-
-          const importePorPeriodo = round2(impuesto / Math.max(keys.length, 1));
-          const currentIndex = keys.indexOf(currentSortKey);
-          const importe = currentIndex === keys.length - 1
-            ? round2(impuesto - importePorPeriodo * (keys.length - 1))
-            : importePorPeriodo;
-
-          map.set(contratoId, round2(toNumber(map.get(contratoId)) + importe));
-        });
-        return map;
-      }
-
-      const impuestoActualDesdePagos = collectCurrentMonthImpuestos(pagosImpuestoRows);
-      const impuestoActualDesdeRecibos = collectCurrentMonthImpuestos(recibosImpuestoRows);
-
-      function getImpuestoMesActualContrato(contratoId){
-        const key = String(contratoId || '').trim();
-        if (!key) return 0;
-        const desdePagos = toNumber(impuestoActualDesdePagos.get(key));
-        if (desdePagos > 0) return desdePagos;
-        return toNumber(impuestoActualDesdeRecibos.get(key));
-      }
-
       const nextMap = new Map();
+
+      const impuestoMesActualByContrato = new Map();
+      const impuestoMesActualByCode = new Map();
+      const currentSortKeyEstado = `${ymActualEstado.year}-${String(ymActualEstado.month).padStart(2,'0')}`;
+
+      (recibosMesActualRows || []).forEach(recibo => {
+        const impuesto = round2(toNumber(recibo?.monto_impuesto));
+        if (impuesto <= 0) return;
+
+        let keys = extractPaymentPeriodSortKeys(recibo).filter(Boolean);
+        if (!keys.length && Number(recibo?.anio) && Number(recibo?.mes)){
+          keys = [`${Number(recibo.anio)}-${String(Number(recibo.mes)).padStart(2,'0')}`];
+        }
+        if (!keys.includes(currentSortKeyEstado)) return;
+
+        const impuestoAplicado = round2(impuesto / Math.max(1, keys.length));
+        if (recibo?.contrato_id != null){
+          const k = String(recibo.contrato_id);
+          impuestoMesActualByContrato.set(k, round2(toNumber(impuestoMesActualByContrato.get(k)) + impuestoAplicado));
+        }
+
+        const codeKey = normLocalCode(recibo?.codigo_local || '');
+        if (codeKey){
+          impuestoMesActualByCode.set(codeKey, round2(toNumber(impuestoMesActualByCode.get(codeKey)) + impuestoAplicado));
+        }
+      });
 
       function ensureEntry(code, fallbackName=''){
         const key = normLocalCode(code);
@@ -5433,12 +5424,9 @@ td:last-child{
             estado_2026_hasta_abril: null,
             meses_deuda_texto_2026: '',
             deuda_mes_actual: 0,
-            deuda_mes_actual_visual: 0,
-            impuesto_mes_actual: 0,
             monto_mes_actual: 0,
             pagado_mes_actual: 0,
             estado_mes_actual: null,
-            contrato_id: null,
             manual_override: true
           });
         }
@@ -5449,7 +5437,6 @@ td:last-child{
         const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
         if (entry.nombre_raw === '—' && row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
-        if (row.contrato_id) entry.contrato_id = row.contrato_id;
         entry.estado_2025 = row.estado_2025 || entry.estado_2025;
         entry.deuda_arrastre_2025 = toNumber(row.deuda_total);
         entry.meses_deuda_2025 = Number(row.meses_deuda ?? row.cuotas_con_deuda ?? 0);
@@ -5460,7 +5447,6 @@ td:last-child{
         const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
         if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
-        if (row.contrato_id) entry.contrato_id = row.contrato_id;
         entry.deuda_total_2026 = toNumber(row.deuda_hasta_abril);
         entry.meses_con_deuda_2026 = Number(row.meses_con_deuda || 0);
         entry.tipo_deuda_2026 = row.estado_2026_hasta_abril || null;
@@ -5474,15 +5460,13 @@ td:last-child{
           const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
           if (!entry) return;
           if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
-          if (row.contrato_id) entry.contrato_id = row.contrato_id;
-          const impuestoMesActual = getImpuestoMesActualContrato(row.contrato_id);
-          const montoMesActual = toNumber(row.monto_total);
-          const pagadoMesActual = toNumber(row.monto_pagado);
-          entry.impuesto_mes_actual = impuestoMesActual;
-          entry.deuda_mes_actual = toNumber(row.saldo);
-          entry.deuda_mes_actual_visual = round2(Math.max(0, montoMesActual - (pagadoMesActual + impuestoMesActual)));
-          entry.monto_mes_actual = montoMesActual;
-          entry.pagado_mes_actual = pagadoMesActual;
+          const impuestoMesActual = round2(
+            toNumber(impuestoMesActualByContrato.get(String(row.contrato_id || ''))) ||
+            toNumber(impuestoMesActualByCode.get(normLocalCode(row.codigo_local || '')))
+          );
+          entry.deuda_mes_actual = round2(Math.max(0, toNumber(row.saldo) - impuestoMesActual));
+          entry.monto_mes_actual = toNumber(row.monto_total);
+          entry.pagado_mes_actual = round2(toNumber(row.monto_pagado) + impuestoMesActual);
           entry.estado_mes_actual = row.estado || null;
         });
 
@@ -5529,8 +5513,6 @@ td:last-child{
         meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
         meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
         deuda_mes_actual: toNumber(recon.deuda_mes_actual),
-        deuda_mes_actual_visual: toNumber(recon.deuda_mes_actual_visual || recon.deuda_mes_actual),
-        impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
         estado_mes_actual: recon.estado_mes_actual || null,
@@ -5561,8 +5543,6 @@ td:last-child{
         meses_deuda_2025: Number(recon.meses_deuda_2025 || 0),
         meses_con_deuda_2026: Number(recon.meses_con_deuda_2026 || 0),
         deuda_mes_actual: toNumber(recon.deuda_mes_actual),
-        deuda_mes_actual_visual: toNumber(recon.deuda_mes_actual_visual || recon.deuda_mes_actual),
-        impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
         estado_mes_actual: recon.estado_mes_actual || null,
@@ -5951,28 +5931,18 @@ td:last-child{
     function getDisplayedCurrentMonthDebt(row){
       const ym = getYearMonthParts(today());
       // Hasta abril, la deuda del mes ya está incluida en el estado 2026.
-      // Desde mayo en adelante, el mes actual se suma como importe a abonar.
-      // Se prioriza deuda_mes_actual_visual porque descuenta también el impuesto cobrado.
+      // Desde mayo en adelante, el mes actual se suma como importe a abonar
+      // para que VENCE PRONTO no figure con $0.
       if (!(ym.year === 2026 && ym.month > 4)) return 0;
-      const visual = row?.deuda_mes_actual_visual ?? row?.saldo_mes_actual_visual;
-      if (visual !== undefined && visual !== null && visual !== '') return Math.max(0, toNumber(visual));
       return Math.max(0, toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0));
     }
 
     function getDisplayedDebtTotal(row){
-      const base = toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
-      const current = getDisplayedCurrentMonthDebt(row);
-      const rawCurrent = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? current);
-      const historicalBase = round2(toNumber(row?.deuda_arrastre_2025) + toNumber(row?.deuda_2026));
-
-      // Evita duplicar el mes actual cuando la fila ya trae ese mes dentro de deuda_total.
-      // Ejemplo: deuda_total venía 108.000 y el saldo visual real del mes es 106.000;
-      // en ese caso debe mostrarse 106.000, no 216.000.
-      if (current > 0 && base > 0 && historicalBase <= 0 && Math.abs(base - rawCurrent) < 0.01) {
-        return round2(current);
-      }
-
-      return round2(base + current);
+      const hasDebtParts = row && (row.deuda_arrastre_2025 != null || row.deuda_2026 != null);
+      const base = hasDebtParts
+        ? round2(toNumber(row?.deuda_arrastre_2025) + toNumber(row?.deuda_2026))
+        : toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
+      return round2(base + getDisplayedCurrentMonthDebt(row));
     }
 
     function getDisplayedMonthsOwed(row){
@@ -6319,6 +6289,33 @@ function globalSearch(){
       });
     }
 
+    function getDetalleRowSaldoVisible(row){
+      if (!row) return 0;
+      if (Number.isFinite(Number(row.saldo_con_impuesto))) return toNumber(row.saldo_con_impuesto);
+      const total = toNumber(row.total ?? row.monto_total);
+      const pagado = toNumber(row.pagado ?? row.monto_pagado);
+      const impuesto = toNumber(row.impuesto);
+      return round2(Math.max(0, total - (pagado + impuesto)));
+    }
+
+    function isDetalleRowExigible(row){
+      const saldo = getDetalleRowSaldoVisible(row);
+      if (saldo <= 0.009) return false;
+
+      const vencimiento = String(row?.vencimiento || '').slice(0,10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(vencimiento)){
+        const due = new Date(`${vencimiento}T00:00:00`);
+        const now = new Date();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        return due <= todayStart;
+      }
+
+      const key = String(row?.sort_key || '').slice(0,7);
+      const ym = getYearMonthParts(today());
+      const currentKey = `${ym.year}-${String(ym.month).padStart(2,'0')}`;
+      return !!key && key <= currentKey;
+    }
+
     function renderDetalleInfo(r, cuotasRows=[]){
       try{
         const grid = $('detalleInfoGrid');
@@ -6330,20 +6327,8 @@ function globalSearch(){
 
         const contrato = contratosActivos.find(c => String(c.id) === String(r?.contrato_id)) || {};
         const inq = contrato?.inquilinos || {};
-        const getDetalleSaldoVisible = (x) => {
-          const saldoVisible = Number(x?.saldo_con_impuesto);
-          if (Number.isFinite(saldoVisible)) return Math.max(0, round2(saldoVisible));
-
-          const totalVisible = Number(x?.total_con_impuesto);
-          const pagadoVisible = Number(x?.pagado_con_impuesto);
-          if (Number.isFinite(totalVisible) && Number.isFinite(pagadoVisible)) {
-            return Math.max(0, round2(totalVisible - pagadoVisible));
-          }
-
-          return Math.max(0, toNumber(x?.saldo));
-        };
-        const pendientes = (cuotasRows || []).filter(x => getDetalleSaldoVisible(x) > 0.009);
-        const detalleSaldoPendiente = (cuotasRows || []).reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0);
+        const cuotasVisibles = Array.isArray(cuotasRows) ? cuotasRows : [];
+        const pendientes = cuotasVisibles.filter(x => isDetalleRowExigible(x));
         const proximo = pendientes
           .map(x => String(x?.vencimiento || '').slice(0,10))
           .filter(Boolean)
@@ -6354,17 +6339,11 @@ function globalSearch(){
         const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-        const deudaBaseSinMesActual = round2(toNumber(r?.deuda_total_2025_2026 ?? r?.deuda_total ?? 0));
-        const cuotasDetalle = Array.isArray(cuotasRows) ? cuotasRows : [];
-
-        // En el resumen del detalle NO se suma el alquiler actual aparte.
-        // La deuda total debe salir de las cuotas cargadas y sus saldos visibles,
-        // o del total base ya informado por la fila. Si además sumamos el alquiler
-        // vigente, el mes corriente queda duplicado.
-        const saldoPendiente = cuotasDetalle.length
-          ? round2(detalleSaldoPendiente)
-          : (reconstructed ? deudaBaseSinMesActual : pendientes.reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0));
-        const deudaAtrasada = cuotasDetalle.length ? round2(detalleSaldoPendiente) : (reconstructed ? deudaBaseSinMesActual : toNumber(r?.deuda_atrasada));
+        const saldoPendienteDesdeCuotas = pendientes.reduce((acc, x) => acc + getDetalleRowSaldoVisible(x), 0);
+        const saldoPendiente = cuotasVisibles.length
+          ? round2(saldoPendienteDesdeCuotas)
+          : (reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0));
+        const deudaAtrasada = cuotasVisibles.length ? saldoPendiente : (reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada));
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
         const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato?.ajuste_porcentaje) : null;
@@ -6662,21 +6641,6 @@ function globalSearch(){
         ];
 
         const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
-
-        const detalleSaldoVisibleTotal = round2((rowsConImpuesto || []).reduce((acc, x) => {
-          const saldoVisible = Number(x?.saldo_con_impuesto);
-          if (Number.isFinite(saldoVisible)) return acc + Math.max(0, saldoVisible);
-          const totalVisible = Number(x?.total_con_impuesto);
-          const pagadoVisible = Number(x?.pagado_con_impuesto);
-          if (Number.isFinite(totalVisible) && Number.isFinite(pagadoVisible)) return acc + Math.max(0, round2(totalVisible - pagadoVisible));
-          return acc + Math.max(0, toNumber(x?.saldo));
-        }, 0));
-
-        if (Number.isFinite(detalleSaldoVisibleTotal)) {
-          r.deuda_mes_actual_visual = detalleSaldoVisibleTotal;
-          const unidadActual = unidades.find(u => String(u.contrato_id) === String(r?.contrato_id));
-          if (unidadActual) unidadActual.deuda_mes_actual_visual = detalleSaldoVisibleTotal;
-        }
 
         detalleCuotasActuales = rowsConImpuesto || [];
         renderDetalleInfo(r, rowsConImpuesto || []);
@@ -7221,107 +7185,172 @@ function globalSearch(){
       const targetYear = Number(targetKey.slice(0,4));
       const targetMonth = Number(targetKey.slice(5,7));
       const targetLabel = getRentPeriodLabelFromKey(targetKey);
+      const visibleRows = Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [];
+      let targetRow = visibleRows.find(r => String(r.sort_key) === targetKey) || null;
 
-      const impuestoMensual = parseModalNumber($('actImpuestoMensual')?.value || '') ?? null;
-      const ajustePct = parseModalNumber($('actAjustePct')?.value || '') ?? null;
-      const ajusteMesesRaw = Number($('actAjusteMeses')?.value || 3);
-      const ajusteMeses = Number.isInteger(ajusteMesesRaw) && ajusteMesesRaw >= 1 && ajusteMesesRaw <= 24 ? ajusteMesesRaw : 3;
-      const diaRaw = Number($('actDiaVencimiento')?.value || 10);
-      const diaVencimiento = Number.isInteger(diaRaw) && diaRaw >= 1 && diaRaw <= 31 ? diaRaw : 10;
-      const fechaInicio = ($('actFechaInicio')?.value || '').trim() || null;
-      const fechaFin = ($('actFechaFin')?.value || '').trim() || null;
-      const observaciones = ($('actObservaciones')?.value || '').trim() || null;
+      // Fuente real: cuotas_operativas. Primero leemos la cuota del mes elegido,
+      // porque la tabla visible puede estar desactualizada después de agregar meses
+      // o de cambiar el alquiler sin recargar toda la página.
+      let cuotaReal = null;
+      let readRes = await sb
+        .from('cuotas_operativas')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento')
+        .eq('contrato_id', selected.contrato_id)
+        .eq('anio', targetYear)
+        .eq('mes', targetMonth)
+        .maybeSingle();
 
-      const rpcArgs = {
-        p_contrato_id: Number(selected.contrato_id),
-        p_anio: targetYear,
-        p_mes: targetMonth,
-        p_monto_mensual: Number(newM || 0),
-        p_impuesto_mensual: impuestoMensual,
-        p_ajuste_porcentaje: ajustePct,
-        p_ajuste_cada_meses: ajusteMeses,
-        p_dia_vencimiento: diaVencimiento,
-        p_fecha_inicio: fechaInicio,
-        p_fecha_fin: fechaFin,
-        p_observaciones: observaciones
+      if (readRes.error) {
+        const msg = String(readRes.error.message || '');
+        // Fallback por si alguna base no tiene columna vencimiento.
+        if (/vencimiento|column|schema cache/i.test(msg)) {
+          readRes = await sb
+            .from('cuotas_operativas')
+            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion')
+            .eq('contrato_id', selected.contrato_id)
+            .eq('anio', targetYear)
+            .eq('mes', targetMonth)
+            .maybeSingle();
+        }
+      }
+
+      if (readRes.error) throw readRes.error;
+      cuotaReal = readRes.data || null;
+
+      const contrato = activoEditContrato || getContratoActivoRow(selected.contrato_id) || {};
+      const diaVencimientoRaw = Number($('actDiaVencimiento')?.value || contrato?.dia_vencimiento || 10);
+      const diaVencimiento = Number.isInteger(diaVencimientoRaw) && diaVencimientoRaw >= 1 && diaVencimientoRaw <= 31 ? diaVencimientoRaw : 10;
+      const vencimientoISO = `${targetYear}-${String(targetMonth).padStart(2,'0')}-${String(diaVencimiento).padStart(2,'0')}`;
+      const periodoTexto = cuotaReal?.periodo || targetRow?.periodo || `${String(targetMonth).padStart(2,'0')}/${targetYear}`;
+
+      // Monto ya pagado de alquiler para esa cuota. No se reinicia: se mantiene
+      // y se recalcula el saldo con el nuevo monto del alquiler.
+      const pagadoExistente = cuotaReal
+        ? toNumber(cuotaReal.monto_pagado)
+        : toNumber(targetRow?.monto_pagado ?? targetRow?.pagado);
+
+      const newSaldo = round2(Math.max(0, newM - pagadoExistente));
+      const estadoNuevo = newSaldo <= 0.009
+        ? 'PAGADO'
+        : (pagadoExistente > 0.009 ? 'PARCIAL' : 'PENDIENTE');
+
+      const observacionBase = cuotaReal?.observacion || targetRow?.observacion || '';
+      const observacionNueva = [
+        observacionBase,
+        `Alquiler modificado desde web para ${targetLabel}: ${fmtARS.format(newM)}. Pagado conservado: ${fmtARS.format(pagadoExistente)}. Saldo recalculado: ${fmtARS.format(newSaldo)}.`
+      ].filter(Boolean).join(' | ');
+
+      let writeRes;
+      const payloadUpdate = {
+        monto_total: Number(newM || 0),
+        monto_pagado: Number(pagadoExistente || 0),
+        saldo: Number(newSaldo || 0),
+        estado: estadoNuevo,
+        observacion: observacionNueva,
+        updated_at: new Date().toISOString()
       };
 
-      let rpc;
-      try {
-        rpc = await sb.rpc('modificar_alquiler_cuota_operativa', rpcArgs);
-      } catch (err) {
-        throw new Error(err?.message || 'No se pudo ejecutar modificar_alquiler_cuota_operativa.');
-      }
+      // IMPORTANTE:
+      // Modificar alquiler NO debe insertar una cuota nueva desde el frontend.
+      // Si intenta hacer insert/upsert, Supabase puede bloquearlo por RLS y aparece:
+      // "new row violates row-level security policy for table cuotas_operativas".
+      // Acá solo actualizamos la cuota real del mes elegido. Si no existe,
+      // se informa para crearla desde "Agregar mes" y luego volver a modificarla.
+      const applyUpdate = async (payload) => {
+        let query = sb
+          .from('cuotas_operativas')
+          .update(payload);
 
-      if (rpc.error) {
-        const msg = String(rpc.error.message || rpc.error);
-        if (/modificar_alquiler_cuota_operativa|function|schema cache|could not find/i.test(msg)) {
-          throw new Error('Falta ejecutar en Supabase el SQL de la función modificar_alquiler_cuota_operativa. Sin esa RPC, el navegador no puede modificar cuotas_operativas por RLS.');
+        if (cuotaReal?.id) {
+          query = query.eq('id', cuotaReal.id);
+        } else {
+          query = query
+            .eq('contrato_id', selected.contrato_id)
+            .eq('anio', targetYear)
+            .eq('mes', targetMonth);
         }
-        throw new Error(msg);
+
+        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+      };
+
+      writeRes = await applyUpdate(payloadUpdate);
+
+      if (writeRes.error) {
+        const msg = String(writeRes.error.message || '');
+        if (/observacion|updated_at|column|schema cache/i.test(msg)) {
+          writeRes = await applyUpdate({
+            monto_total: Number(newM || 0),
+            monto_pagado: Number(pagadoExistente || 0),
+            saldo: Number(newSaldo || 0),
+            estado: estadoNuevo
+          });
+        }
       }
 
-      const result = Array.isArray(rpc.data) ? rpc.data[0] : rpc.data;
-      if (!result || result.ok === false) {
-        throw new Error(result?.mensaje || `No se pudo guardar la cuota operativa de ${targetLabel}.`);
+      if (writeRes.error) throw writeRes.error;
+      const updatedRows = Array.isArray(writeRes.data) ? writeRes.data : [];
+      if (!updatedRows.length){
+        throw new Error(`No se pudo guardar la cuota operativa de ${targetLabel}.`);
       }
 
-      let targetRow = (Array.isArray(detalleCuotasActuales) ? detalleCuotasActuales : [])
-        .find(r => String(r.sort_key) === targetKey) || null;
-
-      if (!targetRow) {
+      const patched = updatedRows[0] || {};
+      if (!targetRow){
         targetRow = {
           sort_key: targetKey,
-          periodo: result.periodo || `${String(targetMonth).padStart(2,'0')}/${targetYear}`,
-          vencimiento: result.vencimiento || `${targetYear}-${String(targetMonth).padStart(2,'0')}-${String(diaVencimiento).padStart(2,'0')}`
+          periodo: patched.periodo || periodoTexto,
+          vencimiento: vencimientoISO
         };
         detalleCuotasActuales.push(targetRow);
         detalleCuotasActuales.sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
       }
 
-      const totalNuevo = toNumber(result.monto_total ?? newM);
-      const pagadoConservado = toNumber(result.monto_pagado ?? targetRow.monto_pagado ?? targetRow.pagado);
-      const saldoNuevo = toNumber(result.saldo ?? Math.max(0, totalNuevo - pagadoConservado));
-      const estadoNuevo = String(result.estado || (saldoNuevo <= 0.009 ? 'PAGADO' : (pagadoConservado > 0.009 ? 'PARCIAL' : 'PENDIENTE')));
-
-      targetRow.total = totalNuevo;
-      targetRow.monto_total = totalNuevo;
-      targetRow.pagado = pagadoConservado;
-      targetRow.monto_pagado = pagadoConservado;
-      targetRow.saldo = saldoNuevo;
+      targetRow.total = newM;
+      targetRow.monto_total = newM;
+      targetRow.pagado = pagadoExistente;
+      targetRow.monto_pagado = pagadoExistente;
+      targetRow.saldo = newSaldo;
       targetRow.estado = estadoNuevo;
-      targetRow.estado_detalle = estadoNuevo;
-      targetRow.periodo = result.periodo || targetRow.periodo || `${String(targetMonth).padStart(2,'0')}/${targetYear}`;
-      targetRow.vencimiento = result.vencimiento || targetRow.vencimiento;
-      targetRow.dias_atraso = estadoNuevo === 'PENDIENTE'
+      targetRow.estado_detalle = newSaldo <= 0.009
+        ? 'PAGADO'
+        : (pagadoExistente > 0.009 ? 'PARCIAL' : 'PENDIENTE');
+      targetRow.dias_atraso = targetRow.estado_detalle === 'PENDIENTE'
         ? Math.max(0, Number(new Date().getDate()) - diaVencimiento)
         : 0;
+      targetRow.periodo = patched.periodo || targetRow.periodo || periodoTexto;
+      targetRow.vencimiento = targetRow.vencimiento || vencimientoISO;
+      targetRow.observacion = observacionNueva;
 
       // Recalculamos las columnas visuales que usan impuesto en Cuotas y deuda.
       enrichDebtRowsWithImpuestoTotals(detalleCuotasActuales);
 
       const updateCached = (key) => {
-        const k = normLocalCode(key);
-        if (!k || !activosReconstruidosMap?.has(k)) return;
-        const cached = activosReconstruidosMap.get(k);
-        cached.monto_sugerido_2026 = totalNuevo;
-        cached.monto_mensual = totalNuevo;
+        const cached = activosReconstruidosMap.get(key);
+        if (!cached) return;
+        cached.monto_sugerido_2026 = newM;
+        cached.monto_mensual = newM;
       };
       updateCached(normalized);
       updateCached(normLocalCode(selected?.local_codigo || selected?.local_code_normalized));
 
       if (selected){
-        selected.monto_sugerido_2026 = totalNuevo;
-        selected.monto_mensual = totalNuevo;
-        selected.monto = totalNuevo;
+        selected.monto_sugerido_2026 = newM;
+        selected.monto_mensual = newM;
+        selected.monto = newM;
+      }
+
+      // Si existe la RPC, sincronizamos los resúmenes operativos sin bloquear el guardado.
+      try {
+        await sb.rpc('sync_operativo_desde_cuotas');
+      } catch (syncErr) {
+        console.warn('No se pudo sincronizar operativo desde cuotas:', syncErr?.message || syncErr);
       }
 
       return {
         ok:true,
         targetKey,
         targetLabel,
-        updated:1,
-        source:'rpc_modificar_alquiler_cuota_operativa'
+        updated: updatedRows.length,
+        source: cuotaReal?.id ? 'cuotas_operativas_update' : 'cuotas_operativas_insert'
       };
     }
 
@@ -7904,8 +7933,22 @@ function globalSearch(){
       }
 
       if (isAlquilerMode) {
-        // El cambio de alquiler toca cuotas_operativas. Para evitar errores de RLS,
-        // se hace mediante RPC SECURITY DEFINER en Supabase.
+        tasks.push(
+          sb.from('contratos')
+            .update({
+              monto_mensual: montoMensual,
+              impuesto_mensual: impuestoMensual,
+              ajuste_porcentaje: ajustePct,
+              ajuste_cada_meses: ajusteMeses,
+              dia_vencimiento: diaVencimiento,
+              fecha_inicio: fechaInicio,
+              fecha_fin: fechaFin,
+              observaciones
+            })
+            .eq('id', selected.contrato_id)
+        );
+
+        // La página muestra la deuda desde staging reconstruido. Por eso sincronizamos la cuota elegida.
         const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
         const codeToSync = selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
         const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
