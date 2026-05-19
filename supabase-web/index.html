@@ -7210,6 +7210,125 @@ function globalSearch(){
       };
     }
 
+    function populateRentPeriodOptions(){
+      const el = $('actPeriodoAlquiler');
+      if (!el) return;
+
+      const currentKey = getCurrentRentPeriodKey();
+      const rows = getRentPeriodVisibleRows();
+      const seen = new Set();
+      const options = [];
+
+      const add = (key, label) => {
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        options.push({ key, label });
+      };
+
+      // Si el detalle ya tiene cuotas visibles, usamos esas como opciones principales.
+      for (const r of rows){
+        const key = String(r.sort_key || '');
+        const saldo = toNumber(r.saldo);
+        const total = toNumber(r.total);
+        const estado = String(r.estado_detalle || r.estado || '').trim();
+        const meta = [
+          total > 0 ? fmtARS.format(total) : '',
+          saldo > 0 ? `saldo ${fmtARS.format(saldo)}` : 'saldada',
+          estado || ''
+        ].filter(Boolean).join(' · ');
+        add(key, `${getRentPeriodLabelFromKey(key)}${meta ? ` — ${meta}` : ''}`);
+      }
+
+      // Respaldo: siempre dejamos meses 2026 hasta el mes actual para que el usuario pueda elegir.
+      const currentMonth = Number(currentKey.slice(5,7));
+      for (let month = 1; month <= Math.max(5, currentMonth); month++){
+        const key = `2026-${String(month).padStart(2,'0')}`;
+        add(key, getRentPeriodLabelFromKey(key));
+      }
+
+      el.innerHTML = options.map(o => `<option value="${escapeHtml(o.key)}">${escapeHtml(o.label)}</option>`).join('');
+      el.value = seen.has(currentKey) ? currentKey : (options[options.length - 1]?.key || currentKey);
+      el.disabled = false;
+      el.style.display = 'block';
+      onRentPeriodChange();
+    }
+
+    function onRentPeriodChange(){
+      const el = $('actPeriodoAlquiler');
+      const hint = $('actPeriodoAlquilerHint');
+      if (!el) return;
+      const key = String(el.value || getCurrentRentPeriodKey());
+      const row = getRentPeriodRowByKey(key);
+      const label = getRentPeriodLabelFromKey(key);
+
+      if (row && toNumber(row.total) > 0){
+        const input = $('actMontoMensual');
+        if (input) input.value = formatMoneyInputValue(toNumber(row.total));
+      }
+
+      if (hint){
+        const saldo = row ? toNumber(row.saldo) : 0;
+        const pagado = row ? toNumber(row.pagado) : 0;
+        const total = row ? toNumber(row.total) : 0;
+        hint.textContent = row
+          ? `${label}: total ${fmtARS.format(total)} · pagado ${fmtARS.format(pagado)} · saldo ${fmtARS.format(saldo)}. Al guardar se modifica esta cuota.`
+          : `${label}: al guardar se modificará esta cuota y, si corresponde, el alquiler vigente del contrato.`;
+      }
+    }
+
+    function openActivoModal(mode = 'full'){
+      if (!selected?.contrato_id) {
+        alert('Primero abrí el detalle de un activo.');
+        return;
+      }
+      if (!canUseOperationalContrato(selected)) {
+        alert('Este activo viene de auditoría y no tiene contrato operativo para editar.');
+        return;
+      }
+
+      activoModalMode = mode === 'alquiler' ? 'alquiler' : 'full';
+
+      const contrato = getContratoActivoRow(selected.contrato_id);
+      const inq = contrato?.inquilinos || {};
+      activoEditContrato = contrato;
+      const isAlquilerMode = activoModalMode === 'alquiler';
+
+      $('activoModalMsg').textContent = '';
+      $('activoModalTitle').textContent = isAlquilerMode ? 'Modificar alquiler' : 'Editar activo';
+      $('activoModalMeta').textContent = `${selected.local_codigo || '—'} · Contrato ${selected.contrato_id || '—'}`;
+
+      $('actCodigo').value = contrato?.locales?.codigo || contrato?.locales?.codigo_local || selected.local_codigo || '';
+      $('actContrato').value = selected.contrato_id || '';
+      $('actNombre').value = selected.inquilino_nombre || inq.nombre || '';
+      $('actDoc').value = inq.documento || '';
+      $('actTel').value = inq.telefono || '';
+      $('actEmail').value = inq.email || '';
+
+      $('actMontoMensual').value = formatMoneyInputValue(contrato?.monto_mensual);
+      $('actImpuestoMensual').value = formatMoneyInputValue(contrato?.impuesto_mensual);
+      $('actAjustePct').value = contrato?.ajuste_porcentaje != null ? String(Number(contrato.ajuste_porcentaje || 0)) : '';
+      $('actAjusteMeses').value = contrato?.ajuste_cada_meses || 3;
+      $('actDiaVencimiento').value = contrato?.dia_vencimiento || 10;
+      $('actFechaInicio').value = formatDateValue(contrato?.fecha_inicio);
+      $('actFechaFin').value = formatDateValue(contrato?.fecha_fin);
+      $('actObservaciones').value = contrato?.observaciones || '';
+
+      setActivoModalModeUI(isAlquilerMode);
+      if (isAlquilerMode) populateRentPeriodOptions();
+      const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
+      if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
+      $('modalActivoBack').style.display = 'flex';
+    }
+
+    function closeActivoModal(){
+      $('modalActivoBack').style.display = 'none';
+      activoEditContrato = null;
+      activoModalMode = 'full';
+      setActivoModalModeUI(false);
+      const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
+      if (saveBtn) saveBtn.textContent = 'Guardar cambios';
+    }
+
     async function saveActivoModal(){
       const msg = $('activoModalMsg');
       msg.textContent = '';
@@ -7304,8 +7423,22 @@ function globalSearch(){
       }
 
       if (isAlquilerMode) {
-        // La modificación de alquiler se hace por RPC en Supabase para evitar problemas de RLS.
-        // La función actualiza el contrato y recalcula la cuota elegida conservando lo pagado.
+        tasks.push(
+          sb.from('contratos')
+            .update({
+              monto_mensual: montoMensual,
+              impuesto_mensual: impuestoMensual,
+              ajuste_porcentaje: ajustePct,
+              ajuste_cada_meses: ajusteMeses,
+              dia_vencimiento: diaVencimiento,
+              fecha_inicio: fechaInicio,
+              fecha_fin: fechaFin,
+              observaciones
+            })
+            .eq('id', selected.contrato_id)
+        );
+
+        // La página muestra la deuda desde staging reconstruido. Por eso sincronizamos la cuota elegida.
         const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
         const codeToSync = selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
         const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
