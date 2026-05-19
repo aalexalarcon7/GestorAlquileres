@@ -5495,10 +5495,13 @@ td:last-child{
             toNumber(impuestoMesActualByCode.get(normLocalCode(row.codigo_local || '')))
           );
           entry.impuesto_mes_actual = impuestoMesActual;
-          entry.deuda_mes_actual = round2(Math.max(0, toNumber(row.saldo) - impuestoMesActual));
-          entry.deuda_mes_actual_impuesto_aplicado = impuestoMesActual > 0;
+          // FIX: row.saldo ya refleja el saldo real de la cuota DESPUÉS de pagos parciales/totales.
+          // No restar el impuesto porque ya está contemplado en el saldo real de cuotas_operativas.
+          // Si se restaba, la deuda se mostraba $2.000 más de lo real cuando hay pago parcial.
+          entry.deuda_mes_actual = round2(Math.max(0, toNumber(row.saldo)));
+          entry.deuda_mes_actual_impuesto_aplicado = true;
           entry.monto_mes_actual = toNumber(row.monto_total);
-          entry.pagado_mes_actual = round2(toNumber(row.monto_pagado) + impuestoMesActual);
+          entry.pagado_mes_actual = toNumber(row.monto_pagado);
           entry.estado_mes_actual = entry.deuda_mes_actual <= 0.009 ? 'PAGADO' : (row.estado || null);
         });
 
