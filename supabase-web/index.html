@@ -6266,7 +6266,20 @@ function globalSearch(){
 
         const contrato = contratosActivos.find(c => String(c.id) === String(r?.contrato_id)) || {};
         const inq = contrato?.inquilinos || {};
-        const pendientes = (cuotasRows || []).filter(x => toNumber(x?.saldo) > 0);
+        const getDetalleSaldoVisible = (x) => {
+          const saldoVisible = Number(x?.saldo_con_impuesto);
+          if (Number.isFinite(saldoVisible)) return Math.max(0, round2(saldoVisible));
+
+          const totalVisible = Number(x?.total_con_impuesto);
+          const pagadoVisible = Number(x?.pagado_con_impuesto);
+          if (Number.isFinite(totalVisible) && Number.isFinite(pagadoVisible)) {
+            return Math.max(0, round2(totalVisible - pagadoVisible));
+          }
+
+          return Math.max(0, toNumber(x?.saldo));
+        };
+        const pendientes = (cuotasRows || []).filter(x => getDetalleSaldoVisible(x) > 0.009);
+        const detalleSaldoPendiente = (cuotasRows || []).reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0);
         const proximo = pendientes
           .map(x => String(x?.vencimiento || '').slice(0,10))
           .filter(Boolean)
@@ -6277,7 +6290,9 @@ function globalSearch(){
         const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-        const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
+        const saldoPendiente = (cuotasRows || []).length
+          ? round2(detalleSaldoPendiente)
+          : (reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0));
         const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
