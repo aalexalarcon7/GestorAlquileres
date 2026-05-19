@@ -5367,40 +5367,64 @@ td:last-child{
       activosReconstruidosLoadError = '';
 
       const ymActualEstado = getYearMonthParts(today());
-      const [estado2025Rows, estado2026Rows, detalleMesActualRows, recibosMesActualRows] = await Promise.all([
+      const [estado2025Rows, estado2026Rows, detalleMesActualRows, recibosImpuestoRows, pagosImpuestoRows] = await Promise.all([
         fetchSupabaseRowsSafe('vw_estado_2025_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'),
         fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'),
         fetchSupabaseRowsSafe('vw_detalle_mensual_operativo', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado'),
-        fetchSupabaseRowsSafe('recibos_historicos_operativos', 'contrato_id,codigo_local,nombre_inquilino,anio,mes,fecha_pago,created_at,monto_impuesto,periodo_aplicado,detalle_aplicacion')
+        fetchSupabaseRowsSafe('recibos_historicos_operativos', 'contrato_id,codigo_local,nombre_inquilino,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at'),
+        fetchSupabaseRowsSafe('pagos', 'contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at')
       ]);
 
-      const nextMap = new Map();
-
+      const currentPeriodKey = `${ymActualEstado.year}-${String(ymActualEstado.month).padStart(2,'0')}`;
       const impuestoMesActualByContrato = new Map();
       const impuestoMesActualByCode = new Map();
-      const currentSortKeyEstado = `${ymActualEstado.year}-${String(ymActualEstado.month).padStart(2,'0')}`;
 
-      (recibosMesActualRows || []).forEach(recibo => {
-        const impuesto = round2(toNumber(recibo?.monto_impuesto));
+      function addImpuestoMesActual(row){
+        const impuesto = toNumber(row?.monto_impuesto);
         if (impuesto <= 0) return;
 
-        let keys = extractPaymentPeriodSortKeys(recibo).filter(Boolean);
-        if (!keys.length && Number(recibo?.anio) && Number(recibo?.mes)){
-          keys = [`${Number(recibo.anio)}-${String(Number(recibo.mes)).padStart(2,'0')}`];
-        }
-        if (!keys.includes(currentSortKeyEstado)) return;
+        const keys = new Set();
 
-        const impuestoAplicado = round2(impuesto / Math.max(1, keys.length));
-        if (recibo?.contrato_id != null){
-          const k = String(recibo.contrato_id);
-          impuestoMesActualByContrato.set(k, round2(toNumber(impuestoMesActualByContrato.get(k)) + impuestoAplicado));
+        try {
+          (extractPaymentPeriodSortKeys(row) || []).forEach(k => { if (k) keys.add(String(k).slice(0,7)); });
+        } catch (_) {}
+
+        const anio = Number(row?.anio || 0);
+        const mes = Number(row?.mes || 0);
+        if (anio && mes) keys.add(`${anio}-${String(mes).padStart(2,'0')}`);
+
+        const periodoText = String(row?.periodo_aplicado || row?.periodo || row?.detalle_aplicacion || row?.referencia || '').trim();
+        let match;
+        const slashRegex = /(0?[1-9]|1[0-2])\/(20\d{2})/g;
+        while ((match = slashRegex.exec(periodoText)) !== null){
+          keys.add(`${match[2]}-${String(Number(match[1])).padStart(2,'0')}`);
+        }
+        const isoRegex = /(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?/g;
+        while ((match = isoRegex.exec(periodoText)) !== null){
+          keys.add(`${match[1]}-${String(Number(match[2])).padStart(2,'0')}`);
         }
 
-        const codeKey = normLocalCode(recibo?.codigo_local || '');
+        if (!keys.size){
+          const fecha = String(row?.fecha_pago || row?.created_at || '').slice(0,7);
+          if (/^20\d{2}-\d{2}$/.test(fecha)) keys.add(fecha);
+        }
+
+        if (!keys.has(currentPeriodKey)) return;
+
+        const contratoKey = String(row?.contrato_id || '').trim();
+        const codeKey = normLocalCode(row?.codigo_local || row?.local_codigo || '');
+
+        if (contratoKey){
+          impuestoMesActualByContrato.set(contratoKey, round2(toNumber(impuestoMesActualByContrato.get(contratoKey)) + impuesto));
+        }
         if (codeKey){
-          impuestoMesActualByCode.set(codeKey, round2(toNumber(impuestoMesActualByCode.get(codeKey)) + impuestoAplicado));
+          impuestoMesActualByCode.set(codeKey, round2(toNumber(impuestoMesActualByCode.get(codeKey)) + impuesto));
         }
-      });
+      }
+
+      [...(recibosImpuestoRows || []), ...(pagosImpuestoRows || [])].forEach(addImpuestoMesActual);
+
+      const nextMap = new Map();
 
       function ensureEntry(code, fallbackName=''){
         const key = normLocalCode(code);
@@ -5461,13 +5485,14 @@ td:last-child{
           if (!entry) return;
           if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
           const impuestoMesActual = round2(
-            toNumber(impuestoMesActualByContrato.get(String(row.contrato_id || ''))) ||
+            toNumber(impuestoMesActualByContrato.get(String(row.contrato_id || '').trim())) ||
             toNumber(impuestoMesActualByCode.get(normLocalCode(row.codigo_local || '')))
           );
+          entry.impuesto_mes_actual = impuestoMesActual;
           entry.deuda_mes_actual = round2(Math.max(0, toNumber(row.saldo) - impuestoMesActual));
           entry.monto_mes_actual = toNumber(row.monto_total);
           entry.pagado_mes_actual = round2(toNumber(row.monto_pagado) + impuestoMesActual);
-          entry.estado_mes_actual = row.estado || null;
+          entry.estado_mes_actual = entry.deuda_mes_actual <= 0.009 ? 'PAGADO' : (row.estado || null);
         });
 
       nextMap.forEach(entry => {
@@ -5515,6 +5540,7 @@ td:last-child{
         deuda_mes_actual: toNumber(recon.deuda_mes_actual),
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
+        impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
         estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true
@@ -5545,6 +5571,7 @@ td:last-child{
         deuda_mes_actual: toNumber(recon.deuda_mes_actual),
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
+        impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
         estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true,
@@ -5938,10 +5965,7 @@ td:last-child{
     }
 
     function getDisplayedDebtTotal(row){
-      const hasDebtParts = row && (row.deuda_arrastre_2025 != null || row.deuda_2026 != null);
-      const base = hasDebtParts
-        ? round2(toNumber(row?.deuda_arrastre_2025) + toNumber(row?.deuda_2026))
-        : toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
+      const base = toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
       return round2(base + getDisplayedCurrentMonthDebt(row));
     }
 
@@ -6289,33 +6313,6 @@ function globalSearch(){
       });
     }
 
-    function getDetalleRowSaldoVisible(row){
-      if (!row) return 0;
-      if (Number.isFinite(Number(row.saldo_con_impuesto))) return toNumber(row.saldo_con_impuesto);
-      const total = toNumber(row.total ?? row.monto_total);
-      const pagado = toNumber(row.pagado ?? row.monto_pagado);
-      const impuesto = toNumber(row.impuesto);
-      return round2(Math.max(0, total - (pagado + impuesto)));
-    }
-
-    function isDetalleRowExigible(row){
-      const saldo = getDetalleRowSaldoVisible(row);
-      if (saldo <= 0.009) return false;
-
-      const vencimiento = String(row?.vencimiento || '').slice(0,10);
-      if (/^\d{4}-\d{2}-\d{2}$/.test(vencimiento)){
-        const due = new Date(`${vencimiento}T00:00:00`);
-        const now = new Date();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-        return due <= todayStart;
-      }
-
-      const key = String(row?.sort_key || '').slice(0,7);
-      const ym = getYearMonthParts(today());
-      const currentKey = `${ym.year}-${String(ym.month).padStart(2,'0')}`;
-      return !!key && key <= currentKey;
-    }
-
     function renderDetalleInfo(r, cuotasRows=[]){
       try{
         const grid = $('detalleInfoGrid');
@@ -6327,8 +6324,7 @@ function globalSearch(){
 
         const contrato = contratosActivos.find(c => String(c.id) === String(r?.contrato_id)) || {};
         const inq = contrato?.inquilinos || {};
-        const cuotasVisibles = Array.isArray(cuotasRows) ? cuotasRows : [];
-        const pendientes = cuotasVisibles.filter(x => isDetalleRowExigible(x));
+        const pendientes = (cuotasRows || []).filter(x => toNumber(x?.saldo) > 0);
         const proximo = pendientes
           .map(x => String(x?.vencimiento || '').slice(0,10))
           .filter(Boolean)
@@ -6339,11 +6335,8 @@ function globalSearch(){
         const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-        const saldoPendienteDesdeCuotas = pendientes.reduce((acc, x) => acc + getDetalleRowSaldoVisible(x), 0);
-        const saldoPendiente = cuotasVisibles.length
-          ? round2(saldoPendienteDesdeCuotas)
-          : (reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0));
-        const deudaAtrasada = cuotasVisibles.length ? saldoPendiente : (reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada));
+        const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
+        const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
         const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato?.ajuste_porcentaje) : null;
@@ -12103,6 +12096,30 @@ function globalSearch(){
     // Usa cuotas_operativas y RPCs nuevas. No toca recibos viejos.
     // =====================================================
 
+    async function fetchImpuestoSourcesForContrato(contratoId){
+      if (!contratoId) return [];
+      const [recibos, pagos] = await Promise.all([
+        fetchSupabaseRowsSafe('recibos_historicos_operativos', 'contrato_id,codigo_local,nombre_inquilino,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at'),
+        fetchSupabaseRowsSafe('pagos', 'contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,created_at')
+      ]);
+      const key = String(contratoId || '').trim();
+      return [...(recibos || []), ...(pagos || [])].filter(x => String(x?.contrato_id || '').trim() === key);
+    }
+
+    function normalizarCuotasParaImpuestos(rows){
+      return (rows || []).map(row => {
+        const anio = Number(row.anio || 0);
+        const mes = Number(row.mes || 0);
+        return {
+          ...row,
+          total: toNumber(row.total ?? row.monto_total),
+          pagado: toNumber(row.pagado ?? row.monto_pagado),
+          saldo: toNumber(row.saldo),
+          sort_key: row.sort_key || (anio && mes ? `${anio}-${String(mes).padStart(2,'0')}` : '')
+        };
+      });
+    }
+
     async function fetchCuotasOperativasContrato(contratoId){
       if (!contratoId) return [];
       // Fuente directa para cobrar: cuotas_operativas.
@@ -12140,9 +12157,9 @@ function globalSearch(){
       const anio = Number(row.anio || sortKey.slice(0,4) || 0);
       const mes = Number(row.mes || sortKey.slice(5,7) || 0);
       if (!anio || !mes) return null;
-      const saldo = toNumber(row.saldo);
-      const total = toNumber(row.monto_total ?? row.total);
-      const pagado = toNumber(row.monto_pagado ?? row.pagado);
+      const saldo = Number.isFinite(Number(row.saldo_con_impuesto)) ? toNumber(row.saldo_con_impuesto) : toNumber(row.saldo);
+      const total = Number.isFinite(Number(row.total_con_impuesto)) ? toNumber(row.total_con_impuesto) : toNumber(row.monto_total ?? row.total);
+      const pagado = Number.isFinite(Number(row.pagado_con_impuesto)) ? toNumber(row.pagado_con_impuesto) : toNumber(row.monto_pagado ?? row.pagado);
       return {
         ...row,
         anio,
@@ -12172,16 +12189,26 @@ function globalSearch(){
         console.warn('No se pudieron cargar cuotas operativas para cobrar:', err?.message || err);
       }
 
-      const dbPendientes = (dbRows || [])
+      let dbRowsConImpuesto = normalizarCuotasParaImpuestos(dbRows || []);
+      try{
+        const fuentesImpuesto = await fetchImpuestoSourcesForContrato(contratoId);
+        dbRowsConImpuesto = applyImpuestosToDebtRows(dbRowsConImpuesto, fuentesImpuesto);
+      } catch(err){
+        console.warn('No se pudieron aplicar impuestos a cuotas para cobro:', err?.message || err);
+      }
+
+      const dbPendientes = (dbRowsConImpuesto || [])
         .map(normalizeCuotaCobroRow)
         .filter(Boolean)
         .filter(x => toNumber(x.saldo) > 0);
 
       const visiblesPendientes = getDetalleCuotasPendientesParaCobro();
       const map = new Map();
+      // Primero las cuotas crudas de Supabase, después las visibles del detalle.
+      // Así, si el detalle ya tiene impuesto descontado, pisa el saldo crudo.
       [...dbPendientes, ...visiblesPendientes].forEach(row => {
         const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
-        if (!map.has(key)) map.set(key, row);
+        map.set(key, { ...(map.get(key) || {}), ...row });
       });
 
       return [...map.values()].sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
