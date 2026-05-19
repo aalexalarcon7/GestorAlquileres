@@ -4411,6 +4411,8 @@ td:last-child{
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
+    let impuestosMesActualByContratoGlobal = new Map();
+    let impuestosMesActualByCodeGlobal = new Map();
     let activosReconstruidosLoadError = '';
     const VENCE_PRONTO_DIAS = 7;
 
@@ -4973,7 +4975,7 @@ td:last-child{
     function getReconstructedDebtStatus(row){
       const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
       const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
-      const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
+      const deudaMesActual = getDisplayedCurrentMonthDebt(row);
       const deudaVencidaBase = round2(arrastre2025 + deuda2026Vencida);
       const tolerance = 1;
 
@@ -5423,6 +5425,8 @@ td:last-child{
       }
 
       [...(recibosImpuestoRows || []), ...(pagosImpuestoRows || [])].forEach(addImpuestoMesActual);
+      impuestosMesActualByContratoGlobal = new Map(impuestoMesActualByContrato);
+      impuestosMesActualByCodeGlobal = new Map(impuestoMesActualByCode);
 
       const nextMap = new Map();
 
@@ -5448,6 +5452,8 @@ td:last-child{
             estado_2026_hasta_abril: null,
             meses_deuda_texto_2026: '',
             deuda_mes_actual: 0,
+            impuesto_mes_actual: 0,
+            deuda_mes_actual_impuesto_aplicado: false,
             monto_mes_actual: 0,
             pagado_mes_actual: 0,
             estado_mes_actual: null,
@@ -5490,6 +5496,7 @@ td:last-child{
           );
           entry.impuesto_mes_actual = impuestoMesActual;
           entry.deuda_mes_actual = round2(Math.max(0, toNumber(row.saldo) - impuestoMesActual));
+          entry.deuda_mes_actual_impuesto_aplicado = impuestoMesActual > 0;
           entry.monto_mes_actual = toNumber(row.monto_total);
           entry.pagado_mes_actual = round2(toNumber(row.monto_pagado) + impuestoMesActual);
           entry.estado_mes_actual = entry.deuda_mes_actual <= 0.009 ? 'PAGADO' : (row.estado || null);
@@ -5541,6 +5548,7 @@ td:last-child{
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
         impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
+        deuda_mes_actual_impuesto_aplicado: recon.deuda_mes_actual_impuesto_aplicado === true,
         estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true
@@ -5572,6 +5580,7 @@ td:last-child{
         monto_mes_actual: toNumber(recon.monto_mes_actual),
         pagado_mes_actual: toNumber(recon.pagado_mes_actual),
         impuesto_mes_actual: toNumber(recon.impuesto_mes_actual),
+        deuda_mes_actual_impuesto_aplicado: recon.deuda_mes_actual_impuesto_aplicado === true,
         estado_mes_actual: recon.estado_mes_actual || null,
         manual_override: !!recon.manual_override,
         reconstructed: true,
@@ -5955,13 +5964,30 @@ td:last-child{
       });
     }
 
+    function getCurrentMonthAppliedTax(row){
+      const own = toNumber(row?.impuesto_mes_actual);
+      if (own > 0) return own;
+
+      const contratoKey = String(row?.contrato_id || '').trim();
+      const codeKey = normLocalCode(row?.local_codigo || row?.codigo_local || row?.local_code_normalized || '');
+      return round2(
+        toNumber(impuestosMesActualByContratoGlobal.get(contratoKey)) ||
+        toNumber(impuestosMesActualByCodeGlobal.get(codeKey))
+      );
+    }
+
     function getDisplayedCurrentMonthDebt(row){
       const ym = getYearMonthParts(today());
       // Hasta abril, la deuda del mes ya está incluida en el estado 2026.
-      // Desde mayo en adelante, el mes actual se suma como importe a abonar
-      // para que VENCE PRONTO no figure con $0.
+      // Desde mayo en adelante, se muestra el saldo del mes actual descontando también
+      // el impuesto ya cobrado, porque Supabase deja ese impuesto en recibos y no en saldo.
       if (!(ym.year === 2026 && ym.month > 4)) return 0;
-      return Math.max(0, toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0));
+
+      const raw = Math.max(0, toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0));
+      if (row?.deuda_mes_actual_impuesto_aplicado === true) return round2(raw);
+
+      const impuesto = getCurrentMonthAppliedTax(row);
+      return round2(Math.max(0, raw - impuesto));
     }
 
     function getDisplayedDebtTotal(row){
@@ -6335,8 +6361,9 @@ function globalSearch(){
         const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-        const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + toNumber(x?.saldo), 0);
-        const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
+        const saldoPendienteDesdeCuotas = pendientes.reduce((acc, x) => acc + (Number.isFinite(Number(x?.saldo_con_impuesto)) ? toNumber(x.saldo_con_impuesto) : toNumber(x?.saldo)), 0);
+        const saldoPendiente = reconstructed ? getDisplayedDebtTotal(r || {}) : round2(saldoPendienteDesdeCuotas);
+        const deudaAtrasada = reconstructed ? saldoPendiente : toNumber(r?.deuda_atrasada);
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
         const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato?.ajuste_porcentaje) : null;
@@ -6634,8 +6661,30 @@ function globalSearch(){
         ];
 
         const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
+        const ymActualDetalle = getYearMonthParts(today());
+        const cuotaActualVisual = (rowsConImpuesto || []).find(x => Number(x?.anio) === Number(ymActualDetalle.year) && Number(x?.mes) === Number(ymActualDetalle.month));
+        if (cuotaActualVisual){
+          const saldoVisualActual = Number.isFinite(Number(cuotaActualVisual.saldo_con_impuesto))
+            ? toNumber(cuotaActualVisual.saldo_con_impuesto)
+            : toNumber(cuotaActualVisual.saldo);
+          const impuestoVisualActual = toNumber(cuotaActualVisual.impuesto);
+          const patchVisual = {
+            deuda_mes_actual: round2(Math.max(0, saldoVisualActual)),
+            impuesto_mes_actual: impuestoVisualActual,
+            deuda_mes_actual_impuesto_aplicado: true,
+            pagado_mes_actual: Number.isFinite(Number(cuotaActualVisual.pagado_con_impuesto))
+              ? toNumber(cuotaActualVisual.pagado_con_impuesto)
+              : toNumber(cuotaActualVisual.monto_pagado ?? cuotaActualVisual.pagado),
+            estado_mes_actual: saldoVisualActual <= 0.009 ? 'PAGADO' : (cuotaActualVisual.estado || r?.estado_mes_actual || null)
+          };
+          Object.assign(r, patchVisual);
+          if (selected && String(selected.contrato_id || '') === String(r?.contrato_id || '')) Object.assign(selected, patchVisual);
+          unidades = (unidades || []).map(u => String(u?.contrato_id || '') === String(r?.contrato_id || '') ? { ...u, ...patchVisual } : u);
+        }
 
         detalleCuotasActuales = rowsConImpuesto || [];
+        renderUnidades();
+        setDetalleBadge(r);
         renderDetalleInfo(r, rowsConImpuesto || []);
         renderDetalleDebtRows(rowsConImpuesto || []);
 
