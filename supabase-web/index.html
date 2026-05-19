@@ -6290,10 +6290,17 @@ function globalSearch(){
         const estado = r?.oculto === true ? 'OCULTO' : statusInfo.label;
         const deudaArrastre2025 = toNumber(r?.deuda_arrastre_2025);
         const deuda2026 = toNumber(r?.deuda_2026);
-        const saldoPendiente = (cuotasRows || []).length
+        const deudaBaseSinMesActual = round2(toNumber(r?.deuda_total_2025_2026 ?? r?.deuda_total ?? 0));
+        const cuotasDetalle = Array.isArray(cuotasRows) ? cuotasRows : [];
+
+        // En el resumen del detalle NO se suma el alquiler actual aparte.
+        // La deuda total debe salir de las cuotas cargadas y sus saldos visibles,
+        // o del total base ya informado por la fila. Si además sumamos el alquiler
+        // vigente, el mes corriente queda duplicado.
+        const saldoPendiente = cuotasDetalle.length
           ? round2(detalleSaldoPendiente)
-          : (reconstructed ? getDisplayedDebtTotal(r || {}) : pendientes.reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0));
-        const deudaAtrasada = reconstructed ? getDisplayedDebtTotal(r || {}) : toNumber(r?.deuda_atrasada);
+          : (reconstructed ? deudaBaseSinMesActual : pendientes.reduce((acc, x) => acc + getDetalleSaldoVisible(x), 0));
+        const deudaAtrasada = reconstructed ? deudaBaseSinMesActual : toNumber(r?.deuda_atrasada);
         const montoVisible = getDisplayedRent(r || {}, contrato || {});
         const impuestoActual = toNumber(contrato?.impuesto_mensual);
         const ajustePctActual = contrato?.ajuste_porcentaje != null && contrato?.ajuste_porcentaje !== '' ? Number(contrato?.ajuste_porcentaje) : null;
