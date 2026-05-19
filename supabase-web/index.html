@@ -3872,6 +3872,187 @@ td:last-child{
     @media (max-width:720px){.multi-pay-row{grid-template-columns:1fr}.multi-pay-remove{width:100% !important;min-width:0 !important}.multi-pay-footer .btn,.multi-pay-summary{width:100%;}}
   </style>
 
+
+
+  <style id="activosDetalleProfessionalFixFinal">
+    /* FIX VISUAL: Activos + encabezado de Detalle del activo. No toca cálculos ni cobros. */
+    #viewActivos > .card:first-child{
+      padding:22px !important;
+      border-radius:28px !important;
+      margin-bottom:18px !important;
+    }
+
+    #viewActivos > .card:first-child > .row:first-child{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) auto !important;
+      align-items:center !important;
+      gap:16px !important;
+      width:100% !important;
+      margin:0 0 14px !important;
+    }
+
+    #viewActivos > .card:first-child > .row:first-child > div:first-child{
+      min-width:0 !important;
+      width:auto !important;
+    }
+
+    #viewActivos > .card:first-child > .row:first-child h2{
+      margin:0 !important;
+      font-size:24px !important;
+      line-height:1.1 !important;
+      letter-spacing:-.03em !important;
+      font-weight:950 !important;
+    }
+
+    #viewActivos > .card:first-child > .row:first-child > div:last-child{
+      display:flex !important;
+      flex-direction:row !important;
+      align-items:center !important;
+      justify-content:flex-end !important;
+      gap:10px !important;
+      width:auto !important;
+      min-width:max-content !important;
+      flex-wrap:wrap !important;
+    }
+
+    #viewActivos > .card:first-child > .row:nth-of-type(2){
+      display:flex !important;
+      flex-direction:row !important;
+      align-items:center !important;
+      justify-content:flex-start !important;
+      gap:10px !important;
+      width:100% !important;
+      margin:10px 0 14px !important;
+      padding:0 !important;
+    }
+
+    #viewActivos > .card:first-child > .row:nth-of-type(2) select{
+      width:150px !important;
+      min-width:150px !important;
+      max-width:180px !important;
+    }
+
+    #viewActivos > .card:first-child > .row:nth-of-type(2) .btn{
+      width:auto !important;
+      min-width:96px !important;
+    }
+
+    #viewActivos .desktop-table{
+      margin-top:10px !important;
+      border-radius:22px !important;
+    }
+
+    #viewActivos .desktop-table table{
+      width:100% !important;
+      table-layout:fixed !important;
+      min-width:980px !important;
+    }
+
+    #viewActivos .desktop-table th,
+    #viewActivos .desktop-table td{
+      text-align:center !important;
+      vertical-align:middle !important;
+    }
+
+    #viewActivos .desktop-table th:last-child,
+    #viewActivos .desktop-table td:last-child{
+      width:220px !important;
+    }
+
+    #detalleCard{
+      padding:22px !important;
+      border-radius:28px !important;
+    }
+
+    #detalleCard > .row:first-child{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) auto !important;
+      align-items:center !important;
+      justify-content:space-between !important;
+      gap:16px !important;
+      width:100% !important;
+      margin:0 !important;
+      text-align:left !important;
+    }
+
+    #detalleCard > .row:first-child > div:first-child{
+      width:auto !important;
+      min-width:0 !important;
+      text-align:left !important;
+    }
+
+    #detalleCard > .row:first-child h2{
+      margin:0 !important;
+      text-align:left !important;
+      font-size:24px !important;
+      line-height:1.12 !important;
+      letter-spacing:-.03em !important;
+      font-weight:950 !important;
+    }
+
+    #detalleMeta{
+      margin-top:4px !important;
+      text-align:left !important;
+      line-height:1.35 !important;
+    }
+
+    #detalleBadge{
+      justify-self:end !important;
+      align-self:center !important;
+      white-space:nowrap !important;
+      min-height:34px !important;
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      padding:0 14px !important;
+      border-radius:999px !important;
+    }
+
+    #detalleCard > .hr{
+      margin:16px 0 18px !important;
+    }
+
+    @media (max-width: 760px){
+      #viewActivos > .card:first-child > .row:first-child{
+        grid-template-columns:1fr !important;
+        justify-items:stretch !important;
+      }
+
+      #viewActivos > .card:first-child > .row:first-child > div:last-child{
+        justify-content:stretch !important;
+        min-width:0 !important;
+      }
+
+      #viewActivos > .card:first-child > .row:first-child > div:last-child .btn,
+      #viewActivos > .card:first-child > .row:first-child > div:last-child .badge{
+        flex:1 1 150px !important;
+        width:auto !important;
+        justify-content:center !important;
+      }
+
+      #viewActivos > .card:first-child > .row:nth-of-type(2){
+        flex-direction:row !important;
+        flex-wrap:wrap !important;
+      }
+
+      #viewActivos > .card:first-child > .row:nth-of-type(2) select,
+      #viewActivos > .card:first-child > .row:nth-of-type(2) .btn{
+        flex:1 1 140px !important;
+        width:auto !important;
+        max-width:none !important;
+      }
+
+      #detalleCard > .row:first-child{
+        grid-template-columns:1fr !important;
+        justify-items:start !important;
+      }
+
+      #detalleBadge{
+        justify-self:start !important;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
