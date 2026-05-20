@@ -4053,42 +4053,6 @@ td:last-child{
     }
   </style>
 
-
-
-  <style id="activosProfessionalTablePatch">
-    #viewActivos .unit-person-cell,
-    #viewActivos .unit-contact-cell,
-    #viewActivos .unit-money-cell,
-    #viewActivos .unit-due-cell{
-      display:grid;
-      gap:4px;
-      justify-items:center;
-      text-align:center;
-    }
-    #viewActivos .unit-cell-main{
-      font-weight:950;
-      color:var(--text);
-      line-height:1.2;
-    }
-    #viewActivos .unit-cell-sub,
-    #viewActivos .unit-contact-line{
-      color:var(--muted);
-      font-size:12px;
-      font-weight:750;
-      line-height:1.25;
-    }
-    #viewActivos .unit-contact-line.muted{
-      opacity:.72;
-    }
-    #viewActivos .desktop-table table{
-      min-width:1120px;
-    }
-    #viewActivos .desktop-table th,
-    #viewActivos .desktop-table td{
-      vertical-align:middle !important;
-    }
-  </style>
-
 </head>
 <body>
 <!-- SPLASH -->
@@ -4266,10 +4230,10 @@ td:last-child{
                 <thead>
                   <tr>
                     <th style="width:120px;">Código</th>
-                    <th>Locatario</th>
-                    <th>Contacto</th>
-                    <th class="right">Deuda actual</th>
-                    <th class="center">Próximo vencimiento</th>
+                    <th>Inquilino</th>
+                    <th class="right">Deuda total</th>
+                    <th class="right">Arrastre 2025</th>
+                    <th class="center">Meses</th>
                     <th class="center">Estado</th>
                     <th class="center" style="width:220px;">Acciones</th>
                   </tr>
@@ -5694,7 +5658,6 @@ td:last-child{
       if (!targetKey) return maps;
 
       const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
-      const periodoNombre = `${GA_MONTH_NAMES[Number(mes) - 1] || ''} ${Number(anio)}`.trim();
       const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
       const rowsByKey = new Map();
 
@@ -5754,29 +5717,6 @@ td:last-child{
           .ilike('periodo', `%${periodoSlash}%`)
           .limit(2000)
       );
-
-      if (periodoNombre) {
-        await readQuery(
-          sb.from('recibos_historicos_operativos')
-            .select(cols)
-            .ilike('periodo_aplicado', `%${periodoNombre}%`)
-            .limit(2000)
-        );
-
-        await readQuery(
-          sb.from('recibos_historicos_operativos')
-            .select(cols)
-            .ilike('detalle_aplicacion', `%${periodoNombre}%`)
-            .limit(2000)
-        );
-
-        await readQuery(
-          sb.from('recibos_historicos_operativos')
-            .select(cols)
-            .ilike('periodo', `%${periodoNombre}%`)
-            .limit(2000)
-        );
-      }
 
       [...rowsByKey.values()].forEach(row => addImpuestoReceiptToMaps(maps, row, targetKey));
       return maps;
@@ -6565,10 +6505,6 @@ function globalSearch(){
             local_codigo: codigo,
             local_code_normalized: normLocalCode(codigo),
             inquilino_nombre: nombre,
-            inquilino_documento: c.inquilinos?.documento || '',
-            inquilino_telefono: c.inquilinos?.telefono || '',
-            inquilino_email: c.inquilinos?.email || '',
-            dia_vencimiento: Number(c.dia_vencimiento || getConfiguredDueDay()),
             deuda_total: 0,
             deuda_atrasada: 0,
             meses_adeudados: 0,
@@ -6711,78 +6647,6 @@ function globalSearch(){
     }
 
 
-
-    function formatUnitLocatarioCell(row){
-      const nombre = escapeHtml(row?.inquilino_nombre || '—');
-      const documento = String(row?.inquilino_documento || '').trim();
-      return `
-        <div class="unit-person-cell">
-          <div class="unit-cell-main">${nombre}</div>
-          <div class="unit-cell-sub">${documento ? `DNI/CUIT: ${escapeHtml(documento)}` : 'Sin documento'}</div>
-        </div>
-      `;
-    }
-
-    function formatUnitContactCell(row){
-      const tel = String(row?.inquilino_telefono || '').trim();
-      const email = String(row?.inquilino_email || '').trim();
-      return `
-        <div class="unit-contact-cell">
-          <div class="unit-contact-line ${tel ? '' : 'muted'}">${tel ? `📞 ${escapeHtml(tel)}` : 'Sin teléfono'}</div>
-          <div class="unit-contact-line ${email ? '' : 'muted'}">${email ? `✉️ ${escapeHtml(email)}` : 'Sin email'}</div>
-        </div>
-      `;
-    }
-
-    function formatUnitDebtCell(row){
-      const debt = getDisplayedDebtTotal(row);
-      const months = getDisplayedMonthsOwed(row);
-      return `
-        <div class="unit-money-cell">
-          <div class="unit-cell-main">${fmtARS.format(debt)}</div>
-          <div class="unit-cell-sub">${months === 1 ? '1 mes pendiente' : `${months} meses pendientes`}</div>
-        </div>
-      `;
-    }
-
-    function getUnidadProximoVencimiento(row){
-      const rawDay = Number(row?.dia_vencimiento || getConfiguredDueDay());
-      const dueDay = Math.min(31, Math.max(1, Number.isFinite(rawDay) ? rawDay : getConfiguredDueDay()));
-      const now = new Date();
-      const ym = getYearMonthParts(today());
-      const currentDebt = getDisplayedCurrentMonthDebt(row);
-      let year = ym.year;
-      let month = ym.month;
-
-      if (currentDebt <= 0.009) {
-        const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-        year = next.getFullYear();
-        month = next.getMonth() + 1;
-      }
-
-      const lastDay = new Date(year, month, 0).getDate();
-      const day = Math.min(dueDay, lastDay);
-      return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-    }
-
-    function formatUnitNextDueCell(row){
-      const iso = getUnidadProximoVencimiento(row);
-      const days = daysBetweenISO(today(), iso);
-      let meta = 'Próximo vencimiento';
-      if (days !== null) {
-        if (days < 0) meta = `Vencido hace ${Math.abs(days)} día(s)`;
-        else if (days === 0) meta = 'Vence hoy';
-        else meta = `Faltan ${days} día(s)`;
-      }
-
-      return `
-        <div class="unit-due-cell">
-          <div class="unit-cell-main">${formatDateDisplay(iso)}</div>
-          <div class="unit-cell-sub">${escapeHtml(meta)}</div>
-        </div>
-      `;
-    }
-
     function renderUnidades(){
       const q = ($('globalSearch')?.value || '').trim().toLowerCase();
       const filtro = $('filtro').value;
@@ -6791,10 +6655,7 @@ function globalSearch(){
       if (q){
         rows = rows.filter(r =>
           String(r.local_codigo||'').toLowerCase().includes(q) ||
-          String(r.inquilino_nombre||'').toLowerCase().includes(q) ||
-          String(r.inquilino_documento||'').toLowerCase().includes(q) ||
-          String(r.inquilino_telefono||'').toLowerCase().includes(q) ||
-          String(r.inquilino_email||'').toLowerCase().includes(q)
+          String(r.inquilino_nombre||'').toLowerCase().includes(q)
         );
       }
 
@@ -6818,11 +6679,11 @@ function globalSearch(){
       rows.forEach(r => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><b>${escapeHtml(r.local_codigo)}</b></td>
-          <td>${formatUnitLocatarioCell(r)}</td>
-          <td>${formatUnitContactCell(r)}</td>
-          <td class="right">${formatUnitDebtCell(r)}</td>
-          <td class="center">${formatUnitNextDueCell(r)}</td>
+          <td><b>${r.local_codigo}</b></td>
+          <td>${r.inquilino_nombre}</td>
+          <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
+          <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
+          <td class="center">${getDisplayedMonthsOwed(r)}</td>
           <td class="center">${badgeEstado(r)}</td>
           <td class="center">
             <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
@@ -6839,12 +6700,12 @@ function globalSearch(){
               <span class="mobile-code">${r.local_codigo}</span>
               ${badgeEstado(r)}
             </div>
-            <div class="mobile-tenant">${escapeHtml(r.inquilino_nombre)}</div>
+            <div class="mobile-tenant">${r.inquilino_nombre}</div>
             <div class="mobile-meta-grid">
-              <div class="mobile-meta"><div class="label">Contacto</div><div class="value">${escapeHtml(r.inquilino_telefono || 'Sin teléfono')}</div></div>
-              <div class="mobile-meta"><div class="label">Email</div><div class="value">${escapeHtml(r.inquilino_email || 'Sin email')}</div></div>
-              <div class="mobile-meta"><div class="label">Deuda actual</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
-              <div class="mobile-meta"><div class="label">Próximo vencimiento</div><div class="value">${formatDateDisplay(getUnidadProximoVencimiento(r))}</div></div>
+              <div class="mobile-meta"><div class="label">Deuda total</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
+              <div class="mobile-meta"><div class="label">Arrastre 2025</div><div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div></div>
+              <div class="mobile-meta"><div class="label">Deuda 2026</div><div class="value">${fmtARS.format(toNumber(r.deuda_2026))}</div></div>
+              <div class="mobile-meta"><div class="label">Meses</div><div class="value">${getDisplayedMonthsOwed(r)}</div></div>
             </div>
             <div class="mobile-actions">
               <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
