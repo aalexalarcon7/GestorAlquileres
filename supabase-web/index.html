@@ -4580,7 +4580,6 @@ td:last-child{
               </div>
               <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
                 <button class="btn primary" type="button" onclick="openInqModal('create')">Agregar locatario</button>
-                <button class="btn" type="button" onclick="syncContactosActivosDesdeRecibos(this)">Sincronizar contactos</button>
                 <span class="badge b-info" id="unitsCount">0 resultados</span>
               </div>
             </div>
@@ -6974,7 +6973,6 @@ function globalSearch(){
                   ${badgeEstado(r)}
                 </div>
                 <div class="mobile-tenant">${escapeHtml(r.inquilino_nombre || '—')}</div>
-            <div class="muted" style="font-size:12px;line-height:1.35;margin:-4px 0 10px;overflow-wrap:anywhere;">${[cleanContactoSyncValue(r.inquilino_documento) ? `Doc: ${escapeHtml(cleanContactoSyncValue(r.inquilino_documento))}` : '', cleanContactoSyncValue(r.inquilino_telefono) ? `Tel: ${escapeHtml(cleanContactoSyncValue(r.inquilino_telefono))}` : '', cleanContactoSyncValue(r.inquilino_email) ? `Email: ${escapeHtml(cleanContactoSyncValue(r.inquilino_email))}` : ''].filter(Boolean).join(' · ') || 'Sin contacto cargado'}</div>
                 <div class="mobile-meta-grid">
                   <div class="mobile-meta"><div class="label">Deuda total</div><div class="value">${fmtARS.format(getDisplayedDebtTotal(r))}</div></div>
                   <div class="mobile-meta"><div class="label">Arrastre 2025</div><div class="value">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</div></div>
@@ -7064,17 +7062,9 @@ function globalSearch(){
 
     function renderActiveTenantCell(row={}){
       const nombre = escapeHtml(row?.inquilino_nombre || '—');
-      const tel = cleanContactoSyncValue(row?.inquilino_telefono);
-      const email = cleanContactoSyncValue(row?.inquilino_email);
-      const doc = cleanContactoSyncValue(row?.inquilino_documento);
-      const lines = [];
-      if (doc) lines.push(`Doc: ${escapeHtml(doc)}`);
-      if (tel) lines.push(`Tel: ${escapeHtml(tel)}`);
-      if (email) lines.push(`Email: ${escapeHtml(email)}`);
       return `
         <div style="display:grid;gap:3px;justify-items:center;text-align:center;min-width:0;">
           <b>${nombre}</b>
-          ${lines.length ? `<span class="muted" style="font-size:11px;line-height:1.25;max-width:260px;overflow-wrap:anywhere;">${lines.join(' · ')}</span>` : '<span class="muted" style="font-size:11px;">Sin contacto cargado</span>'}
         </div>
       `;
     }
@@ -10119,9 +10109,69 @@ function globalSearch(){
       `;
     }
 
+    function getActiveContactForRecibo(item={}){
+      const contratoId = String(item?.contrato_id || '').trim();
+      const localCode = normLocalCode(item?.local_codigo || item?.codigo_local || '');
+      const tenantName = normalizeDetalleName(item?.inquilino_nombre || item?.nombre_inquilino || '');
+
+      const activos = contratosActivos || [];
+
+      let contrato = null;
+      if (contratoId){
+        contrato = activos.find(c => String(c?.id || '') === contratoId) || null;
+      }
+
+      if (!contrato && localCode){
+        const matchesByLocal = activos.filter(c =>
+          normLocalCode(c?.locales?.codigo_local || c?.locales?.codigo || '') === localCode
+        );
+
+        contrato = matchesByLocal.find(c =>
+          tenantName && normalizeDetalleName(c?.inquilinos?.nombre || '') === tenantName
+        ) || matchesByLocal[0] || null;
+      }
+
+      if (!contrato && tenantName){
+        contrato = activos.find(c => normalizeDetalleName(c?.inquilinos?.nombre || '') === tenantName) || null;
+      }
+
+      const inq = contrato?.inquilinos || {};
+      return {
+        documento: cleanDocumentoForSync(inq.documento),
+        telefono: cleanTelefonoForSync(inq.telefono),
+        email: cleanEmailForSync(inq.email),
+        contrato_id: contrato?.id || item?.contrato_id || null
+      };
+    }
+
+    function syncRecibosContactsFromActiveRows(rows=[]){
+      return (rows || []).map(item => {
+        const active = getActiveContactForRecibo(item);
+        if (!active.documento && !active.telefono && !active.email) return item;
+
+        return {
+          ...item,
+          contrato_id: item.contrato_id || active.contrato_id,
+          documento: cleanDocumentoForSync(item.documento) || active.documento || '',
+          telefono: cleanTelefonoForSync(item.telefono || item.celular || item.whatsapp) || active.telefono || '',
+          email: cleanEmailForSync(item.email) || active.email || ''
+        };
+      });
+    }
+
     async function fetchRecibosInternosData(){
       let rows = [];
       let recibosError = null;
+
+      try{
+        // Los contactos del Historial de recibos se completan desde los activos actuales
+        // para poder compartir el PDF por WhatsApp aunque la RPC de recibos no traiga teléfono/email.
+        if (!Array.isArray(contratosActivos) || !contratosActivos.length){
+          await refreshContratosActivos();
+        }
+      } catch(e){
+        console.warn('No se pudieron refrescar contactos de activos para recibos:', e?.message || e);
+      }
 
       try{
         localStorage.removeItem(RECEIPTS_CACHE_KEY);
@@ -10183,6 +10233,7 @@ function globalSearch(){
       const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
       rows = mergeRecibosRows(rows, historicos);
       rows = applyCobroReceiptOverrides(rows);
+      rows = syncRecibosContactsFromActiveRows(rows);
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
