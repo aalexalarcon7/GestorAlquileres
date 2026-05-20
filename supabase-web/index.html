@@ -3863,6 +3863,59 @@ td:last-child{
     }
   </style>
 
+
+
+  <style id="recibosProfessionalActionsPatch">
+    /* Acciones de Recibos: versión compacta, profesional y alineada. */
+    #viewRecibos .recibos-actions-cell{padding-inline:10px !important;overflow:visible !important;}
+    #viewRecibos .recibos-actions,
+    #viewRecibos .recibos-action-panel{display:flex !important;align-items:center !important;justify-content:center !important;gap:6px !important;flex-wrap:nowrap !important;width:100%;overflow:visible !important;}
+    #viewRecibos .recibos-primary-action,
+    #viewRecibos .recibos-share-summary,
+    #viewRecibos .recibos-more-summary{height:34px !important;min-height:34px !important;border-radius:12px !important;border:1px solid var(--panel-border) !important;display:inline-flex !important;align-items:center !important;justify-content:center !important;gap:6px !important;cursor:pointer !important;font:inherit !important;font-size:11.5px !important;font-weight:950 !important;line-height:1 !important;white-space:nowrap !important;box-shadow:none !important;transition:background-color .18s ease,border-color .18s ease,transform .18s ease;}
+    #viewRecibos .recibos-primary-action{min-width:54px !important;padding:0 12px !important;background:var(--primary-btn-bg) !important;color:var(--primary-btn-fg) !important;border-color:transparent !important;}
+    #viewRecibos .recibos-share-summary{min-width:84px !important;padding:0 11px !important;background:var(--secondary-btn-bg) !important;color:var(--text) !important;list-style:none !important;}
+    #viewRecibos .recibos-share-summary::after{content:'⌄' !important;font-size:12px !important;opacity:.68 !important;transform:translateY(-1px);}
+    #viewRecibos .recibos-more-summary{width:34px !important;min-width:34px !important;padding:0 !important;background:var(--secondary-btn-bg) !important;color:var(--text) !important;list-style:none !important;font-size:18px !important;letter-spacing:.05em !important;}
+    #viewRecibos .recibos-more-summary::after{content:none !important;}
+    #viewRecibos .recibos-share-summary::-webkit-details-marker,
+    #viewRecibos .recibos-more-summary::-webkit-details-marker{display:none !important;}
+    #viewRecibos .recibos-primary-action:hover,
+    #viewRecibos .recibos-share-summary:hover,
+    #viewRecibos .recibos-more-summary:hover{transform:translateY(-1px) !important;border-color:var(--border-strong) !important;}
+    #viewRecibos .recibos-share-menu,
+    #viewRecibos .recibos-more-menu{position:relative !important;display:inline-flex !important;align-items:center !important;overflow:visible !important;}
+    #viewRecibos .recibos-share-menu[open],
+    #viewRecibos .recibos-more-menu[open]{z-index:80 !important;}
+    #viewRecibos .recibos-share-dropdown{position:absolute !important;top:calc(100% + 10px) !important;right:0 !important;width:228px !important;padding:10px !important;border-radius:16px !important;border:1px solid var(--panel-border) !important;background:var(--panel-bg) !important;box-shadow:0 22px 46px rgba(15,23,42,.18) !important;backdrop-filter:blur(18px) !important;-webkit-backdrop-filter:blur(18px) !important;display:grid !important;gap:7px !important;z-index:90 !important;}
+    [data-theme="dark"] #viewRecibos .recibos-share-dropdown{box-shadow:0 24px 48px rgba(0,0,0,.38) !important;}
+    #viewRecibos .recibos-more-dropdown{width:220px !important;}
+    #viewRecibos .recibos-share-label{padding:3px 4px 2px !important;font-size:10px !important;font-weight:950 !important;letter-spacing:.10em !important;text-transform:uppercase !important;color:var(--muted) !important;text-align:left !important;}
+    #viewRecibos .recibos-share-action{width:100% !important;min-height:40px !important;padding:8px 10px !important;border-radius:13px !important;border:1px solid var(--panel-border) !important;background:var(--secondary-btn-bg) !important;color:var(--text) !important;display:flex !important;align-items:center !important;justify-content:flex-start !important;gap:9px !important;text-align:left !important;cursor:pointer !important;font:inherit !important;box-shadow:none !important;}
+    #viewRecibos .recibos-share-action:hover{background:var(--secondary-btn-hover) !important;border-color:var(--border-strong) !important;transform:translateY(-1px) !important;}
+    #viewRecibos .recibos-share-action:disabled{opacity:.48 !important;cursor:not-allowed !important;transform:none !important;}
+    #viewRecibos .recibos-share-action .icon{width:30px !important;height:30px !important;border-radius:10px !important;display:grid !important;place-items:center !important;font-size:11px !important;font-weight:950 !important;flex:0 0 30px !important;background:var(--surface-soft) !important;border:1px solid var(--panel-border) !important;}
+    #viewRecibos .recibos-share-action.whatsapp .icon{background:var(--ok-soft) !important;border-color:var(--ok-border) !important;}
+    #viewRecibos .recibos-share-action.email .icon{background:var(--info-soft) !important;border-color:var(--info-border) !important;}
+    #viewRecibos .recibos-share-action.pdf .icon{background:rgba(124,58,237,.10) !important;border-color:rgba(124,58,237,.22) !important;}
+    #viewRecibos .recibos-share-action.copy .icon{background:var(--surface-soft) !important;border-color:var(--panel-border) !important;}
+    #viewRecibos .recibos-share-action .meta{display:grid !important;gap:2px !important;min-width:0 !important;}
+    #viewRecibos .recibos-share-action .title{font-size:11.5px !important;font-weight:950 !important;line-height:1.15 !important;}
+    #viewRecibos .recibos-share-action .sub{font-size:10.5px !important;color:var(--muted) !important;line-height:1.15 !important;font-weight:700 !important;}
+    #viewRecibos .recibos-table th:nth-child(10),
+    #viewRecibos .recibos-table td:nth-child(10){width:186px !important;min-width:186px !important;max-width:186px !important;}
+    #viewRecibos .recibos-table th:last-child,
+    #viewRecibos .recibos-table td:last-child{background:linear-gradient(90deg, color-mix(in srgb, var(--row-bg) 92%, transparent), var(--row-bg) 18%) !important;border-left:1px solid var(--panel-border) !important;box-shadow:-8px 0 18px rgba(15,23,42,.07) !important;}
+    #viewRecibos .recibos-table th:last-child{background:var(--card-2) !important;}
+    [data-theme="dark"] #viewRecibos .recibos-table th:last-child,
+    [data-theme="dark"] #viewRecibos .recibos-table td:last-child{box-shadow:-8px 0 18px rgba(0,0,0,.26) !important;}
+    @media (max-width:720px){
+      #viewRecibos .recibos-table th:nth-child(10),
+      #viewRecibos .recibos-table td:nth-child(10){width:176px !important;min-width:176px !important;}
+      #viewRecibos .recibos-share-summary{min-width:78px !important;}
+      #viewRecibos .recibos-share-dropdown{width:214px !important;}
+    }
+  </style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -9281,6 +9334,52 @@ function updateRecibosFiltersFromUI(){
       if (details) details.open = false;
     }
 
+    function closeOtherReciboMenus(summary){
+      const current = summary?.closest?.('details');
+      document.querySelectorAll('#viewRecibos .recibos-share-menu[open], #viewRecibos .recibos-more-menu[open]').forEach(menu => {
+        if (menu !== current) menu.open = false;
+      });
+    }
+
+    function setRecibosFeedback(message){
+      const target = $('recibosMsg') || $('reciboModalMsg');
+      if (target) target.textContent = message;
+    }
+
+    async function copyTextToClipboard(text, successMessage){
+      try{
+        if (navigator.clipboard && window.isSecureContext){
+          await navigator.clipboard.writeText(text);
+        } else {
+          const temp = document.createElement('textarea');
+          temp.value = text;
+          temp.setAttribute('readonly', '');
+          temp.style.position = 'fixed';
+          temp.style.left = '-9999px';
+          document.body.appendChild(temp);
+          temp.select();
+          document.execCommand('copy');
+          temp.remove();
+        }
+        setRecibosFeedback(successMessage || 'Copiado correctamente.');
+      } catch(error){
+        console.error(error);
+        alert('No se pudo copiar al portapapeles.');
+      }
+    }
+
+    function copyReciboTextById(id){
+      const item = getReciboById(id);
+      if (!item) return;
+      copyTextToClipboard(buildReceiptShareText(item), 'Texto del recibo copiado.');
+    }
+
+    function copyReciboNumberById(id){
+      const item = getReciboById(id);
+      if (!item) return;
+      copyTextToClipboard(String(item.numero_recibo || ''), 'Número de recibo copiado.');
+    }
+
 
     function renderRecibosHistoryRows(rows){
       if (!rows.length){
@@ -9293,7 +9392,11 @@ function updateRecibosFiltersFromUI(){
           ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn);margin-left:6px;" title="Recibo histórico importado. No se puede eliminar.">🔒 HISTÓRICO</span>`
           : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-border);color:var(--ok);margin-left:6px;" title="Recibo operativo generado en el sistema.">✓ OPERATIVO</span>`;
 
-
+        const reciboKey = escapeAttr(getReciboKey(item));
+        const hasPhone = !!String(getReceiptWhatsappPhone(item) || '').trim();
+        const hasEmail = !!String(item.email || '').trim();
+        const whatsappDisabled = hasPhone ? '' : 'disabled title="Sin teléfono cargado"';
+        const emailDisabled = hasEmail ? '' : 'disabled title="Sin email cargado"';
 
         return `
         <tr>
@@ -9339,33 +9442,68 @@ function updateRecibosFiltersFromUI(){
               </div>
             </div>
           </td>
-          <td class="center">
+          <td class="center recibos-actions-cell">
             <div class="recibos-actions">
               <div class="recibos-action-panel">
-                <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver</button>
+                <button class="recibos-primary-action" title="Ver recibo" onclick="openReciboModal('${reciboKey}')">Ver</button>
+
                 <details class="recibos-share-menu">
-                  <summary class="recibos-share-summary">Compartir</summary>
+                  <summary class="recibos-share-summary" onclick="closeOtherReciboMenus(this)">Compartir</summary>
                   <div class="recibos-share-dropdown">
-                    <div class="recibos-share-label">Canales disponibles</div>
-                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${getReciboKey(item)}')">
+                    <div class="recibos-share-label">Compartir recibo</div>
+
+                    <button class="recibos-share-action whatsapp" ${whatsappDisabled} onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${reciboKey}')">
+                      <span class="icon">WA</span>
+                      <span class="meta">
+                        <span class="title">Enviar por WhatsApp</span>
+                        <span class="sub">Mensaje listo</span>
+                      </span>
+                    </button>
+
+                    <button class="recibos-share-action email" ${emailDisabled} onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByEmail('${reciboKey}')">
+                      <span class="icon">@</span>
+                      <span class="meta">
+                        <span class="title">Enviar por email</span>
+                        <span class="sub">Abre correo</span>
+                      </span>
+                    </button>
+
+                    <button class="recibos-share-action copy" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); copyReciboTextById('${reciboKey}')">
+                      <span class="icon">⧉</span>
+                      <span class="meta">
+                        <span class="title">Copiar datos</span>
+                        <span class="sub">Texto del recibo</span>
+                      </span>
+                    </button>
+                  </div>
+                </details>
+
+                <details class="recibos-share-menu recibos-more-menu">
+                  <summary class="recibos-more-summary" title="Más opciones" onclick="closeOtherReciboMenus(this)">⋯</summary>
+                  <div class="recibos-share-dropdown recibos-more-dropdown">
+                    <div class="recibos-share-label">Más opciones</div>
+
+                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${reciboKey}')">
                       <span class="icon">PDF</span>
                       <span class="meta">
                         <span class="title">Descargar PDF</span>
                         <span class="sub">Solo el recibo</span>
                       </span>
                     </button>
-                    <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${getReciboKey(item)}')">
+
+                    <button class="recibos-share-action pdf" ${whatsappDisabled} onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappPdf('${reciboKey}')">
                       <span class="icon">WA</span>
                       <span class="meta">
-                        <span class="title">WhatsApp rápido</span>
-                        <span class="sub">Mensaje listo para enviar</span>
+                        <span class="title">WhatsApp + PDF</span>
+                        <span class="sub">Para adjuntar</span>
                       </span>
                     </button>
-                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappPdf('${getReciboKey(item)}')">
-                      <span class="icon">PDF</span>
+
+                    <button class="recibos-share-action copy" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); copyReciboNumberById('${reciboKey}')">
+                      <span class="icon">#</span>
                       <span class="meta">
-                        <span class="title">WhatsApp + PDF</span>
-                        <span class="sub">Compartir el recibo adjunto</span>
+                        <span class="title">Copiar número</span>
+                        <span class="sub">N° de recibo</span>
                       </span>
                     </button>
                   </div>
