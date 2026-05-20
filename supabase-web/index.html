@@ -9944,7 +9944,222 @@ function deleteReciboActual(){
   </style>
 
 </head>
-          <body>${printable}</body>
+          <body>${printable}<script id="detalleImpuestoDisplayFixV5">
+(function(){
+  function el(id){
+    try { return (typeof $ === 'function') ? $(id) : document.getElementById(id); }
+    catch(e){ return document.getElementById(id); }
+  }
+  function n(value){
+    try { if (typeof toNumber === 'function') return toNumber(value); } catch(e){}
+    const num = Number(value || 0);
+    return Number.isFinite(num) ? num : 0;
+  }
+  function r2(value){
+    try { if (typeof round2 === 'function') return round2(value); } catch(e){}
+    return Math.round(n(value) * 100) / 100;
+  }
+  function money(value){
+    try { if (typeof fmtARS !== 'undefined') return fmtARS.format(n(value)); } catch(e){}
+    return new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:2 }).format(n(value));
+  }
+  function dateDisplay(value){
+    try { if (typeof formatDateDisplay === 'function') return formatDateDisplay(value); } catch(e){}
+    return String(value || '—');
+  }
+
+  function patchDetalleCuotasHeader(){
+    const body = el('detalleBody');
+    if (!body) return;
+    const table = body.closest('table');
+    const headRow = table?.querySelector('thead tr');
+    if (!headRow) return;
+
+    const headers = Array.from(headRow.children).map(th => String(th.textContent || '').trim().toUpperCase());
+    if (headers.includes('IMPUESTO')) return;
+
+    const pagadoIndex = headers.indexOf('PAGADO');
+    const th = document.createElement('th');
+    th.className = 'right';
+    th.textContent = 'Impuesto';
+    th.setAttribute('data-detalle-impuesto', '1');
+
+    if (pagadoIndex >= 0 && headRow.children[pagadoIndex]) {
+      headRow.children[pagadoIndex].after(th);
+    } else {
+      headRow.appendChild(th);
+    }
+  }
+
+  async function fetchAplicacionesOperativasDetalle(row){
+    const contratoId = Number(row?.contrato_id || 0);
+    if (!contratoId || typeof sb === 'undefined') return [];
+
+    const baseSelect = 'id,recibo_id,pago_id,contrato_id,cuota_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,impuesto_mensual_objetivo,created_at,deleted_at';
+    let res = await sb
+      .from('recibos_aplicaciones_operativas')
+      .select(baseSelect)
+      .eq('contrato_id', contratoId)
+      .is('deleted_at', null)
+      .order('anio', { ascending:true })
+      .order('mes', { ascending:true });
+
+    if (res.error){
+      const raw = String(res.error.message || '').toLowerCase();
+      if (raw.includes('deleted_at') || raw.includes('column')){
+        res = await sb
+          .from('recibos_aplicaciones_operativas')
+          .select('id,recibo_id,pago_id,contrato_id,cuota_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,impuesto_mensual_objetivo,created_at')
+          .eq('contrato_id', contratoId)
+          .order('anio', { ascending:true })
+          .order('mes', { ascending:true });
+      }
+    }
+
+    if (res.error){
+      console.warn('No se pudieron leer aplicaciones de recibos para detalle:', res.error.message || res.error);
+      return [];
+    }
+
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
+  function periodoKeyFromParts(anio, mes){
+    const y = Number(anio || 0);
+    const m = Number(mes || 0);
+    if (!y || !m) return '';
+    return `${y}-${String(m).padStart(2,'0')}`;
+  }
+
+  function enrichDetalleRowsWithAplicaciones(rows, aplicaciones){
+    const detalleRows = Array.isArray(rows) ? rows : [];
+    const apps = Array.isArray(aplicaciones) ? aplicaciones : [];
+    const map = new Map();
+
+    apps.forEach(app => {
+      const key = periodoKeyFromParts(app.anio, app.mes);
+      if (!key) return;
+      const current = map.get(key) || { impuesto:0, alquiler:0, total:0 };
+      current.impuesto = r2(current.impuesto + n(app.monto_impuesto));
+      current.alquiler = r2(current.alquiler + n(app.monto_alquiler));
+      current.total = r2(current.total + n(app.monto_aplicado));
+      map.set(key, current);
+    });
+
+    detalleRows.forEach(row => {
+      const key = String(row.sort_key || periodoKeyFromParts(row.anio, row.mes));
+      const app = map.get(key) || { impuesto:0, alquiler:0, total:0 };
+      const totalBase = n(row.total ?? row.monto_total);
+      const pagadoBase = n(row.pagado ?? row.monto_pagado);
+      const alquilerPagado = Math.max(pagadoBase, n(app.alquiler));
+      const saldoBase = Math.max(0, r2(totalBase - alquilerPagado));
+
+      row.impuesto = r2(n(app.impuesto));
+      row.impuesto_pagado = row.impuesto;
+      row.pagado = r2(alquilerPagado);
+      row.monto_pagado = row.pagado;
+      row.saldo = saldoBase;
+      row.saldo_alquiler = saldoBase;
+      row.total_pago_mes = r2(row.pagado + row.impuesto);
+
+      if (row.saldo <= 0.009) {
+        row.saldo = 0;
+        row.estado_detalle = 'PAGADO';
+        row.dias_atraso = 0;
+      } else if (row.pagado > 0.009 || row.impuesto > 0.009) {
+        row.estado_detalle = 'PARCIAL';
+      } else if (!row.estado_detalle) {
+        row.estado_detalle = row.estado || 'PENDIENTE';
+      }
+    });
+
+    return detalleRows;
+  }
+
+  window.renderDetalleDebtRows = function(rows){
+    patchDetalleCuotasHeader();
+    const tb = el('detalleBody');
+    if (!tb) return;
+    tb.innerHTML = '';
+
+    if (!(rows || []).length){
+      tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+      return;
+    }
+
+    rows.forEach(x => {
+      const estado = x.estado_detalle || x.estado || '—';
+      let cls = 'b-info';
+      if (String(estado).includes('ATRASAD') || String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
+      else if (String(estado).includes('PARCIAL')) cls = 'b-warn';
+      else if (String(estado).includes('SALDADA') || String(estado).includes('PAGA')) cls = 'b-ok';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${String(x.periodo || '—')}</td>
+        <td>${dateDisplay(x.vencimiento)}</td>
+        <td class="right">${money(x.total)}</td>
+        <td class="right">${money(x.pagado)}</td>
+        <td class="right">${money(x.impuesto || 0)}</td>
+        <td class="right">${money(x.saldo)}</td>
+        <td class="center"><span class="badge ${cls}">${estado}</span></td>
+        <td class="center">${Number(x.dias_atraso || 0)}</td>
+      `;
+      tb.appendChild(tr);
+    });
+  };
+
+  try { renderDetalleDebtRows = window.renderDetalleDebtRows; } catch(e){}
+
+  window.loadDetalle = async function(r){
+    const seq = ++detalleLoadSeq;
+    try{
+      if (el('detalleMsg')) el('detalleMsg').textContent = 'Cargando detalle operativo...';
+      const statusInfo = (typeof getContratoStatus === 'function') ? getContratoStatus(r || {}) : { label:'—' };
+      if (el('detalleMeta')) el('detalleMeta').textContent = `Contrato: ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
+      if (el('detalleBadge')) {
+        const total = (typeof getDisplayedDebtTotal === 'function') ? getDisplayedDebtTotal(r || {}) : 0;
+        el('detalleBadge').textContent = `${statusInfo.label} · ${money(total)}`;
+      }
+
+      const rows = (typeof fetchDetalleReconstruidoRows === 'function') ? await fetchDetalleReconstruidoRows(r) : [];
+      const aplicaciones = await fetchAplicacionesOperativasDetalle(r);
+      if (seq !== detalleLoadSeq) return;
+
+      const enrichedRows = enrichDetalleRowsWithAplicaciones(rows || [], aplicaciones);
+      detalleCuotasActuales = enrichedRows || [];
+
+      if (typeof renderDetalleInfo === 'function') renderDetalleInfo(r, enrichedRows || []);
+      window.renderDetalleDebtRows(enrichedRows || []);
+
+      if (typeof loadDetalleRecibos === 'function') await loadDetalleRecibos(r, seq);
+
+      if (seq === detalleLoadSeq && el('detalleMsg')) el('detalleMsg').textContent = '';
+    } catch (err){
+      console.error('loadDetalle error', err);
+      if (el('detalleMsg')) el('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
+      if (el('detalleBody')) el('detalleBody').innerHTML = `<tr><td colspan="8" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+      if (el('detDocsBody')) el('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
+    }
+  };
+
+  try { loadDetalle = window.loadDetalle; } catch(e){}
+
+  document.addEventListener('DOMContentLoaded', patchDetalleCuotasHeader);
+  setTimeout(patchDetalleCuotasHeader, 0);
+})();
+</script>
+
+<style id="detalleImpuestoDisplayFixV5Styles">
+  #detalleCard .detalle-cuotas-table-wrap table,
+  #detalleCard .tableWrap:has(#detalleBody) table{
+    min-width:1180px !important;
+  }
+  #detalleBody td{
+    vertical-align:middle !important;
+  }
+</style>
+</body>
         </html>
       `);
       w.document.close();
@@ -13307,5 +13522,220 @@ function deleteReciboActual(){
 })();
 </script>
 
+<script id="detalleImpuestoDisplayFixV5">
+(function(){
+  function el(id){
+    try { return (typeof $ === 'function') ? $(id) : document.getElementById(id); }
+    catch(e){ return document.getElementById(id); }
+  }
+  function n(value){
+    try { if (typeof toNumber === 'function') return toNumber(value); } catch(e){}
+    const num = Number(value || 0);
+    return Number.isFinite(num) ? num : 0;
+  }
+  function r2(value){
+    try { if (typeof round2 === 'function') return round2(value); } catch(e){}
+    return Math.round(n(value) * 100) / 100;
+  }
+  function money(value){
+    try { if (typeof fmtARS !== 'undefined') return fmtARS.format(n(value)); } catch(e){}
+    return new Intl.NumberFormat('es-AR', { style:'currency', currency:'ARS', maximumFractionDigits:2 }).format(n(value));
+  }
+  function dateDisplay(value){
+    try { if (typeof formatDateDisplay === 'function') return formatDateDisplay(value); } catch(e){}
+    return String(value || '—');
+  }
+
+  function patchDetalleCuotasHeader(){
+    const body = el('detalleBody');
+    if (!body) return;
+    const table = body.closest('table');
+    const headRow = table?.querySelector('thead tr');
+    if (!headRow) return;
+
+    const headers = Array.from(headRow.children).map(th => String(th.textContent || '').trim().toUpperCase());
+    if (headers.includes('IMPUESTO')) return;
+
+    const pagadoIndex = headers.indexOf('PAGADO');
+    const th = document.createElement('th');
+    th.className = 'right';
+    th.textContent = 'Impuesto';
+    th.setAttribute('data-detalle-impuesto', '1');
+
+    if (pagadoIndex >= 0 && headRow.children[pagadoIndex]) {
+      headRow.children[pagadoIndex].after(th);
+    } else {
+      headRow.appendChild(th);
+    }
+  }
+
+  async function fetchAplicacionesOperativasDetalle(row){
+    const contratoId = Number(row?.contrato_id || 0);
+    if (!contratoId || typeof sb === 'undefined') return [];
+
+    const baseSelect = 'id,recibo_id,pago_id,contrato_id,cuota_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,impuesto_mensual_objetivo,created_at,deleted_at';
+    let res = await sb
+      .from('recibos_aplicaciones_operativas')
+      .select(baseSelect)
+      .eq('contrato_id', contratoId)
+      .is('deleted_at', null)
+      .order('anio', { ascending:true })
+      .order('mes', { ascending:true });
+
+    if (res.error){
+      const raw = String(res.error.message || '').toLowerCase();
+      if (raw.includes('deleted_at') || raw.includes('column')){
+        res = await sb
+          .from('recibos_aplicaciones_operativas')
+          .select('id,recibo_id,pago_id,contrato_id,cuota_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,impuesto_mensual_objetivo,created_at')
+          .eq('contrato_id', contratoId)
+          .order('anio', { ascending:true })
+          .order('mes', { ascending:true });
+      }
+    }
+
+    if (res.error){
+      console.warn('No se pudieron leer aplicaciones de recibos para detalle:', res.error.message || res.error);
+      return [];
+    }
+
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
+  function periodoKeyFromParts(anio, mes){
+    const y = Number(anio || 0);
+    const m = Number(mes || 0);
+    if (!y || !m) return '';
+    return `${y}-${String(m).padStart(2,'0')}`;
+  }
+
+  function enrichDetalleRowsWithAplicaciones(rows, aplicaciones){
+    const detalleRows = Array.isArray(rows) ? rows : [];
+    const apps = Array.isArray(aplicaciones) ? aplicaciones : [];
+    const map = new Map();
+
+    apps.forEach(app => {
+      const key = periodoKeyFromParts(app.anio, app.mes);
+      if (!key) return;
+      const current = map.get(key) || { impuesto:0, alquiler:0, total:0 };
+      current.impuesto = r2(current.impuesto + n(app.monto_impuesto));
+      current.alquiler = r2(current.alquiler + n(app.monto_alquiler));
+      current.total = r2(current.total + n(app.monto_aplicado));
+      map.set(key, current);
+    });
+
+    detalleRows.forEach(row => {
+      const key = String(row.sort_key || periodoKeyFromParts(row.anio, row.mes));
+      const app = map.get(key) || { impuesto:0, alquiler:0, total:0 };
+      const totalBase = n(row.total ?? row.monto_total);
+      const pagadoBase = n(row.pagado ?? row.monto_pagado);
+      const alquilerPagado = Math.max(pagadoBase, n(app.alquiler));
+      const saldoBase = Math.max(0, r2(totalBase - alquilerPagado));
+
+      row.impuesto = r2(n(app.impuesto));
+      row.impuesto_pagado = row.impuesto;
+      row.pagado = r2(alquilerPagado);
+      row.monto_pagado = row.pagado;
+      row.saldo = saldoBase;
+      row.saldo_alquiler = saldoBase;
+      row.total_pago_mes = r2(row.pagado + row.impuesto);
+
+      if (row.saldo <= 0.009) {
+        row.saldo = 0;
+        row.estado_detalle = 'PAGADO';
+        row.dias_atraso = 0;
+      } else if (row.pagado > 0.009 || row.impuesto > 0.009) {
+        row.estado_detalle = 'PARCIAL';
+      } else if (!row.estado_detalle) {
+        row.estado_detalle = row.estado || 'PENDIENTE';
+      }
+    });
+
+    return detalleRows;
+  }
+
+  window.renderDetalleDebtRows = function(rows){
+    patchDetalleCuotasHeader();
+    const tb = el('detalleBody');
+    if (!tb) return;
+    tb.innerHTML = '';
+
+    if (!(rows || []).length){
+      tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+      return;
+    }
+
+    rows.forEach(x => {
+      const estado = x.estado_detalle || x.estado || '—';
+      let cls = 'b-info';
+      if (String(estado).includes('ATRASAD') || String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
+      else if (String(estado).includes('PARCIAL')) cls = 'b-warn';
+      else if (String(estado).includes('SALDADA') || String(estado).includes('PAGA')) cls = 'b-ok';
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${String(x.periodo || '—')}</td>
+        <td>${dateDisplay(x.vencimiento)}</td>
+        <td class="right">${money(x.total)}</td>
+        <td class="right">${money(x.pagado)}</td>
+        <td class="right">${money(x.impuesto || 0)}</td>
+        <td class="right">${money(x.saldo)}</td>
+        <td class="center"><span class="badge ${cls}">${estado}</span></td>
+        <td class="center">${Number(x.dias_atraso || 0)}</td>
+      `;
+      tb.appendChild(tr);
+    });
+  };
+
+  try { renderDetalleDebtRows = window.renderDetalleDebtRows; } catch(e){}
+
+  window.loadDetalle = async function(r){
+    const seq = ++detalleLoadSeq;
+    try{
+      if (el('detalleMsg')) el('detalleMsg').textContent = 'Cargando detalle operativo...';
+      const statusInfo = (typeof getContratoStatus === 'function') ? getContratoStatus(r || {}) : { label:'—' };
+      if (el('detalleMeta')) el('detalleMeta').textContent = `Contrato: ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
+      if (el('detalleBadge')) {
+        const total = (typeof getDisplayedDebtTotal === 'function') ? getDisplayedDebtTotal(r || {}) : 0;
+        el('detalleBadge').textContent = `${statusInfo.label} · ${money(total)}`;
+      }
+
+      const rows = (typeof fetchDetalleReconstruidoRows === 'function') ? await fetchDetalleReconstruidoRows(r) : [];
+      const aplicaciones = await fetchAplicacionesOperativasDetalle(r);
+      if (seq !== detalleLoadSeq) return;
+
+      const enrichedRows = enrichDetalleRowsWithAplicaciones(rows || [], aplicaciones);
+      detalleCuotasActuales = enrichedRows || [];
+
+      if (typeof renderDetalleInfo === 'function') renderDetalleInfo(r, enrichedRows || []);
+      window.renderDetalleDebtRows(enrichedRows || []);
+
+      if (typeof loadDetalleRecibos === 'function') await loadDetalleRecibos(r, seq);
+
+      if (seq === detalleLoadSeq && el('detalleMsg')) el('detalleMsg').textContent = '';
+    } catch (err){
+      console.error('loadDetalle error', err);
+      if (el('detalleMsg')) el('detalleMsg').textContent = `Error al cargar detalle: ${String(err?.message || err)}`;
+      if (el('detalleBody')) el('detalleBody').innerHTML = `<tr><td colspan="8" class="center">No se pudo cargar el detalle operativo.</td></tr>`;
+      if (el('detDocsBody')) el('detDocsBody').innerHTML = `<tr><td colspan="8" class="center">No se pudieron cargar los recibos vinculados.</td></tr>`;
+    }
+  };
+
+  try { loadDetalle = window.loadDetalle; } catch(e){}
+
+  document.addEventListener('DOMContentLoaded', patchDetalleCuotasHeader);
+  setTimeout(patchDetalleCuotasHeader, 0);
+})();
+</script>
+
+<style id="detalleImpuestoDisplayFixV5Styles">
+  #detalleCard .detalle-cuotas-table-wrap table,
+  #detalleCard .tableWrap:has(#detalleBody) table{
+    min-width:1180px !important;
+  }
+  #detalleBody td{
+    vertical-align:middle !important;
+  }
+</style>
 </body>
 </html>
