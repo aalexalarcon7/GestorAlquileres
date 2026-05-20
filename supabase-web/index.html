@@ -3692,6 +3692,177 @@ td:last-child{
     }
   </style>
 
+
+
+  <style id="recibosCompactTableFinalFix">
+    /* Compacta la tabla de Recibos para que las acciones queden visibles sin tener que correr tanto. */
+    #viewRecibos .recibos-table{
+      overflow-x:auto !important;
+      border-radius:18px !important;
+    }
+
+    #viewRecibos .recibos-table table{
+      min-width:1160px !important;
+      table-layout:fixed !important;
+      width:100% !important;
+    }
+
+    #viewRecibos .recibos-table th,
+    #viewRecibos .recibos-table td{
+      padding:9px 8px !important;
+      font-size:12px !important;
+      line-height:1.18 !important;
+      vertical-align:middle !important;
+      text-align:center !important;
+    }
+
+    /* La columna Registrado queda visible porque es importante para auditoría y control. */
+    #viewRecibos .recibos-table th:nth-child(3),
+    #viewRecibos .recibos-table td:nth-child(3){width:125px !important;}
+
+    #viewRecibos .recibos-table th:nth-child(1),
+    #viewRecibos .recibos-table td:nth-child(1){width:110px !important;}
+    #viewRecibos .recibos-table th:nth-child(2),
+    #viewRecibos .recibos-table td:nth-child(2){width:100px !important;}
+    #viewRecibos .recibos-table th:nth-child(4),
+    #viewRecibos .recibos-table td:nth-child(4){width:125px !important;}
+    #viewRecibos .recibos-table th:nth-child(5),
+    #viewRecibos .recibos-table td:nth-child(5){width:70px !important;}
+    #viewRecibos .recibos-table th:nth-child(6),
+    #viewRecibos .recibos-table td:nth-child(6){width:100px !important;}
+    #viewRecibos .recibos-table th:nth-child(7),
+    #viewRecibos .recibos-table td:nth-child(7){width:100px !important;}
+    #viewRecibos .recibos-table th:nth-child(8),
+    #viewRecibos .recibos-table td:nth-child(8){width:108px !important;}
+    #viewRecibos .recibos-table th:nth-child(9),
+    #viewRecibos .recibos-table td:nth-child(9){width:135px !important;}
+    #viewRecibos .recibos-table th:nth-child(10),
+    #viewRecibos .recibos-table td:nth-child(10){width:155px !important;}
+
+    #viewRecibos .recibos-cell-title{
+      font-size:12px !important;
+      line-height:1.2 !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      max-width:100% !important;
+    }
+
+    #viewRecibos .recibos-table td .contact-sub{
+      font-size:10.5px !important;
+      line-height:1.2 !important;
+      margin-top:3px !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      max-width:100% !important;
+    }
+
+    #viewRecibos .recibos-chip{
+      min-height:24px !important;
+      padding:0 7px !important;
+      font-size:10.5px !important;
+      max-width:135px !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      justify-content:center !important;
+    }
+
+    #viewRecibos .recibos-contact-stack{
+      gap:4px !important;
+      justify-items:center !important;
+    }
+
+    #viewRecibos .recibos-actions,
+    #viewRecibos .recibos-action-panel{
+      gap:6px !important;
+      flex-wrap:nowrap !important;
+      justify-content:center !important;
+    }
+
+    #viewRecibos .recibos-primary-action{
+      min-width:58px !important;
+      min-height:34px !important;
+      padding:0 10px !important;
+      border-radius:12px !important;
+      font-size:11.5px !important;
+      box-shadow:none !important;
+    }
+
+    #viewRecibos .recibos-share-summary{
+      min-width:88px !important;
+      min-height:34px !important;
+      padding:0 10px !important;
+      border-radius:12px !important;
+      font-size:11.5px !important;
+      box-shadow:none !important;
+    }
+
+    #viewRecibos .recibos-share-dropdown{
+      width:205px !important;
+      right:0 !important;
+      z-index:50 !important;
+    }
+
+    #viewRecibos .recibos-share-action{
+      min-height:40px !important;
+      padding:8px 10px !important;
+      border-radius:12px !important;
+    }
+
+    #viewRecibos .recibos-share-action .icon{
+      width:30px !important;
+      height:30px !important;
+      border-radius:10px !important;
+      font-size:12px !important;
+    }
+
+    #viewRecibos .recibos-share-action .title{font-size:11.5px !important;}
+    #viewRecibos .recibos-share-action .sub{font-size:10.5px !important;}
+
+    /* Mantiene las acciones pegadas a la derecha para no perder Ver / Compartir al desplazarse. */
+    #viewRecibos .recibos-table th:last-child,
+    #viewRecibos .recibos-table td:last-child{
+      position:sticky !important;
+      right:0 !important;
+      z-index:9 !important;
+      background:var(--row-bg) !important;
+      box-shadow:-10px 0 18px rgba(15,23,42,.08) !important;
+    }
+
+    #viewRecibos .recibos-table th:last-child{
+      background:var(--card-2) !important;
+      z-index:12 !important;
+    }
+
+    [data-theme="dark"] #viewRecibos .recibos-table th:last-child,
+    [data-theme="dark"] #viewRecibos .recibos-table td:last-child{
+      background:#101827 !important;
+      box-shadow:-10px 0 18px rgba(0,0,0,.28) !important;
+    }
+
+    @media (max-width:1100px){
+      #viewRecibos .recibos-table table{
+        min-width:1100px !important;
+      }
+      #viewRecibos .recibos-table th,
+      #viewRecibos .recibos-table td{
+        padding:8px 7px !important;
+      }
+    }
+
+    @media (max-width:720px){
+      #viewRecibos .recibos-table table{
+        min-width:1040px !important;
+      }
+      #viewRecibos .recibos-share-dropdown{
+        right:0 !important;
+        left:auto !important;
+      }
+    }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -9171,7 +9342,7 @@ function updateRecibosFiltersFromUI(){
           <td class="center">
             <div class="recibos-actions">
               <div class="recibos-action-panel">
-                <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver recibo</button>
+                <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver</button>
                 <details class="recibos-share-menu">
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
