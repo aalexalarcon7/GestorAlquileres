@@ -4772,7 +4772,7 @@ td:last-child{
         <div class="multi-pay-head">
           <div>
             <div class="multi-pay-title">Medios de pago</div>
-            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios actualiza automáticamente el total de arriba; el impuesto se descuenta del alquiler para no cargar doble.</div>
+            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios es el total cobrado; el sistema imputa primero al impuesto y después el resto al alquiler.</div>
           </div>
         </div>
         <div class="multi-pay-list" id="mMediosPagoList"></div>
@@ -4941,7 +4941,7 @@ td:last-child{
       <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
-      
+      <button type="button" class="success-toast-close" aria-label="Cerrar aviso">×</button>
     </div>
   </div>
 
@@ -6130,6 +6130,32 @@ td:last-child{
       }
     }
 
+
+    function getFechaOrdenReciboImpuesto(row={}){
+      const raw = row?.fecha_pago || row?.created_at || '';
+      const time = raw ? new Date(raw).getTime() : 0;
+      return Number.isFinite(time) ? time : 0;
+    }
+
+    async function getUltimoImpuestoPagadoContrato(contratoId){
+      const contrato = getContratoActivoRow(contratoId) || {};
+      const fallbackContrato = round2(Math.max(0, toNumber(contrato?.impuesto_mensual)));
+
+      try{
+        const rows = await fetchImpuestoRowsForContrato(contratoId);
+        const ultimo = (rows || [])
+          .filter(row => toNumber(row?.monto_impuesto) > 0)
+          .sort((a,b) => getFechaOrdenReciboImpuesto(b) - getFechaOrdenReciboImpuesto(a))[0];
+
+        const impuesto = round2(toNumber(ultimo?.monto_impuesto));
+        if (impuesto > 0) return impuesto;
+      } catch(e){
+        console.warn('No se pudo detectar el último impuesto pagado:', e?.message || e);
+      }
+
+      return fallbackContrato;
+    }
+
     
 
     async function refreshActivosReconstruidosData(){
@@ -6982,7 +7008,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? 'El botón de cobro queda en pausa hasta reconstruir pagos/recibos.' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
@@ -10760,15 +10786,34 @@ function globalSearch(){
       });
 
       try{
-        const { data, error } = await sb.rpc('eliminar_recibo_operativo_v2', {
+        let data;
+        let error;
+        const deleteArgs = {
           p_recibo_id: reciboDbId,
           p_numero_recibo: String(item.numero_recibo || item.referencia || '').trim() || null,
           p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null
-        });
+        };
+
+        const v3Delete = await sb.rpc('eliminar_recibo_operativo_v3', deleteArgs);
+        if (v3Delete.error) {
+          const rawV3 = v3Delete.error.message || String(v3Delete.error);
+          if (/eliminar_recibo_operativo_v3|function|schema cache|PGRST202|Could not find/i.test(rawV3)) {
+            const v2Delete = await sb.rpc('eliminar_recibo_operativo_v2', deleteArgs);
+            data = v2Delete.data;
+            error = v2Delete.error;
+          } else {
+            data = v3Delete.data;
+            error = v3Delete.error;
+          }
+        } else {
+          data = v3Delete.data;
+          error = null;
+        }
+
         if (error) {
           const raw = error.message || String(error);
-          if (/eliminar_recibo_operativo_v2|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función eliminar_recibo_operativo_v2 en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación segura y probá de nuevo. Detalle: ' + raw);
+          if (/eliminar_recibo_operativo_v2|eliminar_recibo_operativo_v3|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función de eliminación segura en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación v3 y probá de nuevo. Detalle: ' + raw);
           }
           throw error;
         }
@@ -13365,19 +13410,34 @@ function globalSearch(){
       return round2(medios.reduce((acc, row) => acc + Number(row.monto || 0), 0));
     }
 
+    function calcularDesgloseImpuestoPrimero(totalCobrado, impuestoAdeudado){
+      const total = round2(Math.max(toNumber(totalCobrado), 0));
+      const impuestoObjetivo = round2(Math.max(toNumber(impuestoAdeudado), 0));
+      const impuestoAplicado = round2(Math.min(total, impuestoObjetivo));
+      const alquilerAplicado = round2(Math.max(total - impuestoAplicado, 0));
+      return {
+        alquiler: alquilerAplicado,
+        impuesto: impuestoAplicado,
+        impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
+        total
+      };
+    }
+
+
     function syncCobroDesdeMediosPago(){
       const totalMedios = getTotalMediosPago();
-      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-      const alquiler = round2(Math.max(totalMedios - impuesto, 0));
+      const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+      const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
 
       if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
-      if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(alquiler) : '';
+      if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
+      if ($('mImpMonto')) $('mImpMonto').value = impuestoObjetivo > 0 ? formatMoneyInputValue(desglose.impuesto) : '';
       if ($('mImpPct')) $('mImpPct').value = '0';
 
       const medios = getPagoMediosFromUI();
       if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
       updatePagoMediosResumen();
-      return { alquiler, impPct:0, impuesto, total:totalMedios };
+      return { alquiler:desglose.alquiler, impPct:0, impuesto:desglose.impuesto, total:totalMedios };
     }
 
     function updatePagoMedioRow(uid, field, value, touched=false){
@@ -13723,10 +13783,18 @@ function globalSearch(){
       pagoCuotasPendientesActuales = pendientes;
       const oldest = pendientes[0];
       const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
+      const ultimoImpuesto = await getUltimoImpuestoPagadoContrato(r.contrato_id);
+
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
       if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mImpMonto')) $('mImpMonto').value = '';
+      if ($('mImpMonto')) $('mImpMonto').value = ultimoImpuesto > 0 ? formatMoneyInputValue(ultimoImpuesto) : '';
       await refreshPaymentPeriodOptions(r, false);
+
+      // Al abrir el cobro, el sistema sugiere automáticamente el último impuesto pagado
+      // de este activo. La suma inicial queda impuesto + saldo del alquiler del mes.
+      const totalInicial = round2(monto + ultimoImpuesto);
+      if ($('mTotal')) $('mTotal').value = totalInicial > 0 ? formatMoneyInputValue(totalInicial) : '';
+      initPagoMediosRows(totalInicial);
       recalcularCobroModal();
     }
 
@@ -13737,24 +13805,31 @@ function globalSearch(){
       try{
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
-        const alquilerBase = parseMoneyToNumber($('mAlquiler')?.value || '');
-        const impuestoFijo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-        const amount = round2(alquilerBase + impuestoFijo);
-        if (amount <= 0){
-          if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
-          return;
-        }
-
+        const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
         const mediosPago = getPagoMediosFromUI();
         const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
         if (!mediosPago.length){
           if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
           return;
         }
-        if (Math.abs(totalMediosPago - amount) > 0.01){
-          if (msgEl) msgEl.textContent = `La suma de los medios de pago (${fmtARS.format(totalMediosPago)}) debe coincidir con el total a cobrar (${fmtARS.format(amount)}).`;
+
+        const desglosePrioritario = calcularDesgloseImpuestoPrimero(totalMediosPago, impuestoObjetivo);
+        const amount = desglosePrioritario.total;
+        const impuestoFijo = desglosePrioritario.impuesto;
+        const alquilerBase = desglosePrioritario.alquiler;
+
+        if (amount <= 0){
+          if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
           return;
         }
+
+        // Regla operativa: primero se cobra/imputa el impuesto y después el alquiler.
+        // Ejemplo: si el impuesto es $5.000 y se cobran $3.000, queda $3.000 a impuesto y $0 a alquiler.
+        // Si se cobran $25.000, queda $5.000 a impuesto y $20.000 a alquiler.
+        if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(amount);
+        if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
+        if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
+
         const medioGeneral = getMedioPagoGeneral(mediosPago);
         const detalleMediosPago = buildMediosPagoDetalle(mediosPago);
         if ($('mMedio')) $('mMedio').value = medioGeneral;
@@ -13766,8 +13841,8 @@ function globalSearch(){
         }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
         const desgloseCobroBase = impuestoFijo > 0
-          ? `Alquiler base: ${fmtARS.format(alquilerBase)} · Impuesto agregado: ${fmtARS.format(impuestoFijo)} · Total cobrado: ${fmtARS.format(amount)}`
-          : `Alquiler base: ${fmtARS.format(alquilerBase)} · Sin impuesto agregado · Total cobrado: ${fmtARS.format(amount)}`;
+          ? `Imputación impuesto primero: ${fmtARS.format(impuestoFijo)} a impuesto · ${fmtARS.format(alquilerBase)} a alquiler · Total cobrado: ${fmtARS.format(amount)}`
+          : `Sin impuesto imputado · ${fmtARS.format(alquilerBase)} a alquiler · Total cobrado: ${fmtARS.format(amount)}`;
         const desgloseCobro = detalleMediosPago
           ? `${desgloseCobroBase} · Medios de pago: ${detalleMediosPago}`
           : desgloseCobroBase;
@@ -13808,11 +13883,40 @@ function globalSearch(){
             referencia: row.referencia || null
           }))
         };
-        const { data, error } = await sb.rpc('registrar_cobro_operativo_v3_multipago', args);
+        let data;
+        let error;
+        let usedCobroV4 = false;
+
+        const argsV4 = {
+          ...args,
+          // En v4 este valor representa el impuesto mensual objetivo.
+          // La función decide cuánto va a impuesto y cuánto a alquiler en cada mes.
+          p_impuesto_mensual: impuestoObjetivo
+        };
+
+        const v4Response = await sb.rpc('registrar_cobro_operativo_v4_multipago', argsV4);
+        if (v4Response.error) {
+          const rawV4 = v4Response.error.message || String(v4Response.error);
+          if (/registrar_cobro_operativo_v4_multipago|function|schema cache|PGRST202|Could not find/i.test(rawV4)) {
+            // Fallback temporal: si todavía no ejecutaste el SQL v4, usa la función anterior.
+            // Para corregir pagos que pasan de un mes a otro, ejecutá el SQL v4.
+            const v3Response = await sb.rpc('registrar_cobro_operativo_v3_multipago', args);
+            data = v3Response.data;
+            error = v3Response.error;
+          } else {
+            data = v4Response.data;
+            error = v4Response.error;
+          }
+        } else {
+          data = v4Response.data;
+          error = null;
+          usedCobroV4 = true;
+        }
+
         if (error) {
           const raw = error.message || String(error);
-          if (/registrar_cobro_operativo_v3_multipago|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función registrar_cobro_operativo_v3_multipago en Supabase o falta recargar el esquema. Ejecutá el SQL operativo/hotfix y probá de nuevo. Detalle: ' + raw);
+          if (/registrar_cobro_operativo_v3_multipago|registrar_cobro_operativo_v4_multipago|function|schema cache|PGRST202/i.test(raw)) {
+            throw new Error('No se encontró la función de cobro operativo en Supabase o falta recargar el esquema. Ejecutá el SQL operativo v4 y probá de nuevo. Detalle: ' + raw);
           }
           if (/permission|permiso|denied|42501/i.test(raw)) {
             throw new Error('Permiso denegado para registrar cobros. Ejecutá el SQL hotfix de permisos. Detalle: ' + raw);
@@ -13822,16 +13926,21 @@ function globalSearch(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
 
+        const impuestoRegistrado = round2(toNumber(res?.monto_impuesto ?? impuestoFijo));
+        const alquilerRegistrado = round2(toNumber(res?.monto_alquiler ?? alquilerBase));
+        const periodoRegistrado = String(res?.periodo_aplicado || periodoTexto || '').trim();
+        const detalleRegistrado = String(res?.detalle_aplicacion || desgloseCobro || '').trim();
+
         const metadataPatch = await forceCobroReceiptMetadata({
           contratoId: Number(modalContrato.contrato_id),
           fechaPago: args.p_fecha_pago,
           monto: amount,
-          numeroManual,
+          numeroManual: res?.numero_recibo || numeroManual,
           observacionFinal,
-          alquilerBase,
-          impuestoFijo,
-          periodoTexto,
-          detalleAplicacion: desgloseCobro
+          alquilerBase: alquilerRegistrado,
+          impuestoFijo: impuestoRegistrado,
+          periodoTexto: periodoRegistrado,
+          detalleAplicacion: `${detalleRegistrado}${usedCobroV4 ? ' · Motor v4 impuesto primero' : ' · Motor v3 fallback'}`
         });
 
         if (msgEl) {
