@@ -4173,8 +4173,8 @@ td:last-child{
 
     #viewRecibos .recibos-action-panel{
       display:grid !important;
-      grid-template-columns:48px 88px 38px !important;
-      gap:7px !important;
+      grid-template-columns:48px 104px !important;
+      gap:8px !important;
       align-items:center !important;
       justify-content:center !important;
       width:auto !important;
@@ -4224,9 +4224,10 @@ td:last-child{
     #viewRecibos .recibos-more-action{
       background:var(--secondary-btn-bg) !important;
       color:var(--text) !important;
-      min-width:38px !important;
-      padding:0 !important;
-      font-size:18px !important;
+      min-width:104px !important;
+      padding:0 12px !important;
+      font-size:11.5px !important;
+      letter-spacing:.01em !important;
       line-height:1 !important;
     }
 
@@ -10204,7 +10205,6 @@ function globalSearch(){
 
       const menu = ensureReciboFloatingMenu();
       const phone = getReceiptWhatsappPhone(item);
-      const email = String(item.email || '').trim();
       menu.dataset.reciboId = String(id);
       menu.innerHTML = `
         <div class="recibo-menu-head">
@@ -10226,26 +10226,12 @@ function globalSearch(){
               <span class="recibo-menu-help">Solo el recibo</span>
             </span>
           </button>
-          <button class="recibo-menu-action" type="button" onclick="handleReciboFloatingAction('whatsappText')" ${phone ? '' : 'disabled'}>
-            <span class="recibo-menu-icon">TXT</span>
-            <span class="recibo-menu-meta">
-              <span class="recibo-menu-label">WhatsApp rápido</span>
-              <span class="recibo-menu-help">Abre chat con texto</span>
-            </span>
-          </button>
-          <button class="recibo-menu-action" type="button" onclick="handleReciboFloatingAction('email')" ${email ? '' : 'disabled'}>
-            <span class="recibo-menu-icon">@</span>
-            <span class="recibo-menu-meta">
-              <span class="recibo-menu-label">Enviar por email</span>
-              <span class="recibo-menu-help">Abre correo y prepara PDF</span>
-            </span>
-          </button>
         </div>
       `;
 
       const rect = anchor?.getBoundingClientRect?.() || { right: window.innerWidth - 16, bottom: 80 };
       const menuWidth = 276;
-      const estimatedHeight = 252;
+      const estimatedHeight = 170;
       const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
       const below = rect.bottom + 8;
       const top = below + estimatedHeight > window.innerHeight
@@ -10291,7 +10277,7 @@ function globalSearch(){
         button.classList.add('is-loading');
         button.disabled = true;
       } else {
-        button.textContent = button.dataset.originalText || 'PDF WA';
+        button.textContent = button.dataset.originalText || 'Compartir';
         button.classList.remove('is-loading');
         button.disabled = false;
       }
@@ -10351,8 +10337,7 @@ function globalSearch(){
             <div class="recibos-actions">
               <div class="recibos-action-panel">
                 <button type="button" class="recibos-primary-action" onclick="openReciboModal('${key}')" title="Ver recibo">Ver</button>
-                <button type="button" class="recibos-send-pdf-action" onclick="shareReciboByWhatsappPdf('${key}', this)" title="Enviar el PDF directo por WhatsApp">PDF WA</button>
-                <button type="button" class="recibos-more-action" onclick="openReciboFloatingMenu('${key}', this)" aria-label="Más acciones del recibo ${escapeAttr(item.numero_recibo || '')}" title="Más acciones">⋯</button>
+                <button type="button" class="recibos-more-action" onclick="openReciboFloatingMenu('${key}', this)" aria-label="Compartir recibo ${escapeAttr(item.numero_recibo || '')}" title="Compartir recibo">Compartir</button>
               </div>
             </div>
           </td>
