@@ -4977,10 +4977,6 @@ td:last-child{
 
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-    // Webhook de n8n para enviar recibos PDF por WhatsApp.
-    // Importante: el token/API key de Evolution debe quedar en n8n, nunca en este HTML.
-    const RECIBO_WHATSAPP_WEBHOOK_URL = localStorage.getItem('ga_recibo_whatsapp_webhook_url')
-      || 'https://n8n.zubuagency.com/webhook/enviar-recibo-whatsapp';
     const LOGIN_REMEMBER_KEY = 'ga_login_email_v2';
     let authRecoveryMode = false;
 
@@ -9857,54 +9853,6 @@ function globalSearch(){
       return `${saludo} Te enviamos adjunto el recibo interno N° ${numero} correspondiente a la unidad ${local}. Total registrado: ${total}.`;
     }
 
-    async function sendReciboPdfToWhatsappWebhook(item){
-      const phone = normalizeWhatsappPhone(getReceiptWhatsappPhone(item));
-      if (!phone) throw new Error('Este locatario no tiene teléfono cargado.');
-
-      const payload = await buildReciboPdfPayload(item);
-      const pdfBase64 = await blobToBase64(payload.blob);
-      const caption = buildReciboWhatsappCaption(item);
-
-      const body = {
-        telefono: phone,
-        phone,
-        number: phone,
-        nombre: item?.inquilino_nombre || '',
-        email: item?.email || '',
-        numero_recibo: item?.numero_recibo || '',
-        local_codigo: item?.local_codigo || '',
-        fecha_pago: item?.fecha_pago || item?.created_at || '',
-        monto_alquiler: Number(item?.monto_alquiler || 0),
-        monto_impuesto: Number(item?.monto_impuesto || 0),
-        monto_total: Number(item?.monto_total || item?.monto || 0),
-        periodo_aplicado: item?.periodo_aplicado || '',
-        medio: item?.medio || '',
-        referencia: item?.referencia || '',
-        fileName: payload.fileName,
-        filename: payload.fileName,
-        mimeType: 'application/pdf',
-        mimetype: 'application/pdf',
-        pdfBase64,
-        base64: pdfBase64,
-        caption
-      };
-
-      const response = await fetch(RECIBO_WHATSAPP_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-
-      let responseText = '';
-      try { responseText = await response.text(); } catch (_) {}
-
-      if (!response.ok) {
-        throw new Error(responseText || `El webhook respondió con estado ${response.status}.`);
-      }
-
-      return { response, responseText, fileName: payload.fileName };
-    }
-
     function buildWhatsappLink(phone, text){
       const normalized = normalizeWhatsappPhone(phone);
       if (!normalized) return '';
@@ -10216,7 +10164,7 @@ function globalSearch(){
             <span class="recibo-menu-icon">WA</span>
             <span class="recibo-menu-meta">
               <span class="recibo-menu-label">Enviar PDF por WhatsApp</span>
-              <span class="recibo-menu-help">Directo por n8n / Evolution</span>
+              <span class="recibo-menu-help">Abre compartir del celular</span>
             </span>
           </button>
           <button class="recibo-menu-action" type="button" onclick="handleReciboFloatingAction('downloadPdf')">
@@ -10913,26 +10861,37 @@ function globalSearch(){
       if (!item) return;
 
       const phone = getReceiptWhatsappPhone(item);
-      if (!String(phone || '').trim()){
-        alert('Este locatario no tiene teléfono cargado.');
-        return;
-      }
-
-      const ok = confirm(`¿Enviar por WhatsApp el PDF del recibo N° ${item.numero_recibo || '—'} a ${String(phone).trim()}?`);
-      if (!ok) return;
+      const caption = buildReciboWhatsappCaption(item);
+      const subject = `Recibo interno N° ${item.numero_recibo || '—'}`;
 
       try {
         setReciboActionLoading(button, true);
-        if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'Enviando recibo PDF por WhatsApp...';
+        if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'Preparando PDF para compartir...';
 
-        await sendReciboPdfToWhatsappWebhook({ ...item, telefono: phone });
+        const shared = await tryNativeShareReciboPdf(item, {
+          title: subject,
+          text: caption
+        });
 
-        const okMsg = 'Recibo PDF enviado por WhatsApp correctamente.';
-        if ($('reciboModalMsg')) $('reciboModalMsg').textContent = okMsg;
-        alert(okMsg);
+        if (shared) {
+          if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'Se abrió el menú para compartir el PDF. Elegí WhatsApp y enviá el recibo.';
+          return;
+        }
+
+        await downloadReciboPdf(item);
+
+        const link = buildWhatsappLink(phone, `${caption}\n\nTe descargué el PDF del recibo para adjuntarlo en este chat.`);
+        if (link) {
+          window.open(link, '_blank', 'noopener');
+          if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'Se descargó el PDF y se abrió WhatsApp. Adjuntá el archivo descargado para enviarlo.';
+          alert('Se descargó el PDF y se abrió WhatsApp. Adjuntá el archivo descargado para enviarlo.');
+        } else {
+          if ($('reciboModalMsg')) $('reciboModalMsg').textContent = 'Se descargó el PDF. Compartilo manualmente por WhatsApp.';
+          alert('Se descargó el PDF. Compartilo manualmente por WhatsApp.');
+        }
       } catch (error) {
-        console.error('Error enviando recibo PDF por WhatsApp:', error);
-        const errorMsg = `No se pudo enviar el PDF por WhatsApp. ${error?.message || ''}`.trim();
+        console.error('Error preparando recibo PDF para WhatsApp:', error);
+        const errorMsg = `No se pudo preparar el PDF para WhatsApp. ${error?.message || ''}`.trim();
         if ($('reciboModalMsg')) $('reciboModalMsg').textContent = errorMsg;
         alert(errorMsg);
       } finally {
