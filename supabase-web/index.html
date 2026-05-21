@@ -5303,34 +5303,34 @@ td:last-child{
     }
 
     function applyCobroReceiptOverrides(rows){
-      const overrides = loadCobroReceiptOverrides();
-      if (!overrides.length) return rows || [];
-      const result = [...(rows || [])];
+  const overrides = loadCobroReceiptOverrides();
+  if (!overrides.length) return rows || [];
 
-      overrides.forEach(override => {
-        let bestIndex = -1;
-        let bestScore = -1;
-        result.forEach((row, idx) => {
-          const score = receiptOverrideMatchScore(row, override);
-          if (score > bestScore) {
-            bestScore = score;
-            bestIndex = idx;
-          }
-        });
+  const result = [...(rows || [])];
 
-        if (bestIndex >= 0 && bestScore >= 10) {
-          result[bestIndex] = buildReceiptOverridePatch(override, result[bestIndex]);
-        } else if (override?.contrato_id && override?.monto_total) {
-          result.unshift(buildReceiptOverridePatch(override, {
-            id: override.id || `override-${override.created_at || Date.now()}`,
-            pago_id: override.pago_id || override.id || `override-${override.created_at || Date.now()}`,
-            recibo_id: override.recibo_id || override.id || null,
-            created_at: override.created_at || new Date().toISOString()
-          }));
-        }
-      });
-      return result;
+  overrides.forEach(override => {
+    let bestIndex = -1;
+    let bestScore = -1;
+
+    result.forEach((row, idx) => {
+      const score = receiptOverrideMatchScore(row, override);
+      if (score > bestScore) {
+        bestScore = score;
+        bestIndex = idx;
+      }
+    });
+
+    if (bestIndex >= 0 && bestScore >= 10) {
+      result[bestIndex] = buildReceiptOverridePatch(override, result[bestIndex]);
     }
+
+    // Importante:
+    // No insertar recibos nuevos desde localStorage.
+    // Si no existe en Supabase, no debe aparecer en la página.
+  });
+
+  return result;
+}
 
     function saveCobroReceiptOverride(override){
       if (!override || !override.contrato_id) return;
