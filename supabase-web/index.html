@@ -10051,8 +10051,8 @@ function globalSearch(){
         `Unidad: ${item.local_codigo || '—'}`,
         `Fecha de pago: ${formatDateDisplay(item.fecha_pago || item.created_at)}`,
         item.created_at ? `Registrado: ${formatDateTimeDisplay(item.created_at)}` : null,
-        `Alquiler: ${fmtARS.format(Number(item.monto_alquiler || 0))}`,
-        `Impuesto: ${fmtARS.format(Number(item.monto_impuesto || 0))}${Number(item.impuesto_porcentaje || 0) > 0 ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
+        `Alquiler: ${fmtARS.format(Number(receiptAmounts.alquiler || 0))}`,
+        `Impuesto: ${fmtARS.format(Number(receiptAmounts.impuesto || 0))}${Number(item.impuesto_porcentaje || 0) > 0 ? ` (${Number(item.impuesto_porcentaje || 0).toFixed(2)}%)` : ''}`,
         `Total: ${fmtARS.format(Number(item.monto_total || item.monto || 0))}`,
         `Medio de pago: ${item.medio || '—'}`,
         item.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : null,
@@ -10060,6 +10060,44 @@ function globalSearch(){
         item.referencia ? `N° recibo / referencia: ${item.referencia}` : null
       ].filter(Boolean);
       return lines.join('\n');
+    }
+
+
+    function parseReceiptMoneyFromText(value){
+      const raw = String(value || '').trim();
+      if (!raw) return 0;
+      let clean = raw.replace(/[^0-9,.-]/g, '');
+      if (!clean) return 0;
+      if (clean.includes(',') && clean.includes('.')) clean = clean.replace(/\./g, '').replace(',', '.');
+      else if (clean.includes(',')) clean = clean.replace(',', '.');
+      const n = Number(clean);
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function getReceiptImputacionAmounts(item={}){
+      const text = [item.descripcion_pago, item.detalle_aplicacion, item.observacion]
+        .filter(Boolean)
+        .join(' | ');
+      const impuestoMatch = text.match(/\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*a\s*impuesto/i);
+      const alquilerMatch = text.match(/\$\s*([0-9.]+(?:,[0-9]{1,2})?)\s*a\s*alquiler/i);
+      return {
+        impuesto: impuestoMatch ? parseReceiptMoneyFromText(impuestoMatch[1]) : 0,
+        alquiler: alquilerMatch ? parseReceiptMoneyFromText(alquilerMatch[1]) : 0
+      };
+    }
+
+    function getReceiptDisplayAmounts(item={}){
+      const total = Number(item.monto_total ?? item.monto ?? 0) || 0;
+      const directImpuesto = Number(item.monto_impuesto ?? 0) || 0;
+      const directAlquiler = Number(item.monto_alquiler ?? 0) || 0;
+      const parsed = getReceiptImputacionAmounts(item);
+      const impuesto = directImpuesto > 0 ? directImpuesto : parsed.impuesto;
+      let alquiler = directAlquiler;
+      if (parsed.alquiler > 0 && (directImpuesto <= 0 || Math.abs((directAlquiler + impuesto) - total) > 0.01)) {
+        alquiler = parsed.alquiler;
+      }
+      if (!alquiler && total && impuesto >= 0) alquiler = Math.max(0, total - impuesto);
+      return { alquiler, impuesto, total };
     }
 
     function buildReceiptPrintHtml(item){
@@ -10076,9 +10114,10 @@ function globalSearch(){
       const medio = escapeHtml(item.medio || '—');
       const referencia = escapeHtml(item.referencia || '—');
       const impuestoPct = Number(item.impuesto_porcentaje || 0);
-      const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
-      const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
-      const total = fmtARS.format(Number(item.monto_total || item.monto || 0));
+      const receiptAmounts = getReceiptDisplayAmounts(item);
+      const alquiler = fmtARS.format(Number(receiptAmounts.alquiler || 0));
+      const impuesto = fmtARS.format(Number(receiptAmounts.impuesto || 0));
+      const total = fmtARS.format(Number(receiptAmounts.total || 0));
       return `
         <div class="recibo-sheet" id="reciboSheetPrintable">
           <div class="recibo-sheet-head">
@@ -10482,6 +10521,7 @@ function globalSearch(){
         const key = getReciboKey(item);
         const phone = getReceiptWhatsappPhone(item);
         const email = String(item.email || '').trim();
+        const receiptAmounts = getReceiptDisplayAmounts(item);
         return `
         <tr>
           <td>
@@ -10511,7 +10551,7 @@ function globalSearch(){
             <span class="contact-sub">${Number(item.impuesto_porcentaje || 0) > 0 ? `${Number(item.impuesto_porcentaje || 0).toFixed(2)}%` : 'Monto fijo'}</span>
           </td>
           <td class="right">
-            <div class="recibos-cell-title"><strong>${fmtARS.format(Number(item.monto_total || 0))}</strong></div>
+            <div class="recibos-cell-title"><strong>${fmtARS.format(Number(receiptAmounts.total || 0))}</strong></div>
           </td>
           <td>
             <div class="recibos-contact-stack">
@@ -11048,7 +11088,144 @@ function globalSearch(){
   </style>
 
 </head>
-          <body>${printable}</body>
+          <body>${printable}
+
+<script id="fixImpuestoMontoTypingOnly">
+(function(){
+  // FIX puntual: el campo "Impuesto a sumar" no debe autoformatearse mientras se escribe.
+  // Antes, al tener medios de pago cargados, recalcularCobroModal() llamaba a syncCobroDesdeMediosPago()
+  // y esa función pisaba el input en cada tecla. Por eso 2000 podía terminar como 2,00.
+
+  function el(id){ return document.getElementById(id); }
+  function round2Local(n){ return Math.round((Number(n) || 0) * 100) / 100; }
+
+  function parseMoneyARSafe(input){
+    let s = String(input || '').trim();
+    if (!s) return 0;
+
+    s = s.replace(/[^\d,\.\-]/g, '');
+    if (!s || s === '-' || s === ',' || s === '.') return 0;
+
+    const negative = /^-/.test(s);
+    s = s.replace(/-/g, '');
+
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+
+    if (hasComma && hasDot) {
+      // 1.234,56 => 1234.56 / 1,234.56 => 1234.56
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) {
+        s = s.replace(/\./g, '').replace(',', '.');
+      } else {
+        s = s.replace(/,/g, '');
+      }
+    } else if (hasDot) {
+      const parts = s.split('.');
+      // 2.000 o 1.234.567 => miles
+      if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+        s = parts.join('');
+      }
+      // 2.50 queda decimal por compatibilidad
+    } else if (hasComma) {
+      const parts = s.split(',');
+      // 2,000 también lo tomamos como miles para evitar que baje a 2,00
+      if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+        s = parts.join('');
+      } else {
+        s = s.replace(',', '.');
+      }
+    }
+
+    const n = Number((negative ? '-' : '') + s);
+    if (!Number.isFinite(n) || n <= 0) return 0;
+    return round2Local(n);
+  }
+
+  function formatMoneyARSafe(value){
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return n.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  // Mejoramos el parser general de importes para que "2,000" no se lea como 2.
+  const originalParseMoneyToDecimalString = window.parseMoneyToDecimalString;
+  window.parseMoneyToDecimalString = function(input){
+    const n = parseMoneyARSafe(input);
+    if (n > 0) return n.toFixed(2);
+    return originalParseMoneyToDecimalString ? originalParseMoneyToDecimalString(input) : null;
+  };
+
+  window.parseMoneyToNumber = function(input){
+    const parsed = window.parseMoneyToDecimalString(input);
+    return parsed ? Number(parsed) : 0;
+  };
+
+  const originalSyncCobroDesdeMediosPago = window.syncCobroDesdeMediosPago;
+  window.syncCobroDesdeMediosPago = function(){
+    const totalMedios = typeof window.getTotalMediosPago === 'function' ? window.getTotalMediosPago() : 0;
+    const impEl = el('mImpMonto');
+    const isEditingImpuesto = document.activeElement === impEl;
+    const impuestoObjetivo = parseMoneyARSafe(impEl && impEl.value ? impEl.value : '');
+
+    const desglose = typeof window.calcularDesgloseImpuestoPrimero === 'function'
+      ? window.calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo)
+      : {
+          alquiler: round2Local(Math.max(totalMedios - Math.min(totalMedios, impuestoObjetivo), 0)),
+          impuesto: round2Local(Math.min(totalMedios, impuestoObjetivo)),
+          impuestoPendiente: round2Local(Math.max(impuestoObjetivo - totalMedios, 0)),
+          total: round2Local(totalMedios)
+        };
+
+    if (el('mTotal')) el('mTotal').value = totalMedios > 0 ? formatMoneyARSafe(totalMedios) : '';
+    if (el('mAlquiler')) el('mAlquiler').value = totalMedios > 0 ? formatMoneyARSafe(desglose.alquiler) : '';
+
+    // CLAVE: si el usuario está escribiendo, NO se toca el valor del input.
+    // Solo se formatea cuando pierde foco.
+    if (impEl && !isEditingImpuesto) {
+      impEl.value = impuestoObjetivo > 0 ? formatMoneyARSafe(impuestoObjetivo) : '';
+    }
+
+    if (el('mImpPct')) el('mImpPct').value = '0';
+
+    const medios = typeof window.getPagoMediosFromUI === 'function' ? window.getPagoMediosFromUI() : [];
+    if (el('mMedio') && typeof window.getMedioPagoGeneral === 'function') el('mMedio').value = window.getMedioPagoGeneral(medios);
+    if (typeof window.updatePagoMediosResumen === 'function') window.updatePagoMediosResumen();
+
+    return { alquiler: desglose.alquiler, impPct: 0, impuesto: desglose.impuesto, total: totalMedios };
+  };
+
+  function wireImpuestoInput(){
+    const impEl = el('mImpMonto');
+    if (!impEl || impEl.dataset.fixImpuestoTyping === '1') return;
+    impEl.dataset.fixImpuestoTyping = '1';
+
+    impEl.setAttribute('autocomplete', 'off');
+    impEl.setAttribute('inputmode', 'decimal');
+
+    impEl.addEventListener('focus', function(){
+      // No transformamos al enfocar; solo seleccionamos para facilitar reemplazar el valor.
+      setTimeout(() => { try { impEl.select(); } catch(e){} }, 0);
+    });
+
+    impEl.addEventListener('input', function(){
+      // Mientras escribe, recalcula totales pero no autoformatea este input.
+      if (typeof window.recalcularCobroModal === 'function') window.recalcularCobroModal();
+    });
+
+    impEl.addEventListener('blur', function(){
+      const n = parseMoneyARSafe(impEl.value);
+      impEl.value = n > 0 ? formatMoneyARSafe(n) : '';
+      if (typeof window.recalcularCobroModal === 'function') window.recalcularCobroModal();
+    });
+  }
+
+  wireImpuestoInput();
+  document.addEventListener('DOMContentLoaded', wireImpuestoInput);
+  document.addEventListener('click', function(){ setTimeout(wireImpuestoInput, 0); }, true);
+})();
+</script>
+
+</body>
         </html>
       `);
       w.document.close();
@@ -13925,13 +14102,8 @@ function globalSearch(){
         const res = Array.isArray(data) ? data[0] : data;
         if (res && res.ok === false) throw new Error(res.mensaje || 'No se pudo imputar el cobro.');
 
-        // Protección: si la RPC devuelve 0 de impuesto pero el usuario cargó impuesto,
-        // no dejamos que el parche visual/metadata pise el impuesto real ingresado.
-        const impuestoRpc = round2(toNumber(res?.monto_impuesto));
-        const alquilerRpc = round2(toNumber(res?.monto_alquiler));
-        const rpcNoImputoImpuesto = impuestoFijo > 0.009 && impuestoRpc <= 0.009;
-        const impuestoRegistrado = rpcNoImputoImpuesto ? impuestoFijo : round2(toNumber(res?.monto_impuesto ?? impuestoFijo));
-        const alquilerRegistrado = rpcNoImputoImpuesto ? alquilerBase : round2(toNumber(res?.monto_alquiler ?? alquilerBase));
+        const impuestoRegistrado = round2(toNumber(res?.monto_impuesto ?? impuestoFijo));
+        const alquilerRegistrado = round2(toNumber(res?.monto_alquiler ?? alquilerBase));
         const periodoRegistrado = String(res?.periodo_aplicado || periodoTexto || '').trim();
         const detalleRegistrado = String(res?.detalle_aplicacion || desgloseCobro || '').trim();
 
