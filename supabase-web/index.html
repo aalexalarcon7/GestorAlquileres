@@ -8458,7 +8458,15 @@ function globalSearch(){
       if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
       if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
       if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mImpMonto')) $('mImpMonto').value = '';
+      if ($('mImpMonto')) {
+      $('mImpMonto').value = '';
+
+      const ultimoImpuesto = await obtenerUltimoImpuestoActivo(r.contrato_id);
+
+      if (ultimoImpuesto > 0) {
+      $('mImpMonto').value = formatMoneyInputValue(ultimoImpuesto);
+      }
+    }
       if ($('mTotal')) $('mTotal').value = '';
       if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
       populatePaymentMethodSelect('mMedio');
@@ -13756,6 +13764,30 @@ function globalSearch(){
       syncPagoMediosConTotal(total);
       return { alquiler, impPct:0, impuesto, total };
     }
+
+async function obtenerUltimoImpuestoActivo(contratoId){
+  try {
+    if (!contratoId) return 0;
+
+    const { data, error } = await sb.rpc('obtener_ultimo_impuesto_activo', {
+      p_contrato_id: Number(contratoId)
+    });
+
+    if (error) {
+      console.warn('No se pudo obtener último impuesto del activo:', error);
+      return 0;
+    }
+
+    const value = Number(data || 0);
+
+    // Evita volver a tomar impuestos basura tipo 2, 4, 8, etc.
+    return value >= 1000 ? value : 0;
+  } catch (err) {
+    console.warn('Error obteniendo último impuesto:', err);
+    return 0;
+  }
+}
+
 
     async function openPagoModal(r){
       if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
