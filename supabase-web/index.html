@@ -10740,7 +10740,7 @@ function globalSearch(){
       const local = item.local_codigo || '—';
       const locatario = item.inquilino_nombre || '—';
       const reciboDbId = getReciboNumericIdForDelete(item);
-      const pagoId = reciboDbId;
+      const pagoId = item.pago_id ? Number(item.pago_id) : null;
       const deleteKey = String(reciboDbId || getReciboKey(item) || id || '').trim();
 
       if (!Number.isFinite(reciboDbId) || reciboDbId <= 0){
@@ -10776,34 +10776,26 @@ function globalSearch(){
         let data;
         let error;
         const deleteArgs = {
-          p_recibo_id: reciboDbId,
-          p_numero_recibo: String(item.numero_recibo || item.referencia || '').trim() || null,
-          p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null
-        };
+  p_pago_id: item.pago_id ? Number(item.pago_id) : null,
+  p_recibo_id: reciboDbId,
+  p_numero_recibo: String(item.numero_recibo || item.recibo_base || item.referencia || '').trim() || null,
+  p_contrato_id: item.contrato_id ? Number(item.contrato_id) : null,
+  p_anio: item.anio ? Number(item.anio) : null,
+  p_mes: item.mes ? Number(item.mes) : null
+};
 
-        const v3Delete = await sb.rpc('eliminar_recibo_operativo_v3', deleteArgs);
-        if (v3Delete.error) {
-          const rawV3 = v3Delete.error.message || String(v3Delete.error);
-          if (/eliminar_recibo_operativo_v3|function|schema cache|PGRST202|Could not find/i.test(rawV3)) {
-            const v2Delete = await sb.rpc('eliminar_recibo_operativo_v2', deleteArgs);
-            data = v2Delete.data;
-            error = v2Delete.error;
-          } else {
-            data = v3Delete.data;
-            error = v3Delete.error;
-          }
-        } else {
-          data = v3Delete.data;
-          error = null;
-        }
+const deleteResponse = await sb.rpc('eliminar_recibo_operativo', deleteArgs);
+
+data = deleteResponse.data;
+error = deleteResponse.error;
 
         if (error) {
-          const raw = error.message || String(error);
-          if (/eliminar_recibo_operativo_v2|eliminar_recibo_operativo_v3|function|schema cache|PGRST202/i.test(raw)) {
-            throw new Error('No se encontró la función de eliminación segura en Supabase o falta recargar el esquema. Ejecutá el SQL de eliminación v3 y probá de nuevo. Detalle: ' + raw);
-          }
-          throw error;
-        }
+  const raw = error.message || String(error);
+  if (/eliminar_recibo_operativo|function|schema cache|PGRST202|Could not find/i.test(raw)) {
+    throw new Error('No se encontró la función eliminar_recibo_operativo en Supabase o falta recargar el esquema. Verificá que esté creada y probá de nuevo. Detalle: ' + raw);
+  }
+  throw error;
+}
 
         const result = Array.isArray(data) ? data[0] : data;
         if (result && result.ok === false){
