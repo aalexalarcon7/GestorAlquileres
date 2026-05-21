@@ -4750,8 +4750,7 @@ td:last-child{
         <input id="mImpPct" type="hidden" value="0">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
-          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="recalcularCobroModal()">
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
+          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="window.__editandoImpuestoMonto = true" onblur="window.__editandoImpuestoMonto = false; recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -4938,7 +4937,7 @@ td:last-child{
         <div style="font-size:15px;font-weight:900;line-height:1.15;">Pago registrado</div>
         <div id="pagoSuccessToastText" style="font-size:12px;color:#64748b;line-height:1.35;overflow-wrap:anywhere;">El pago se guardó correctamente.</div>
       </div>
-      <button type="button" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
+      <button class="btn" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
     </div>
@@ -7007,7 +7006,7 @@ function globalSearch(){
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? 'El botón de cobro queda en pausa hasta reconstruir pagos/recibos.' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
         </div>
       `;
     }
@@ -13746,9 +13745,9 @@ function globalSearch(){
       // Primero se reserva/descuenta el impuesto y el resto queda como alquiler.
       // Así el jefe puede cargar primero el impuesto y no duplicar importes arriba.
       const totalMedios = getTotalMediosPago();
-      if (totalMedios > 0) {
-        return syncCobroDesdeMediosPago();
-      }
+      if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
+      return syncCobroDesdeMediosPago();
+    }
 
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const total = round2(alquiler + impuesto);
