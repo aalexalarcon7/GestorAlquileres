@@ -3863,6 +3863,98 @@ td:last-child{
     }
   </style>
 
+
+
+  <style id="recibosAccionesPulidasFinal">
+    /* Recibos internos: acciones más limpias y columna de contacto usable. Solo visual. */
+    #viewRecibos .recibos-table table{
+      min-width:1260px !important;
+    }
+    #viewRecibos .recibos-table th:nth-child(9),
+    #viewRecibos .recibos-table td:nth-child(9){
+      width:190px !important;
+    }
+    #viewRecibos .recibos-table th:nth-child(10),
+    #viewRecibos .recibos-table td:nth-child(10){
+      width:206px !important;
+    }
+    #viewRecibos .recibos-action-panel{
+      display:grid !important;
+      grid-template-columns:58px 124px !important;
+      gap:10px !important;
+      align-items:center !important;
+      justify-content:center !important;
+    }
+    #viewRecibos .recibos-primary-action{
+      min-width:58px !important;
+      height:38px !important;
+      border-radius:13px !important;
+      font-size:12px !important;
+      letter-spacing:.01em !important;
+      box-shadow:0 10px 22px rgba(15,23,42,.12) !important;
+    }
+    #viewRecibos .recibos-share-summary{
+      min-width:124px !important;
+      height:38px !important;
+      min-height:38px !important;
+      border-radius:13px !important;
+      padding:0 13px !important;
+      background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.90)) !important;
+      border:1px solid var(--panel-border) !important;
+      box-shadow:0 8px 18px rgba(15,23,42,.06) !important;
+      font-size:12px !important;
+      font-weight:950 !important;
+    }
+    [data-theme="dark"] #viewRecibos .recibos-share-summary{
+      background:linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.04)) !important;
+      box-shadow:0 12px 22px rgba(0,0,0,.24) !important;
+    }
+    #viewRecibos .recibos-share-dropdown{
+      width:264px !important;
+      right:0 !important;
+      padding:10px !important;
+      border-radius:20px !important;
+      border:1px solid var(--panel-border) !important;
+      box-shadow:0 28px 65px rgba(15,23,42,.18) !important;
+      z-index:99999 !important;
+    }
+    #viewRecibos .recibos-share-label{
+      padding:4px 6px 2px !important;
+    }
+    #viewRecibos .recibos-share-action{
+      min-height:50px !important;
+      border-radius:16px !important;
+      padding:10px 12px !important;
+      background:var(--secondary-btn-bg) !important;
+      box-shadow:none !important;
+    }
+    #viewRecibos .recibos-share-action .icon{
+      width:36px !important;
+      height:36px !important;
+      border-radius:13px !important;
+    }
+    #viewRecibos .recibos-share-action .title{
+      font-size:12.5px !important;
+    }
+    #viewRecibos .recibos-share-action .sub{
+      font-size:11px !important;
+    }
+    #viewRecibos .recibos-contact-stack{
+      align-items:center !important;
+    }
+    #viewRecibos .recibos-chip{
+      max-width:170px !important;
+    }
+    #viewRecibos .recibos-table td:last-child,
+    #viewRecibos .recibos-table th:last-child{
+      background:linear-gradient(90deg, rgba(248,250,252,.76), var(--row-bg) 22%) !important;
+    }
+    [data-theme="dark"] #viewRecibos .recibos-table td:last-child,
+    [data-theme="dark"] #viewRecibos .recibos-table th:last-child{
+      background:linear-gradient(90deg, rgba(15,23,36,.72), var(--row-bg) 22%) !important;
+    }
+  </style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -5588,28 +5680,20 @@ async function logout(){
       const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
       if (!code && !contratoId && !selectedName) return [];
 
-      const [detalleRows, aplicacionesRows] = await Promise.all([
+      const [detalleRows, aplicacionesRows, recibosRows] = await Promise.all([
         fetchSupabaseRowsSafe(
           'vw_detalle_mensual_operativo',
           'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key'
         ),
         fetchSupabaseRowsSafe(
           'recibos_aplicaciones_operativas',
-          'contrato_id,anio,mes,monto_impuesto,deleted_at'
+          'cuota_id,contrato_id,anio,mes,monto_impuesto,deleted_at'
+        ),
+        fetchSupabaseRowsSafe(
+          'recibos_historicos_operativos',
+          'contrato_id,codigo_local,nombre_inquilino,anio,mes,periodo,periodo_aplicado,detalle_aplicacion,monto_impuesto,fecha_pago,created_at,origen'
         )
       ]);
-
-      const impuestoByMonth = new Map();
-      (aplicacionesRows || [])
-        .filter(app => !app?.deleted_at)
-        .filter(app => contratoId && String(app?.contrato_id || '') === String(contratoId))
-        .forEach(app => {
-          const anioApp = Number(app?.anio || 0);
-          const mesApp = Number(app?.mes || 0);
-          if (!anioApp || !mesApp) return;
-          const key = `${anioApp}-${String(mesApp).padStart(2,'0')}`;
-          impuestoByMonth.set(key, round2((impuestoByMonth.get(key) || 0) + toNumber(app?.monto_impuesto)));
-        });
 
       const sameRow = (item) => {
         const itemCode = normLocalCode(item?.codigo_local || '');
@@ -5623,18 +5707,72 @@ async function logout(){
         return !!(code && itemCode === code && selectedName && itemName === selectedName);
       };
 
-      const rows = (detalleRows || [])
-        .filter(sameRow)
+      const detalleFiltrados = (detalleRows || []).filter(sameRow);
+      const cuotaIdSet = new Set(detalleFiltrados.map(item => String(item.detalle_id || item.id || '')).filter(Boolean));
+
+      const impuestoByMonth = new Map();
+      const impuestoByCuota = new Map();
+      (aplicacionesRows || [])
+        .filter(app => !app?.deleted_at)
+        .filter(app => {
+          const appContratoOk = contratoId && String(app?.contrato_id || '') === String(contratoId);
+          const appCuotaOk = app?.cuota_id && cuotaIdSet.has(String(app.cuota_id));
+          return appContratoOk || appCuotaOk;
+        })
+        .forEach(app => {
+          const impuesto = toNumber(app?.monto_impuesto);
+          if (!impuesto) return;
+          if (app?.cuota_id){
+            const cuotaKey = String(app.cuota_id);
+            impuestoByCuota.set(cuotaKey, round2((impuestoByCuota.get(cuotaKey) || 0) + impuesto));
+          }
+          const anioApp = Number(app?.anio || 0);
+          const mesApp = Number(app?.mes || 0);
+          if (!anioApp || !mesApp) return;
+          const key = `${anioApp}-${String(mesApp).padStart(2,'0')}`;
+          impuestoByMonth.set(key, round2((impuestoByMonth.get(key) || 0) + impuesto));
+        });
+
+      // Fallback para recibos históricos/manuales que no tienen filas en recibos_aplicaciones_operativas.
+      // Solo se usa cuando no existe impuesto aplicado por cuota/mes, así evitamos duplicar importes.
+      const impuestoHistoricoByMonth = new Map();
+      (recibosRows || [])
+        .filter(rec => toNumber(rec?.monto_impuesto) > 0)
+        .filter(rec => {
+          const recContratoOk = contratoId && rec?.contrato_id && String(rec.contrato_id) === String(contratoId);
+          const recCode = normLocalCode(rec?.codigo_local || '');
+          const recName = normalizeDetalleName(rec?.nombre_inquilino || '');
+          const recLocalOk = !!(code && recCode === code && selectedName && recName === selectedName);
+          return recContratoOk || recLocalOk;
+        })
+        .forEach(rec => {
+          let anioRec = Number(rec?.anio || 0);
+          let mesRec = Number(rec?.mes || 0);
+          if (!anioRec || !mesRec){
+            const inferred = typeof inferReciboYearMonth === 'function' ? inferReciboYearMonth(rec) : {};
+            anioRec = Number(inferred?.anio || 0);
+            mesRec = Number(inferred?.mes || 0);
+          }
+          if (!anioRec || !mesRec) return;
+          const key = `${anioRec}-${String(mesRec).padStart(2,'0')}`;
+          impuestoHistoricoByMonth.set(key, round2((impuestoHistoricoByMonth.get(key) || 0) + toNumber(rec.monto_impuesto)));
+        });
+
+      const rows = detalleFiltrados
         .map(item => {
           const anio = Number(item.anio || 0);
           const mes = Number(item.mes || 0);
+          const monthKey = `${anio}-${String(mes).padStart(2,'0')}`;
+          const cuotaKey = String(item.detalle_id || item.id || '');
+          const impuestoAplicado = (cuotaKey && impuestoByCuota.get(cuotaKey)) || impuestoByMonth.get(monthKey) || 0;
+          const impuestoHistorico = impuestoHistoricoByMonth.get(monthKey) || 0;
           const estado = normalizeDetalleEstado(item);
           return {
             periodo: `${anio} - ${item.mes_nombre || GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
             vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
             total: toNumber(item.monto_total),
             pagado: toNumber(item.monto_pagado),
-            impuesto: impuestoByMonth.get(`${anio}-${String(mes).padStart(2,'0')}`) || 0,
+            impuesto: impuestoAplicado > 0 ? impuestoAplicado : impuestoHistorico,
             saldo: toNumber(item.saldo),
             estado_detalle: estado,
             dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
@@ -9365,25 +9503,18 @@ function updateRecibosFiltersFromUI(){
                   <summary class="recibos-share-summary">Compartir</summary>
                   <div class="recibos-share-dropdown">
                     <div class="recibos-share-label">Canales disponibles</div>
+                    <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappPdf('${getReciboKey(item)}')">
+                      <span class="icon">WA</span>
+                      <span class="meta">
+                        <span class="title">Enviar PDF por WhatsApp</span>
+                        <span class="sub">Usa compartir nativo o WhatsApp Web</span>
+                      </span>
+                    </button>
                     <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${getReciboKey(item)}')">
                       <span class="icon">PDF</span>
                       <span class="meta">
                         <span class="title">Descargar PDF</span>
                         <span class="sub">Solo el recibo</span>
-                      </span>
-                    </button>
-                    <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${getReciboKey(item)}')">
-                      <span class="icon">WA</span>
-                      <span class="meta">
-                        <span class="title">WhatsApp rápido</span>
-                        <span class="sub">Mensaje listo para enviar</span>
-                      </span>
-                    </button>
-                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappPdf('${getReciboKey(item)}')">
-                      <span class="icon">PDF</span>
-                      <span class="meta">
-                        <span class="title">WhatsApp + PDF</span>
-                        <span class="sub">Compartir el recibo adjunto</span>
                       </span>
                     </button>
                   </div>
