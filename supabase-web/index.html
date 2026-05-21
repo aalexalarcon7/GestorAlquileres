@@ -13950,23 +13950,10 @@ async function obtenerUltimoImpuestoActivo(contratoId){
         };
 
         const v4Response = await sb.rpc('registrar_cobro_operativo_v4_multipago', argsV4);
-        if (v4Response.error) {
-          const rawV4 = v4Response.error.message || String(v4Response.error);
-          if (/registrar_cobro_operativo_v4_multipago|function|schema cache|PGRST202|Could not find/i.test(rawV4)) {
-            // Fallback temporal: si todavía no ejecutaste el SQL v4, usa la función anterior.
-            // Para corregir pagos que pasan de un mes a otro, ejecutá el SQL v4.
-            const v3Response = await sb.rpc('registrar_cobro_operativo_v3_multipago', args);
-            data = v3Response.data;
-            error = v3Response.error;
-          } else {
-            data = v4Response.data;
-            error = v4Response.error;
-          }
-        } else {
-          data = v4Response.data;
-          error = null;
-          usedCobroV4 = true;
-        }
+
+data = v4Response.data;
+error = v4Response.error;
+usedCobroV4 = !v4Response.error;
 
         if (error) {
           const raw = error.message || String(error);
