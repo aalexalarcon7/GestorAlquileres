@@ -3863,6 +3863,444 @@ td:last-child{
     }
   </style>
 
+
+  <style id="recibosAccionesEsteticaMinima">
+    #viewRecibos .recibos-action-panel{
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      gap:8px !important;
+      flex-wrap:nowrap !important;
+    }
+    #viewRecibos .recibos-primary-action{
+      min-width:58px !important;
+      height:38px !important;
+      min-height:38px !important;
+      border-radius:13px !important;
+      font-size:12px !important;
+      font-weight:950 !important;
+      box-shadow:none !important;
+    }
+    #viewRecibos .recibos-share-summary{
+      min-width:104px !important;
+      height:38px !important;
+      min-height:38px !important;
+      border-radius:13px !important;
+      padding:0 14px !important;
+      font-size:12px !important;
+      font-weight:950 !important;
+      box-shadow:none !important;
+      background:var(--secondary-btn-bg) !important;
+      border-color:var(--panel-border) !important;
+    }
+    #viewRecibos .recibos-share-dropdown{
+      width:265px !important;
+      right:0 !important;
+      top:calc(100% + 8px) !important;
+      padding:10px !important;
+      border-radius:18px !important;
+      z-index:99999 !important;
+      box-shadow:0 24px 54px rgba(15,23,42,.16) !important;
+    }
+    #viewRecibos .recibos-share-label{
+      padding:4px 6px 9px !important;
+      margin-bottom:3px !important;
+      border-bottom:1px solid var(--border) !important;
+      font-size:11px !important;
+      letter-spacing:0 !important;
+      text-transform:none !important;
+      color:var(--text) !important;
+    }
+    #viewRecibos .recibos-share-action{
+      min-height:48px !important;
+      padding:9px 10px !important;
+      border-radius:14px !important;
+      background:var(--secondary-btn-bg) !important;
+      box-shadow:none !important;
+    }
+    #viewRecibos .recibos-share-action .icon{
+      width:34px !important;
+      height:34px !important;
+      border-radius:12px !important;
+      font-size:12px !important;
+    }
+    #viewRecibos .recibos-share-action .title{font-size:12px !important;font-weight:950 !important;}
+    #viewRecibos .recibos-share-action .sub{font-size:11px !important;}
+  </style>
+
+
+
+  <style id="recibosHistoryProfessionalFixV3">
+    /* Historial de recibos: tabla compacta, acciones usables y menú flotante fuera del scroll. */
+    #viewRecibos .card{
+      overflow:visible !important;
+    }
+
+    #viewRecibos .recibos-table{
+      position:relative !important;
+      margin-top:12px !important;
+      border-radius:20px !important;
+      overflow-x:auto !important;
+      overflow-y:visible !important;
+      background:var(--row-bg) !important;
+    }
+
+    #viewRecibos .recibos-table table{
+      min-width:1180px !important;
+      width:100% !important;
+      table-layout:fixed !important;
+    }
+
+    #viewRecibos .recibos-table th,
+    #viewRecibos .recibos-table td{
+      padding:10px 9px !important;
+      font-size:12px !important;
+      line-height:1.18 !important;
+      vertical-align:middle !important;
+      text-align:center !important;
+    }
+
+    #viewRecibos .recibos-table th{
+      font-size:10.5px !important;
+      letter-spacing:.06em !important;
+      white-space:nowrap !important;
+    }
+
+    #viewRecibos .recibos-table td.right,
+    #viewRecibos .recibos-table th.right{
+      text-align:center !important;
+    }
+
+    #viewRecibos .recibos-table th:nth-child(1),
+    #viewRecibos .recibos-table td:nth-child(1){width:108px !important;}
+    #viewRecibos .recibos-table th:nth-child(2),
+    #viewRecibos .recibos-table td:nth-child(2){width:108px !important;}
+    #viewRecibos .recibos-table th:nth-child(3),
+    #viewRecibos .recibos-table td:nth-child(3){width:132px !important;}
+    #viewRecibos .recibos-table th:nth-child(4),
+    #viewRecibos .recibos-table td:nth-child(4){width:145px !important;}
+    #viewRecibos .recibos-table th:nth-child(5),
+    #viewRecibos .recibos-table td:nth-child(5){width:72px !important;}
+    #viewRecibos .recibos-table th:nth-child(6),
+    #viewRecibos .recibos-table td:nth-child(6),
+    #viewRecibos .recibos-table th:nth-child(7),
+    #viewRecibos .recibos-table td:nth-child(7),
+    #viewRecibos .recibos-table th:nth-child(8),
+    #viewRecibos .recibos-table td:nth-child(8){width:112px !important;}
+    #viewRecibos .recibos-table th:nth-child(9),
+    #viewRecibos .recibos-table td:nth-child(9){width:168px !important;}
+    #viewRecibos .recibos-table th:nth-child(10),
+    #viewRecibos .recibos-table td:nth-child(10){width:178px !important;}
+
+    #viewRecibos .recibos-cell-title{
+      max-width:100% !important;
+      white-space:nowrap !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      line-height:1.2 !important;
+      font-weight:900 !important;
+    }
+
+    #viewRecibos .recibos-table .contact-sub{
+      display:block !important;
+      max-width:100% !important;
+      margin-top:4px !important;
+      white-space:nowrap !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      font-size:11px !important;
+      line-height:1.15 !important;
+    }
+
+    #viewRecibos .recibos-contact-stack{
+      display:grid !important;
+      gap:6px !important;
+      justify-items:center !important;
+      max-width:100% !important;
+      overflow:hidden !important;
+    }
+
+    #viewRecibos .recibos-contact-line{
+      max-width:100% !important;
+      width:100% !important;
+      display:flex !important;
+      justify-content:center !important;
+      overflow:hidden !important;
+    }
+
+    #viewRecibos .recibos-chip{
+      max-width:100% !important;
+      min-width:0 !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      justify-content:center !important;
+      padding:0 9px !important;
+      min-height:28px !important;
+    }
+
+    #viewRecibos .recibos-actions{
+      display:flex !important;
+      justify-content:center !important;
+      align-items:center !important;
+      overflow:visible !important;
+    }
+
+    #viewRecibos .recibos-action-panel{
+      display:grid !important;
+      grid-template-columns:48px 104px !important;
+      gap:8px !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:auto !important;
+      min-width:0 !important;
+      flex-wrap:nowrap !important;
+    }
+
+    #viewRecibos .recibos-primary-action,
+    #viewRecibos .recibos-send-pdf-action,
+    #viewRecibos .recibos-more-action{
+      height:36px !important;
+      min-height:36px !important;
+      border-radius:12px !important;
+      border:1px solid var(--panel-border) !important;
+      font-size:11.5px !important;
+      font-weight:950 !important;
+      cursor:pointer !important;
+      transition:background-color .16s ease, border-color .16s ease, transform .16s ease, opacity .16s ease !important;
+      box-shadow:none !important;
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      white-space:nowrap !important;
+      padding:0 10px !important;
+    }
+
+    #viewRecibos .recibos-primary-action{
+      background:#0f172a !important;
+      color:#fff !important;
+      border-color:#0f172a !important;
+      min-width:48px !important;
+    }
+
+    [data-theme="dark"] #viewRecibos .recibos-primary-action{
+      background:#e8eef7 !important;
+      color:#0f172a !important;
+      border-color:#e8eef7 !important;
+    }
+
+    #viewRecibos .recibos-send-pdf-action{
+      background:var(--ok-soft) !important;
+      color:var(--text) !important;
+      border-color:var(--ok-border) !important;
+      min-width:88px !important;
+    }
+
+    #viewRecibos .recibos-more-action{
+      background:var(--secondary-btn-bg) !important;
+      color:var(--text) !important;
+      min-width:104px !important;
+      padding:0 12px !important;
+      font-size:11.5px !important;
+      letter-spacing:.01em !important;
+      line-height:1 !important;
+    }
+
+    #viewRecibos .recibos-primary-action:hover,
+    #viewRecibos .recibos-send-pdf-action:hover,
+    #viewRecibos .recibos-more-action:hover{
+      transform:translateY(-1px) !important;
+      border-color:var(--border-strong) !important;
+    }
+
+    #viewRecibos .recibos-send-pdf-action.is-loading{
+      opacity:.72 !important;
+      cursor:wait !important;
+      pointer-events:none !important;
+    }
+
+    #viewRecibos .recibos-toolbar{
+      padding:12px !important;
+      border-radius:20px !important;
+      gap:12px !important;
+    }
+
+    #viewRecibos .recibos-toolbar-main{
+      grid-template-columns:minmax(260px,1.35fr) minmax(190px,.65fr) minmax(170px,.65fr) !important;
+    }
+
+    #viewRecibos .recibos-count-pill{
+      min-height:42px !important;
+      padding:0 14px !important;
+    }
+
+    .recibo-floating-menu{
+      position:fixed;
+      z-index:100000;
+      width:276px;
+      max-width:calc(100vw - 24px);
+      padding:10px;
+      border:1px solid var(--panel-border);
+      border-radius:18px;
+      background:var(--card);
+      box-shadow:0 28px 70px rgba(15,23,42,.20);
+      display:none;
+      color:var(--text);
+    }
+
+    [data-theme="dark"] .recibo-floating-menu{
+      box-shadow:0 28px 70px rgba(0,0,0,.44);
+    }
+
+    .recibo-floating-menu.open{
+      display:block;
+      animation:reciboMenuIn .14s ease-out;
+    }
+
+    @keyframes reciboMenuIn{
+      from{opacity:.4; transform:translateY(-4px) scale(.985)}
+      to{opacity:1; transform:translateY(0) scale(1)}
+    }
+
+    .recibo-menu-head{
+      padding:5px 6px 9px;
+      border-bottom:1px solid var(--border);
+      margin-bottom:8px;
+    }
+
+    .recibo-menu-title{
+      font-size:12px;
+      font-weight:950;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-sub{
+      margin-top:3px;
+      font-size:11px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-actions{
+      display:grid;
+      gap:7px;
+    }
+
+    .recibo-menu-action{
+      width:100%;
+      min-height:42px;
+      padding:8px 10px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:var(--secondary-btn-bg);
+      color:var(--text);
+      display:grid;
+      grid-template-columns:32px minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      text-align:left;
+      cursor:pointer;
+      font:inherit;
+    }
+
+    .recibo-menu-action:hover{
+      background:var(--secondary-btn-hover);
+      border-color:var(--border-strong);
+    }
+
+    .recibo-menu-action[disabled]{
+      opacity:.48;
+      cursor:not-allowed;
+    }
+
+    .recibo-menu-icon{
+      width:32px;
+      height:32px;
+      border-radius:11px;
+      display:grid;
+      place-items:center;
+      background:var(--surface-soft);
+      border:1px solid var(--border);
+      font-size:13px;
+      font-weight:950;
+    }
+
+    .recibo-menu-meta{
+      min-width:0;
+      display:grid;
+      gap:2px;
+    }
+
+    .recibo-menu-label{
+      font-size:12px;
+      font-weight:950;
+      line-height:1.15;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-help{
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.15;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    @media (max-width:1280px){
+      #viewRecibos .recibos-table th:last-child,
+      #viewRecibos .recibos-table td:last-child{
+        position:sticky !important;
+        right:0 !important;
+        z-index:6 !important;
+        background:var(--row-bg) !important;
+        box-shadow:-10px 0 18px rgba(15,23,42,.08) !important;
+      }
+
+      [data-theme="dark"] #viewRecibos .recibos-table th:last-child,
+      [data-theme="dark"] #viewRecibos .recibos-table td:last-child{
+        background:var(--row-bg) !important;
+        box-shadow:-10px 0 18px rgba(0,0,0,.26) !important;
+      }
+
+      #viewRecibos .recibos-table th:last-child{z-index:8 !important;}
+    }
+
+    @media (max-width:1100px){
+      #viewRecibos .recibos-toolbar-main{
+        grid-template-columns:1fr 1fr !important;
+      }
+
+      #viewRecibos .recibos-table table{
+        min-width:1120px !important;
+      }
+    }
+
+    @media (max-width:720px){
+      #viewRecibos .recibos-toolbar-main{
+        grid-template-columns:1fr !important;
+      }
+
+      #viewRecibos .recibos-toolbar-actions{
+        width:100% !important;
+      }
+
+      #viewRecibos .recibos-toolbar-actions .btn,
+      #viewRecibos .recibos-toolbar-actions .recibos-count-pill{
+        width:100% !important;
+        justify-content:center !important;
+      }
+    }
+  </style>
+
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -9281,6 +9719,97 @@ function updateRecibosFiltersFromUI(){
       if (details) details.open = false;
     }
 
+    function ensureReciboFloatingMenu(){
+      let menu = document.getElementById('reciboFloatingMenu');
+      if (!menu){
+        menu = document.createElement('div');
+        menu.id = 'reciboFloatingMenu';
+        menu.className = 'recibo-floating-menu';
+        menu.setAttribute('role', 'menu');
+        document.body.appendChild(menu);
+      }
+      return menu;
+    }
+
+    function closeReciboFloatingMenu(){
+      const menu = document.getElementById('reciboFloatingMenu');
+      if (!menu) return;
+      menu.classList.remove('open');
+      menu.dataset.reciboId = '';
+    }
+
+    function openReciboFloatingMenu(id, anchor){
+      const item = getReciboById(id);
+      if (!item) return;
+
+      const menu = ensureReciboFloatingMenu();
+      const phone = getReceiptWhatsappPhone(item);
+      menu.dataset.reciboId = String(id);
+      menu.innerHTML = `
+        <div class="recibo-menu-head">
+          <div class="recibo-menu-title">Recibo ${escapeHtml(item.numero_recibo || '—')}</div>
+          <div class="recibo-menu-sub">${escapeHtml(item.inquilino_nombre || '—')} · ${escapeHtml(item.local_codigo || '—')}</div>
+        </div>
+        <div class="recibo-menu-actions">
+          <button class="recibo-menu-action" type="button" onclick="handleReciboFloatingAction('whatsappPdf')" ${phone ? '' : 'disabled'}>
+            <span class="recibo-menu-icon">WA</span>
+            <span class="recibo-menu-meta">
+              <span class="recibo-menu-label">Enviar PDF por WhatsApp</span>
+              <span class="recibo-menu-help">Abre compartir del celular</span>
+            </span>
+          </button>
+          <button class="recibo-menu-action" type="button" onclick="handleReciboFloatingAction('downloadPdf')">
+            <span class="recibo-menu-icon">PDF</span>
+            <span class="recibo-menu-meta">
+              <span class="recibo-menu-label">Descargar PDF</span>
+              <span class="recibo-menu-help">Solo el recibo</span>
+            </span>
+          </button>
+        </div>
+      `;
+
+      const rect = anchor?.getBoundingClientRect?.() || { right: window.innerWidth - 16, bottom: 80 };
+      const menuWidth = 276;
+      const estimatedHeight = 170;
+      const left = Math.min(window.innerWidth - menuWidth - 12, Math.max(12, rect.right - menuWidth));
+      const below = rect.bottom + 8;
+      const top = below + estimatedHeight > window.innerHeight
+        ? Math.max(12, rect.top - estimatedHeight - 8)
+        : Math.max(12, below);
+
+      menu.style.left = `${left}px`;
+      menu.style.top = `${top}px`;
+      menu.classList.add('open');
+    }
+
+    function handleReciboFloatingAction(action){
+      const menu = document.getElementById('reciboFloatingMenu');
+      const id = menu?.dataset?.reciboId;
+      if (!id) return;
+      closeReciboFloatingMenu();
+
+      if (action === 'whatsappPdf') return shareReciboByWhatsappPdf(id);
+      if (action === 'downloadPdf') return downloadReciboOnly(id);
+      if (action === 'whatsappText') return shareReciboByWhatsappText(id);
+      if (action === 'email') return shareReciboByEmail(id);
+    }
+
+    if (!window.__reciboFloatingMenuListenersAttached){
+      window.__reciboFloatingMenuListenersAttached = true;
+      document.addEventListener('click', (event) => {
+        const target = event.target;
+        if (target?.closest?.('.recibo-floating-menu') || target?.closest?.('.recibos-more-action')) return;
+        closeReciboFloatingMenu();
+      });
+      window.addEventListener('resize', closeReciboFloatingMenu);
+      window.addEventListener('scroll', closeReciboFloatingMenu, true);
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') closeReciboFloatingMenu();
+      });
+    }
+
+
+
 
     function renderRecibosHistoryRows(rows){
       if (!rows.length){
@@ -9288,20 +9817,13 @@ function updateRecibosFiltersFromUI(){
       }
 
       return rows.map(item => {
-        const esHistorico = isHistoricalLikeReceipt(item);
-        const chipHistorico = esHistorico
-          ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--warn-soft);border:1px solid var(--warn-border);color:var(--warn);margin-left:6px;" title="Recibo histórico importado. No se puede eliminar.">🔒 HISTÓRICO</span>`
-          : `<span style="display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;background:var(--ok-soft);border:1px solid var(--ok-border);color:var(--ok);margin-left:6px;" title="Recibo operativo generado en el sistema.">✓ OPERATIVO</span>`;
-
-
-
+        const key = getReciboKey(item);
+        const phone = getReceiptWhatsappPhone(item);
+        const email = String(item.email || '').trim();
         return `
         <tr>
           <td>
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
-              <strong>${escapeHtml(item.numero_recibo)}</strong>
-              ${chipHistorico}
-            </div>
+            <div class="recibos-cell-title"><strong>${escapeHtml(item.numero_recibo)}</strong></div>
             <span class="contact-sub">${escapeHtml(item.referencia || 'Sin referencia')}</span>
           </td>
           <td>
@@ -9313,8 +9835,8 @@ function updateRecibosFiltersFromUI(){
             <span class="contact-sub">Registro en sistema</span>
           </td>
           <td>
-            <div class="recibos-cell-title">${escapeHtml(item.inquilino_nombre)}</div>
-            <span class="contact-sub">${escapeHtml(item.documento || 'Sin documento')}</span>
+            <div class="recibos-cell-title" title="${escapeAttr(item.inquilino_nombre || '—')}">${escapeHtml(item.inquilino_nombre || '—')}</div>
+            <span class="contact-sub" title="${escapeAttr(item.documento || 'Sin documento')}">${escapeHtml(item.documento || 'Sin documento')}</span>
           </td>
           <td>
             <span class="recibos-chip primary">${escapeHtml(item.local_codigo || '—')}</span>
@@ -9332,52 +9854,24 @@ function updateRecibosFiltersFromUI(){
           <td>
             <div class="recibos-contact-stack">
               <div class="recibos-contact-line">
-                <span class="recibos-chip ${item.telefono ? '' : 'muted'}">${escapeHtml(item.telefono || 'Sin teléfono')}</span>
+                <span class="recibos-chip ${phone ? '' : 'muted'}" title="${escapeAttr(phone || 'Sin teléfono')}">${escapeHtml(phone || 'Sin teléfono')}</span>
               </div>
               <div class="recibos-contact-line">
-                <span class="recibos-chip ${item.email ? '' : 'muted'}">${escapeHtml(item.email || 'Sin email')}</span>
+                <span class="recibos-chip ${email ? '' : 'muted'}" title="${escapeAttr(email || 'Sin email')}">${escapeHtml(email || 'Sin email')}</span>
               </div>
             </div>
           </td>
           <td class="center">
             <div class="recibos-actions">
               <div class="recibos-action-panel">
-                <button class="recibos-primary-action" onclick="openReciboModal('${getReciboKey(item)}')">Ver</button>
-                <details class="recibos-share-menu">
-                  <summary class="recibos-share-summary">Compartir</summary>
-                  <div class="recibos-share-dropdown">
-                    <div class="recibos-share-label">Canales disponibles</div>
-                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); downloadReciboOnly('${getReciboKey(item)}')">
-                      <span class="icon">PDF</span>
-                      <span class="meta">
-                        <span class="title">Descargar PDF</span>
-                        <span class="sub">Solo el recibo</span>
-                      </span>
-                    </button>
-                    <button class="recibos-share-action whatsapp" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappText('${getReciboKey(item)}')">
-                      <span class="icon">WA</span>
-                      <span class="meta">
-                        <span class="title">WhatsApp rápido</span>
-                        <span class="sub">Mensaje listo para enviar</span>
-                      </span>
-                    </button>
-                    <button class="recibos-share-action pdf" onclick="event.preventDefault(); event.stopPropagation(); closeShareMenu(this); shareReciboByWhatsappPdf('${getReciboKey(item)}')">
-                      <span class="icon">PDF</span>
-                      <span class="meta">
-                        <span class="title">WhatsApp + PDF</span>
-                        <span class="sub">Compartir el recibo adjunto</span>
-                      </span>
-                    </button>
-                  </div>
-                </details>
+                <button type="button" class="recibos-primary-action" onclick="openReciboModal('${key}')" title="Ver recibo">Ver</button>
+                <button type="button" class="recibos-more-action" onclick="openReciboFloatingMenu('${key}', this)" aria-label="Compartir recibo ${escapeAttr(item.numero_recibo || '')}" title="Compartir recibo">Compartir</button>
               </div>
             </div>
           </td>
-        </tr>
-      `}).join('');
+        </tr>`;
+      }).join('');
     }
-
-
 
     async function renderRecibosPage(){
       const el = $('viewRecibos');
@@ -9942,6 +10436,380 @@ function deleteReciboActual(){
       }
     }
   </style>
+
+
+
+
+  <style id="recibosHistoryProfessionalFixV3">
+    /* Historial de recibos: tabla compacta, acciones usables y menú flotante fuera del scroll. */
+    #viewRecibos .card{
+      overflow:visible !important;
+    }
+
+    #viewRecibos .recibos-table{
+      position:relative !important;
+      margin-top:12px !important;
+      border-radius:20px !important;
+      overflow-x:auto !important;
+      overflow-y:visible !important;
+      background:var(--row-bg) !important;
+    }
+
+    #viewRecibos .recibos-table table{
+      min-width:1180px !important;
+      width:100% !important;
+      table-layout:fixed !important;
+    }
+
+    #viewRecibos .recibos-table th,
+    #viewRecibos .recibos-table td{
+      padding:10px 9px !important;
+      font-size:12px !important;
+      line-height:1.18 !important;
+      vertical-align:middle !important;
+      text-align:center !important;
+    }
+
+    #viewRecibos .recibos-table th{
+      font-size:10.5px !important;
+      letter-spacing:.06em !important;
+      white-space:nowrap !important;
+    }
+
+    #viewRecibos .recibos-table td.right,
+    #viewRecibos .recibos-table th.right{
+      text-align:center !important;
+    }
+
+    #viewRecibos .recibos-table th:nth-child(1),
+    #viewRecibos .recibos-table td:nth-child(1){width:108px !important;}
+    #viewRecibos .recibos-table th:nth-child(2),
+    #viewRecibos .recibos-table td:nth-child(2){width:108px !important;}
+    #viewRecibos .recibos-table th:nth-child(3),
+    #viewRecibos .recibos-table td:nth-child(3){width:132px !important;}
+    #viewRecibos .recibos-table th:nth-child(4),
+    #viewRecibos .recibos-table td:nth-child(4){width:145px !important;}
+    #viewRecibos .recibos-table th:nth-child(5),
+    #viewRecibos .recibos-table td:nth-child(5){width:72px !important;}
+    #viewRecibos .recibos-table th:nth-child(6),
+    #viewRecibos .recibos-table td:nth-child(6),
+    #viewRecibos .recibos-table th:nth-child(7),
+    #viewRecibos .recibos-table td:nth-child(7),
+    #viewRecibos .recibos-table th:nth-child(8),
+    #viewRecibos .recibos-table td:nth-child(8){width:112px !important;}
+    #viewRecibos .recibos-table th:nth-child(9),
+    #viewRecibos .recibos-table td:nth-child(9){width:168px !important;}
+    #viewRecibos .recibos-table th:nth-child(10),
+    #viewRecibos .recibos-table td:nth-child(10){width:178px !important;}
+
+    #viewRecibos .recibos-cell-title{
+      max-width:100% !important;
+      white-space:nowrap !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      line-height:1.2 !important;
+      font-weight:900 !important;
+    }
+
+    #viewRecibos .recibos-table .contact-sub{
+      display:block !important;
+      max-width:100% !important;
+      margin-top:4px !important;
+      white-space:nowrap !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      font-size:11px !important;
+      line-height:1.15 !important;
+    }
+
+    #viewRecibos .recibos-contact-stack{
+      display:grid !important;
+      gap:6px !important;
+      justify-items:center !important;
+      max-width:100% !important;
+      overflow:hidden !important;
+    }
+
+    #viewRecibos .recibos-contact-line{
+      max-width:100% !important;
+      width:100% !important;
+      display:flex !important;
+      justify-content:center !important;
+      overflow:hidden !important;
+    }
+
+    #viewRecibos .recibos-chip{
+      max-width:100% !important;
+      min-width:0 !important;
+      overflow:hidden !important;
+      text-overflow:ellipsis !important;
+      white-space:nowrap !important;
+      justify-content:center !important;
+      padding:0 9px !important;
+      min-height:28px !important;
+    }
+
+    #viewRecibos .recibos-actions{
+      display:flex !important;
+      justify-content:center !important;
+      align-items:center !important;
+      overflow:visible !important;
+    }
+
+    #viewRecibos .recibos-action-panel{
+      display:grid !important;
+      grid-template-columns:48px 104px !important;
+      gap:8px !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:auto !important;
+      min-width:0 !important;
+      flex-wrap:nowrap !important;
+    }
+
+    #viewRecibos .recibos-primary-action,
+    #viewRecibos .recibos-send-pdf-action,
+    #viewRecibos .recibos-more-action{
+      height:36px !important;
+      min-height:36px !important;
+      border-radius:12px !important;
+      border:1px solid var(--panel-border) !important;
+      font-size:11.5px !important;
+      font-weight:950 !important;
+      cursor:pointer !important;
+      transition:background-color .16s ease, border-color .16s ease, transform .16s ease, opacity .16s ease !important;
+      box-shadow:none !important;
+      display:inline-flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      white-space:nowrap !important;
+      padding:0 10px !important;
+    }
+
+    #viewRecibos .recibos-primary-action{
+      background:#0f172a !important;
+      color:#fff !important;
+      border-color:#0f172a !important;
+      min-width:48px !important;
+    }
+
+    [data-theme="dark"] #viewRecibos .recibos-primary-action{
+      background:#e8eef7 !important;
+      color:#0f172a !important;
+      border-color:#e8eef7 !important;
+    }
+
+    #viewRecibos .recibos-send-pdf-action{
+      background:var(--ok-soft) !important;
+      color:var(--text) !important;
+      border-color:var(--ok-border) !important;
+      min-width:88px !important;
+    }
+
+    #viewRecibos .recibos-more-action{
+      background:var(--secondary-btn-bg) !important;
+      color:var(--text) !important;
+      min-width:104px !important;
+      padding:0 12px !important;
+      font-size:11.5px !important;
+      letter-spacing:.01em !important;
+      line-height:1 !important;
+    }
+
+    #viewRecibos .recibos-primary-action:hover,
+    #viewRecibos .recibos-send-pdf-action:hover,
+    #viewRecibos .recibos-more-action:hover{
+      transform:translateY(-1px) !important;
+      border-color:var(--border-strong) !important;
+    }
+
+    #viewRecibos .recibos-send-pdf-action.is-loading{
+      opacity:.72 !important;
+      cursor:wait !important;
+      pointer-events:none !important;
+    }
+
+    #viewRecibos .recibos-toolbar{
+      padding:12px !important;
+      border-radius:20px !important;
+      gap:12px !important;
+    }
+
+    #viewRecibos .recibos-toolbar-main{
+      grid-template-columns:minmax(260px,1.35fr) minmax(190px,.65fr) minmax(170px,.65fr) !important;
+    }
+
+    #viewRecibos .recibos-count-pill{
+      min-height:42px !important;
+      padding:0 14px !important;
+    }
+
+    .recibo-floating-menu{
+      position:fixed;
+      z-index:100000;
+      width:276px;
+      max-width:calc(100vw - 24px);
+      padding:10px;
+      border:1px solid var(--panel-border);
+      border-radius:18px;
+      background:var(--card);
+      box-shadow:0 28px 70px rgba(15,23,42,.20);
+      display:none;
+      color:var(--text);
+    }
+
+    [data-theme="dark"] .recibo-floating-menu{
+      box-shadow:0 28px 70px rgba(0,0,0,.44);
+    }
+
+    .recibo-floating-menu.open{
+      display:block;
+      animation:reciboMenuIn .14s ease-out;
+    }
+
+    @keyframes reciboMenuIn{
+      from{opacity:.4; transform:translateY(-4px) scale(.985)}
+      to{opacity:1; transform:translateY(0) scale(1)}
+    }
+
+    .recibo-menu-head{
+      padding:5px 6px 9px;
+      border-bottom:1px solid var(--border);
+      margin-bottom:8px;
+    }
+
+    .recibo-menu-title{
+      font-size:12px;
+      font-weight:950;
+      line-height:1.2;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-sub{
+      margin-top:3px;
+      font-size:11px;
+      color:var(--muted);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-actions{
+      display:grid;
+      gap:7px;
+    }
+
+    .recibo-menu-action{
+      width:100%;
+      min-height:42px;
+      padding:8px 10px;
+      border-radius:14px;
+      border:1px solid var(--border);
+      background:var(--secondary-btn-bg);
+      color:var(--text);
+      display:grid;
+      grid-template-columns:32px minmax(0,1fr);
+      gap:9px;
+      align-items:center;
+      text-align:left;
+      cursor:pointer;
+      font:inherit;
+    }
+
+    .recibo-menu-action:hover{
+      background:var(--secondary-btn-hover);
+      border-color:var(--border-strong);
+    }
+
+    .recibo-menu-action[disabled]{
+      opacity:.48;
+      cursor:not-allowed;
+    }
+
+    .recibo-menu-icon{
+      width:32px;
+      height:32px;
+      border-radius:11px;
+      display:grid;
+      place-items:center;
+      background:var(--surface-soft);
+      border:1px solid var(--border);
+      font-size:13px;
+      font-weight:950;
+    }
+
+    .recibo-menu-meta{
+      min-width:0;
+      display:grid;
+      gap:2px;
+    }
+
+    .recibo-menu-label{
+      font-size:12px;
+      font-weight:950;
+      line-height:1.15;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .recibo-menu-help{
+      font-size:11px;
+      color:var(--muted);
+      line-height:1.15;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    @media (max-width:1280px){
+      #viewRecibos .recibos-table th:last-child,
+      #viewRecibos .recibos-table td:last-child{
+        position:sticky !important;
+        right:0 !important;
+        z-index:6 !important;
+        background:var(--row-bg) !important;
+        box-shadow:-10px 0 18px rgba(15,23,42,.08) !important;
+      }
+
+      [data-theme="dark"] #viewRecibos .recibos-table th:last-child,
+      [data-theme="dark"] #viewRecibos .recibos-table td:last-child{
+        background:var(--row-bg) !important;
+        box-shadow:-10px 0 18px rgba(0,0,0,.26) !important;
+      }
+
+      #viewRecibos .recibos-table th:last-child{z-index:8 !important;}
+    }
+
+    @media (max-width:1100px){
+      #viewRecibos .recibos-toolbar-main{
+        grid-template-columns:1fr 1fr !important;
+      }
+
+      #viewRecibos .recibos-table table{
+        min-width:1120px !important;
+      }
+    }
+
+    @media (max-width:720px){
+      #viewRecibos .recibos-toolbar-main{
+        grid-template-columns:1fr !important;
+      }
+
+      #viewRecibos .recibos-toolbar-actions{
+        width:100% !important;
+      }
+
+      #viewRecibos .recibos-toolbar-actions .btn,
+      #viewRecibos .recibos-toolbar-actions .recibos-count-pill{
+        width:100% !important;
+        justify-content:center !important;
+      }
+    }
+  </style>
+
 
 </head>
           <body>${printable}</body>
