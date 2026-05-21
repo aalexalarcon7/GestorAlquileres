@@ -10093,7 +10093,305 @@ function deleteReciboActual(){
   </style>
 
 </head>
-          <body>${printable}</body>
+          <body>${printable}<script id="impuestosActivosVinculadosFinalPatch">
+(function(){
+  if (window.__GA_IMPUESTOS_ACTIVOS_VINCULADOS_FINAL__) return;
+  window.__GA_IMPUESTOS_ACTIVOS_VINCULADOS_FINAL__ = true;
+
+  const MIN_IMPUESTO_VALIDO = 1000;
+  let impuestoContratoCache = null;
+  let impuestoContratoCacheAt = 0;
+  const CACHE_TTL_MS = 90 * 1000;
+
+  function moneyToNumberLocal(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? Math.round(value * 100) / 100 : 0;
+    const raw = String(value == null ? '' : value).trim().replace(/[^\d,.-]/g, '');
+    if (!raw) return 0;
+    let s = raw;
+    const hasComma = s.includes(',');
+    const hasDot = s.includes('.');
+    if (hasComma && hasDot) {
+      if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+      else s = s.replace(/,/g, '');
+    } else if (hasComma) {
+      s = s.replace(',', '.');
+    } else {
+      const dots = (s.match(/\./g) || []).length;
+      if (dots >= 2) s = s.replace(/\./g, '');
+      else {
+        const m = s.match(/^(\-?\d+)\.(\d{3})$/);
+        if (m) s = m[1] + m[2];
+      }
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? Math.round(n * 100) / 100 : 0;
+  }
+
+  function formatMoneyLocal(value){
+    try { if (typeof formatMoneyInputValue === 'function') return formatMoneyInputValue(value); } catch(e){}
+    const n = Number(value || 0);
+    if (!Number.isFinite(n) || n <= 0) return '';
+    return n.toLocaleString('es-AR', { minimumFractionDigits:2, maximumFractionDigits:2 });
+  }
+
+  function roundLocal(value){
+    try { if (typeof round2 === 'function') return round2(value); } catch(e){}
+    const n = Number(value || 0);
+    return Math.round(n * 100) / 100;
+  }
+
+  function byId(id){
+    try { return typeof $ === 'function' ? $(id) : document.getElementById(id); }
+    catch(e){ return document.getElementById(id); }
+  }
+
+  function nlc(value){
+    try { if (typeof normLocalCode === 'function') return normLocalCode(value); } catch(e){}
+    return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  }
+
+  function normalizeNameLocal(value){
+    return String(value || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function rowIdentity(row){
+    return {
+      contratoId: String(row?.contrato_id || '').trim(),
+      code: nlc(row?.local_codigo || row?.codigo_local || row?.local_code_normalized || ''),
+      name: normalizeNameLocal(row?.inquilino_nombre || row?.nombre_inquilino || row?.nombre_raw || '')
+    };
+  }
+
+  function monthKey(anio, mes){
+    const y = Number(anio || 0);
+    const m = Number(mes || 0);
+    return y && m ? `${y}-${String(m).padStart(2, '0')}` : '';
+  }
+
+  function monthKeyFromRow(row){
+    const direct = monthKey(row?.anio, row?.mes);
+    if (direct) return direct;
+    const text = [row?.periodo, row?.periodo_aplicado, row?.detalle_aplicacion, row?.observacion].filter(Boolean).join(' ');
+    const slash = text.match(/(?:^|\D)(0?[1-9]|1[0-2])\/(20\d{2})(?:\D|$)/);
+    if (slash) return monthKey(Number(slash[2]), Number(slash[1]));
+    const names = ['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+    const normalized = normalizeNameLocal(text);
+    for (let i = 0; i < names.length; i++) {
+      if (normalized.includes(`${names[i]} 2026`)) return monthKey(2026, i + 1);
+      if (normalized.includes(`${names[i]} 2025`)) return monthKey(2025, i + 1);
+    }
+    return '';
+  }
+
+  function parseMonthlyTaxFromRecord(row){
+    const detail = String([row?.detalle_aplicacion, row?.observacion, row?.descripcion_pago].filter(Boolean).join(' | '));
+    const matches = [...detail.matchAll(/impuesto\s*(?:\$|ARS)?\s*([\d.,]+)/gi)]
+      .map(m => moneyToNumberLocal(m[1]))
+      .filter(n => n >= MIN_IMPUESTO_VALIDO);
+    if (matches.length) return roundLocal(matches[matches.length - 1]);
+
+    const tax = moneyToNumberLocal(row?.monto_impuesto);
+    if (tax < MIN_IMPUESTO_VALIDO) return 0;
+
+    // Si el recibo aplica a varios períodos y no hay detalle por período, no usamos el total
+    // como impuesto mensual para no convertir 13.500 + 13.500 en 27.000.
+    const periodText = String([row?.periodo_aplicado, row?.detalle_aplicacion].filter(Boolean).join(' '));
+    if (/\+/.test(periodText) || (periodText.match(/\b\d{1,2}\/20\d{2}\b/g) || []).length > 1) return 0;
+
+    return roundLocal(tax);
+  }
+
+  function upsertLatest(map, key, tax, stamp, source){
+    if (!key || tax < MIN_IMPUESTO_VALIDO) return;
+    const current = map.get(key);
+    const normalized = { impuesto:roundLocal(tax), stamp:Number(stamp || 0), source:source || '' };
+    if (!current || normalized.stamp >= Number(current.stamp || 0)) map.set(key, normalized);
+  }
+
+  async function fetchRowsSafe(table, columns){
+    try {
+      const res = await sb.from(table).select(columns);
+      if (res.error) {
+        console.warn(`No se pudo leer ${table}:`, res.error.message || res.error);
+        return [];
+      }
+      return Array.isArray(res.data) ? res.data : [];
+    } catch(e){
+      console.warn(`No se pudo leer ${table}:`, e?.message || e);
+      return [];
+    }
+  }
+
+  async function buildImpuestoContratoCache(force=false){
+    const now = Date.now();
+    if (!force && impuestoContratoCache && now - impuestoContratoCacheAt < CACHE_TTL_MS) return impuestoContratoCache;
+
+    const byContrato = new Map();
+    const byLocalName = new Map();
+    const byMonthContrato = new Map();
+    const byMonthLocalName = new Map();
+
+    const [apps, recibos] = await Promise.all([
+      fetchRowsSafe('recibos_aplicaciones_operativas', 'id,contrato_id,anio,mes,monto_impuesto,created_at,deleted_at'),
+      fetchRowsSafe('recibos_historicos_operativos', 'id,contrato_id,codigo_local,nombre_inquilino,anio,mes,periodo,periodo_aplicado,detalle_aplicacion,observacion,monto_impuesto,fecha_pago,created_at,origen')
+    ]);
+
+    (apps || [])
+      .filter(app => !app?.deleted_at)
+      .forEach(app => {
+        const tax = moneyToNumberLocal(app?.monto_impuesto);
+        if (tax < MIN_IMPUESTO_VALIDO) return;
+        const cKey = String(app?.contrato_id || '').trim();
+        const mk = monthKey(app?.anio, app?.mes);
+        const stamp = new Date(app?.created_at || `${app?.anio || 1900}-${String(app?.mes || 1).padStart(2, '0')}-28`).getTime() || 0;
+        upsertLatest(byContrato, cKey, tax, stamp, 'aplicacion');
+        if (cKey && mk) upsertLatest(byMonthContrato, `${cKey}|${mk}`, tax, stamp, 'aplicacion_mes');
+      });
+
+    (recibos || [])
+      .forEach(rec => {
+        const tax = parseMonthlyTaxFromRecord(rec);
+        if (tax < MIN_IMPUESTO_VALIDO) return;
+        const cKey = String(rec?.contrato_id || '').trim();
+        const code = nlc(rec?.codigo_local || '');
+        const name = normalizeNameLocal(rec?.nombre_inquilino || '');
+        const lnKey = code && name ? `${code}|${name}` : '';
+        const mk = monthKeyFromRow(rec);
+        const stamp = new Date(rec?.fecha_pago || rec?.created_at || 0).getTime() || 0;
+        upsertLatest(byContrato, cKey, tax, stamp, 'recibo');
+        upsertLatest(byLocalName, lnKey, tax, stamp, 'recibo');
+        if (cKey && mk) upsertLatest(byMonthContrato, `${cKey}|${mk}`, tax, stamp, 'recibo_mes');
+        if (lnKey && mk) upsertLatest(byMonthLocalName, `${lnKey}|${mk}`, tax, stamp, 'recibo_mes');
+      });
+
+    impuestoContratoCache = { byContrato, byLocalName, byMonthContrato, byMonthLocalName };
+    impuestoContratoCacheAt = now;
+    return impuestoContratoCache;
+  }
+
+  async function getImpuestoVinculadoParaActivo(row, force=false){
+    const cache = await buildImpuestoContratoCache(force);
+    const ident = rowIdentity(row || {});
+    const lnKey = ident.code && ident.name ? `${ident.code}|${ident.name}` : '';
+    const byC = ident.contratoId ? cache.byContrato.get(ident.contratoId)?.impuesto : 0;
+    if (byC >= MIN_IMPUESTO_VALIDO) return byC;
+    const byLn = lnKey ? cache.byLocalName.get(lnKey)?.impuesto : 0;
+    if (byLn >= MIN_IMPUESTO_VALIDO) return byLn;
+    return 0;
+  }
+
+  async function syncImpuestosActivosEnMemoria(force=false){
+    const cache = await buildImpuestoContratoCache(force);
+    const applyTax = (row) => {
+      if (!row) return;
+      const ident = rowIdentity(row);
+      const lnKey = ident.code && ident.name ? `${ident.code}|${ident.name}` : '';
+      const tax = (ident.contratoId && cache.byContrato.get(ident.contratoId)?.impuesto) || (lnKey && cache.byLocalName.get(lnKey)?.impuesto) || 0;
+      if (tax >= MIN_IMPUESTO_VALIDO) {
+        row.impuesto_mensual = tax;
+        row.impuesto_actual = tax;
+      }
+    };
+
+    try { if (Array.isArray(contratosActivos)) contratosActivos.forEach(applyTax); } catch(e){}
+    try { if (Array.isArray(unidades)) unidades.forEach(applyTax); } catch(e){}
+    try { if (typeof selected !== 'undefined') applyTax(selected); } catch(e){}
+    try {
+      if (typeof activosReconstruidosMap !== 'undefined' && activosReconstruidosMap?.forEach) {
+        activosReconstruidosMap.forEach(row => applyTax(row));
+      }
+    } catch(e){}
+  }
+
+  async function fillImpuestoModalDesdeActivo(row){
+    const input = byId('mImpMonto');
+    if (!input) return;
+    const tax = await getImpuestoVinculadoParaActivo(row || window.modalContrato || {}, true);
+    if (tax < MIN_IMPUESTO_VALIDO) return;
+
+    input.value = formatMoneyLocal(tax);
+    const alquiler = moneyToNumberLocal(byId('mAlquiler')?.value || '');
+    const total = roundLocal(alquiler + tax);
+    const totalInput = byId('mTotal');
+    if (totalInput) totalInput.value = total > 0 ? formatMoneyLocal(total) : '';
+    try { if (typeof window.initPagoMediosRows === 'function') window.initPagoMediosRows(total); } catch(e){}
+    try { if (typeof window.recalcularCobroModal === 'function') window.recalcularCobroModal(true); } catch(e){}
+  }
+
+  function impuestosPorMesParaRow(row, cache){
+    const ident = rowIdentity(row || {});
+    const lnKey = ident.code && ident.name ? `${ident.code}|${ident.name}` : '';
+    const getForMonth = (mk) => {
+      if (!mk) return 0;
+      const byC = ident.contratoId ? cache.byMonthContrato.get(`${ident.contratoId}|${mk}`)?.impuesto : 0;
+      if (byC >= MIN_IMPUESTO_VALIDO) return byC;
+      const byLn = lnKey ? cache.byMonthLocalName.get(`${lnKey}|${mk}`)?.impuesto : 0;
+      if (byLn >= MIN_IMPUESTO_VALIDO) return byLn;
+      return 0;
+    };
+    return { getForMonth };
+  }
+
+  // 1) Que el modal de cobro use SIEMPRE el impuesto mensual real del activo,
+  // priorizando aplicaciones de recibos. Esto evita usar un total multimes como impuesto mensual.
+  const originalOpenPagoModalPatch = window.openPagoModal || (typeof openPagoModal === 'function' ? openPagoModal : null);
+  if (originalOpenPagoModalPatch) {
+    const patchedOpenPagoModal = async function(row){
+      const result = await originalOpenPagoModalPatch.apply(this, arguments);
+      try { await fillImpuestoModalDesdeActivo(row); } catch(e){ console.warn('No se pudo sincronizar impuesto del activo en el modal:', e?.message || e); }
+      return result;
+    };
+    window.openPagoModal = patchedOpenPagoModal;
+    try { openPagoModal = patchedOpenPagoModal; } catch(e){}
+  }
+
+  // 2) Que el detalle de cualquier activo complete la columna Impuesto desde las aplicaciones/recibos.
+  const originalFetchDetalleRowsPatch = window.fetchDetalleReconstruidoRows || (typeof fetchDetalleReconstruidoRows === 'function' ? fetchDetalleReconstruidoRows : null);
+  if (originalFetchDetalleRowsPatch) {
+    const patchedFetchDetalleRows = async function(row){
+      const rows = await originalFetchDetalleRowsPatch.apply(this, arguments);
+      try {
+        const cache = await buildImpuestoContratoCache(false);
+        const helper = impuestosPorMesParaRow(row || {}, cache);
+        (rows || []).forEach(r => {
+          const mk = String(r?.sort_key || '').match(/^\d{4}-\d{2}$/) ? String(r.sort_key) : monthKeyFromRow(r);
+          const tax = helper.getForMonth(mk);
+          if (tax >= MIN_IMPUESTO_VALIDO) r.impuesto = tax;
+        });
+      } catch(e){ console.warn('No se pudieron vincular impuestos al detalle:', e?.message || e); }
+      return rows;
+    };
+    window.fetchDetalleReconstruidoRows = patchedFetchDetalleRows;
+    try { fetchDetalleReconstruidoRows = patchedFetchDetalleRows; } catch(e){}
+  }
+
+  // 3) En cada refresh, sincronizar impuestos en memoria para que Condiciones del alquiler y cobro vean el mismo valor.
+  const originalRefreshAllPatch = window.refreshAll || (typeof refreshAll === 'function' ? refreshAll : null);
+  if (originalRefreshAllPatch) {
+    const patchedRefreshAll = async function(){
+      const result = await originalRefreshAllPatch.apply(this, arguments);
+      try { await syncImpuestosActivosEnMemoria(true); } catch(e){ console.warn('No se pudieron sincronizar impuestos de activos:', e?.message || e); }
+      return result;
+    };
+    window.refreshAll = patchedRefreshAll;
+    try { refreshAll = patchedRefreshAll; } catch(e){}
+  }
+
+  window.syncImpuestosActivosEnMemoria = syncImpuestosActivosEnMemoria;
+  window.getImpuestoVinculadoParaActivo = getImpuestoVinculadoParaActivo;
+
+  document.addEventListener('DOMContentLoaded', function(){
+    setTimeout(() => { syncImpuestosActivosEnMemoria(true).catch(()=>{}); }, 300);
+  });
+})();
+</script>
+
+</body>
         </html>
       `);
       w.document.close();
