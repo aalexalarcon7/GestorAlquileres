@@ -6637,8 +6637,9 @@ td:last-child{
       const vistos = new Set();
 
       pagos.forEach(pago => {
-        const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
-        if (!keys.length) return;
+      if (pago?.deleted_at) return;
+
+      const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
 
         const impuesto = round2(toNumber(pago?.monto_impuesto));
         const totalPago = getPagoMontoTotalParaPeriodo(pago);
