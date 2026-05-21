@@ -5305,8 +5305,20 @@ td:last-child{
       updateTopSearchUI();
       closeSidebarIfMobile();
 
+      // Actualizar encabezado de columna "Arrastre" con el año anterior dinámico
+      const thArrastre = $('thArrastre');
+      if (thArrastre) {
+        const anioActual = new Date().getFullYear();
+        thArrastre.textContent = `Arrastre ${anioActual - 1}`;
+      }
+
       if (r === 'documentos') renderDocumentosPage();
-      if (r === 'recibos') renderRecibosPage();
+      // Guard de rerenderizado: solo re-renderiza recibos y balance si no estaban ya cargados
+      if (r === 'recibos') {
+        const el = $('viewRecibos');
+        if (!el || !el.querySelector('.recibos-grid')) renderRecibosPage();
+        else updateRecibosHistoryFromState();
+      }
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
     }
@@ -9839,16 +9851,6 @@ function globalSearch(){
       let recibosError = null;
 
       try{
-        // Los contactos del Historial de recibos se completan desde los activos actuales
-        // para poder compartir el PDF por WhatsApp aunque la RPC de recibos no traiga teléfono/email.
-        if (!Array.isArray(contratosActivos) || !contratosActivos.length){
-          await refreshContratosActivos();
-        }
-      } catch(e){
-        console.warn('No se pudieron refrescar contactos de activos para recibos:', e?.message || e);
-      }
-
-      try{
         localStorage.removeItem(RECEIPTS_CACHE_KEY);
         localStorage.removeItem(MANUAL_RECEIPTS_KEY);
       } catch(e){}
@@ -9889,9 +9891,10 @@ function globalSearch(){
             monto_total: montoTotal,
             monto: montoTotal,
             inquilino_nombre: item.nombre_inquilino || item.inquilino_nombre || '—',
-            telefono: item.telefono || '',
-            email: item.email || '',
-            documento: item.documento || '',
+            inquilino_id: item.inquilino_id || item.locatario_id || null,
+            telefono: item.telefono_resuelto || item.telefono || item.telefono_inquilino || item.inquilino_telefono || '',
+            email: item.email_resuelto || item.email || item.email_inquilino || item.inquilino_email || '',
+            documento: item.documento_resuelto || item.documento || item.documento_inquilino || item.inquilino_documento || '',
             local_codigo: item.codigo_local || item.local_codigo || '—',
             observacion: item.observacion || '',
             origen: item.origen || item.fuente_hoja || '',
@@ -9903,12 +9906,12 @@ function globalSearch(){
 
       const historicosRaw = await fetchSupabaseRowsSafe(
         'recibos_historicos_operativos',
-        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,medio,referencia,observacion,origen'
+        'id,contrato_id,inquilino_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,medio,referencia,observacion,origen'
       );
       const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
       rows = mergeRecibosRows(rows, historicos);
       rows = applyCobroReceiptOverrides(rows);
-      rows = syncRecibosContactsFromActiveRows(rows);
+      rows = await enrichRecibosWithContacts(rows);
 
       rows.sort((a,b) => {
         const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
@@ -10222,7 +10225,21 @@ function globalSearch(){
       const el = $('viewRecibos');
       if (!el) return;
 
-      const { rows, pagosError, contratosError } = await fetchRecibosInternosData();
+      el.innerHTML = `<div class="card"><h3 style="margin:0;">Recibos internos</h3><div class="toast">Cargando historial de recibos...</div></div>`;
+
+      let rows = [];
+      let pagosError = null;
+      let contratosError = null;
+      try {
+        const result = await fetchRecibosInternosData();
+        rows = result?.rows || [];
+        pagosError = result?.pagosError || result?.recibosError || null;
+        contratosError = result?.contratosError || null;
+      } catch (error) {
+        console.error('Error renderizando recibos internos:', error);
+        pagosError = error;
+        rows = [];
+      }
       recibosInternosCache = rows;
       saveReceiptsCache();
 
