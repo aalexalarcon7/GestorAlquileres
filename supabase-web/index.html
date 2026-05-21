@@ -6623,93 +6623,73 @@ td:last-child{
       return `${contrato}|${id}|${periodos}|${Number(total || 0).toFixed(2)}|${Number(impuesto || 0).toFixed(2)}`;
     }
 
-    function applyImpuestosToDebtRows(rows, pagos){
-      const detalleRows = Array.isArray(rows) ? rows : [];
-      detalleRows.forEach(row => {
-        row.impuesto = toNumber(row.impuesto);
-        row.pagado_total_recibos = toNumber(row.pagado_total_recibos);
-      });
+  function applyImpuestosToDebtRows(rows, pagos){
+  const detalleRows = Array.isArray(rows) ? rows : [];
 
-      if (!Array.isArray(pagos) || !pagos.length) return enrichDebtRowsWithImpuestoTotals(detalleRows);
+  // Importante:
+  // Limpiar siempre lo visual antes de recalcular.
+  // Si no, quedan impuestos viejos pegados aunque el recibo ya esté eliminado.
+  detalleRows.forEach(row => {
+    row.impuesto = 0;
+    row.pagado_total_recibos = 0;
+  });
 
-      const impuestoByKey = new Map();
-      const pagadoTotalByKey = new Map();
-      const vistos = new Set();
+  const pagosActivos = Array.isArray(pagos)
+    ? pagos.filter(pago => {
+        if (!pago) return false;
+        if (pago.deleted_at) return false;
+        if (pago.eliminado) return false;
+        if (String(pago.estado || '').toUpperCase() === 'ELIMINADO') return false;
+        return true;
+      })
+    : [];
 
-      pagos.forEach(pago => {
-      if (pago?.deleted_at) return;
+  if (!pagosActivos.length) {
+    return enrichDebtRowsWithImpuestoTotals(detalleRows);
+  }
 
-      const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+  const impuestoByKey = new Map();
+  const pagadoTotalByKey = new Map();
+  const vistos = new Set();
 
-        const impuesto = round2(toNumber(pago?.monto_impuesto));
-        const totalPago = getPagoMontoTotalParaPeriodo(pago);
-        if (impuesto <= 0 && totalPago <= 0) return;
+  pagosActivos.forEach(pago => {
+    const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+    if (!keys.length) return;
 
-        const dedupeKey = getPagoDedupeKeyParaPeriodo(pago, keys, totalPago, impuesto);
-        if (vistos.has(dedupeKey)) return;
-        vistos.add(dedupeKey);
+    const impuesto = round2(toNumber(pago?.monto_impuesto));
+    const totalPago = getPagoMontoTotalParaPeriodo(pago);
 
-        const totalPorPeriodo = round2(totalPago / keys.length);
-        const impuestoPorPeriodo = round2(impuesto / keys.length);
+    if (impuesto <= 0 && totalPago <= 0) return;
 
-        keys.forEach((key, index) => {
-          const totalImporte = index === keys.length - 1
-            ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
-            : totalPorPeriodo;
-          const impuestoImporte = index === keys.length - 1
-            ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
-            : impuestoPorPeriodo;
+    const dedupeKey = getPagoDedupeKeyParaPeriodo(pago, keys, totalPago, impuesto);
+    if (vistos.has(dedupeKey)) return;
+    vistos.add(dedupeKey);
 
-          pagadoTotalByKey.set(key, round2(toNumber(pagadoTotalByKey.get(key)) + totalImporte));
-          impuestoByKey.set(key, round2(toNumber(impuestoByKey.get(key)) + impuestoImporte));
-        });
-      });
+    const totalPorPeriodo = round2(totalPago / keys.length);
+    const impuestoPorPeriodo = round2(impuesto / keys.length);
 
-      detalleRows.forEach(row => {
-        const key = String(row?.sort_key || '').slice(0, 7);
-        row.impuesto = round2(toNumber(impuestoByKey.get(key)));
-        row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
-      });
+    keys.forEach((key, index) => {
+      const totalImporte = index === keys.length - 1
+        ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
+        : totalPorPeriodo;
 
-      return enrichDebtRowsWithImpuestoTotals(detalleRows);
-    }
+      const impuestoImporte = index === keys.length - 1
+        ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
+        : impuestoPorPeriodo;
 
-    function applyPaymentApplicationsToDebtRows(rows, pagos){
-      if (!Array.isArray(rows) || !Array.isArray(pagos) || !pagos.length) return rows;
+      pagadoTotalByKey.set(key, round2(toNumber(pagadoTotalByKey.get(key)) + totalImporte));
+      impuestoByKey.set(key, round2(toNumber(impuestoByKey.get(key)) + impuestoImporte));
+    });
+  });
 
-      pagos.forEach(pago => {
-        const labels = extractPaymentPeriodLabels(pago).filter(label => !/arrastre\s*2025/i.test(label));
-        if (!labels.length) return;
+  detalleRows.forEach(row => {
+    const key = String(row?.sort_key || '').slice(0, 7);
+    row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+    row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+  });
 
-        let remaining = toNumber(pago?.monto_alquiler ?? pago?.monto);
-        if (remaining <= 0) return;
-
-        labels.forEach(label => {
-          if (remaining <= 0.009) return;
-          const key = periodLabelToSortKey(label);
-          if (!key) return;
-          const row = rows.find(r => String(r.sort_key) === key);
-          if (!row) return;
-
-          const beforeSaldo = toNumber(row.saldo);
-          if (beforeSaldo <= 0.009) return;
-          const applied = Math.min(remaining, beforeSaldo);
-          row.pagado = round2(toNumber(row.pagado) + applied);
-          row.saldo = round2(beforeSaldo - applied);
-          remaining = round2(remaining - applied);
-
-          if (row.saldo <= 0.009){
-            row.saldo = 0;
-            row.estado_detalle = 'SALDADA';
-            row.dias_atraso = 0;
-          } else if (row.pagado > 0){
-            row.estado_detalle = 'PENDIENTE/PARCIAL';
-          }
-        });
-      });
-
-      return rows;
-    }
+  return enrichDebtRowsWithImpuestoTotals(detalleRows);
+}
 
     function renderDetalleDebtRows(rows){
       const tb = $('detalleBody');
