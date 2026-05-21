@@ -13431,20 +13431,45 @@ function globalSearch(){
 
 
     function syncCobroDesdeMediosPago(){
-      const totalMedios = getTotalMediosPago();
-      const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-      const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
+  const totalMedios = getTotalMediosPago();
 
-      if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
-      if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
-      if ($('mImpMonto')) $('mImpMonto').value = impuestoObjetivo > 0 ? formatMoneyInputValue(desglose.impuesto) : '';
-      if ($('mImpPct')) $('mImpPct').value = '0';
+  // El impuesto SIEMPRE sale del campo "Impuesto a sumar".
+  // Nunca sale de efectivo, transferencia, mixto ni de ningún medio de pago.
+  const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
 
-      const medios = getPagoMediosFromUI();
-      if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
-      updatePagoMediosResumen();
-      return { alquiler:desglose.alquiler, impPct:0, impuesto:desglose.impuesto, total:totalMedios };
-    }
+  const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
+
+  if ($('mTotal')) {
+    $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
+  }
+
+  if ($('mAlquiler')) {
+    $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
+  }
+
+  // IMPORTANTE:
+  // No tocar mImpMonto acá.
+  // Si se toca, un medio de pago como TRANSFERENCIA $3.400 puede terminar pisando el impuesto.
+  // El campo impuesto debe conservar lo que escribió o sincronizó el usuario.
+  if ($('mImpPct')) {
+    $('mImpPct').value = '0';
+  }
+
+  const medios = getPagoMediosFromUI();
+
+  if ($('mMedio')) {
+    $('mMedio').value = getMedioPagoGeneral(medios);
+  }
+
+  updatePagoMediosResumen();
+
+  return {
+    alquiler: desglose.alquiler,
+    impPct: 0,
+    impuesto: desglose.impuesto,
+    total: totalMedios
+  };
+}
 
     function updatePagoMedioRow(uid, field, value, touched=false){
       pagoMediosRows = (pagoMediosRows || []).map(row => row.uid === uid ? { ...row, [field]: value } : row);
