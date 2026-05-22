@@ -9086,134 +9086,52 @@ const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) >
 
       // Si cambió el monto mensual, actualizamos SOLO la cuota elegida.
       if (cambioMonto) {
-        const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
-        const [targetAnio, targetMes] = targetRentPeriod.split('-').map(Number);
+  const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+  const [targetAnio, targetMes] = targetRentPeriod.split('-').map(Number);
 
-        if (!targetAnio || !targetMes) {
-          throw new Error('No se pudo identificar el mes a modificar.');
-        }
+  if (!targetAnio || !targetMes) {
+    throw new Error('No se pudo identificar el mes a modificar.');
+  }
 
-        const cuotaRead = await sb
-  .from('cuotas_operativas')
-  .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado')
-  .eq('contrato_id', selected.contrato_id)
-  .eq('anio', targetAnio)
-  .eq('mes', targetMes)
-  .limit(1);
+  const cuotaRpc = await sb.rpc('modificar_cuota_operativa_alquiler', {
+    p_contrato_id: Number(selected.contrato_id),
+    p_anio: Number(targetAnio),
+    p_mes: Number(targetMes),
+    p_monto_total: Number(newMonthly)
+  });
 
-if (cuotaRead?.error) throw cuotaRead.error;
+  if (cuotaRpc?.error) throw cuotaRpc.error;
 
-const cuota = cuotaRead?.data?.[0] || null;
-const pagadoActual = toNumber(cuota?.monto_pagado || 0);
-const nuevoSaldo = Math.max(0, round2(newMonthly - pagadoActual));
+  const cuotaActualizada = Array.isArray(cuotaRpc?.data)
+    ? cuotaRpc.data[0]
+    : cuotaRpc.data;
 
-let nuevoEstado = 'PENDIENTE';
-if (nuevoSaldo <= 0.009) nuevoEstado = 'PAGADO';
-else if (pagadoActual > 0.009) nuevoEstado = 'PARCIAL';
+  if (!cuotaActualizada?.ok) {
+    throw new Error(cuotaActualizada?.mensaje || 'No se pudo modificar la cuota operativa.');
+  }
 
-const periodoTexto = `${String(targetMes).padStart(2, '0')}/${targetAnio}`;
-const mesNombre = GA_MONTH_NAMES?.[targetMes - 1] || String(targetMes);
-const vencimientoISO = `${targetAnio}-${String(targetMes).padStart(2, '0')}-${String(diaVencimiento).padStart(2, '0')}`;
+  const pagadoActual = toNumber(cuotaActualizada.monto_pagado || 0);
+  const nuevoSaldo = toNumber(cuotaActualizada.saldo || 0);
+  const nuevoEstado = cuotaActualizada.estado || 'PENDIENTE';
+  const targetKey = `${targetAnio}-${String(targetMes).padStart(2, '0')}`;
 
-if (cuota?.id) {
-  // Si la cuota existe, la actualizamos.
-  let cuotaResult = await sb
-    .from('cuotas_operativas')
-    .update({
+  detalleCuotasActuales = (detalleCuotasActuales || []).map(row => {
+    const rowKey = String(row?.sort_key || '');
+
+    if (rowKey !== targetKey) return row;
+
+    return {
+      ...row,
+      total: newMonthly,
       monto_total: newMonthly,
+      pagado: pagadoActual,
+      monto_pagado: pagadoActual,
       saldo: nuevoSaldo,
       estado: nuevoEstado,
-      vencimiento: vencimientoISO,
-      updated_at: new Date().toISOString()
-    })
-    .eq('id', cuota.id);
-
-  if (cuotaResult?.error && /updated_at|vencimiento|schema cache|column/i.test(cuotaResult.error.message || '')) {
-    cuotaResult = await sb
-      .from('cuotas_operativas')
-      .update({
-        monto_total: newMonthly,
-        saldo: nuevoSaldo,
-        estado: nuevoEstado
-      })
-      .eq('id', cuota.id);
-  }
-
-  if (cuotaResult?.error) throw cuotaResult.error;
-} else {
-  // Si la cuota no existe, la creamos para ese mes.
-  const contratoBase = contrato || {};
-  const localBase = contratoBase.locales || {};
-  const inqBase = contratoBase.inquilinos || {};
-
-  const insertPayload = {
-    contrato_id: selected.contrato_id,
-    local_id: contratoBase.local_id || selected.local_id || null,
-    inquilino_id: contratoBase.inquilino_id || selected.inquilino_id || null,
-    codigo_local:
-      selected.local_codigo ||
-      selected.codigo_local ||
-      selected.codigo ||
-      localBase.codigo ||
-      localBase.codigo_local ||
-      '',
-    nombre_inquilino:
-      selected.inquilino_nombre ||
-      selected.nombre_inquilino ||
-      inqBase.nombre ||
-      '',
-    anio: targetAnio,
-    mes: targetMes,
-    periodo: periodoTexto,
-    mes_nombre: mesNombre,
-    vencimiento: vencimientoISO,
-    monto_total: newMonthly,
-    monto_pagado: pagadoActual,
-    saldo: nuevoSaldo,
-    estado: nuevoEstado,
-    origen: 'OPERATIVO',
-    fuente_hoja: 'modificar_alquiler_web',
-    observacion: 'Cuota creada automáticamente desde Modificar alquiler.'
-  };
-
-  let cuotaInsert = await sb
-    .from('cuotas_operativas')
-    .insert(insertPayload);
-
-  if (cuotaInsert?.error && /vencimiento|origen|fuente_hoja|observacion|schema cache|column/i.test(cuotaInsert.error.message || '')) {
-    cuotaInsert = await sb
-      .from('cuotas_operativas')
-      .insert({
-        contrato_id: selected.contrato_id,
-        anio: targetAnio,
-        mes: targetMes,
-        periodo: periodoTexto,
-        monto_total: newMonthly,
-        monto_pagado: pagadoActual,
-        saldo: nuevoSaldo,
-        estado: nuevoEstado
-      });
-  }
-
-  if (cuotaInsert?.error) throw cuotaInsert.error;
+      estado_detalle: nuevoEstado
+    };
+  });
 }
-
-        detalleCuotasActuales = (detalleCuotasActuales || []).map(row => {
-          const rowKey = String(row?.sort_key || '');
-          const targetKey = `${targetAnio}-${String(targetMes).padStart(2, '0')}`;
-
-          if (rowKey !== targetKey) return row;
-
-          return {
-            ...row,
-            total: newMonthly,
-            monto_total: newMonthly,
-            saldo: nuevoSaldo,
-            estado: nuevoEstado,
-            estado_detalle: nuevoEstado
-          };
-        });
-      }
 
       contratosActivos = (contratosActivos || []).map(c => {
         if (String(c.id) !== String(selected.contrato_id)) return c;
@@ -9399,6 +9317,7 @@ setTimeout(() => {
     return;
   }
 }
+
 
 
     async function deleteActivoActual(){
