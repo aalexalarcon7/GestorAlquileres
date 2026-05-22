@@ -8897,44 +8897,122 @@ function globalSearch(){
 
       const tasks = [];
 
+/* EDITAR ACTIVO: solo datos del local/inquilino.
+   No toca alquiler, cuotas, deuda ni sync de staging. */
 if (!isAlquilerMode) {
-  if (contrato?.locales?.id) {
-    const payloadLocal = {};
+  msg.textContent = 'Guardando cambios del activo...';
 
-    if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) {
-      payloadLocal.codigo = codigo;
-    }
+  try {
+    // 1) Guardar código/local
+    if (contrato?.locales?.id) {
+      const payloadLocal = {};
 
-    if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) {
-      payloadLocal.codigo_local = codigo;
-    }
+      if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) {
+        payloadLocal.codigo = codigo;
+      }
 
-    if (Object.keys(payloadLocal).length) {
-      tasks.push(
-        sb.from('locales')
+      if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) {
+        payloadLocal.codigo_local = codigo;
+      }
+
+      if (Object.keys(payloadLocal).length) {
+        const localResult = await sb
+          .from('locales')
           .update(payloadLocal)
-          .eq('id', contrato.locales.id)
-      );
+          .eq('id', contrato.locales.id);
+
+        if (localResult?.error) throw localResult.error;
+      }
     }
+
+    // 2) Guardar inquilino
+    const inquilinoId =
+      contrato?.inquilinos?.id ||
+      contrato?.inquilino_id ||
+      selected?.inquilino_id;
+
+    if (!inquilinoId) {
+      throw new Error('No se encontró el ID del inquilino para actualizar.');
+    }
+
+    const inqResult = await sb
+      .from('inquilinos')
+      .update({
+        nombre: nombre,
+        documento: documento,
+        telefono: telefono,
+        email: email
+      })
+      .eq('id', inquilinoId)
+      .select('id,nombre,documento,telefono,email')
+      .maybeSingle();
+
+    if (inqResult?.error) throw inqResult.error;
+
+    const inqUpdated = inqResult?.data || {
+      id: inquilinoId,
+      nombre,
+      documento,
+      telefono,
+      email
+    };
+
+    // 3) Actualizar memoria local para que se vea sin recargar toda la app
+    selected = {
+      ...selected,
+      local_codigo: codigo,
+      local_code_normalized: normLocalCode(codigo),
+      inquilino_nombre: inqUpdated.nombre || nombre,
+      inquilino_documento: inqUpdated.documento || '',
+      inquilino_telefono: inqUpdated.telefono || '',
+      inquilino_email: inqUpdated.email || ''
+    };
+
+    contratosActivos = (contratosActivos || []).map(c => {
+      if (String(c.id) !== String(selected.contrato_id)) return c;
+
+      return {
+        ...c,
+        locales: {
+          ...(c.locales || {}),
+          codigo: codigo,
+          codigo_local: codigo
+        },
+        inquilinos: {
+          ...(c.inquilinos || {}),
+          id: inquilinoId,
+          nombre: inqUpdated.nombre || nombre,
+          documento: inqUpdated.documento || '',
+          telefono: inqUpdated.telefono || '',
+          email: inqUpdated.email || ''
+        }
+      };
+    });
+
+    unidades = (unidades || []).map(u => {
+      if (String(u.contrato_id) !== String(selected.contrato_id)) return u;
+      return { ...u, ...selected };
+    });
+
+    renderUnidades();
+
+    if ($('detalleCard')) {
+      $('detalleCard').style.display = 'block';
+      renderDetalleInfo(selected, detalleCuotasActuales || []);
+    }
+
+    msg.textContent = 'Activo guardado correctamente.';
+
+    setTimeout(() => {
+      closeActivoModal();
+    }, 650);
+
+  } catch (err) {
+    console.error('Error guardando activo:', err);
+    msg.textContent = err?.message || 'No se pudo guardar el activo.';
   }
 
-  const inquilinoId =
-    contrato?.inquilinos?.id ||
-    contrato?.inquilino_id ||
-    selected?.inquilino_id;
-
-  if (inquilinoId) {
-    tasks.push(
-      sb.from('inquilinos')
-        .update({
-          nombre,
-          documento,
-          telefono,
-          email
-        })
-        .eq('id', inquilinoId)
-    );
-  }
+  return;
 }
 
 if (isAlquilerMode) {
