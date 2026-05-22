@@ -10913,9 +10913,9 @@ async function fetchRecibosKPIsReales(){
       saveReceiptsCache();
 
       const summaryReal = await fetchRecibosKPIsReales();
-      const summary = summaryReal || renderRecibosKPIs(rows);
+const summary = summaryReal || renderRecibosKPIs(rows);
 
-      let filteredRows = applyRecibosPageFilters(rows);
+let filteredRows = applyRecibosPageFilters(rows);
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
       // mostramos todo para no "perder" el recibo recién generado.
@@ -10924,7 +10924,7 @@ async function fetchRecibosKPIsReales(){
         filteredRows = [...rows];
       }
 
-      const ultimo =
+     const ultimo =
   rows.find(item => String(item.numero_recibo || '') === String(summary.ultimoNumero || '')) ||
   filteredRows[0] ||
   rows[0] ||
