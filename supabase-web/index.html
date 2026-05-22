@@ -14198,17 +14198,46 @@ if ($('mImpMonto')) $('mImpMonto').value = '';
 
 await refreshPaymentPeriodOptions(r, false);
 
+// Impuesto automático:
+// 1) Primero intenta tomar el último impuesto real usado por ese activo.
+// 2) Si no encuentra, usa el impuesto mensual cargado en el contrato.
+const ultimoImpuesto = await obtenerUltimoImpuestoActivo(r.contrato_id);
+const impuestoContrato = toNumber(
+  contratoBase?.impuesto_mensual ??
+  r?.impuesto_mensual ??
+  0
+);
+
+const impuestoAuto = ultimoImpuesto > 0 ? ultimoImpuesto : impuestoContrato;
+
+if ($('mImpMonto')) {
+  $('mImpMonto').value = impuestoAuto > 0
+    ? formatMoneyInputValue(impuestoAuto)
+    : '';
+}
+
 // Una vez que el selector ya tiene el mes correcto,
 // sincronizamos el alquiler con el saldo real de esa cuota.
 syncCobroAlquilerDesdePeriodo();
+
+const cobroInicial = recalcularCobroModal();
+initPagoMediosRows(cobroInicial?.total || 0);
 
 const periodoSelect = $('mPeriodoAplicado');
 if (periodoSelect) {
   periodoSelect.onchange = () => {
     syncCobroAlquilerDesdePeriodo();
+
+    // Si el usuario cambia de mes, mantenemos el impuesto automático cargado.
+    // No lo pisamos si el usuario ya lo modificó manualmente.
+    if ($('mImpMonto') && !String($('mImpMonto').value || '').trim() && impuestoAuto > 0) {
+      $('mImpMonto').value = formatMoneyInputValue(impuestoAuto);
+    }
+
+    const recalculado = recalcularCobroModal();
+    syncPagoMediosConTotal(recalculado?.total || 0);
   };
 }
-    }
 
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
