@@ -8897,69 +8897,77 @@ function globalSearch(){
 
       const tasks = [];
 
-      if (!isAlquilerMode) {
-        if (contrato?.locales?.id) {
-          const payloadLocal = {};
-          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) payloadLocal.codigo = codigo;
-          if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) payloadLocal.codigo_local = codigo;
-          if (Object.keys(payloadLocal).length){
-            tasks.push(sb.from('locales').update(payloadLocal).eq('id', contrato.locales.id));
-          }
-        }
+if (!isAlquilerMode) {
+  if (contrato?.locales?.id) {
+    const payloadLocal = {};
 
-        const inquilinoId =
-  contrato?.inquilinos?.id ||
-  contrato?.inquilino_id ||
-  selected?.inquilino_id;
+    if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo')) {
+      payloadLocal.codigo = codigo;
+    }
 
-if (inquilinoId) {
-  tasks.push(
-    sb.from('inquilinos')
-      .update({
-        nombre: nombre,
-        documento: documento,
-        telefono: telefono,
-        email: email
-      })
-      .eq('id', inquilinoId)
-      .select('id,nombre,documento,telefono,email')
-      .maybeSingle()
-  );
+    if (Object.prototype.hasOwnProperty.call(contrato.locales, 'codigo_local')) {
+      payloadLocal.codigo_local = codigo;
+    }
+
+    if (Object.keys(payloadLocal).length) {
+      tasks.push(
+        sb.from('locales')
+          .update(payloadLocal)
+          .eq('id', contrato.locales.id)
+      );
+    }
+  }
+
+  const inquilinoId =
+    contrato?.inquilinos?.id ||
+    contrato?.inquilino_id ||
+    selected?.inquilino_id;
+
+  if (inquilinoId) {
+    tasks.push(
+      sb.from('inquilinos')
+        .update({
+          nombre,
+          documento,
+          telefono,
+          email
+        })
+        .eq('id', inquilinoId)
+    );
+  }
 }
 
-      const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
-const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
+if (isAlquilerMode) {
+  const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
+  const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
 
-const contratoPayload = {
-  monto_mensual: newMonthly,
-  impuesto_mensual: impuestoMensual !== null ? impuestoMensual : toNumber(contrato?.impuesto_mensual),
-  ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
-  ajuste_cada_meses: ajusteMeses,
-  dia_vencimiento: diaVencimiento,
-  fecha_inicio: fechaInicio,
-  fecha_fin: fechaFin,
-  observaciones
-};
+  const contratoPayload = {
+    monto_mensual: newMonthly,
+    impuesto_mensual: impuestoMensual !== null ? impuestoMensual : toNumber(contrato?.impuesto_mensual),
+    ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
+    ajuste_cada_meses: ajusteMeses,
+    dia_vencimiento: diaVencimiento,
+    fecha_inicio: fechaInicio,
+    fecha_fin: fechaFin,
+    observaciones
+  };
 
-tasks.push(
-  sb.from('contratos')
-    .update(contratoPayload)
-    .eq('id', selected.contrato_id)
-);
+  tasks.push(
+    sb.from('contratos')
+      .update(contratoPayload)
+      .eq('id', selected.contrato_id)
+  );
 
-// Si se tocó el alquiler, también sincronizamos la cuota visible elegida.
-const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
-const codeToSync =
-  selected?.local_codigo ||
-  selected?.local_code_normalized ||
-  selected?.codigo ||
-  selected?.codigo_local ||
-  contrato?.locales?.codigo ||
-  contrato?.locales?.codigo_local;
+  const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
 
-const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthly)) > 0.009;
+  const codeToSync =
+    selected?.local_codigo ||
+    selected?.local_code_normalized ||
+    selected?.codigo ||
+    selected?.codigo_local ||
+    contrato?.locales?.codigo ||
+    contrato?.locales?.codigo_local;
 
-if (isAlquilerMode || cambioMonto) {
   tasks.push(
     syncStagingAfterRentChange({
       code: codeToSync,
@@ -8985,32 +8993,9 @@ if (isAlquilerMode || cambioMonto) {
         msg.textContent = saveError?.message || 'No se pudo guardar el alquiler.';
         return;
       }
-      if (!isAlquilerMode) {
-  const savedInq = results
-    .map(r => r?.data)
-    .find(d => d && Object.prototype.hasOwnProperty.call(d, 'nombre'));
+      
 
-  if (savedInq?.nombre) {
-    selected.inquilino_nombre = savedInq.nombre;
-    selected.inquilino_documento = savedInq.documento || '';
-    selected.inquilino_telefono = savedInq.telefono || '';
-    selected.inquilino_email = savedInq.email || '';
-  }
-}
-
-      if (isAlquilerMode && detalleCuotasActuales?.length) {
-        renderDetalleDebtRows(detalleCuotasActuales);
-      }
-
-      const currentId = selected.contrato_id;
-      closeActivoModal();
-      await refreshAll();
-      const refreshed = unidades.find(x => String(x.contrato_id) === String(currentId));
-      if (refreshed) {
-        selected = refreshed;
-        openDetalle(refreshed);
-      }
-    }
+      
 
 
     async function deleteActivoActual(){
@@ -14116,7 +14101,7 @@ usedCobroV4 = !v4Response.error;
         alert(err?.message || 'No se pudo borrar el activo.');
       }
     }
-
+}
 
     async function toggleOcultarActivoActual(){
       const unidad = selected;
