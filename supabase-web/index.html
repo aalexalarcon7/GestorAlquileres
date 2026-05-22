@@ -9016,44 +9016,102 @@ if (!isAlquilerMode) {
 }
 
 if (isAlquilerMode) {
-  const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
-  const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
+  msg.textContent = 'Guardando alquiler...';
 
-  const contratoPayload = {
-    monto_mensual: newMonthly,
-    impuesto_mensual: impuestoMensual !== null ? impuestoMensual : toNumber(contrato?.impuesto_mensual),
-    ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
-    ajuste_cada_meses: ajusteMeses,
-    dia_vencimiento: diaVencimiento,
-    fecha_inicio: fechaInicio,
-    fecha_fin: fechaFin,
-    observaciones
-  };
+  try {
+    const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
+    const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
 
-  tasks.push(
-    sb.from('contratos')
+    const oldImpuesto = toNumber(contrato?.impuesto_mensual);
+    const newImpuesto = impuestoMensual !== null ? impuestoMensual : oldImpuesto;
+
+    const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthly)) > 0.009;
+    const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) > 0.009;
+
+    const contratoPayload = {
+      monto_mensual: newMonthly,
+      impuesto_mensual: newImpuesto,
+      ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
+      ajuste_cada_meses: ajusteMeses,
+      dia_vencimiento: diaVencimiento,
+      fecha_inicio: fechaInicio,
+      fecha_fin: fechaFin,
+      observaciones
+    };
+
+    const contratoResult = await sb
+      .from('contratos')
       .update(contratoPayload)
-      .eq('id', selected.contrato_id)
-  );
+      .eq('id', selected.contrato_id);
 
-  const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+    if (contratoResult?.error) throw contratoResult.error;
 
-  const codeToSync =
-    selected?.local_codigo ||
-    selected?.local_code_normalized ||
-    selected?.codigo ||
-    selected?.codigo_local ||
-    contrato?.locales?.codigo ||
-    contrato?.locales?.codigo_local;
+    // Solo modifica cuotas si cambió el monto mensual.
+    // Si solo cambió el impuesto, NO toca cuotas_operativas.
+    if (cambioMonto) {
+      const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
 
-  tasks.push(
-    syncStagingAfterRentChange({
-      code: codeToSync,
-      oldMonthly,
-      newMonthly,
-      periodKey: targetRentPeriod
-    })
-  );
+      const codeToSync =
+        selected?.local_codigo ||
+        selected?.local_code_normalized ||
+        selected?.codigo ||
+        selected?.codigo_local ||
+        contrato?.locales?.codigo ||
+        contrato?.locales?.codigo_local;
+
+      await syncStagingAfterRentChange({
+        code: codeToSync,
+        oldMonthly,
+        newMonthly,
+        periodKey: targetRentPeriod
+      });
+    }
+
+    contratosActivos = (contratosActivos || []).map(c => {
+      if (String(c.id) !== String(selected.contrato_id)) return c;
+
+      return {
+        ...c,
+        monto_mensual: newMonthly,
+        impuesto_mensual: newImpuesto,
+        ajuste_porcentaje: contratoPayload.ajuste_porcentaje,
+        ajuste_cada_meses: contratoPayload.ajuste_cada_meses,
+        dia_vencimiento: contratoPayload.dia_vencimiento,
+        fecha_inicio: contratoPayload.fecha_inicio,
+        fecha_fin: contratoPayload.fecha_fin,
+        observaciones: contratoPayload.observaciones
+      };
+    });
+
+    activoEditContrato = {
+      ...(activoEditContrato || contrato || {}),
+      ...contratoPayload
+    };
+
+    if (selected) {
+      selected.monto_mensual = newMonthly;
+      selected.monto = newMonthly;
+      selected.impuesto_mensual = newImpuesto;
+    }
+
+    if (typeof renderDetalleInfo === 'function') {
+      renderDetalleInfo(selected, detalleCuotasActuales || []);
+    }
+
+    msg.textContent = cambioMonto
+      ? 'Alquiler guardado correctamente.'
+      : (cambioImpuesto ? 'Impuesto guardado correctamente.' : 'Datos del alquiler guardados correctamente.');
+
+    setTimeout(() => {
+      closeActivoModal();
+    }, 650);
+
+  } catch (err) {
+    console.error('Error guardando alquiler:', err);
+    msg.textContent = err?.message || 'No se pudo guardar el alquiler.';
+  }
+
+  return;
 }
 
       if (!tasks.length) {
