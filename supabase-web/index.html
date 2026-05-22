@@ -12194,71 +12194,63 @@ error = deleteResponse.error;
     }
 
     async function fetchBalanceData(year){
-      const from = startOfYearISO(year);
-      const to = nextYearStartISO(year);
+  let balanceRows = [];
+  let balanceError = null;
 
-      let pagosData = [];
-      let pagosError = null;
+  try {
+    const { data, error } = await sb.rpc('balance_operativo_anual', {
+      p_anio: Number(year)
+    });
 
-      try{
-        // Fuente correcta para Balance: recibos internos/históricos, no la tabla vieja pagos.
-        // Es solo lectura: no toca ni modifica recibos cargados.
-        const recibosResult = await fetchRecibosInternosData();
-        pagosError = recibosResult?.pagosError || null;
-        pagosData = (recibosResult?.rows || [])
-          .filter(item => balanceYearFromCobro(item) === Number(year))
-          .map(item => ({
-            id: item.id || item.recibo_id || item.pago_id,
-            contrato_id: item.contrato_id || null,
-            fecha_pago: item.fecha_pago || item.created_at || null,
-            created_at: item.created_at || item.fecha_pago || null,
-            anio: Number(item.anio || balanceYearFromCobro(item) || year),
-            mes: Number(item.mes || (balanceMonthIndexFromCobro(item) + 1) || 0),
-            periodo: item.periodo_aplicado || item.periodo || '',
-            monto: Number(item.monto_total ?? item.monto ?? 0),
-            monto_total: Number(item.monto_total ?? item.monto ?? 0),
-            medio: item.medio || 'EFECTIVO',
-            referencia: item.referencia || item.numero_recibo || '',
-            numero_recibo: item.numero_recibo || item.referencia || '',
-            origen: item.origen || ''
-          }));
-      } catch(e){
-        pagosError = { message: e?.message || 'No se pudieron leer los recibos para Balance.' };
-        pagosData = [];
-      }
+    if (error) throw error;
 
-      const gastosPromise = sb
-        .from('gastos')
-        .select('id, numero, fecha, categoria, concepto, beneficiario, medio, monto, observaciones, created_at')
-        .gte('fecha', from)
-        .lt('fecha', to);
+    balanceRows = (data || []).map(row => ({
+      mes: Number(row.mes || 0),
+      mes_nombre: row.mes_nombre || BALANCE_MONTHS[Number(row.mes || 1) - 1],
+      facturacion: toNumber(row.facturacion),
+      recaudacion: toNumber(row.recaudacion),
+      gastos: toNumber(row.gastos),
+      ganancia: toNumber(row.ganancia),
+      saldo_acumulado: toNumber(row.saldo_acumulado)
+    }));
+  } catch (err) {
+    console.error('Error cargando balance operativo:', err);
+    balanceError = { message: err?.message || 'No se pudo calcular el balance operativo.' };
+    balanceRows = [];
+  }
 
-      const cuotasPromise = sb
-        .from('vw_detalle_mensual_operativo')
-        .select('contrato_id, codigo_local, nombre_inquilino, anio, mes, periodo, monto_total, monto_pagado, saldo, estado')
-        .eq('anio', Number(year));
+  // Adaptamos el resultado del RPC al formato que ya usa buildBalanceYearSummary().
+  // Así no hay que tocar toda la pantalla.
+  const cuotas = balanceRows.map(row => ({
+    anio: Number(year),
+    mes: row.mes,
+    monto_total: row.facturacion
+  }));
 
-      const contratosPromise = sb
-        .from('contratos')
-        .select('id, estado, monto_mensual, impuesto_mensual, fecha_inicio, fecha_fin');
+  const pagos = balanceRows.map(row => ({
+    anio: Number(year),
+    mes: row.mes,
+    fecha_pago: `${year}-${String(row.mes).padStart(2, '0')}-01`,
+    monto: row.recaudacion,
+    monto_total: row.recaudacion
+  }));
 
-      const [
-        { data: gastosData, error: gastosError },
-        { data: cuotasData, error: cuotasError },
-        { data: contratosData, error: contratosError }
-      ] = await Promise.all([gastosPromise, cuotasPromise, contratosPromise]);
+  const gastos = balanceRows.map(row => ({
+    fecha: `${year}-${String(row.mes).padStart(2, '0')}-01`,
+    monto: row.gastos
+  }));
 
-      return {
-        pagos: pagosData || [],
-        gastos: gastosData || [],
-        cuotas: cuotasData || [],
-        contratos: contratosData || [],
-        pagosError,
-        gastosError,
-        cuotasError,
-        contratosError
-      };
-    }
+  return {
+    pagos,
+    gastos,
+    cuotas,
+    contratos: [],
+    pagosError: balanceError,
+    gastosError: null,
+    cuotasError: null,
+    contratosError: null
+  };
+}
 
     function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null, contratos = [], cuotas = []){
       const facturacion = Array(12).fill(0);
