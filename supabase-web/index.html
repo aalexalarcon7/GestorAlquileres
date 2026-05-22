@@ -4423,6 +4423,14 @@ td:last-child{
         justify-content:center !important;
       }
     }
+
+/* Ocultar aumento porcentual: no se usa */
+#actAjustePct,
+#actAjusteMeses{
+  display:none !important;
+}
+
+
   </style>
 
 </head>
@@ -8649,10 +8657,16 @@ function globalSearch(){
     if (el) el.disabled = !!isAlquilerMode;
   });
 
-  ['actMontoMensual','actImpuestoMensual','actAjustePct','actAjusteMeses','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
-    const el = $(id);
+['actMontoMensual','actImpuestoMensual','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
     if (el) el.disabled = !isAlquilerMode;
   });
+
+
+['actAjustePct','actAjusteMeses'].forEach(id => {
+  const el = $(id);
+  if (el) el.disabled = true;
+});
+
 }
 
     function parseModalNumber(value){
@@ -8882,14 +8896,6 @@ function globalSearch(){
         msg.textContent = 'El impuesto mensual no tiene un formato válido.';
         return;
       }
-      if (ajustePctRaw && ajustePct === null) {
-        msg.textContent = 'El aumento no tiene un formato válido.';
-        return;
-      }
-      if (!Number.isInteger(ajusteMeses) || ajusteMeses < 1 || ajusteMeses > 24) {
-        msg.textContent = 'La frecuencia del ajuste debe estar entre 1 y 24 meses.';
-        return;
-      }
       if (!Number.isInteger(diaVencimiento) || diaVencimiento < 1 || diaVencimiento > 31) {
         msg.textContent = 'El día de vencimiento debe estar entre 1 y 31.';
         return;
@@ -9028,16 +9034,19 @@ if (isAlquilerMode) {
     const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthly)) > 0.009;
     const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) > 0.009;
 
-    const contratoPayload = {
-      monto_mensual: newMonthly,
-      impuesto_mensual: newImpuesto,
-      ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
-      ajuste_cada_meses: ajusteMeses,
-      dia_vencimiento: diaVencimiento,
-      fecha_inicio: fechaInicio,
-      fecha_fin: fechaFin,
-      observaciones
-    };
+   const contratoPayload = {
+  monto_mensual: newMonthly,
+  impuesto_mensual: newImpuesto,
+
+  // Aumento porcentual deshabilitado: no se usa.
+  ajuste_porcentaje: 0,
+  ajuste_cada_meses: toNumber(contrato?.ajuste_cada_meses) || 3,
+
+  dia_vencimiento: diaVencimiento,
+  fecha_inicio: fechaInicio,
+  fecha_fin: fechaFin,
+  observaciones
+};
 
     const contratoResult = await sb
       .from('contratos')
