@@ -8634,24 +8634,27 @@ function globalSearch(){
     }
 
     function setActivoModalModeUI(isAlquilerMode){
-      document.querySelectorAll('#modalActivoBack .activo-section-general').forEach(section => {
-        section.style.display = isAlquilerMode ? 'none' : 'block';
-      });
+  // En modo "Modificar alquiler": mostramos solo condiciones del alquiler.
+  // En modo "Editar activo": mostramos TODO.
+  document.querySelectorAll('#modalActivoBack .activo-section-general').forEach(section => {
+    section.style.display = isAlquilerMode ? 'none' : 'block';
+  });
 
-      document.querySelectorAll('#modalActivoBack .activo-section-alquiler').forEach(section => {
-        section.style.display = isAlquilerMode ? 'block' : 'none';
-      });
+  document.querySelectorAll('#modalActivoBack .activo-section-alquiler').forEach(section => {
+    section.style.display = 'block';
+  });
 
-      ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
-        const el = $(id);
-        if (el) el.disabled = !!isAlquilerMode;
-      });
+  ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = !!isAlquilerMode;
+  });
 
-      ['actMontoMensual','actImpuestoMensual','actAjustePct','actAjusteMeses','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones'].forEach(id => {
-        const el = $(id);
-        if (el) el.disabled = !isAlquilerMode;
-      });
-    }
+  // Estos campos quedan editables tanto en Editar activo como en Modificar alquiler.
+  ['actMontoMensual','actImpuestoMensual','actAjustePct','actAjusteMeses','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = false;
+  });
+}
 
     function parseModalNumber(value){
       const raw = String(value || '').trim();
@@ -8806,7 +8809,7 @@ function globalSearch(){
       $('actObservaciones').value = contrato?.observaciones || '';
 
       setActivoModalModeUI(isAlquilerMode);
-      if (isAlquilerMode) populateRentPeriodOptions();
+      populateRentPeriodOptions();
       const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
       if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
       $('modalActivoBack').style.display = 'flex';
@@ -8914,28 +8917,48 @@ function globalSearch(){
         }
       }
 
-      if (isAlquilerMode) {
-        tasks.push(
-          sb.from('contratos')
-            .update({
-              monto_mensual: montoMensual,
-              impuesto_mensual: impuestoMensual,
-              ajuste_porcentaje: ajustePct,
-              ajuste_cada_meses: ajusteMeses,
-              dia_vencimiento: diaVencimiento,
-              fecha_inicio: fechaInicio,
-              fecha_fin: fechaFin,
-              observaciones
-            })
-            .eq('id', selected.contrato_id)
-        );
+      const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
+const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
 
-        // La página muestra la deuda desde staging reconstruido. Por eso sincronizamos la cuota elegida.
-        const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
-        const codeToSync = selected?.local_codigo || selected?.local_code_normalized || selected?.codigo || selected?.codigo_local || contrato?.locales?.codigo || contrato?.locales?.codigo_local;
-        const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
-        tasks.push(syncStagingAfterRentChange({ code: codeToSync, oldMonthly, newMonthly: montoMensual, periodKey: targetRentPeriod }));
-      }
+const contratoPayload = {
+  monto_mensual: newMonthly,
+  impuesto_mensual: impuestoMensual !== null ? impuestoMensual : toNumber(contrato?.impuesto_mensual),
+  ajuste_porcentaje: ajustePct !== null ? ajustePct : toNumber(contrato?.ajuste_porcentaje),
+  ajuste_cada_meses: ajusteMeses,
+  dia_vencimiento: diaVencimiento,
+  fecha_inicio: fechaInicio,
+  fecha_fin: fechaFin,
+  observaciones
+};
+
+tasks.push(
+  sb.from('contratos')
+    .update(contratoPayload)
+    .eq('id', selected.contrato_id)
+);
+
+// Si se tocó el alquiler, también sincronizamos la cuota visible elegida.
+const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+const codeToSync =
+  selected?.local_codigo ||
+  selected?.local_code_normalized ||
+  selected?.codigo ||
+  selected?.codigo_local ||
+  contrato?.locales?.codigo ||
+  contrato?.locales?.codigo_local;
+
+const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthly)) > 0.009;
+
+if (isAlquilerMode || cambioMonto) {
+  tasks.push(
+    syncStagingAfterRentChange({
+      code: codeToSync,
+      oldMonthly,
+      newMonthly,
+      periodKey: targetRentPeriod
+    })
+  );
+}
 
       if (!tasks.length) {
         msg.textContent = 'No encontré registros editables para guardar.';
@@ -14202,6 +14225,10 @@ usedCobroV4 = !v4Response.error;
     window.guardarMesOperativo = guardarMesOperativo;
     window.deleteActivoActual = deleteActivoActual;
     window.toggleOcultarActivoActual = toggleOcultarActivoActual;
+    window.openActivoModal = openActivoModal;
+    window.openAlquilerModal = openAlquilerModal;
+    window.closeActivoModal = closeActivoModal;
+    window.saveActivoModal = saveActivoModal;
 
     init();
   
