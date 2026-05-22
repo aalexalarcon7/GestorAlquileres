@@ -14415,9 +14415,33 @@ const metadataPatch = await forceCobroReceiptMetadata({
           msgEl.textContent = `${res?.mensaje || 'Cobro registrado correctamente.'}${numeroMsg ? ` Recibo: ${numeroMsg}.` : ''}`;
         }
         await refreshAll();
-        const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
-        if (refreshed){ selected = refreshed; await loadDetalle(refreshed); }
-        setTimeout(() => { closePagoModal(); }, 700);
+
+const refreshed = unidades.find(x => String(x.contrato_id) === String(modalContrato.contrato_id));
+if (refreshed){
+  selected = refreshed;
+  await loadDetalle(refreshed);
+}
+
+const toastNumeroRecibo =
+  res?.numero_recibo ||
+  metadataPatch?.numero_recibo ||
+  numeroManual ||
+  '—';
+
+const toastPeriodo =
+  periodoRegistrado ||
+  periodoTexto ||
+  'período seleccionado';
+
+const toastTotal = fmtARS.format(amount);
+
+closePagoModal();
+
+setTimeout(() => {
+  showPagoSuccessToast(
+    `Pago registrado correctamente. Recibo ${toastNumeroRecibo}. Aplicado a ${toastPeriodo}. Total cobrado: ${toastTotal}.`
+  );
+}, 120);
       } catch(err){
         console.error(err);
         if (msgEl) msgEl.textContent = err?.message || 'No se pudo registrar el cobro. Revisá que hayas ejecutado el SQL operativo.';
