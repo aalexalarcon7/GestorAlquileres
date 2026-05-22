@@ -8907,14 +8907,25 @@ function globalSearch(){
           }
         }
 
-        if (contrato?.inquilinos?.id) {
-          tasks.push(
-            sb.from('inquilinos')
-              .update({ nombre, documento, telefono, email })
-              .eq('id', contrato.inquilinos.id)
-          );
-        }
-      }
+        const inquilinoId =
+  contrato?.inquilinos?.id ||
+  contrato?.inquilino_id ||
+  selected?.inquilino_id;
+
+if (inquilinoId) {
+  tasks.push(
+    sb.from('inquilinos')
+      .update({
+        nombre: nombre,
+        documento: documento,
+        telefono: telefono,
+        email: email
+      })
+      .eq('id', inquilinoId)
+      .select('id,nombre,documento,telefono,email')
+      .maybeSingle()
+  );
+}
 
       const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
 const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
@@ -8974,11 +8985,18 @@ if (isAlquilerMode || cambioMonto) {
         msg.textContent = saveError?.message || 'No se pudo guardar el alquiler.';
         return;
       }
-      const failed = results.find(r => r?.error);
-      if (failed?.error) {
-        msg.textContent = failed.error.message;
-        return;
-      }
+      if (!isAlquilerMode) {
+  const savedInq = results
+    .map(r => r?.data)
+    .find(d => d && Object.prototype.hasOwnProperty.call(d, 'nombre'));
+
+  if (savedInq?.nombre) {
+    selected.inquilino_nombre = savedInq.nombre;
+    selected.inquilino_documento = savedInq.documento || '';
+    selected.inquilino_telefono = savedInq.telefono || '';
+    selected.inquilino_email = savedInq.email || '';
+  }
+}
 
       if (isAlquilerMode && detalleCuotasActuales?.length) {
         renderDetalleDebtRows(detalleCuotasActuales);
