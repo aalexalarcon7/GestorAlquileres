@@ -11451,6 +11451,73 @@ error = deleteResponse.error;
     }
   </style>
 
+  <style id="balanceChartsProfessionalFix">
+  #viewBalance .balance-grid{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(420px,1fr)) !important;
+    gap:18px !important;
+    align-items:stretch !important;
+    margin-top:18px !important;
+  }
+
+  #viewBalance .balance-chart-card{
+    min-height:390px !important;
+    padding:20px !important;
+    border-radius:26px !important;
+    overflow:hidden !important;
+  }
+
+  #viewBalance .balance-chart-card h3{
+    margin:0 0 14px !important;
+    font-size:17px !important;
+    font-weight:950 !important;
+    letter-spacing:-.02em !important;
+    line-height:1.2 !important;
+  }
+
+  #viewBalance .balance-chart-card canvas{
+    width:100% !important;
+    height:320px !important;
+    max-height:320px !important;
+  }
+
+  /* Los gráficos más importantes ocupan todo el ancho */
+  #viewBalance .balance-chart-card:nth-child(1),
+  #viewBalance .balance-chart-card:nth-child(3){
+    grid-column:1 / -1 !important;
+  }
+
+  #viewBalance .balance-chart-card:nth-child(1) canvas,
+  #viewBalance .balance-chart-card:nth-child(3) canvas{
+    height:340px !important;
+    max-height:340px !important;
+  }
+
+  @media (max-width:1350px){
+    #viewBalance .balance-grid{
+      grid-template-columns:1fr !important;
+    }
+
+    #viewBalance .balance-chart-card{
+      grid-column:1 / -1 !important;
+    }
+  }
+
+  @media (max-width:720px){
+    #viewBalance .balance-chart-card{
+      min-height:330px !important;
+      padding:16px !important;
+    }
+
+    #viewBalance .balance-chart-card canvas,
+    #viewBalance .balance-chart-card:nth-child(1) canvas,
+    #viewBalance .balance-chart-card:nth-child(3) canvas{
+      height:270px !important;
+      max-height:270px !important;
+    }
+  }
+</style>
+
 </head>
           <body>${printable}</body>
         </html>
