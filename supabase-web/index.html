@@ -10414,6 +10414,9 @@ setTimeout(() => {
       const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
       const total = fmtARS.format(Number(item.monto_total || item.monto || 0));
+      const descripcionRecibo = String(item.descripcion_pago || item.detalle_aplicacion || item.observacion || '')
+      .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
+      .trim();
       return `
         <div class="recibo-sheet" id="reciboSheetPrintable">
           <div class="recibo-sheet-head">
@@ -10462,14 +10465,14 @@ setTimeout(() => {
           </div>
 
           <div class="recibo-note">
-          ${
-           (item.detalle_aplicacion || item.descripcion_pago || item.observacion)
-            ? `<div style="margin-bottom:8px;"><strong>Distribución del pago:</strong> ${escapeHtml(item.detalle_aplicacion || item.descripcion_pago || item.observacion)}</div>`
-            : ''
-          }
-          Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
-        </div>
+        ${
+        descripcionRecibo
+      ? `<div style="margin-bottom:8px;"><strong>Distribución del pago:</strong> ${escapeHtml(descripcionRecibo)}</div>`
+      : ''
+      }
+        Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
       </div>
+    </div>
       `;
     }
 
@@ -14360,24 +14363,52 @@ usedCobroV4 = !v4Response.error;
         // Protección: si la RPC devuelve 0 de impuesto pero el usuario cargó impuesto,
         // no dejamos que el parche visual/metadata pise el impuesto real ingresado.
         const impuestoRpc = round2(toNumber(res?.monto_impuesto));
-        const alquilerRpc = round2(toNumber(res?.monto_alquiler));
-        const rpcNoImputoImpuesto = impuestoFijo > 0.009 && impuestoRpc <= 0.009;
-        const impuestoRegistrado = rpcNoImputoImpuesto ? impuestoFijo : round2(toNumber(res?.monto_impuesto ?? impuestoFijo));
-        const alquilerRegistrado = rpcNoImputoImpuesto ? alquilerBase : round2(toNumber(res?.monto_alquiler ?? alquilerBase));
-        const periodoRegistrado = String(res?.periodo_aplicado || periodoTexto || '').trim();
-        const detalleRegistrado = String(res?.detalle_aplicacion || desgloseCobro || '').trim();
+const alquilerRpc = round2(toNumber(res?.monto_alquiler));
+const rpcNoImputoImpuesto = impuestoFijo > 0.009 && impuestoRpc <= 0.009;
 
-        const metadataPatch = await forceCobroReceiptMetadata({
-          contratoId: Number(modalContrato.contrato_id),
-          fechaPago: args.p_fecha_pago,
-          monto: amount,
-          numeroManual: res?.numero_recibo || numeroManual,
-          observacionFinal,
-          alquilerBase: alquilerRegistrado,
-          impuestoFijo: impuestoRegistrado,
-          periodoTexto: periodoRegistrado,
-          detalleAplicacion: `${detalleRegistrado}${usedCobroV4 ? ' · Motor v4 impuesto primero' : ' · Motor v3 fallback'}`
-        });
+const impuestoRegistrado = rpcNoImputoImpuesto
+  ? impuestoFijo
+  : round2(toNumber(res?.monto_impuesto ?? impuestoFijo));
+
+const alquilerRegistrado = rpcNoImputoImpuesto
+  ? alquilerBase
+  : round2(toNumber(res?.monto_alquiler ?? alquilerBase));
+
+const periodoRegistrado = String(res?.periodo_aplicado || periodoTexto || '').trim();
+
+const detalleRpcLimpio = String(res?.detalle_aplicacion || '')
+  .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
+  .trim();
+
+const distribucionFallback = impuestoRegistrado > 0.009
+  ? `Imputación: ${fmtARS.format(impuestoRegistrado)} a impuesto · ${fmtARS.format(alquilerRegistrado)} a alquiler`
+  : `Imputación: ${fmtARS.format(alquilerRegistrado)} a alquiler`;
+
+const distribucionFinal = detalleRpcLimpio || distribucionFallback;
+
+const mediosFinal = detalleMediosPago
+  ? `Medios de pago: ${detalleMediosPago}`
+  : `Medio de pago: ${medioGeneral}`;
+
+const descripcionFinalRecibo = [
+  `Aplicado a: ${periodoRegistrado || periodoTexto}`,
+  distribucionFinal,
+  `Total recibido: ${fmtARS.format(amount)}`,
+  mediosFinal,
+  descripcionBase ? `Nota: ${descripcionBase}` : null
+].filter(Boolean).join(' · ');
+
+const metadataPatch = await forceCobroReceiptMetadata({
+  contratoId: Number(modalContrato.contrato_id),
+  fechaPago: args.p_fecha_pago,
+  monto: amount,
+  numeroManual: res?.numero_recibo || numeroManual,
+  observacionFinal: descripcionFinalRecibo,
+  alquilerBase: alquilerRegistrado,
+  impuestoFijo: impuestoRegistrado,
+  periodoTexto: periodoRegistrado,
+  detalleAplicacion: descripcionFinalRecibo
+});
 
         if (msgEl) {
           const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
