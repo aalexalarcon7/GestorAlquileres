@@ -10623,6 +10623,33 @@ setTimeout(() => {
       return { rows, pagosError: recibosError, contratosError: null };
     }
 
+
+async function fetchRecibosKPIsReales(){
+  try {
+    const { data, error } = await sb.rpc('resumen_recibos_operativos');
+
+    if (error) {
+      console.warn('No se pudo obtener resumen real de recibos:', error.message || error);
+      return null;
+    }
+
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
+
+    return {
+      total: Number(row.total_recibos || 0),
+      totalMonto: Number(row.monto_historico || 0),
+      delMesCantidad: Number(row.recibos_mes || 0),
+      delMesMonto: Number(row.monto_mes || 0),
+      ultimoNumero: row.ultimo_numero || '—'
+    };
+  } catch (err) {
+    console.warn('Error obteniendo KPIs reales de recibos:', err);
+    return null;
+  }
+}
+
+
     function renderRecibosKPIs(rows){
       const total = rows.length;
       const totalMonto = rows.reduce((acc, item) => acc + Number(item.monto_total || 0), 0);
@@ -10885,7 +10912,9 @@ setTimeout(() => {
       recibosInternosCache = rows;
       saveReceiptsCache();
 
-      const summary = renderRecibosKPIs(rows);
+      const summaryReal = await fetchRecibosKPIsReales();
+      const summary = summaryReal || renderRecibosKPIs(rows);
+
       let filteredRows = applyRecibosPageFilters(rows);
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
@@ -10895,7 +10924,11 @@ setTimeout(() => {
         filteredRows = [...rows];
       }
 
-      const ultimo = filteredRows[0] || rows[0] || null;
+      const ultimo =
+  rows.find(item => String(item.numero_recibo || '') === String(summary.ultimoNumero || '')) ||
+  filteredRows[0] ||
+  rows[0] ||
+  null;
       const localOptions = [...new Set(rows.map(item => String(item.local_codigo || '—')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
 
       el.innerHTML = `
