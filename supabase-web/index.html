@@ -12389,85 +12389,212 @@ error = deleteResponse.error;
     }
 
     function renderBalanceCharts(rows){
-      if (typeof Chart === 'undefined') return;
+  if (typeof Chart === 'undefined') return;
 
-      destroyBalanceCharts();
+  destroyBalanceCharts();
 
-      const labels = rows.map(r => r.mes);
-      const mk = (id, config) => {
-        const canvas = $(id);
-        if (!canvas) return;
-        const chart = new Chart(canvas.getContext('2d'), config);
-        balanceCharts.push(chart);
-      };
+  const labels = rows.map(r => r.mes);
 
-      mk('balChartGastosMes', {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{ label: 'Gastos', data: rows.map(r => Number(r.gastos.toFixed(2))), borderWidth: 1 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
+  const moneyTooltip = (context) => {
+    const value = Number(context.raw || 0);
+    return `${context.dataset.label}: ${fmtARS.format(value)}`;
+  };
 
-      mk('balChartGastosFact', {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{ label: 'Gastos / Facturación %', data: rows.map(r => Number(r.gastosSobreFact.toFixed(2))), tension: .28, fill: false, borderWidth: 2 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
+  const percentTooltip = (context) => {
+    const value = Number(context.raw || 0);
+    return `${context.dataset.label}: ${value.toFixed(2)}%`;
+  };
 
-      mk('balChartUtilidadFact', {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{ label: 'Utilidad / Facturación %', data: rows.map(r => Number(r.utilidadSobreFact.toFixed(2))), tension: .28, fill: false, borderWidth: 2 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-
-      mk('balChartCobradoFact', {
-        type: 'line',
-        data: {
-          labels,
-          datasets: [{ label: 'Cobrado / Facturación %', data: rows.map(r => Number(r.porcentajeCobrado.toFixed(2))), tension: .28, fill: false, borderWidth: 2 }]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          plugins: { legend: { display: false } }
-        }
-      });
-
-      mk('balChartRecaSaldo', {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [
-            { label: 'Recaudación', data: rows.map(r => Number(r.recaudacion.toFixed(2))), borderWidth: 1 },
-            { label: 'Saldo', data: rows.map(r => Number(r.saldo.toFixed(2))), borderWidth: 1 }
-          ]
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false
-        }
-      });
+  const moneyAxis = {
+    ticks: {
+      callback: (value) => fmtARS.format(Number(value || 0)).replace(',00', '')
     }
+  };
+
+  const percentAxis = {
+    beginAtZero: true,
+    suggestedMax: 100,
+    ticks: {
+      callback: (value) => `${value}%`
+    }
+  };
+
+  const mk = (id, config) => {
+    const canvas = $(id);
+    if (!canvas) return;
+
+    const chart = new Chart(canvas.getContext('2d'), config);
+    balanceCharts.push(chart);
+  };
+
+  mk('balChartFactRec', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Facturación proyectada',
+          data: rows.map(r => Number(toNumber(r.facturacion).toFixed(2))),
+          borderWidth: 1
+        },
+        {
+          label: 'Recaudación',
+          data: rows.map(r => Number(toNumber(r.recaudacion).toFixed(2))),
+          borderWidth: 1
+        },
+        {
+          label: 'Pendiente',
+          data: rows.map(r => Number(toNumber(r.pendienteFacturacion).toFixed(2))),
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        },
+        tooltip: {
+          callbacks: {
+            label: moneyTooltip
+          }
+        }
+      },
+      scales: {
+        y: moneyAxis
+      }
+    }
+  });
+
+  mk('balChartCobradoFact', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Cobrado / facturación',
+          data: rows.map(r => Number(toNumber(r.porcentajeCobrado).toFixed(2))),
+          tension: .28,
+          fill: false,
+          borderWidth: 2,
+          pointRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: percentTooltip
+          }
+        }
+      },
+      scales: {
+        y: percentAxis
+      }
+    }
+  });
+
+  mk('balChartResultadoMes', {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Recaudación',
+          data: rows.map(r => Number(toNumber(r.recaudacion).toFixed(2))),
+          borderWidth: 1
+        },
+        {
+          label: 'Gastos',
+          data: rows.map(r => Number(toNumber(r.gastos).toFixed(2))),
+          borderWidth: 1
+        },
+        {
+          label: 'Ganancia',
+          data: rows.map(r => Number(toNumber(r.ganancia).toFixed(2))),
+          borderWidth: 1
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top'
+        },
+        tooltip: {
+          callbacks: {
+            label: moneyTooltip
+          }
+        }
+      },
+      scales: {
+        y: moneyAxis
+      }
+    }
+  });
+
+  mk('balChartSaldoAcumulado', {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Saldo acumulado',
+          data: rows.map(r => Number(toNumber(r.saldo).toFixed(2))),
+          tension: .28,
+          fill: false,
+          borderWidth: 2,
+          pointRadius: 4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: 'index',
+        intersect: false
+      },
+      plugins: {
+        legend: {
+          display: false
+        },
+        tooltip: {
+          callbacks: {
+            label: moneyTooltip
+          }
+        }
+      },
+      scales: {
+        y: moneyAxis
+      }
+    }
+  });
+}
 
     function handleBalanceSearchInput(){
       balancePageState.query = $('balanceSearch')?.value || '';
@@ -12613,27 +12740,27 @@ error = deleteResponse.error;
         </div>
 
         <div class="balance-grid">
-          <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos mes a mes</h3>
-            <canvas id="balChartGastosMes"></canvas>
-          </div>
-          <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Gastos sobre facturación</h3>
-            <canvas id="balChartGastosFact"></canvas>
-          </div>
-          <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Utilidad sobre facturación</h3>
-            <canvas id="balChartUtilidadFact"></canvas>
-          </div>
-          <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Cobrado sobre facturación</h3>
-            <canvas id="balChartCobradoFact"></canvas>
-          </div>
-          <div class="card balance-chart-card">
-            <h3 style="margin-top:0;">Recaudación sobre saldo</h3>
-            <canvas id="balChartRecaSaldo"></canvas>
-          </div>
-        </div>
+          <div class="balance-grid">
+  <div class="card balance-chart-card">
+    <h3 style="margin-top:0;">Facturación vs recaudación</h3>
+    <canvas id="balChartFactRec"></canvas>
+  </div>
+
+  <div class="card balance-chart-card">
+    <h3 style="margin-top:0;">Cobrado sobre facturación</h3>
+    <canvas id="balChartCobradoFact"></canvas>
+  </div>
+
+  <div class="card balance-chart-card">
+    <h3 style="margin-top:0;">Resultado mensual</h3>
+    <canvas id="balChartResultadoMes"></canvas>
+  </div>
+
+  <div class="card balance-chart-card">
+    <h3 style="margin-top:0;">Saldo acumulado</h3>
+    <canvas id="balChartSaldoAcumulado"></canvas>
+  </div>
+</div>
       `;
 
       const yearInput = $('balanceYear');
