@@ -11451,69 +11451,56 @@ error = deleteResponse.error;
     }
   </style>
 
-  <style id="balanceChartsProfessionalFix">
-  #viewBalance .balance-grid{
+  <style id="balanceChartsSizeFixFinal">
+  .balance-grid{
     display:grid !important;
-    grid-template-columns:repeat(2,minmax(420px,1fr)) !important;
-    gap:18px !important;
+    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+    gap:16px !important;
     align-items:stretch !important;
     margin-top:18px !important;
   }
 
-  #viewBalance .balance-chart-card{
-    min-height:390px !important;
-    padding:20px !important;
-    border-radius:26px !important;
+  .balance-chart-card{
+    min-height:300px !important;
+    height:300px !important;
+    padding:16px 18px !important;
+    border-radius:24px !important;
     overflow:hidden !important;
   }
 
-  #viewBalance .balance-chart-card h3{
-    margin:0 0 14px !important;
-    font-size:17px !important;
+  .balance-chart-card h3{
+    margin:0 0 10px 0 !important;
+    font-size:15px !important;
     font-weight:950 !important;
-    letter-spacing:-.02em !important;
     line-height:1.2 !important;
   }
 
-  #viewBalance .balance-chart-card canvas{
+  .balance-chart-card canvas{
+    display:block !important;
     width:100% !important;
-    height:320px !important;
-    max-height:320px !important;
-  }
-
-  /* Los gráficos más importantes ocupan todo el ancho */
-  #viewBalance .balance-chart-card:nth-child(1),
-  #viewBalance .balance-chart-card:nth-child(3){
-    grid-column:1 / -1 !important;
-  }
-
-  #viewBalance .balance-chart-card:nth-child(1) canvas,
-  #viewBalance .balance-chart-card:nth-child(3) canvas{
-    height:340px !important;
-    max-height:340px !important;
+    height:230px !important;
+    max-height:230px !important;
   }
 
   @media (max-width:1350px){
-    #viewBalance .balance-grid{
-      grid-template-columns:1fr !important;
-    }
-
-    #viewBalance .balance-chart-card{
-      grid-column:1 / -1 !important;
+    .balance-grid{
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
     }
   }
 
-  @media (max-width:720px){
-    #viewBalance .balance-chart-card{
-      min-height:330px !important;
-      padding:16px !important;
+  @media (max-width:900px){
+    .balance-grid{
+      grid-template-columns:1fr !important;
     }
 
-    #viewBalance .balance-chart-card canvas,
-    #viewBalance .balance-chart-card:nth-child(1) canvas,
-    #viewBalance .balance-chart-card:nth-child(3) canvas{
-      height:270px !important;
-      max-height:270px !important;
+    .balance-chart-card{
+      height:320px !important;
+      min-height:320px !important;
+    }
+
+    .balance-chart-card canvas{
+      height:250px !important;
+      max-height:250px !important;
     }
   }
 </style>
