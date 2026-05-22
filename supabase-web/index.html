@@ -11451,56 +11451,75 @@ error = deleteResponse.error;
     }
   </style>
 
-  <style id="balanceChartsSizeFixFinal">
-  .balance-grid{
+  <style id="balanceChartsFullWidthFinal">
+  #viewBalance{
+    width:100% !important;
+    max-width:none !important;
+  }
+
+  #viewBalance .balance-grid{
+    width:100% !important;
+    max-width:none !important;
     display:grid !important;
-    grid-template-columns:repeat(3,minmax(0,1fr)) !important;
-    gap:16px !important;
+    grid-template-columns:repeat(2, minmax(0, 1fr)) !important;
+    gap:18px !important;
     align-items:stretch !important;
+    justify-items:stretch !important;
     margin-top:18px !important;
   }
 
-  .balance-chart-card{
-    min-height:300px !important;
-    height:300px !important;
-    padding:16px 18px !important;
-    border-radius:24px !important;
+  #viewBalance .balance-chart-card{
+    width:100% !important;
+    max-width:none !important;
+    min-width:0 !important;
+    min-height:380px !important;
+    height:380px !important;
+    padding:20px !important;
+    border-radius:26px !important;
     overflow:hidden !important;
+    margin:0 !important;
   }
 
-  .balance-chart-card h3{
-    margin:0 0 10px 0 !important;
-    font-size:15px !important;
+  #viewBalance .balance-chart-card h3{
+    margin:0 0 12px 0 !important;
+    font-size:17px !important;
     font-weight:950 !important;
     line-height:1.2 !important;
   }
 
-  .balance-chart-card canvas{
+  #viewBalance .balance-chart-card canvas{
     display:block !important;
     width:100% !important;
-    height:230px !important;
-    max-height:230px !important;
+    height:310px !important;
+    max-height:310px !important;
   }
 
-  @media (max-width:1350px){
-    .balance-grid{
-      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
-    }
-  }
-
-  @media (max-width:900px){
-    .balance-grid{
+  @media (max-width:1100px){
+    #viewBalance .balance-grid{
       grid-template-columns:1fr !important;
     }
 
-    .balance-chart-card{
-      height:320px !important;
-      min-height:320px !important;
+    #viewBalance .balance-chart-card{
+      height:360px !important;
+      min-height:360px !important;
     }
 
-    .balance-chart-card canvas{
-      height:250px !important;
-      max-height:250px !important;
+    #viewBalance .balance-chart-card canvas{
+      height:290px !important;
+      max-height:290px !important;
+    }
+  }
+
+  @media (max-width:640px){
+    #viewBalance .balance-chart-card{
+      height:330px !important;
+      min-height:330px !important;
+      padding:16px !important;
+    }
+
+    #viewBalance .balance-chart-card canvas{
+      height:260px !important;
+      max-height:260px !important;
     }
   }
 </style>
