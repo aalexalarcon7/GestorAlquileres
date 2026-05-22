@@ -10115,10 +10115,14 @@ function globalSearch(){
           </div>
 
           <div class="recibo-note">
-            ${item.descripcion_pago ? `<div style="margin-bottom:8px;"><strong>Descripción del pago:</strong> ${escapeHtml(item.descripcion_pago)}</div>` : ''}
-            Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
-          </div>
+          ${
+           (item.detalle_aplicacion || item.descripcion_pago || item.observacion)
+            ? `<div style="margin-bottom:8px;"><strong>Distribución del pago:</strong> ${escapeHtml(item.detalle_aplicacion || item.descripcion_pago || item.observacion)}</div>`
+            : ''
+          }
+          Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
         </div>
+      </div>
       `;
     }
 
