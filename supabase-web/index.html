@@ -14213,34 +14213,38 @@ usedCobroV4 = !v4Response.error;
     }
 
     // Exponer funciones operativas para los onclick inline del HTML.
-    window.openPagoModal = openPagoModal;
-    window.openPagoModalByContrato = openPagoModalByContrato;
-    window.closePagoModal = closePagoModal;
-    window.registrarPagoModal = registrarPagoModal;
-    window.refreshPaymentPeriodOptions = refreshPaymentPeriodOptions;
-    window.recalcularCobroModal = recalcularCobroModal;
-    if (typeof addPagoMedioRow === 'function') {
-  window.addPagoMedioRow = addPagoMedioRow;
+function exposeGlobalFunction(name, fn){
+  if (typeof fn === 'function') {
+    window[name] = fn;
+  } else {
+    console.warn(`No se pudo exponer ${name}: la función no está definida.`);
+  }
 }
 
-    if (typeof removePagoMedioRow === 'function') {
-  window.removePagoMedioRow = removePagoMedioRow;
-}
+exposeGlobalFunction('openPagoModal', typeof openPagoModal !== 'undefined' ? openPagoModal : null);
+exposeGlobalFunction('openPagoModalByContrato', typeof openPagoModalByContrato !== 'undefined' ? openPagoModalByContrato : null);
+exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? closePagoModal : null);
+exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
+exposeGlobalFunction('refreshPaymentPeriodOptions', typeof refreshPaymentPeriodOptions !== 'undefined' ? refreshPaymentPeriodOptions : null);
+exposeGlobalFunction('recalcularCobroModal', typeof recalcularCobroModal !== 'undefined' ? recalcularCobroModal : null);
 
-    if (typeof updatePagoMedioRow === 'function') {
-  window.updatePagoMedioRow = updatePagoMedioRow;
-}
-    window.openAgregarMesModal = openAgregarMesModal;
-    window.closeAgregarMesModal = closeAgregarMesModal;
-    window.guardarMesOperativo = guardarMesOperativo;
-    window.deleteActivoActual = deleteActivoActual;
-    window.toggleOcultarActivoActual = toggleOcultarActivoActual;
-    window.openActivoModal = openActivoModal;
-    window.openAlquilerModal = openAlquilerModal;
-    window.closeActivoModal = closeActivoModal;
-    window.saveActivoModal = saveActivoModal;
+exposeGlobalFunction('addPagoMedioRow', typeof addPagoMedioRow !== 'undefined' ? addPagoMedioRow : null);
+exposeGlobalFunction('removePagoMedioRow', typeof removePagoMedioRow !== 'undefined' ? removePagoMedioRow : null);
+exposeGlobalFunction('updatePagoMedioRow', typeof updatePagoMedioRow !== 'undefined' ? updatePagoMedioRow : null);
 
-    init();
+exposeGlobalFunction('openAgregarMesModal', typeof openAgregarMesModal !== 'undefined' ? openAgregarMesModal : null);
+exposeGlobalFunction('closeAgregarMesModal', typeof closeAgregarMesModal !== 'undefined' ? closeAgregarMesModal : null);
+exposeGlobalFunction('guardarMesOperativo', typeof guardarMesOperativo !== 'undefined' ? guardarMesOperativo : null);
+
+exposeGlobalFunction('deleteActivoActual', typeof deleteActivoActual !== 'undefined' ? deleteActivoActual : null);
+exposeGlobalFunction('toggleOcultarActivoActual', typeof toggleOcultarActivoActual !== 'undefined' ? toggleOcultarActivoActual : null);
+
+exposeGlobalFunction('openActivoModal', typeof openActivoModal !== 'undefined' ? openActivoModal : null);
+exposeGlobalFunction('openAlquilerModal', typeof openAlquilerModal !== 'undefined' ? openAlquilerModal : null);
+exposeGlobalFunction('closeActivoModal', typeof closeActivoModal !== 'undefined' ? closeActivoModal : null);
+exposeGlobalFunction('saveActivoModal', typeof saveActivoModal !== 'undefined' ? saveActivoModal : null);
+
+init();
   
   </script>
 </body>
