@@ -14219,9 +14219,17 @@ usedCobroV4 = !v4Response.error;
     window.registrarPagoModal = registrarPagoModal;
     window.refreshPaymentPeriodOptions = refreshPaymentPeriodOptions;
     window.recalcularCobroModal = recalcularCobroModal;
-    window.addPagoMedioRow = addPagoMedioRow;
-    window.removePagoMedioRow = removePagoMedioRow;
-    window.updatePagoMedioRow = updatePagoMedioRow;
+    if (typeof addPagoMedioRow === 'function') {
+  window.addPagoMedioRow = addPagoMedioRow;
+}
+
+    if (typeof removePagoMedioRow === 'function') {
+  window.removePagoMedioRow = removePagoMedioRow;
+}
+
+    if (typeof updatePagoMedioRow === 'function') {
+  window.updatePagoMedioRow = updatePagoMedioRow;
+}
     window.openAgregarMesModal = openAgregarMesModal;
     window.closeAgregarMesModal = closeAgregarMesModal;
     window.guardarMesOperativo = guardarMesOperativo;
