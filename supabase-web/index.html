@@ -4942,7 +4942,7 @@ td:last-child{
     <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.96));border:1px solid rgba(22,163,74,.22);box-shadow:0 18px 40px rgba(15,23,42,.14);color:#0f172a;min-height:68px;" id="pagoSuccessToastCard">
       <div style="width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:14px;background:rgba(22,163,74,.12);border:1px solid rgba(22,163,74,.24);color:#16a34a;font-size:22px;font-weight:900;">✓</div>
       <div style="min-width:0;flex:1;display:grid;gap:2px;">
-        <div style="font-size:15px;font-weight:900;line-height:1.15;">Pago registrado</div>
+        <div id="pagoSuccessToastTitle" style="font-size:15px;font-weight:900;line-height:1.15;">Pago registrado</div>
         <div id="pagoSuccessToastText" style="font-size:12px;color:#64748b;line-height:1.35;overflow-wrap:anywhere;">El pago se guardó correctamente.</div>
       </div>
       <button class="btn" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
@@ -11186,7 +11186,10 @@ error = deleteResponse.error;
           } catch(e){ console.warn('No se pudo hacer el refresco final de recibos', e); }
         }, 350);
 
-        showPagoSuccessToast(result?.mensaje || `Se eliminó el recibo ${numero}.`);
+        showPagoSuccessToast(
+  result?.mensaje || `Recibo ${numero || 'sin número'} eliminado correctamente. Se revirtieron los meses afectados por ese recibo.`,
+  'Recibo eliminado'
+);
       } catch (error){
         console.error(error);
         alert(`No se pudo eliminar el recibo: ${error?.message || error}`);
@@ -11210,41 +11213,45 @@ error = deleteResponse.error;
 
 
     let pagoSuccessToastTimer = null;
-    function showPagoSuccessToast(message = 'Pago registrado exitosamente ✅'){
-      const el = $('pagoSuccessToast');
-      const textEl = $('pagoSuccessToastText');
-      const closeBtn = $('pagoSuccessToastClose');
-      if (!el) return;
-      if (textEl) textEl.textContent = message;
+    function showPagoSuccessToast(message = 'Operación realizada correctamente.', title = 'Pago registrado'){
+  const el = $('pagoSuccessToast');
+  const titleEl = $('pagoSuccessToastTitle');
+  const textEl = $('pagoSuccessToastText');
+  const closeBtn = $('pagoSuccessToastClose');
 
-      if (window.innerWidth <= 820){
-        el.style.top = '84px';
-        el.style.right = '12px';
-        el.style.left = '12px';
-        el.style.maxWidth = 'none';
-      } else {
-        el.style.top = '96px';
-        el.style.right = '24px';
-        el.style.left = 'auto';
-        el.style.maxWidth = 'min(420px,calc(100vw - 32px))';
-      }
+  if (!el) return;
 
-      if (closeBtn && !closeBtn.dataset.bound){
-        closeBtn.addEventListener('click', (ev) => {
-          ev.stopPropagation();
-          el.style.display = 'none';
-        });
-        closeBtn.dataset.bound = '1';
-      }
+  if (titleEl) titleEl.textContent = title;
+  if (textEl) textEl.textContent = message;
 
-      el.onclick = () => { el.style.display = 'none'; };
-      el.style.display = 'block';
-      clearTimeout(pagoSuccessToastTimer);
-      pagoSuccessToastTimer = setTimeout(() => {
-        if (el) el.style.display = 'none';
-      }, 3200);
+  if (window.innerWidth <= 820){
+    el.style.top = '84px';
+    el.style.right = '12px';
+    el.style.left = '12px';
+    el.style.maxWidth = 'none';
+  } else {
+    el.style.top = '96px';
+    el.style.right = '24px';
+    el.style.left = 'auto';
+    el.style.maxWidth = 'min(420px,calc(100vw - 32px))';
+  }
 
-    }
+  if (closeBtn && !closeBtn.dataset.bound){
+    closeBtn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      el.style.display = 'none';
+    });
+    closeBtn.dataset.bound = '1';
+  }
+
+  el.onclick = () => { el.style.display = 'none'; };
+  el.style.display = 'block';
+
+  clearTimeout(pagoSuccessToastTimer);
+  pagoSuccessToastTimer = setTimeout(() => {
+    if (el) el.style.display = 'none';
+  }, 3200);
+}
     function closeReciboModal(){
       $('modalReciboBack').style.display = 'none';
       if ($('reciboModalMsg')) $('reciboModalMsg').textContent = '';
