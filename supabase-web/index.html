@@ -9209,21 +9209,154 @@ if (cuota?.id) {
         selected.impuesto_mensual = newImpuesto;
       }
 
-      if (typeof renderDetalleInfo === 'function') {
-        renderDetalleInfo(selected, detalleCuotasActuales || []);
-      }
+      // Sincronización visual completa después de modificar alquiler.
+// Esto evita que "Cuotas y deuda" y "Resumen del alquiler y la deuda"
+// queden con montos viejos después de guardar.
+try {
+  if (cambioMonto) {
+    const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+    const [targetAnio, targetMes] = targetRentPeriod.split('-').map(Number);
+    const targetKey = `${targetAnio}-${String(targetMes).padStart(2, '0')}`;
+    const mesNombre = GA_MONTH_NAMES?.[targetMes - 1] || String(targetMes);
+    const vencimientoISO = `${targetAnio}-${String(targetMes).padStart(2, '0')}-${String(diaVencimiento).padStart(2, '0')}`;
 
-      if (typeof renderDetalleDebtRows === 'function') {
-        renderDetalleDebtRows(detalleCuotasActuales || []);
-      }
+    // Buscar cuánto pagado tenía la cuota, si existe en memoria.
+    const cuotaLocalActual = (detalleCuotasActuales || []).find(r => String(r.sort_key) === targetKey) || {};
+    const pagadoActualLocal = toNumber(
+      cuotaLocalActual.pagado ??
+      cuotaLocalActual.monto_pagado ??
+      0
+    );
 
-      msg.textContent = cambioMonto
-        ? 'Alquiler guardado correctamente.'
-        : (cambioImpuesto ? 'Impuesto guardado correctamente.' : 'Datos del alquiler guardados correctamente.');
+    const nuevoSaldoLocal = Math.max(0, round2(newMonthly - pagadoActualLocal));
 
-      setTimeout(() => {
-        closeActivoModal();
-      }, 650);
+    let nuevoEstadoLocal = 'PENDIENTE';
+    if (nuevoSaldoLocal <= 0.009) nuevoEstadoLocal = 'PAGADO';
+    else if (pagadoActualLocal > 0.009) nuevoEstadoLocal = 'PARCIAL';
+
+    let foundCuotaLocal = false;
+
+    detalleCuotasActuales = (detalleCuotasActuales || []).map(row => {
+      if (String(row.sort_key) !== targetKey) return row;
+
+      foundCuotaLocal = true;
+
+      return {
+        ...row,
+        periodo: `${targetAnio} - ${mesNombre}`,
+        vencimiento: vencimientoISO,
+        total: newMonthly,
+        monto_total: newMonthly,
+        pagado: pagadoActualLocal,
+        monto_pagado: pagadoActualLocal,
+        saldo: nuevoSaldoLocal,
+        estado: nuevoEstadoLocal,
+        estado_detalle: nuevoEstadoLocal,
+        dias_atraso: getDetalleDiasAtraso(targetAnio, targetMes, nuevoSaldoLocal, nuevoEstadoLocal),
+        sort_key: targetKey
+      };
+    });
+
+    // Si el mes no existía visualmente, lo agregamos también al detalle.
+    if (!foundCuotaLocal) {
+      detalleCuotasActuales.push({
+        periodo: `${targetAnio} - ${mesNombre}`,
+        vencimiento: vencimientoISO,
+        total: newMonthly,
+        monto_total: newMonthly,
+        pagado: 0,
+        monto_pagado: 0,
+        impuesto: 0,
+        saldo: newMonthly,
+        estado: 'PENDIENTE',
+        estado_detalle: 'PENDIENTE',
+        dias_atraso: getDetalleDiasAtraso(targetAnio, targetMes, newMonthly, 'PENDIENTE'),
+        sort_key: targetKey,
+        origen: 'OPERATIVO',
+        fuente_hoja: 'modificar_alquiler_web'
+      });
+    }
+
+    detalleCuotasActuales.sort((a, b) => String(a.sort_key).localeCompare(String(b.sort_key)));
+  }
+
+  // Recalcular deuda visible del activo en memoria.
+  const deudaVisibleActualizada = (detalleCuotasActuales || [])
+    .reduce((acc, row) => acc + toNumber(row.saldo), 0);
+
+  const deuda2026Actualizada = (detalleCuotasActuales || [])
+    .filter(row => String(row.sort_key || '').startsWith('2026-'))
+    .reduce((acc, row) => acc + toNumber(row.saldo), 0);
+
+  const deuda2025Actualizada = (detalleCuotasActuales || [])
+    .filter(row => String(row.sort_key || '').startsWith('2025-'))
+    .reduce((acc, row) => acc + toNumber(row.saldo), 0);
+
+  const mesesAdeudadosActualizados = (detalleCuotasActuales || [])
+    .filter(row => toNumber(row.saldo) > 0.009)
+    .length;
+
+  selected = {
+    ...selected,
+    monto_mensual: newMonthly,
+    monto: newMonthly,
+    impuesto_mensual: newImpuesto,
+    deuda_total: deudaVisibleActualizada,
+    deuda_atrasada: deudaVisibleActualizada,
+    deuda_2026: deuda2026Actualizada,
+    deuda_arrastre_2025: deuda2025Actualizada,
+    meses_adeudados: mesesAdeudadosActualizados
+  };
+
+  unidades = (unidades || []).map(u => {
+    if (String(u.contrato_id) !== String(selected.contrato_id)) return u;
+
+    return {
+      ...u,
+      monto_mensual: newMonthly,
+      monto: newMonthly,
+      impuesto_mensual: newImpuesto,
+      deuda_total: deudaVisibleActualizada,
+      deuda_atrasada: deudaVisibleActualizada,
+      deuda_2026: deuda2026Actualizada,
+      deuda_arrastre_2025: deuda2025Actualizada,
+      meses_adeudados: mesesAdeudadosActualizados
+    };
+  });
+
+  if (typeof renderDetalleDebtRows === 'function') {
+    renderDetalleDebtRows(detalleCuotasActuales || []);
+  }
+
+  if (typeof renderDetalleInfo === 'function') {
+    renderDetalleInfo(selected, detalleCuotasActuales || []);
+  }
+
+  if (typeof setDetalleBadge === 'function') {
+    setDetalleBadge(selected);
+  }
+
+  if (typeof renderUnidades === 'function') {
+    renderUnidades();
+  }
+
+  // Refresco real desde Supabase para dejar todo consistente.
+  // Esto hace que cualquier cambio futuro de alquiler se sincronice igual.
+  if (typeof loadDetalle === 'function') {
+    await loadDetalle(selected);
+  }
+
+} catch (syncErr) {
+  console.warn('No se pudo refrescar visualmente el detalle después de modificar alquiler:', syncErr);
+}
+
+msg.textContent = cambioMonto
+  ? 'Alquiler guardado y sincronizado correctamente.'
+  : (cambioImpuesto ? 'Impuesto guardado correctamente.' : 'Datos del alquiler guardados correctamente.');
+
+setTimeout(() => {
+  closeActivoModal();
+}, 650);
 
     } catch (err) {
       console.error('Error guardando alquiler:', err);
@@ -13826,11 +13959,11 @@ error = deleteResponse.error;
 
       const visiblesPendientes = getDetalleCuotasPendientesParaCobro();
       const map = new Map();
-      // Priorizar las filas visibles del detalle porque ya traen el saldo visual con impuesto aplicado.
-      [...visiblesPendientes, ...dbPendientes].forEach(row => {
-        const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
-        if (!map.has(key)) map.set(key, row);
-      });
+      // Priorizar Supabase porque después de modificar alquiler la vista local puede quedar vieja.
+[...dbPendientes, ...visiblesPendientes].forEach(row => {
+  const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
+  if (!map.has(key)) map.set(key, row);
+});
 
       return [...map.values()].sort((a,b) => (a.anio - b.anio) || (a.mes - b.mes));
     }
@@ -14053,6 +14186,40 @@ async function obtenerUltimoImpuestoActivo(contratoId){
 }
 
 
+function getSelectedPendingCuotaParaCobro(){
+  const value = String($('mPeriodoAplicado')?.value || 'AUTO');
+  const choice = parseCuotaChoice(value);
+
+  if (choice.auto) {
+    return getOldestPendingCuotaParaCobro();
+  }
+
+  return (pagoCuotasPendientesActuales || []).find(row =>
+    Number(row.anio) === Number(choice.anio) &&
+    Number(row.mes) === Number(choice.mes)
+  ) || null;
+}
+
+function syncCobroAlquilerDesdePeriodo(){
+  const cuota = getSelectedPendingCuotaParaCobro();
+
+  if (!cuota) {
+    recalcularCobroModal();
+    return;
+  }
+
+  const saldo = toNumber(cuota.saldo);
+
+  if ($('mAlquiler')) {
+    $('mAlquiler').value = formatMoneyInputValue(saldo);
+  }
+
+  recalcularCobroModal();
+}
+
+
+
+
     async function openPagoModal(r){
       if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
       const contratoBase = getContratoActivoRow(r.contrato_id) || {};
@@ -14073,25 +14240,24 @@ async function obtenerUltimoImpuestoActivo(contratoId){
       if ($('mMedio')) $('mMedio').value = enabledPaymentMethods()[0] || 'EFECTIVO';
       if ($('modalMsg')) $('modalMsg').textContent = '';
 
-      const pendientes = await getCuotasPendientesParaCobro(r.contrato_id);
-      pagoCuotasPendientesActuales = pendientes;
-      const oldest = pendientes[0];
-      const monto = oldest ? toNumber(oldest.saldo) : Math.max(0, getDisplayedRent(r, getContratoActivoRow(r.contrato_id) || {}));
-      const ultimoImpuesto = await getUltimoImpuestoPagadoContrato(r.contrato_id);
+      if ($('mAlquiler')) $('mAlquiler').value = '';
+if ($('mImpPct')) $('mImpPct').value = '0';
+if ($('mImpMonto')) $('mImpMonto').value = '';
 
-      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(monto);
-      if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mImpMonto')) $('mImpMonto').value = ultimoImpuesto > 0 ? formatMoneyInputValue(ultimoImpuesto) : '';
-      await refreshPaymentPeriodOptions(r, false);
+await refreshPaymentPeriodOptions(r, false);
 
-      // Al abrir el cobro, el sistema sugiere automáticamente el último impuesto pagado
-      // de este activo. La suma inicial queda impuesto + saldo del alquiler del mes.
-      const totalInicial = round2(monto + ultimoImpuesto);
-      if ($('mTotal')) $('mTotal').value = totalInicial > 0 ? formatMoneyInputValue(totalInicial) : '';
-      initPagoMediosRows(totalInicial);
-      recalcularCobroModal();
+// Una vez que el selector ya tiene el mes correcto,
+// sincronizamos el alquiler con el saldo real de esa cuota.
+syncCobroAlquilerDesdePeriodo();
+
+const periodoSelect = $('mPeriodoAplicado');
+if (periodoSelect) {
+  periodoSelect.onchange = () => {
+    syncCobroAlquilerDesdePeriodo();
+  };
+}
     }
-
+    
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
