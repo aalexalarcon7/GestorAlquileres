@@ -8634,14 +8634,14 @@ function globalSearch(){
     }
 
     function setActivoModalModeUI(isAlquilerMode){
-  // En modo "Modificar alquiler": mostramos solo condiciones del alquiler.
-  // En modo "Editar activo": mostramos TODO.
+  // Editar activo: solo datos del activo e inquilino.
+  // Modificar alquiler: solo condiciones del alquiler.
   document.querySelectorAll('#modalActivoBack .activo-section-general').forEach(section => {
     section.style.display = isAlquilerMode ? 'none' : 'block';
   });
 
   document.querySelectorAll('#modalActivoBack .activo-section-alquiler').forEach(section => {
-    section.style.display = 'block';
+    section.style.display = isAlquilerMode ? 'block' : 'none';
   });
 
   ['actCodigo','actNombre','actDoc','actTel','actEmail'].forEach(id => {
@@ -8649,10 +8649,9 @@ function globalSearch(){
     if (el) el.disabled = !!isAlquilerMode;
   });
 
-  // Estos campos quedan editables tanto en Editar activo como en Modificar alquiler.
   ['actMontoMensual','actImpuestoMensual','actAjustePct','actAjusteMeses','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
     const el = $(id);
-    if (el) el.disabled = false;
+    if (el) el.disabled = !isAlquilerMode;
   });
 }
 
@@ -8809,7 +8808,7 @@ function globalSearch(){
       $('actObservaciones').value = contrato?.observaciones || '';
 
       setActivoModalModeUI(isAlquilerMode);
-      populateRentPeriodOptions();
+      if (isAlquilerMode) populateRentPeriodOptions();
       const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
       if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
       $('modalActivoBack').style.display = 'flex';
