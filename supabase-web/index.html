@@ -10689,12 +10689,40 @@ async function fetchRecibosKPIsReales(){
       });
     }
 
-    function updateRecibosFiltersFromUI(){
-      recibosPageState.query = $('recibosSearch')?.value || '';
-      recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
-      recibosPageState.month = $('recibosMonthFilter')?.value || '';
-      renderRecibosPage();
-    }
+    let recibosFilterTimer = null;
+
+function updateRecibosHistoryFromState(){
+  const body = $('recibosBody');
+  if (!body) return;
+
+  const filteredRows = applyRecibosPageFilters(recibosInternosCache || []);
+
+  body.innerHTML = renderRecibosHistoryRows(filteredRows);
+
+  const count =
+    $('recibosCountPill') ||
+    document.querySelector('.recibos-count-pill');
+
+  if (count) {
+    count.textContent = `${filteredRows.length} visibles`;
+  }
+
+  if (typeof closeReciboFloatingMenu === 'function') {
+    closeReciboFloatingMenu();
+  }
+}
+
+function updateRecibosFiltersFromUI(){
+  recibosPageState.query = $('recibosSearch')?.value || '';
+  recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
+  recibosPageState.month = $('recibosMonthFilter')?.value || '';
+
+  clearTimeout(recibosFilterTimer);
+
+  recibosFilterTimer = setTimeout(() => {
+    updateRecibosHistoryFromState();
+  }, 120);
+}
 
 
     function buildReciboPreviewData({ pagoId, fecha, medio, referencia, reciboNumero, alquilerNum, impuestoNum, impPct, totalNum, contratoId, descripcionPago, periodoAplicado, detalleAplicacion }){
@@ -10726,12 +10754,14 @@ async function fetchRecibosKPIsReales(){
     }
 
     function clearRecibosFilters(){
-      recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
-      if ($('recibosSearch')) $('recibosSearch').value = '';
-      if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
-      if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
-      renderRecibosPage();
-    }
+  recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
+
+  if ($('recibosSearch')) $('recibosSearch').value = '';
+  if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
+  if ($('recibosMonthFilter')) $('recibosMonthFilter').value = '';
+
+  updateRecibosHistoryFromState();
+}
 
     function closeShareMenu(node){
       const details = node?.closest?.('details');
@@ -11001,7 +11031,7 @@ let filteredRows = applyRecibosPageFilters(rows);
                 </div>
               </div>
               <div class="recibos-toolbar-actions">
-                <span class="recibos-count-pill">${filteredRows.length} visibles</span>
+                <span id="recibosCountPill" class="recibos-count-pill">${filteredRows.length} visibles</span>
                 <button class="btn" onclick="clearRecibosFilters()">Limpiar filtros</button>
               </div>
             </div>
