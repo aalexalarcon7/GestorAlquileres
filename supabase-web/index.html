@@ -8993,9 +8993,7 @@ if (isAlquilerMode) {
         msg.textContent = saveError?.message || 'No se pudo guardar el alquiler.';
         return;
       }
-      
-
-      
+    } 
 
 
     async function deleteActivoActual(){
@@ -14101,7 +14099,7 @@ usedCobroV4 = !v4Response.error;
         alert(err?.message || 'No se pudo borrar el activo.');
       }
     }
-}
+  
 
     async function toggleOcultarActivoActual(){
       const unidad = selected;
@@ -14246,6 +14244,6 @@ exposeGlobalFunction('saveActivoModal', typeof saveActivoModal !== 'undefined' ?
 
 init();
   
-  </script>
+</script>
 </body>
 </html>
