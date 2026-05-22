@@ -8763,27 +8763,42 @@ function globalSearch(){
     }
 
     function onRentPeriodChange(){
-      const el = $('actPeriodoAlquiler');
-      const hint = $('actPeriodoAlquilerHint');
-      if (!el) return;
-      const key = String(el.value || getCurrentRentPeriodKey());
-      const row = getRentPeriodRowByKey(key);
-      const label = getRentPeriodLabelFromKey(key);
+  const el = $('actPeriodoAlquiler');
+  const hint = $('actPeriodoAlquilerHint');
+  if (!el) return;
 
-      if (row && toNumber(row.total) > 0){
-        const input = $('actMontoMensual');
-        if (input) input.value = formatMoneyInputValue(toNumber(row.total));
-      }
+  const key = String(el.value || getCurrentRentPeriodKey());
+  const row = getRentPeriodRowByKey(key);
+  const label = getRentPeriodLabelFromKey(key);
 
-      if (hint){
-        const saldo = row ? toNumber(row.saldo) : 0;
-        const pagado = row ? toNumber(row.pagado) : 0;
-        const total = row ? toNumber(row.total) : 0;
-        hint.textContent = row
-          ? `${label}: total ${fmtARS.format(total)} · pagado ${fmtARS.format(pagado)} · saldo ${fmtARS.format(saldo)}. Al guardar se modifica esta cuota.`
-          : `${label}: al guardar se modificará esta cuota y, si corresponde, el alquiler vigente del contrato.`;
-      }
-    }
+  const contrato = activoEditContrato || getContratoActivoRow(selected?.contrato_id) || {};
+  const montoContrato = getDisplayedRent(selected || {}, contrato || {});
+  const montoRow = row && toNumber(row.total) > 0 ? toNumber(row.total) : 0;
+
+  // Para el mes actual o meses futuros, usamos el alquiler vigente del contrato.
+  // Para meses anteriores, mantenemos el monto histórico de la cuota.
+  const periodoActual = getCurrentRentPeriodKey();
+  const usarContrato = key >= periodoActual && montoContrato > 0;
+
+  const montoParaInput = usarContrato
+    ? montoContrato
+    : (montoRow || montoContrato);
+
+  const input = $('actMontoMensual');
+  if (input && montoParaInput > 0) {
+    input.value = formatMoneyInputValue(montoParaInput);
+  }
+
+  if (hint){
+    const pagado = row ? toNumber(row.pagado ?? row.monto_pagado ?? 0) : 0;
+    const saldo = Math.max(0, round2(montoParaInput - pagado));
+    const total = montoParaInput;
+
+    hint.textContent = row
+      ? `${label}: total ${fmtARS.format(total)} · pagado ${fmtARS.format(pagado)} · saldo ${fmtARS.format(saldo)}. Al guardar se modifica esta cuota.`
+      : `${label}: al guardar se creará/modificará esta cuota.`;
+  }
+}
 
     function openActivoModal(mode = 'full'){
       if (!selected?.contrato_id) {
@@ -9021,14 +9036,32 @@ async function saveActivoModal(){
     msg.textContent = 'Guardando alquiler...';
 
     try {
-      const oldMonthly = getDisplayedRent(selected || {}, contrato || {});
-      const newMonthly = montoMensual !== null ? montoMensual : oldMonthly;
+      const targetRentPeriod = String($('actPeriodoAlquiler')?.value || getCurrentRentPeriodKey());
+const [targetAnio, targetMes] = targetRentPeriod.split('-').map(Number);
+const targetKey = `${targetAnio}-${String(targetMes).padStart(2, '0')}`;
 
-      const oldImpuesto = toNumber(contrato?.impuesto_mensual);
-      const newImpuesto = impuestoMensual !== null ? impuestoMensual : oldImpuesto;
+if (!targetAnio || !targetMes) {
+  throw new Error('No se pudo identificar el mes a modificar.');
+}
 
-      const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthly)) > 0.009;
-      const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) > 0.009;
+const cuotaPeriodoActual = getRentPeriodRowByKey(targetKey);
+
+const oldMonthlyContrato = getDisplayedRent(selected || {}, contrato || {});
+const oldMonthlyPeriodo = cuotaPeriodoActual && toNumber(cuotaPeriodoActual.total) > 0
+  ? toNumber(cuotaPeriodoActual.total)
+  : oldMonthlyContrato;
+
+const newMonthly = montoMensual !== null ? montoMensual : oldMonthlyPeriodo;
+
+const oldImpuesto = toNumber(contrato?.impuesto_mensual);
+const newImpuesto = impuestoMensual !== null ? impuestoMensual : oldImpuesto;
+
+// IMPORTANTE:
+// comparamos contra la cuota elegida, no contra el contrato.
+// Si el contrato ya dice 195.000 pero Mayo sigue en 193.300,
+// igual debe actualizar la cuota.
+const cambioMonto = Math.abs(toNumber(newMonthly) - toNumber(oldMonthlyPeriodo)) > 0.009;
+const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) > 0.009;
 
       const contratoPayload = {
         monto_mensual: newMonthly,
@@ -14257,7 +14290,7 @@ if (periodoSelect) {
   };
 }
     }
-    
+
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
