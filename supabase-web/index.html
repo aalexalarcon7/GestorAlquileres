@@ -8657,16 +8657,17 @@ function globalSearch(){
     if (el) el.disabled = !!isAlquilerMode;
   });
 
-['actMontoMensual','actImpuestoMensual','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
+  // Campos que sí quedan activos en Modificar alquiler
+  ['actMontoMensual','actImpuestoMensual','actDiaVencimiento','actFechaInicio','actFechaFin','actObservaciones','actPeriodoAlquiler'].forEach(id => {
+    const el = $(id);
     if (el) el.disabled = !isAlquilerMode;
   });
 
-
-['actAjustePct','actAjusteMeses'].forEach(id => {
-  const el = $(id);
-  if (el) el.disabled = true;
-});
-
+  // Aumento porcentual deshabilitado porque no se usa
+  ['actAjustePct','actAjusteMeses'].forEach(id => {
+    const el = $(id);
+    if (el) el.disabled = true;
+  });
 }
 
     function parseModalNumber(value){
