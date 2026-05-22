@@ -14208,7 +14208,10 @@ const impuestoContrato = toNumber(
   0
 );
 
-const impuestoAuto = ultimoImpuesto > 0 ? ultimoImpuesto : impuestoContrato;
+// Fuente profesional:
+// 1) El impuesto mensual vigente del contrato manda.
+// 2) El último impuesto usado queda solo como respaldo si el contrato no tiene impuesto cargado.
+const impuestoAuto = impuestoContrato > 0 ? impuestoContrato : ultimoImpuesto;
 
 if ($('mImpMonto')) {
   $('mImpMonto').value = impuestoAuto > 0
@@ -14226,17 +14229,16 @@ initPagoMediosRows(cobroInicial?.total || 0);
 const periodoSelect = $('mPeriodoAplicado');
 if (periodoSelect) {
   periodoSelect.onchange = () => {
-    syncCobroAlquilerDesdePeriodo();
+  syncCobroAlquilerDesdePeriodo();
 
-    // Si el usuario cambia de mes, mantenemos el impuesto automático cargado.
-    // No lo pisamos si el usuario ya lo modificó manualmente.
-    if ($('mImpMonto') && !String($('mImpMonto').value || '').trim() && impuestoAuto > 0) {
-      $('mImpMonto').value = formatMoneyInputValue(impuestoAuto);
-    }
+  // Mantiene el impuesto mensual vigente del contrato como automático.
+  if ($('mImpMonto') && impuestoAuto > 0) {
+    $('mImpMonto').value = formatMoneyInputValue(impuestoAuto);
+  }
 
-    const recalculado = recalcularCobroModal();
-    syncPagoMediosConTotal(recalculado?.total || 0);
-  };
+  const recalculado = recalcularCobroModal();
+  syncPagoMediosConTotal(recalculado?.total || 0);
+};
 }
     }
     
