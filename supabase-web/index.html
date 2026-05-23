@@ -6760,8 +6760,23 @@ function applyImpuestosToDebtRows(rows, pagos){
       apps.forEach(app => {
         if (!app.key) return;
 
-        const dedupeKey = `${dedupeBase || 'detalle'}:${app.key}:${app.total}:${app.impuesto}:${app.alquiler}`;
-        if (vistos.has(dedupeKey)) return;
+const reciboKey = String(
+  pago?.numero_recibo ||
+  pago?.recibo_base ||
+  pago?.referencia ||
+  pago?.nro_recibo ||
+  pago?.numero ||
+  ''
+).trim();
+
+const dedupeKey = [
+  reciboKey || 'sin-recibo',
+  app.key,
+  round2(app.total),
+  round2(app.impuesto),
+  round2(app.alquiler)
+].join('|');        if (vistos.has(dedupeKey)) return;
+
         vistos.add(dedupeKey);
 
         pagadoTotalByKey.set(
