@@ -6630,11 +6630,11 @@ td:last-child{
     // El total de la tabla sigue siendo el alquiler/base del mes.
     row.total_con_impuesto = totalBase;
 
-    // Si hay recibos/aplicaciones reales, mostramos lo realmente cobrado.
-    // Si no, usamos el pagado base + impuesto.
-    row.pagado_con_impuesto = pagadoSegunRecibos > 0.009
-      ? pagadoSegunRecibos
-      : round2(pagadoBase + impuesto);
+    // El pagado mostrado debe ser:
+// alquiler pagado en cuotas_operativas + impuesto aplicado del mes.
+// No usar pagado_total_recibos como reemplazo, porque puede traer el recibo completo
+// o una distribución que no representa el acumulado del mes.
+row.pagado_con_impuesto = round2(pagadoBase + impuesto);
 
     // El saldo correcto sale de cuotas_operativas.saldo.
     // No se recalcula restando impuesto, porque eso puede marcar como pagado algo parcial.
