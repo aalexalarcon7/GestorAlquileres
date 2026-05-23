@@ -6877,6 +6877,142 @@ function globalSearch(){
       if (selected?.contrato_id) await loadDetalle(selected);
     }
 
+// =====================================================
+// RECOVERY AUTOMÁTICO AL VOLVER A LA PESTAÑA
+// Evita que la app quede visualmente bien pero con estado interno trabado.
+// =====================================================
+let gaTabHiddenAt = 0;
+let gaTabRecovering = false;
+let gaLastTabRecoveryAt = 0;
+
+function isGaModalOpen(){
+  const modalIds = [
+    'modalBack',
+    'modalActivoBack',
+    'reciboModalBack',
+    'agregarMesModalBack',
+    'pagoModalBack'
+  ];
+
+  return modalIds.some(id => {
+    const el = $(id);
+    if (!el) return false;
+    const styles = window.getComputedStyle(el);
+    return styles.display !== 'none' && styles.visibility !== 'hidden' && styles.opacity !== '0';
+  });
+}
+
+async function renderCurrentRouteAfterWake(){
+  const currentRoute = route || loadCurrentRoute?.() || 'inicio';
+
+  if (currentRoute === 'recibos' && typeof renderRecibosPage === 'function') {
+    await renderRecibosPage();
+    return;
+  }
+
+  if (currentRoute === 'balance' && typeof renderBalancePage === 'function') {
+    await renderBalancePage();
+    return;
+  }
+
+  if (currentRoute === 'documentos' && typeof renderDocumentosPage === 'function') {
+    await renderDocumentosPage();
+    return;
+  }
+
+  if (currentRoute === 'informes' && typeof renderInformesPage === 'function') {
+    await renderInformesPage();
+    return;
+  }
+
+  if (currentRoute === 'activos' && typeof renderUnidades === 'function') {
+    renderUnidades();
+    return;
+  }
+
+  if (typeof renderInicio === 'function') {
+    renderInicio();
+  }
+}
+
+async function recoverAppAfterTabWake(reason = 'tab-wake'){
+  if (gaTabRecovering) return;
+  if (document.visibilityState && document.visibilityState !== 'visible') return;
+
+  // Evita doble ejecución por focus + visibilitychange al mismo tiempo.
+  const now = Date.now();
+  if (now - gaLastTabRecoveryAt < 2500) return;
+  gaLastTabRecoveryAt = now;
+
+  gaTabRecovering = true;
+
+  try {
+    console.info('[GA] Recuperando app al volver a la pestaña:', reason);
+
+    // Cerrar menú flotante si quedó abierto.
+    if (typeof closeReciboFloatingMenu === 'function') {
+      closeReciboFloatingMenu();
+    }
+
+    // Confirmar sesión actual.
+    const { data } = await sb.auth.getSession();
+    user = data?.session?.user || null;
+
+    if (!user) {
+      toggle(false, user);
+      return;
+    }
+
+    toggle(true, user);
+
+    // Refrescar datos base.
+    await refreshAll();
+
+    // Si no hay modal abierto, re-renderizamos la ruta actual.
+    // Si hay modal abierto, no lo tocamos para no borrar datos que el usuario esté cargando.
+    if (!isGaModalOpen()) {
+      await renderCurrentRouteAfterWake();
+    }
+
+  } catch (err) {
+    console.warn('[GA] No se pudo recuperar la app al volver de otra pestaña:', err);
+  } finally {
+    gaTabRecovering = false;
+  }
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    gaTabHiddenAt = Date.now();
+    return;
+  }
+
+  const hiddenMs = Date.now() - gaTabHiddenAt;
+
+  // Si estuvo más de 2 segundos fuera, hacemos recovery suave.
+  if (hiddenMs > 2000) {
+    setTimeout(() => recoverAppAfterTabWake('visibilitychange'), 180);
+  }
+});
+
+window.addEventListener('focus', () => {
+  const hiddenMs = Date.now() - gaTabHiddenAt;
+
+  if (gaTabHiddenAt && hiddenMs > 2000) {
+    setTimeout(() => recoverAppAfterTabWake('focus'), 180);
+  }
+});
+
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    setTimeout(() => recoverAppAfterTabWake('pageshow-bfcache'), 180);
+  }
+});
+
+window.addEventListener('online', () => {
+  setTimeout(() => recoverAppAfterTabWake('online'), 250);
+});
+
 
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
