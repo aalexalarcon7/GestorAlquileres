@@ -8186,12 +8186,31 @@ window.addEventListener('online', () => {
           console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
         }
 
-        const fuentesImpuesto = [
-          ...(Array.isArray(pagosAplicados) ? pagosAplicados : []),
-          ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
-        ];
+        const pagosAplicadosList = Array.isArray(pagosAplicados) ? pagosAplicados : [];
 
-        const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
+const aplicacionesReales = pagosAplicadosList.filter(p => {
+  const anio = Number(p?.anio);
+  const mes = Number(p?.mes);
+
+  return anio && mes && (
+    toNumber(p?.monto_aplicado) > 0 ||
+    toNumber(p?.monto_alquiler) > 0 ||
+    toNumber(p?.monto_impuesto) > 0
+  );
+});
+
+// IMPORTANTE:
+// Si existen aplicaciones reales desde recibos_aplicaciones_operativas,
+// usamos SOLO eso para calcular Cuotas y deuda.
+// No sumamos recibos vinculados porque duplican el mismo pago.
+const fuentesImpuesto = aplicacionesReales.length
+  ? aplicacionesReales
+  : [
+      ...pagosAplicadosList,
+      ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
+    ];
+
+const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
 
         detalleCuotasActuales = rowsConImpuesto || [];
         renderDetalleInfo(r, rowsConImpuesto || []);
