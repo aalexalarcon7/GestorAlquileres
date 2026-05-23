@@ -6456,6 +6456,12 @@ td:last-child{
       console.warn('No se pudieron leer aplicaciones reales de recibos:', appRes.error.message || appRes.error);
     }
 
+// Si existen aplicaciones reales, son la fuente de verdad.
+// No seguimos leyendo pagos ni recibos históricos porque traen el impuesto total del recibo.
+if (aplicaciones.length) {
+  return aplicaciones;
+}
+
     // Fuente secundaria: pagos. Queda como fallback para casos viejos.
     let pagos = [];
     let res = await sb
