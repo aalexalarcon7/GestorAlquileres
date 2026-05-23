@@ -6740,6 +6740,7 @@ function applyImpuestosToDebtRows(rows, pagos){
   const impuestoByKey = new Map();
   const pagadoTotalByKey = new Map();
   const vistos = new Set();
+  const aplicacionesExactasVistas = new Set();
 
   pagosActivos.forEach(pago => {
     const dedupeBase = String(
@@ -6759,6 +6760,16 @@ function applyImpuestosToDebtRows(rows, pagos){
     if (apps.length) {
       apps.forEach(app => {
         if (!app.key) return;
+
+        const appExactKey = [
+  app.key,
+  round2(app.total),
+  round2(app.impuesto),
+  round2(app.alquiler)
+].join('|');
+
+if (aplicacionesExactasVistas.has(appExactKey)) return;
+aplicacionesExactasVistas.add(appExactKey);
 
 const reciboKey = String(
   pago?.numero_recibo ||
