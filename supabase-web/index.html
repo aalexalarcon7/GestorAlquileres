@@ -6778,6 +6778,45 @@ function applyImpuestosToDebtRows(rows, pagos){
 
   const aplicacionesDirectas = pagosActivos.filter(esAplicacionDirecta);
 
+// Si existen aplicaciones reales por mes, usamos SOLO esas.
+// No seguimos leyendo pagos ni recibos históricos porque traen el impuesto total del recibo
+// y eso hace que mayo muestre 74.000 en vez de 47.000.
+if (aplicacionesDirectas.length) {
+  aplicacionesDirectas.forEach(pago => {
+    const anio = Number(pago?.anio);
+    const mes = Number(pago?.mes);
+    if (!anio || !mes) return;
+
+    const key = `${anio}-${String(mes).padStart(2, '0')}`;
+
+    const totalDirecto = toNumber(
+      pago?.monto_aplicado ??
+      pago?.monto_total ??
+      pago?.monto
+    );
+
+    const impuestoDirecto = toNumber(pago?.monto_impuesto);
+    const alquilerDirecto = toNumber(pago?.monto_alquiler);
+
+    addAplicacionReal(
+      key,
+      totalDirecto,
+      impuestoDirecto,
+      alquilerDirecto,
+      `app-real:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}:${key}`
+    );
+  });
+
+  detalleRows.forEach(row => {
+    const key = String(row?.sort_key || '').slice(0, 7);
+    row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+    row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+  });
+
+  return enrichDebtRowsWithImpuestoTotals(detalleRows);
+}
+
+
   const directReciboIds = new Set(
     aplicacionesDirectas
       .map(p => String(p?.recibo_id || '').trim())
