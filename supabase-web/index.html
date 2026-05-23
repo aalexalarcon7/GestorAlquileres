@@ -6431,35 +6431,65 @@ td:last-child{
     }
 
     async function fetchPagoAplicacionesDetalle(row){
-      try{
-        if (!row || !canUseOperationalContrato(row) || !row.contrato_id) return [];
-        let res = await sb
+  try{
+    if (!row || !canUseOperationalContrato(row) || !row.contrato_id) return [];
+
+    let aplicaciones = [];
+
+    // Fuente principal: distribución real de cada recibo.
+    // Esta tabla dice cuánto fue a impuesto y cuánto fue a alquiler por mes.
+    const appRes = await sb
+      .from('recibos_aplicaciones_operativas')
+      .select('id,recibo_id,pago_id,contrato_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,deleted_at,created_at')
+      .eq('contrato_id', row.contrato_id)
+      .order('anio', { ascending:true })
+      .order('mes', { ascending:true });
+
+    if (!appRes.error) {
+      aplicaciones = (appRes.data || [])
+        .filter(x => !x.deleted_at)
+        .map(x => ({
+          ...x,
+          fuente_detalle: 'recibos_aplicaciones_operativas'
+        }));
+    } else {
+      console.warn('No se pudieron leer aplicaciones reales de recibos:', appRes.error.message || appRes.error);
+    }
+
+    // Fuente secundaria: pagos. Queda como fallback para casos viejos.
+    let pagos = [];
+    let res = await sb
+      .from('pagos')
+      .select('id,contrato_id,fecha_pago,monto,monto_total,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,descripcion_pago,created_at')
+      .eq('contrato_id', row.contrato_id)
+      .order('fecha_pago', { ascending:true });
+
+    if (res.error){
+      const msg = String(res.error.message || '').toLowerCase();
+      if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('monto_impuesto') || msg.includes('descripcion_pago') || msg.includes('monto_total') || msg.includes('column')){
+        res = await sb
           .from('pagos')
-          .select('id,contrato_id,fecha_pago,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,descripcion_pago,created_at')
+          .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
           .eq('contrato_id', row.contrato_id)
           .order('fecha_pago', { ascending:true });
-
-        if (res.error){
-          const msg = String(res.error.message || '').toLowerCase();
-          if (msg.includes('periodo_aplicado') || msg.includes('detalle_aplicacion') || msg.includes('monto_alquiler') || msg.includes('monto_impuesto') || msg.includes('descripcion_pago') || msg.includes('column')){
-            res = await sb
-              .from('pagos')
-              .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
-              .eq('contrato_id', row.contrato_id)
-              .order('fecha_pago', { ascending:true });
-          }
-        }
-
-        if (res.error){
-          console.warn('No se pudieron leer pagos aplicados para detalle:', res.error.message);
-          return [];
-        }
-        return res.data || [];
-      } catch (err){
-        console.warn('No se pudieron leer pagos aplicados para detalle:', err?.message || err);
-        return [];
       }
     }
+
+    if (!res.error) {
+      pagos = (res.data || []).map(x => ({
+        ...x,
+        fuente_detalle: 'pagos'
+      }));
+    } else {
+      console.warn('No se pudieron leer pagos aplicados para detalle:', res.error.message);
+    }
+
+    return [...aplicaciones, ...pagos];
+  } catch (err){
+    console.warn('No se pudieron leer aplicaciones/pagos para detalle:', err?.message || err);
+    return [];
+  }
+}
 
     function ensureGeneratedCurrent2026Rows(detalle2026, sourceRow){
       const rows = Array.isArray(detalle2026) ? [...detalle2026] : [];
