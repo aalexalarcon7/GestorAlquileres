@@ -6627,20 +6627,17 @@ td:last-child{
 
     row.impuesto = impuesto;
 
-    // IMPORTANTE:
-    // El total de la cuota es alquiler/base.
-    // El impuesto se muestra aparte, pero NO debe usarse para cancelar saldo de alquiler.
+    // El total de la tabla sigue siendo el alquiler/base del mes.
     row.total_con_impuesto = totalBase;
 
-    // Para mantener la visual como venía trabajando el sistema:
-    // si hay recibos vinculados, mostramos lo cobrado por recibo;
-    // si no, mostramos pagado de cuota + impuesto.
+    // Si hay recibos/aplicaciones reales, mostramos lo realmente cobrado.
+    // Si no, usamos el pagado base + impuesto.
     row.pagado_con_impuesto = pagadoSegunRecibos > 0.009
       ? pagadoSegunRecibos
       : round2(pagadoBase + impuesto);
 
-    // La verdad del saldo sale de cuotas_operativas.saldo.
-    // No se recalcula restando impuesto, porque eso marca como PAGADO cuotas parciales.
+    // El saldo correcto sale de cuotas_operativas.saldo.
+    // No se recalcula restando impuesto, porque eso puede marcar como pagado algo parcial.
     const tieneSaldoBase =
       row.saldo !== null &&
       row.saldo !== undefined &&
@@ -6670,6 +6667,268 @@ td:last-child{
   });
 
   return detalleRows;
+}
+
+function getPagoMontoTotalParaPeriodo(pago){
+  const totalDirecto = toNumber(pago?.monto_total ?? pago?.monto);
+  if (totalDirecto > 0) return round2(totalDirecto);
+  return round2(toNumber(pago?.monto_alquiler) + toNumber(pago?.monto_impuesto));
+}
+
+function getPagoDedupeKeyParaPeriodo(pago, keys, total, impuesto){
+  const contrato = String(pago?.contrato_id || '').trim();
+  const numero = String(pago?.numero_recibo || pago?.recibo_base || pago?.referencia || '').trim().toUpperCase();
+  const id = String(pago?.id || pago?.recibo_id || pago?.pago_id || '').trim();
+  const periodos = (keys || []).join(',');
+  if (numero) return `${contrato}|${numero}|${periodos}|${Number(total || 0).toFixed(2)}`;
+  return `${contrato}|${id}|${periodos}|${Number(total || 0).toFixed(2)}|${Number(impuesto || 0).toFixed(2)}`;
+}
+
+function parseMoneyLoose(value){
+  const raw = String(value ?? '').trim();
+  if (!raw) return 0;
+
+  let cleaned = raw.replace(/[^\d.,-]/g, '');
+
+  if (cleaned.includes(',') && cleaned.includes('.')) {
+    cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+  } else if (cleaned.includes(',')) {
+    cleaned = cleaned.replace(',', '.');
+  }
+
+  const n = Number(cleaned);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseAplicacionesFromPagoDetalle(pago){
+  const text = String(
+    pago?.detalle_aplicacion ||
+    pago?.descripcion_pago ||
+    pago?.observacion ||
+    ''
+  ).trim();
+
+  if (!text) return [];
+
+  const apps = [];
+
+  // Ejemplo:
+  // 04/2026: impuesto 47000.00 / alquiler 179300.00
+  // 05/2026: impuesto 47000.00 / alquiler 899300.00
+  const regex = /(\d{1,2})\/(20\d{2})\s*:\s*impuesto\s*\$?\s*([\d.,]+)\s*\/\s*alquiler\s*\$?\s*([\d.,]+)/gi;
+
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const mes = Number(match[1]);
+    const anio = Number(match[2]);
+    const impuesto = parseMoneyLoose(match[3]);
+    const alquiler = parseMoneyLoose(match[4]);
+
+    if (!anio || !mes) continue;
+
+    apps.push({
+      key: `${anio}-${String(mes).padStart(2, '0')}`,
+      impuesto: round2(impuesto),
+      alquiler: round2(alquiler),
+      total: round2(impuesto + alquiler)
+    });
+  }
+
+  return apps;
+}
+
+function applyImpuestosToDebtRows(rows, pagos){
+  const detalleRows = Array.isArray(rows) ? rows : [];
+
+  detalleRows.forEach(row => {
+    row.impuesto = 0;
+    row.pagado_total_recibos = 0;
+  });
+
+  const pagosActivos = Array.isArray(pagos)
+    ? pagos.filter(pago => {
+        if (!pago) return false;
+        if (pago.deleted_at) return false;
+        if (pago.eliminado) return false;
+        if (String(pago.estado || '').toUpperCase() === 'ELIMINADO') return false;
+        return true;
+      })
+    : [];
+
+  if (!pagosActivos.length) {
+    return enrichDebtRowsWithImpuestoTotals(detalleRows);
+  }
+
+  const impuestoByKey = new Map();
+  const pagadoTotalByKey = new Map();
+  const aplicacionesVistas = new Set();
+
+  function esAplicacionDirecta(pago){
+    const anio = Number(pago?.anio);
+    const mes = Number(pago?.mes);
+
+    if (!anio || !mes) return false;
+
+    return (
+      toNumber(pago?.monto_aplicado) > 0 ||
+      toNumber(pago?.monto_alquiler) > 0 ||
+      toNumber(pago?.monto_impuesto) > 0
+    );
+  }
+
+  const aplicacionesDirectas = pagosActivos.filter(esAplicacionDirecta);
+
+  const directReciboIds = new Set(
+    aplicacionesDirectas
+      .map(p => String(p?.recibo_id || '').trim())
+      .filter(Boolean)
+  );
+
+  const directPagoIds = new Set(
+    aplicacionesDirectas
+      .map(p => String(p?.pago_id || '').trim())
+      .filter(Boolean)
+  );
+
+  function addAplicacionReal(key, total, impuesto, alquiler, identidad){
+    if (!key) return;
+
+    total = round2(toNumber(total));
+    impuesto = round2(toNumber(impuesto));
+    alquiler = round2(toNumber(alquiler));
+
+    if (total <= 0 && impuesto <= 0 && alquiler <= 0) return;
+    if (total <= 0) total = round2(impuesto + alquiler);
+
+    const appKey = [
+      String(identidad || 'sin-id'),
+      key,
+      total,
+      impuesto,
+      alquiler
+    ].join('|');
+
+    if (aplicacionesVistas.has(appKey)) return;
+    aplicacionesVistas.add(appKey);
+
+    pagadoTotalByKey.set(
+      key,
+      round2(toNumber(pagadoTotalByKey.get(key)) + total)
+    );
+
+    impuestoByKey.set(
+      key,
+      round2(toNumber(impuestoByKey.get(key)) + impuesto)
+    );
+  }
+
+  pagosActivos.forEach(pago => {
+    // 1) Fuente principal: aplicaciones reales de recibos_aplicaciones_operativas.
+    if (esAplicacionDirecta(pago)) {
+      const anio = Number(pago?.anio);
+      const mes = Number(pago?.mes);
+      const key = `${anio}-${String(mes).padStart(2, '0')}`;
+
+      const totalDirecto = toNumber(
+        pago?.monto_aplicado ??
+        pago?.monto_total ??
+        pago?.monto
+      );
+
+      const impuestoDirecto = toNumber(pago?.monto_impuesto);
+      const alquilerDirecto = toNumber(pago?.monto_alquiler);
+
+      addAplicacionReal(
+        key,
+        totalDirecto,
+        impuestoDirecto,
+        alquilerDirecto,
+        `app:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}`
+      );
+
+      return;
+    }
+
+    // Si ya tenemos aplicaciones reales para ese mismo recibo/pago,
+    // NO volvemos a leer pagos ni recibos históricos para no duplicar.
+    const ownId = String(pago?.id || '').trim();
+    const reciboId = String(pago?.recibo_id || '').trim();
+    const pagoId = String(pago?.pago_id || '').trim();
+
+    const yaTieneAplicacionReal =
+      (ownId && directReciboIds.has(ownId)) ||
+      (reciboId && directReciboIds.has(reciboId)) ||
+      (ownId && directPagoIds.has(ownId)) ||
+      (pagoId && directPagoIds.has(pagoId));
+
+    if (yaTieneAplicacionReal) return;
+
+    // 2) Si no hay aplicación directa, usamos el detalle del recibo.
+    const apps = parseAplicacionesFromPagoDetalle(pago);
+
+    if (apps.length) {
+      const reciboKey = String(
+        pago?.numero_recibo ||
+        pago?.recibo_base ||
+        pago?.referencia ||
+        pago?.id ||
+        ''
+      ).trim();
+
+      apps.forEach(app => {
+        addAplicacionReal(
+          app.key,
+          app.total,
+          app.impuesto,
+          app.alquiler,
+          `detalle:${reciboKey}`
+        );
+      });
+
+      return;
+    }
+
+    // 3) Fallback para recibos/pagos viejos sin detalle.
+    const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+    if (!keys.length) return;
+
+    const impuesto = round2(toNumber(pago?.monto_impuesto));
+    const totalPago = getPagoMontoTotalParaPeriodo(pago);
+
+    if (impuesto <= 0 && totalPago <= 0) return;
+
+    const dedupeKey = getPagoDedupeKeyParaPeriodo(pago, keys, totalPago, impuesto);
+    const totalPorPeriodo = round2(totalPago / keys.length);
+    const impuestoPorPeriodo = round2(impuesto / keys.length);
+
+    keys.forEach((key, index) => {
+      const totalImporte = index === keys.length - 1
+        ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
+        : totalPorPeriodo;
+
+      const impuestoImporte = index === keys.length - 1
+        ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
+        : impuestoPorPeriodo;
+
+      const alquilerImporte = round2(totalImporte - impuestoImporte);
+
+      addAplicacionReal(
+        key,
+        totalImporte,
+        impuestoImporte,
+        alquilerImporte,
+        `fallback:${dedupeKey}`
+      );
+    });
+  });
+
+  detalleRows.forEach(row => {
+    const key = String(row?.sort_key || '').slice(0, 7);
+    row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+    row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+  });
+
+  return enrichDebtRowsWithImpuestoTotals(detalleRows);
 }
 
     function getPagoMontoTotalParaPeriodo(pago){
