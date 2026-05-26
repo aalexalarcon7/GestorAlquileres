@@ -4684,6 +4684,7 @@ td:last-child{
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
                     <th class="right">Impuesto</th>
+                    <th class="right">Servicio</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -4761,6 +4762,17 @@ td:last-child{
         <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="window.__editandoImpuestoMonto = true" onblur="window.__editandoImpuestoMonto = false; recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
+        <label class="muted" style="font-size:12px;">Servicio a sumar</label>
+        <input
+          id="mServicioMonto"
+          inputmode="decimal"
+          placeholder="Ej: 25.000"
+          style="width:220px; font-weight:800;"
+          oninput="recalcularCobroModal()"
+          onblur="this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : ''; recalcularCobroModal();"
+            >
         </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
@@ -6378,6 +6390,9 @@ td:last-child{
             total: toNumber(item.monto_total),
             pagado: toNumber(item.monto_pagado),
             saldo: toNumber(item.saldo),
+            servicio: toNumber(item.monto_servicio),
+            monto_servicio: toNumber(item.monto_servicio),
+            servicio_detalle: item.servicio_detalle || '',
             estado_detalle: estado,
             dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
             sort_key: item.sort_key || `${anio}-${String(mes || 1).padStart(2,'0')}`,
@@ -7011,6 +7026,7 @@ if (aplicacionesDirectas.length) {
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${fmtARS.format(impuesto)}</td>
+          <td class="right">${fmtARS.format(toNumber(r.servicio))}</td>
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
@@ -8608,7 +8624,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       let cuotaReal = null;
       let readRes = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento,monto_servicio,servicio_detalle')
         .eq('contrato_id', selected.contrato_id)
         .eq('anio', targetYear)
         .eq('mes', targetMonth)
@@ -8620,7 +8636,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
         if (/vencimiento|column|schema cache/i.test(msg)) {
           readRes = await sb
             .from('cuotas_operativas')
-            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion')
+            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,monto_servicio,servicio_detalle')
             .eq('contrato_id', selected.contrato_id)
             .eq('anio', targetYear)
             .eq('mes', targetMonth)
@@ -8684,7 +8700,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
             .eq('mes', targetMonth);
         }
 
-        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
+        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,monto_servicio,servicio_detalle');
       };
 
       writeRes = await applyUpdate(payloadUpdate);
@@ -8849,7 +8865,8 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-      const total = round2(alquiler + impuesto);
+      const servicio = parseMoneyToNumber($('mServicioMonto')?.value || '') || 0;
+      const total = round2(alquiler + impuesto + servicio);
       const impPct = 0;
 
       if ($('mImpPct')) $('mImpPct').value = '0';
@@ -8859,7 +8876,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
         $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
       }
 
-      return { alquiler, impPct, impuesto, total };
+      return { alquiler, impPct:0, impuesto, servicio, total };
     }
 
     function openPagoModalByContrato(contratoId){
@@ -14274,7 +14291,7 @@ error = deleteResponse.error;
       // No usamos vistas acá para evitar que un cambio de columnas rompa el botón Cobro.
       const { data, error } = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion,monto_servicio,servicio_detalle')
         .eq('contrato_id', contratoId)
         .order('anio', { ascending:true })
         .order('mes', { ascending:true });
@@ -14363,18 +14380,31 @@ error = deleteResponse.error;
       return round2(medios.reduce((acc, row) => acc + Number(row.monto || 0), 0));
     }
 
-    function calcularDesgloseImpuestoPrimero(totalCobrado, impuestoAdeudado){
-      const total = round2(Math.max(toNumber(totalCobrado), 0));
-      const impuestoObjetivo = round2(Math.max(toNumber(impuestoAdeudado), 0));
-      const impuestoAplicado = round2(Math.min(total, impuestoObjetivo));
-      const alquilerAplicado = round2(Math.max(total - impuestoAplicado, 0));
-      return {
-        alquiler: alquilerAplicado,
-        impuesto: impuestoAplicado,
-        impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
-        total
-      };
-    }
+    function calcularDesgloseCobroPrioridad(totalCobrado, impuestoAdeudado, servicioAdeudado){
+  const total = round2(Math.max(toNumber(totalCobrado), 0));
+
+  const impuestoObjetivo = round2(Math.max(toNumber(impuestoAdeudado), 0));
+  const servicioObjetivo = round2(Math.max(toNumber(servicioAdeudado), 0));
+
+  const impuestoAplicado = round2(Math.min(total, impuestoObjetivo));
+  const restanteDespuesImpuesto = round2(Math.max(total - impuestoAplicado, 0));
+
+  const servicioAplicado = round2(Math.min(restanteDespuesImpuesto, servicioObjetivo));
+  const restanteDespuesServicio = round2(Math.max(restanteDespuesImpuesto - servicioAplicado, 0));
+
+  const alquilerAplicado = round2(restanteDespuesServicio);
+
+  return {
+    alquiler: alquilerAplicado,
+    impuesto: impuestoAplicado,
+    servicio: servicioAplicado,
+    impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplic: impuestoAplicado,
+    servicio: servicioAplicado)),
+    impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
+    servicioPendiente: round2(Math.max(servicioObjetivo - servicioAplicado, 0)),
+    total
+  };
+}
 
 
     function syncCobroDesdeMediosPago(){
@@ -14383,40 +14413,33 @@ error = deleteResponse.error;
   // El impuesto SIEMPRE sale del campo "Impuesto a sumar".
   // Nunca sale de efectivo, transferencia, mixto ni de ningún medio de pago.
   const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+const servicioObjetivo = parseMoneyToNumber($('mServicioMonto')?.value || '') || 0;
 
-  const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
+const desglose = calcularDesgloseCobroPrioridad(
+  totalMedios,
+  impuestoObjetivo,
+  servicioObjetivo
+);
 
-  if ($('mTotal')) {
-    $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
-  }
+ if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
+if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
+if ($('mImpMonto')) $('mImpMonto').value = impuestoObjetivo > 0 ? formatMoneyInputValue(desglose.impuesto) : '';
+if ($('mServicioMonto')) $('mServicioMonto').value = servicioObjetivo > 0 ? formatMoneyInputValue(desglose.servicio) : '';
+if ($('mImpPct')) $('mImpPct').value = '0';
 
-  if ($('mAlquiler')) {
-    $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
-  }
+const medios = getPagoMediosFromUI();
+if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
 
-  // IMPORTANTE:
-  // No tocar mImpMonto acá.
-  // Si se toca, un medio de pago como TRANSFERENCIA $3.400 puede terminar pisando el impuesto.
-  // El campo impuesto debe conservar lo que escribió o sincronizó el usuario.
-  if ($('mImpPct')) {
-    $('mImpPct').value = '0';
-  }
+updatePagoMediosResumen();
 
-  const medios = getPagoMediosFromUI();
-
-  if ($('mMedio')) {
-    $('mMedio').value = getMedioPagoGeneral(medios);
-  }
-
-  updatePagoMediosResumen();
-
-  return {
-    alquiler: desglose.alquiler,
-    impPct: 0,
-    impuesto: desglose.impuesto,
-    total: totalMedios
-  };
-}
+return {
+  alquiler: desglose.alquiler,
+  impPct: 0,
+  impuesto: desglose.impuesto,
+  servicio: desglose.servicio,
+  total: totalMedios
+};
+    }
 
     function updatePagoMedioRow(uid, field, value, touched=false){
       pagoMediosRows = (pagoMediosRows || []).map(row => row.uid === uid ? { ...row, [field]: value } : row);
