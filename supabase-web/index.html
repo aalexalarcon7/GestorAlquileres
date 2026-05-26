@@ -6997,7 +6997,7 @@ if (aplicacionesDirectas.length) {
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="9" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -7026,7 +7026,7 @@ if (aplicacionesDirectas.length) {
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${fmtARS.format(impuesto)}</td>
-          <td class="right">${fmtARS.format(toNumber(r.servicio))}</td>
+          <td class="right">${fmtARS.format(toNumber(x.servicio))}</td>
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
@@ -14398,8 +14398,6 @@ error = deleteResponse.error;
     alquiler: alquilerAplicado,
     impuesto: impuestoAplicado,
     servicio: servicioAplicado,
-    impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplic: impuestoAplicado,
-    servicio: servicioAplicado)),
     impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
     servicioPendiente: round2(Math.max(servicioObjetivo - servicioAplicado, 0)),
     total
@@ -14741,24 +14739,30 @@ return {
     }
 
     function recalcularCobroModal(){
-      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+  const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+  const servicio = parseMoneyToNumber($('mServicioMonto')?.value || '') || 0;
 
-      // Flujo profesional impuesto-primero:
-      // si hay medios cargados abajo, esa suma es el total real cobrado.
-      // Primero se reserva/descuenta el impuesto y el resto queda como alquiler.
-      // Así el jefe puede cargar primero el impuesto y no duplicar importes arriba.
-      const totalMedios = getTotalMediosPago();
-      if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
-      return syncCobroDesdeMediosPago();
-    }
+  const totalMedios = getTotalMediosPago();
+  if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
+    return syncCobroDesdeMediosPago();
+  }
 
-      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      const total = round2(alquiler + impuesto);
-      if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
-      syncPagoMediosConTotal(total);
-      return { alquiler, impPct:0, impuesto, total };
-    }
+  const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
+  const total = round2(alquiler + impuesto + servicio);
+
+  if ($('mImpPct')) $('mImpPct').value = '0';
+  if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
+
+  syncPagoMediosConTotal(total);
+
+  return {
+    alquiler,
+    impPct: 0,
+    impuesto,
+    servicio,
+    total
+  };
+}
 
 async function obtenerUltimoImpuestoActivo(contratoId){
   try {
