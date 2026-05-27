@@ -7323,6 +7323,7 @@ window.addEventListener('online', () => {
             inquilino_documento: c.inquilinos?.documento || '',
             inquilino_telefono: c.inquilinos?.telefono || '',
             inquilino_email: c.inquilinos?.email || '',
+            servicios_habilitados: c.servicios_habilitados === true,
             deuda_total: 0,
             deuda_atrasada: 0,
             meses_adeudados: 0,
@@ -9838,7 +9839,7 @@ setTimeout(() => {
     async function refreshContratosActivos(){
       const { data, error } = await sb
         .from('contratos')
-        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
+        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, servicios_habilitados, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento,)')
         .eq('estado','ACTIVO');
 
       if (error){
