@@ -6573,7 +6573,7 @@ if (!code && !contratoId && !selectedName) return [];
 // Si hay contrato operativo, usamos cuotas_operativas directo.
 // No usamos vw_detalle_mensual_operativo porque puede traer montos reconstruidos viejos
 // y por eso estaba apareciendo $54.000 en mayo.
-if (canUseOperationalContrato(row)) {
+if (canUseOperationalContrato(row) && contratoId) {
   const cuotasDirectas = await fetchCuotasOperativasDirectas(contratoId);
   if (cuotasDirectas.length) {
     return cuotasDirectas;
