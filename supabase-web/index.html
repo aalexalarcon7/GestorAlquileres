@@ -14824,7 +14824,9 @@ return {
 
     function recalcularCobroModal(){
   const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-  const servicio = parseMoneyToNumber($('mServicioMonto')?.value || '') || 0;
+  const servicio = contratoTieneServicios(modalContrato || selected)
+  ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
+  : 0;
 
   const totalMedios = getTotalMediosPago();
   if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
