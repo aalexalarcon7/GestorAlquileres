@@ -6917,6 +6917,7 @@ function parseAplicacionesFromPagoDetalle(pago){
 function applyImpuestosToDebtRows(rows, pagos){
   const detalleRows = Array.isArray(rows) ? rows : [];
 
+  // Limpieza visual antes de recalcular
   detalleRows.forEach(row => {
     row.impuesto = 0;
     row.pagado_total_recibos = 0;
@@ -6932,180 +6933,164 @@ function applyImpuestosToDebtRows(rows, pagos){
       })
     : [];
 
-  if (!pagosActivos.length) {
+  const impuestoByKey = new Map();
+  const pagadoTotalByKey = new Map();
+  const vistos = new Set();
+
+  // 1) PRIORIDAD ABSOLUTA:
+  // Si vienen aplicaciones reales desde recibos_aplicaciones_operativas,
+  // usamos SOLO esas y no interpretamos recibos históricos.
+  const aplicacionesReales = pagosActivos.filter(p => {
+    return (
+      p?.fuente_detalle === 'recibos_aplicaciones_operativas' ||
+      (
+        Number(p?.anio) &&
+        Number(p?.mes) &&
+        (
+          Object.prototype.hasOwnProperty.call(p, 'monto_aplicado') ||
+          Object.prototype.hasOwnProperty.call(p, 'monto_alquiler') ||
+          Object.prototype.hasOwnProperty.call(p, 'monto_impuesto')
+        )
+      )
+    );
+  });
+
+  if (aplicacionesReales.length) {
+    aplicacionesReales.forEach(app => {
+      const anio = Number(app?.anio);
+      const mes = Number(app?.mes);
+      if (!anio || !mes) return;
+
+      const key = `${anio}-${String(mes).padStart(2, '0')}`;
+
+      const impuesto = round2(toNumber(app?.monto_impuesto));
+      const alquiler = round2(toNumber(app?.monto_alquiler));
+      const aplicado = round2(
+        toNumber(app?.monto_aplicado) > 0
+          ? toNumber(app?.monto_aplicado)
+          : alquiler + impuesto
+      );
+
+      const dedupeKey = [
+        app?.id || '',
+        app?.recibo_id || '',
+        app?.pago_id || '',
+        app?.contrato_id || '',
+        key,
+        aplicado,
+        impuesto,
+        alquiler
+      ].join('|');
+
+      if (vistos.has(dedupeKey)) return;
+      vistos.add(dedupeKey);
+
+      impuestoByKey.set(
+        key,
+        round2(toNumber(impuestoByKey.get(key)) + impuesto)
+      );
+
+      pagadoTotalByKey.set(
+        key,
+        round2(toNumber(pagadoTotalByKey.get(key)) + aplicado)
+      );
+    });
+
+    detalleRows.forEach(row => {
+      const key = String(row?.sort_key || '').slice(0, 7);
+      row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+      row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+    });
+
     return enrichDebtRowsWithImpuestoTotals(detalleRows);
   }
 
-  const impuestoByKey = new Map();
-  const pagadoTotalByKey = new Map();
-  const aplicacionesVistas = new Set();
-
-  function esAplicacionDirecta(pago){
-    const anio = Number(pago?.anio);
-    const mes = Number(pago?.mes);
-
-    if (!anio || !mes) return false;
-
-    return (
-      toNumber(pago?.monto_aplicado) > 0 ||
-      toNumber(pago?.monto_alquiler) > 0 ||
-      toNumber(pago?.monto_impuesto) > 0
+  // 2) Fallback para recibos viejos sin aplicaciones reales
+  function extractAplicacionesExplicitas(pago = {}) {
+    const text = String(
+      pago?.detalle_aplicacion ||
+      pago?.observacion ||
+      pago?.periodo_aplicado ||
+      pago?.periodo ||
+      ''
     );
+
+    const apps = [];
+
+    const regex = /(\d{1,2})\/(20\d{2})[\s\S]{0,90}?impuesto\s*\$?\s*([0-9.,]+)[\s\S]{0,80}?alquiler\s*\$?\s*([0-9.,]+)/gi;
+
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const mes = Number(match[1]);
+      const anio = Number(match[2]);
+      const impuesto = round2(parseMoneyToNumber(match[3]));
+      const alquiler = round2(parseMoneyToNumber(match[4]));
+
+      if (!anio || !mes) continue;
+
+      apps.push({
+        key: `${anio}-${String(mes).padStart(2, '0')}`,
+        impuesto,
+        alquiler,
+        total: round2(impuesto + alquiler)
+      });
+    }
+
+    return apps;
   }
 
-  const aplicacionesDirectas = pagosActivos.filter(esAplicacionDirecta);
-
-// Si existen aplicaciones reales por mes, usamos SOLO esas.
-// No seguimos leyendo pagos ni recibos históricos porque traen el impuesto total del recibo
-// y eso hace que mayo muestre 74.000 en vez de 47.000.
-if (aplicacionesDirectas.length) {
-  aplicacionesDirectas.forEach(pago => {
-    const anio = Number(pago?.anio);
-    const mes = Number(pago?.mes);
-    if (!anio || !mes) return;
-
-    const key = `${anio}-${String(mes).padStart(2, '0')}`;
-
-    const totalDirecto = toNumber(
-      pago?.monto_aplicado ??
-      pago?.monto_total ??
-      pago?.monto
+  function extractPeriodosDeclarados(pago = {}) {
+    const text = String(
+      pago?.periodo_aplicado ||
+      pago?.detalle_aplicacion ||
+      pago?.periodo ||
+      ''
     );
 
-    const impuestoDirecto = toNumber(pago?.monto_impuesto);
-    const alquilerDirecto = toNumber(pago?.monto_alquiler);
+    const keys = new Set();
+    const regex = /(\d{1,2})\/(20\d{2})/g;
 
-    addAplicacionReal(
-      key,
-      totalDirecto,
-      impuestoDirecto,
-      alquilerDirecto,
-      `app-real:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}:${key}`
-    );
-  });
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+      const mes = Number(match[1]);
+      const anio = Number(match[2]);
+      if (!anio || !mes) continue;
+      keys.add(`${anio}-${String(mes).padStart(2, '0')}`);
+    }
 
-  detalleRows.forEach(row => {
-    const key = String(row?.sort_key || '').slice(0, 7);
-    row.impuesto = round2(toNumber(impuestoByKey.get(key)));
-    row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
-  });
-
-  return enrichDebtRowsWithImpuestoTotals(detalleRows);
-}
-
-
-  const directReciboIds = new Set(
-    aplicacionesDirectas
-      .map(p => String(p?.recibo_id || '').trim())
-      .filter(Boolean)
-  );
-
-  const directPagoIds = new Set(
-    aplicacionesDirectas
-      .map(p => String(p?.pago_id || '').trim())
-      .filter(Boolean)
-  );
-
-  function addAplicacionReal(key, total, impuesto, alquiler, identidad){
-    if (!key) return;
-
-    total = round2(toNumber(total));
-    impuesto = round2(toNumber(impuesto));
-    alquiler = round2(toNumber(alquiler));
-
-    if (total <= 0 && impuesto <= 0 && alquiler <= 0) return;
-    if (total <= 0) total = round2(impuesto + alquiler);
-
-    const appKey = [
-      String(identidad || 'sin-id'),
-      key,
-      total,
-      impuesto,
-      alquiler
-    ].join('|');
-
-    if (aplicacionesVistas.has(appKey)) return;
-    aplicacionesVistas.add(appKey);
-
-    pagadoTotalByKey.set(
-      key,
-      round2(toNumber(pagadoTotalByKey.get(key)) + total)
-    );
-
-    impuestoByKey.set(
-      key,
-      round2(toNumber(impuestoByKey.get(key)) + impuesto)
-    );
+    return [...keys];
   }
 
   pagosActivos.forEach(pago => {
-    // 1) Fuente principal: aplicaciones reales de recibos_aplicaciones_operativas.
-    if (esAplicacionDirecta(pago)) {
-      const anio = Number(pago?.anio);
-      const mes = Number(pago?.mes);
-      const key = `${anio}-${String(mes).padStart(2, '0')}`;
-
-      const totalDirecto = toNumber(
-        pago?.monto_aplicado ??
-        pago?.monto_total ??
-        pago?.monto
-      );
-
-      const impuestoDirecto = toNumber(pago?.monto_impuesto);
-      const alquilerDirecto = toNumber(pago?.monto_alquiler);
-
-      addAplicacionReal(
-        key,
-        totalDirecto,
-        impuestoDirecto,
-        alquilerDirecto,
-        `app:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}`
-      );
-
-      return;
-    }
-
-    // Si ya tenemos aplicaciones reales para ese mismo recibo/pago,
-    // NO volvemos a leer pagos ni recibos históricos para no duplicar.
-    const ownId = String(pago?.id || '').trim();
-    const reciboId = String(pago?.recibo_id || '').trim();
-    const pagoId = String(pago?.pago_id || '').trim();
-
-    const yaTieneAplicacionReal =
-      (ownId && directReciboIds.has(ownId)) ||
-      (reciboId && directReciboIds.has(reciboId)) ||
-      (ownId && directPagoIds.has(ownId)) ||
-      (pagoId && directPagoIds.has(pagoId));
-
-    if (yaTieneAplicacionReal) return;
-
-    // 2) Si no hay aplicación directa, usamos el detalle del recibo.
-    const apps = parseAplicacionesFromPagoDetalle(pago);
+    const apps = extractAplicacionesExplicitas(pago);
 
     if (apps.length) {
-      const reciboKey = String(
-        pago?.numero_recibo ||
-        pago?.recibo_base ||
-        pago?.referencia ||
-        pago?.id ||
-        ''
-      ).trim();
-
       apps.forEach(app => {
-        addAplicacionReal(
+        const dedupeKey = [
+          pago?.id || pago?.recibo_id || pago?.pago_id || '',
+          pago?.numero_recibo || pago?.recibo_base || pago?.referencia || '',
           app.key,
-          app.total,
-          app.impuesto,
-          app.alquiler,
-          `detalle:${reciboKey}`
+          app.total
+        ].join('|');
+
+        if (vistos.has(dedupeKey)) return;
+        vistos.add(dedupeKey);
+
+        impuestoByKey.set(
+          app.key,
+          round2(toNumber(impuestoByKey.get(app.key)) + app.impuesto)
+        );
+
+        pagadoTotalByKey.set(
+          app.key,
+          round2(toNumber(pagadoTotalByKey.get(app.key)) + app.total)
         );
       });
 
       return;
     }
 
-    // 3) Fallback para recibos/pagos viejos sin detalle.
-    const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+    const keys = extractPeriodosDeclarados(pago);
     if (!keys.length) return;
 
     const impuesto = round2(toNumber(pago?.monto_impuesto));
@@ -7113,27 +7098,26 @@ if (aplicacionesDirectas.length) {
 
     if (impuesto <= 0 && totalPago <= 0) return;
 
-    const dedupeKey = getPagoDedupeKeyParaPeriodo(pago, keys, totalPago, impuesto);
-    const totalPorPeriodo = round2(totalPago / keys.length);
     const impuestoPorPeriodo = round2(impuesto / keys.length);
+    const totalPorPeriodo = round2(totalPago / keys.length);
 
     keys.forEach((key, index) => {
-      const totalImporte = index === keys.length - 1
-        ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
-        : totalPorPeriodo;
-
       const impuestoImporte = index === keys.length - 1
         ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
         : impuestoPorPeriodo;
 
-      const alquilerImporte = round2(totalImporte - impuestoImporte);
+      const totalImporte = index === keys.length - 1
+        ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
+        : totalPorPeriodo;
 
-      addAplicacionReal(
+      impuestoByKey.set(
         key,
-        totalImporte,
-        impuestoImporte,
-        alquilerImporte,
-        `fallback:${dedupeKey}`
+        round2(toNumber(impuestoByKey.get(key)) + impuestoImporte)
+      );
+
+      pagadoTotalByKey.set(
+        key,
+        round2(toNumber(pagadoTotalByKey.get(key)) + totalImporte)
       );
     });
   });
