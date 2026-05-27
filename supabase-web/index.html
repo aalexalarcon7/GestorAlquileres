@@ -14989,17 +14989,29 @@ if (periodoSelect) {
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-        const mediosPago = getPagoMediosFromUI();
-        const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
-        if (!mediosPago.length){
-          if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
-          return;
-        }
 
-        const desglosePrioritario = calcularDesgloseImpuestoPrimero(totalMediosPago, impuestoObjetivo);
-        const amount = desglosePrioritario.total;
-        const impuestoFijo = desglosePrioritario.impuesto;
-        const alquilerBase = desglosePrioritario.alquiler;
+const servicioObjetivo = contratoTieneServicios(modalContrato || selected)
+  ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
+  : 0;
+
+const mediosPago = getPagoMediosFromUI();
+const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
+
+if (!mediosPago.length){
+  if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
+  return;
+}
+
+const desglosePrioritario = calcularDesgloseCobroPrioridad(
+  totalMediosPago,
+  impuestoObjetivo,
+  servicioObjetivo
+);
+
+const amount = desglosePrioritario.total;
+const impuestoFijo = desglosePrioritario.impuesto;
+const servicioFijo = desglosePrioritario.servicio || 0;
+const alquilerBase = desglosePrioritario.alquiler;
 
         if (amount <= 0){
           if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
@@ -15010,8 +15022,9 @@ if (periodoSelect) {
         // Ejemplo: si el impuesto es $5.000 y se cobran $3.000, queda $3.000 a impuesto y $0 a alquiler.
         // Si se cobran $25.000, queda $5.000 a impuesto y $20.000 a alquiler.
         if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(amount);
-        if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
-        if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
+if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
+if ($('mServicioMonto')) $('mServicioMonto').value = servicioFijo > 0 ? formatMoneyInputValue(servicioFijo) : '';
+if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
 
         const medioGeneral = getMedioPagoGeneral(mediosPago);
         const detalleMediosPago = buildMediosPagoDetalle(mediosPago);
