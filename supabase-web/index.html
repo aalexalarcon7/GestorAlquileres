@@ -4770,10 +4770,9 @@ td:last-child{
           inputmode="decimal"
           placeholder="Ej: 25.000"
           style="width:220px; font-weight:800;"
-          oninput="recalcularCobroModal()"
-          onblur="this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : ''; recalcularCobroModal();"
-            >
-        </div>
+          oninput="window.__editandoServicioMonto = true; recalcularCobroModal();"
+          onblur="window.__editandoServicioMonto = false; this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : ''; recalcularCobroModal();"
+          >
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
           <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
@@ -14421,9 +14420,23 @@ const desglose = calcularDesgloseCobroPrioridad(
 
  if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
 if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
-if ($('mImpMonto')) $('mImpMonto').value = impuestoObjetivo > 0 ? formatMoneyInputValue(desglose.impuesto) : '';
-if ($('mServicioMonto')) $('mServicioMonto').value = servicioObjetivo > 0 ? formatMoneyInputValue(desglose.servicio) : '';
-if ($('mImpPct')) $('mImpPct').value = '0';
+if (
+  $('mImpMonto') &&
+  !window.__editandoImpuestoMonto &&
+  document.activeElement !== $('mImpMonto')
+) {
+  $('mImpMonto').value = impuestoObjetivo > 0
+    ? formatMoneyInputValue(desglose.impuesto)
+    : '';
+}if (
+  $('mServicioMonto') &&
+  !window.__editandoServicioMonto &&
+  document.activeElement !== $('mServicioMonto')
+) {
+  $('mServicioMonto').value = servicioObjetivo > 0
+    ? formatMoneyInputValue(desglose.servicio)
+    : '';
+}if ($('mImpPct')) $('mImpPct').value = '0';
 
 const medios = getPagoMediosFromUI();
 if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
