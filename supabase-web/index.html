@@ -6013,38 +6013,107 @@ td:last-child{
       ].join('|');
     }
 
-    function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
-      const impuestoTotal = round2(toNumber(row?.monto_impuesto));
-      if (impuestoTotal <= 0) return;
+    function extractImpuestosPorPeriodoFromDetalle(row={}){
+  const text = String(row?.detalle_aplicacion || row?.observacion || row?.periodo_aplicado || '');
+  const result = new Map();
 
-      let keys = getPeriodSortKeysFromReceiptLike(row);
-      if (targetKey) keys = keys.filter(k => k === targetKey);
-      if (!keys.length) return;
+  if (!text) return result;
 
-      const importePorPeriodo = round2(impuestoTotal / keys.length);
-      keys.forEach((key, index) => {
-        const dedupeKey = receiptImpuestoDedupeKey(row, key);
-        if (maps.seen.has(dedupeKey)) return;
-        maps.seen.add(dedupeKey);
+  // Busca patrones tipo:
+  // 03/2026: impuesto 27000.00
+  // 04/2026: impuesto $27.000,00
+  const regex = /(\d{1,2})\/(\d{4})[\s\S]{0,80}?impuesto\s*\$?\s*([0-9.,]+)/gi;
 
-        const importe = index === keys.length - 1
-          ? round2(impuestoTotal - importePorPeriodo * (keys.length - 1))
-          : importePorPeriodo;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    const mes = Number(match[1]);
+    const anio = Number(match[2]);
+    const monto = parseMoneyToNumber(match[3]);
 
-        const contratoId = String(row?.contrato_id || '').trim();
-        if (contratoId) {
-          const cKey = `${contratoId}|${key}`;
-          maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
-        }
+    if (!anio || !mes || monto <= 0) continue;
 
-        const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
-        const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
-        if (code && name) {
-          const cnKey = `${code}|${name}|${key}`;
-          maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
-        }
-      });
+    const key = `${anio}-${String(mes).padStart(2, '0')}`;
+    result.set(key, round2(toNumber(result.get(key)) + monto));
+  }
+
+  return result;
+}
+
+function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
+  const impuestoTotal = round2(toNumber(row?.monto_impuesto));
+  if (impuestoTotal <= 0) return;
+
+  const impuestosExplicitos = extractImpuestosPorPeriodoFromDetalle(row);
+
+  // Si el recibo tiene detalle explícito por mes, usamos SOLO ese detalle.
+  // Esto evita que un recibo pagado en mayo con período 03/2026 + 04/2026
+  // meta el impuesto total en mayo.
+  if (impuestosExplicitos.size > 0) {
+    const entries = [...impuestosExplicitos.entries()]
+      .filter(([key]) => !targetKey || key === targetKey);
+
+    entries.forEach(([key, importe]) => {
+      const dedupeKey = [
+        row?.id || row?.recibo_id || row?.pago_id || '',
+        row?.contrato_id || '',
+        row?.numero_recibo || row?.recibo_base || row?.referencia || '',
+        key,
+        Number(importe || 0).toFixed(2)
+      ].join('|');
+
+      if (maps.seen.has(dedupeKey)) return;
+      maps.seen.add(dedupeKey);
+
+      const contratoId = String(row?.contrato_id || '').trim();
+      if (contratoId) {
+        const cKey = `${contratoId}|${key}`;
+        maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
+      }
+
+      const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
+      const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
+
+      if (code && name) {
+        const cnKey = `${code}|${name}|${key}`;
+        maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
+      }
+    });
+
+    return;
+  }
+
+  // Fallback viejo solo para recibos sin detalle por mes.
+  let keys = getPeriodSortKeysFromReceiptLike(row);
+  if (targetKey) keys = keys.filter(k => k === targetKey);
+  if (!keys.length) return;
+
+  const importePorPeriodo = round2(impuestoTotal / keys.length);
+
+  keys.forEach((key, index) => {
+    const dedupeKey = receiptImpuestoDedupeKey(row, key);
+    if (maps.seen.has(dedupeKey)) return;
+    maps.seen.add(dedupeKey);
+
+    const importe = index === keys.length - 1
+      ? round2(impuestoTotal - importePorPeriodo * (keys.length - 1))
+      : importePorPeriodo;
+
+    const contratoId = String(row?.contrato_id || '').trim();
+
+    if (contratoId) {
+      const cKey = `${contratoId}|${key}`;
+      maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
     }
+
+    const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
+    const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
+
+    if (code && name) {
+      const cnKey = `${code}|${name}|${key}`;
+      maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
+    }
+  });
+}
 
     async function fetchImpuestosOperativosPeriodo(anio, mes){
       const targetKey = debtSortKeyFromYearMonth(anio, mes);
