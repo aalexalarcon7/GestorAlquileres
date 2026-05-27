@@ -9837,19 +9837,42 @@ setTimeout(() => {
     let lastGlobalQuery = "";
 
     async function refreshContratosActivos(){
-      const { data, error } = await sb
-        .from('contratos')
-        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, servicios_habilitados, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento,)')
-        .eq('estado','ACTIVO');
+  const selectBase = 'id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)';
 
-      if (error){
-        // No cortamos la app si falla, solo dejamos vacío
-        console.warn('refreshContratosActivos:', error.message);
-        contratosActivos = [];
-        return;
-      }
-      contratosActivos = data || [];
+  const selectConServicios = 'id, inquilino_id, monto_mensual, impuesto_mensual, servicios_habilitados, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)';
+
+  let { data, error } = await sb
+    .from('contratos')
+    .select(selectConServicios)
+    .eq('estado','ACTIVO');
+
+  if (error){
+    console.warn('refreshContratosActivos con servicios_habilitados falló:', error.message);
+
+    const fallback = await sb
+      .from('contratos')
+      .select(selectBase)
+      .eq('estado','ACTIVO');
+
+    if (fallback.error){
+      console.warn('refreshContratosActivos fallback:', fallback.error.message);
+      contratosActivos = [];
+      return;
     }
+
+    contratosActivos = (fallback.data || []).map(c => ({
+      ...c,
+      servicios_habilitados: false
+    }));
+
+    return;
+  }
+
+  contratosActivos = (data || []).map(c => ({
+    ...c,
+    servicios_habilitados: c.servicios_habilitados === true
+  }));
+}
 
     async function refreshInquilinosSinContrato(){
       try{
