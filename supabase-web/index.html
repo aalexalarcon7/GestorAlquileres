@@ -5980,27 +5980,39 @@ td:last-child{
     }
 
     function getPeriodSortKeysFromReceiptLike(row={}){
-      const keys = new Set((extractPaymentPeriodSortKeys(row) || []).filter(Boolean));
+  // Primero usamos SIEMPRE los períodos declarados en el recibo/pago.
+  // Ej: periodo_aplicado = "03/2026 + 04/2026"
+  // Eso debe pesar más que fecha_pago, anio o mes.
+  const explicitKeys = new Set((extractPaymentPeriodSortKeys(row) || []).filter(Boolean));
 
-      const anio = Number(row?.anio || 0);
-      const mes = Number(row?.mes || 0);
-      const directKey = debtSortKeyFromYearMonth(anio, mes);
-      if (directKey) keys.add(directKey);
+  if (explicitKeys.size) {
+    return [...explicitKeys];
+  }
 
-      const periodo = String(row?.periodo || row?.periodo_aplicado || '').trim();
-      let m = periodo.match(/^\s*(0?[1-9]|1[0-2])\/(20\d{2})\s*$/);
-      if (m) keys.add(debtSortKeyFromYearMonth(m[2], m[1]));
-      m = periodo.match(/^\s*(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\s*$/);
-      if (m) keys.add(debtSortKeyFromYearMonth(m[1], m[2]));
+  const keys = new Set();
 
-      try {
-        const ym = inferReciboYearMonth(row);
-        const inferredKey = debtSortKeyFromYearMonth(ym?.anio, ym?.mes);
-        if (inferredKey) keys.add(inferredKey);
-      } catch(e){}
+  const anio = Number(row?.anio || 0);
+  const mes = Number(row?.mes || 0);
+  const directKey = debtSortKeyFromYearMonth(anio, mes);
 
-      return [...keys];
-    }
+  if (directKey) keys.add(directKey);
+
+  const periodo = String(row?.periodo || row?.periodo_aplicado || '').trim();
+
+  let m = periodo.match(/^\s*(0?[1-9]|1[0-2])\/(20\d{2})\s*$/);
+  if (m) keys.add(debtSortKeyFromYearMonth(m[2], m[1]));
+
+  m = periodo.match(/^\s*(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\s*$/);
+  if (m) keys.add(debtSortKeyFromYearMonth(m[1], m[2]));
+
+  try {
+    const ym = inferReciboYearMonth(row);
+    const inferredKey = debtSortKeyFromYearMonth(ym?.anio, ym?.mes);
+    if (inferredKey) keys.add(inferredKey);
+  } catch(e){}
+
+  return [...keys];
+}
 
     function receiptImpuestoDedupeKey(row={}, key=''){
       return [
@@ -6116,74 +6128,86 @@ function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
 }
 
     async function fetchImpuestosOperativosPeriodo(anio, mes){
-      const targetKey = debtSortKeyFromYearMonth(anio, mes);
-      const maps = { byContrato:new Map(), byCodeName:new Map(), seen:new Set() };
-      if (!targetKey) return maps;
+  const targetKey = debtSortKeyFromYearMonth(anio, mes);
+  const maps = { byContrato:new Map(), byCodeName:new Map(), seen:new Set() };
 
-      const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
-      const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
-      const rowsByKey = new Map();
+  if (!targetKey) return maps;
 
-      const addRows = (rows=[]) => {
-        (rows || []).forEach(row => {
-          const key = [
-            row?.id || '',
-            row?.contrato_id || '',
-            row?.numero_recibo || row?.recibo_base || row?.referencia || '',
-            row?.fecha_pago || row?.created_at || '',
-            Number(row?.monto_impuesto || 0).toFixed(2)
-          ].join('|');
-          rowsByKey.set(key, row);
-        });
-      };
+  const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
+  const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
 
-      const readQuery = async (builder) => {
-        try{
-          const { data, error } = await builder;
-          if (error){
-            console.warn('No se pudieron leer impuestos filtrados:', error.message || error);
-            return;
-          }
-          addRows(data || []);
-        } catch(e){
-          console.warn('No se pudieron leer impuestos filtrados:', e?.message || e);
-        }
-      };
+  const rowsByKey = new Map();
 
-      // No usamos un select general sin filtro porque Supabase suele limitar a 1000 filas
-      // y los recibos nuevos pueden quedar fuera de esa primera tanda. Traemos solo el período.
-      await readQuery(
-        sb.from('recibos_historicos_operativos')
-          .select(cols)
-          .eq('anio', Number(anio))
-          .eq('mes', Number(mes))
-          .limit(2000)
-      );
+  const rowCorrespondeAlPeriodo = (row) => {
+    const keys = getPeriodSortKeysFromReceiptLike(row);
 
-      await readQuery(
-        sb.from('recibos_historicos_operativos')
-          .select(cols)
-          .ilike('periodo_aplicado', `%${periodoSlash}%`)
-          .limit(2000)
-      );
-
-      await readQuery(
-        sb.from('recibos_historicos_operativos')
-          .select(cols)
-          .ilike('detalle_aplicacion', `%${periodoSlash}%`)
-          .limit(2000)
-      );
-
-      await readQuery(
-        sb.from('recibos_historicos_operativos')
-          .select(cols)
-          .ilike('periodo', `%${periodoSlash}%`)
-          .limit(2000)
-      );
-
-      [...rowsByKey.values()].forEach(row => addImpuestoReceiptToMaps(maps, row, targetKey));
-      return maps;
+    // Si el recibo tiene períodos explícitos, solo entra si incluye el mes consultado.
+    // Ej: 03/2026 + 04/2026 NO puede impactar en 05/2026.
+    if (keys.length) {
+      return keys.includes(targetKey);
     }
+
+    return false;
+  };
+
+  const addRows = (rows=[]) => {
+    (rows || []).forEach(row => {
+      if (!rowCorrespondeAlPeriodo(row)) return;
+
+      const key = [
+        row?.id || '',
+        row?.contrato_id || '',
+        row?.numero_recibo || row?.recibo_base || row?.referencia || '',
+        row?.fecha_pago || row?.created_at || '',
+        Number(row?.monto_impuesto || 0).toFixed(2)
+      ].join('|');
+
+      rowsByKey.set(key, row);
+    });
+  };
+
+  const readQuery = async (builder) => {
+    try{
+      const { data, error } = await builder;
+
+      if (error){
+        console.warn('No se pudieron leer impuestos filtrados:', error.message || error);
+        return;
+      }
+
+      addRows(data || []);
+    } catch(e){
+      console.warn('No se pudieron leer impuestos filtrados:', e?.message || e);
+    }
+  };
+
+  await readQuery(
+    sb.from('recibos_historicos_operativos')
+      .select(cols)
+      .ilike('periodo_aplicado', `%${periodoSlash}%`)
+      .limit(2000)
+  );
+
+  await readQuery(
+    sb.from('recibos_historicos_operativos')
+      .select(cols)
+      .ilike('detalle_aplicacion', `%${periodoSlash}%`)
+      .limit(2000)
+  );
+
+  await readQuery(
+    sb.from('recibos_historicos_operativos')
+      .select(cols)
+      .ilike('periodo', `%${periodoSlash}%`)
+      .limit(2000)
+  );
+
+  [...rowsByKey.values()].forEach(row => {
+    addImpuestoReceiptToMaps(maps, row, targetKey);
+  });
+
+  return maps;
+}
 
     function getImpuestoOperativoForCurrentRow(row={}, entry={}, maps={}, sortKey=''){
       const key = sortKey || debtSortKeyFromYearMonth(row?.anio, row?.mes) || getCurrentDebtSortKey();
