@@ -6567,6 +6567,29 @@ async function fetchCuotasOperativasDirectas(contratoId){
   });
 }
 
+
+async function fetchDetalleMensualOperativoRowsSafe(){
+  const intentos = [
+    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle',
+    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key',
+    'contrato_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado'
+  ];
+
+  for (const columns of intentos) {
+    const { data, error } = await sb
+      .from('vw_detalle_mensual_operativo')
+      .select(columns);
+
+    if (!error) {
+      return data || [];
+    }
+
+    console.warn('vw_detalle_mensual_operativo falló con columnas:', columns, error.message || error);
+  }
+
+  return [];
+}
+
     async function fetchDetalleReconstruidoRows(row){
   const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
   const contratoId = row?.contrato_id || row?.contratoId;
@@ -6584,9 +6607,9 @@ async function fetchCuotasOperativasDirectas(contratoId){
   }
 
   const detalleRows = await fetchSupabaseRowsSafe(
-    'vw_detalle_mensual_operativo',
-    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle'
-  );
+  'vw_detalle_mensual_operativo',
+  'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle'
+);
 
       const sameRow = (item) => {
         const itemCode = normLocalCode(item?.codigo_local || '');
