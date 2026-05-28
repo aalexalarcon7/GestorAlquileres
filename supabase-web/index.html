@@ -6591,100 +6591,6 @@ async function fetchDetalleMensualOperativoRowsSafe(){
 }
 
 
-function buildDetalleRowsFromResumenReconstruido(row){
-  if (!row) return [];
-
-  const rows = [];
-
-  const alquilerActual = toNumber(
-    row.monto_sugerido_2026 ||
-    row.monto_mensual ||
-    row.monto ||
-    row.monto_mes_actual
-  );
-
-  const deuda2025 = toNumber(
-    row.deuda_arrastre_2025 ||
-    row.arrastre_2025
-  );
-
-  const deuda2026 = toNumber(
-    row.deuda_2026 ||
-    row.deuda_total_2026 ||
-    row.deuda_mes_actual ||
-    row.deuda_2026_ene_abr
-  );
-
-  const impuestoActual = toNumber(row.impuesto_mes_actual);
-  const pagadoActual = toNumber(
-    row.pagado_mes_actual_con_impuesto ||
-    row.pagado_mes_actual
-  );
-
-  if (deuda2025 > 0.009) {
-    rows.push({
-      periodo: 'Arrastre 2025',
-      vencimiento: '2025-12-31',
-      total: deuda2025,
-      pagado: 0,
-      impuesto: 0,
-      servicio: 0,
-      monto_servicio: 0,
-      saldo: deuda2025,
-      estado: 'ATRASADO',
-      estado_detalle: 'ATRASADO',
-      dias_atraso: 0,
-      sort_key: '2025-12',
-      origen: 'resumen_reconstruido',
-      fuente_hoja: 'resumen_reconstruido'
-    });
-  }
-
-  if (deuda2026 > 0.009) {
-    const meses2026 = Number(row.meses_con_deuda_2026 || row.meses_deuda_2026_ene_abr || 1);
-    const mesHasta = Math.min(12, Math.max(1, meses2026 || 1));
-
-    rows.push({
-      periodo: `Deuda 2026 hasta ${GA_MONTH_NAMES[mesHasta - 1] || 'mes actual'}`,
-      vencimiento: `2026-${String(mesHasta).padStart(2,'0')}-10`,
-      total: deuda2026 + impuestoActual,
-      pagado: pagadoActual,
-      impuesto: impuestoActual,
-      servicio: 0,
-      monto_servicio: 0,
-      saldo: deuda2026,
-      estado: 'ATRASADO',
-      estado_detalle: 'ATRASADO',
-      dias_atraso: getDetalleDiasAtraso(2026, mesHasta, deuda2026, 'ATRASADO'),
-      sort_key: `2026-${String(mesHasta).padStart(2,'0')}`,
-      origen: 'resumen_reconstruido',
-      fuente_hoja: 'resumen_reconstruido'
-    });
-  }
-
-  if (!rows.length && alquilerActual > 0) {
-    rows.push({
-      periodo: 'Alquiler actual',
-      vencimiento: today(),
-      total: alquilerActual + impuestoActual,
-      pagado: pagadoActual,
-      impuesto: impuestoActual,
-      servicio: 0,
-      monto_servicio: 0,
-      saldo: Math.max(0, alquilerActual + impuestoActual - pagadoActual),
-      estado: 'PENDIENTE',
-      estado_detalle: 'PENDIENTE',
-      dias_atraso: 0,
-      sort_key: today().slice(0,7),
-      origen: 'resumen_reconstruido',
-      fuente_hoja: 'resumen_reconstruido'
-    });
-  }
-
-  return rows;
-}
-
-
     async function fetchDetalleReconstruidoRows(row){
   const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
   const contratoId = row?.contrato_id || row?.contratoId;
@@ -6861,7 +6767,8 @@ if (aplicaciones.length) {
     return [];
   }
 }
-
+    }
+    
     function ensureGeneratedCurrent2026Rows(detalle2026, sourceRow){
       const rows = Array.isArray(detalle2026) ? [...detalle2026] : [];
       const debt = normalizeStagingDebtRow(sourceRow || {});
