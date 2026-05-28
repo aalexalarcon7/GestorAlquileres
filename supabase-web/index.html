@@ -6516,7 +6516,7 @@ async function fetchCuotasOperativasDirectas(contratoId){
 
   let res = await sb
     .from('cuotas_operativas')
-    .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle')
+    .select('id,contrato_id,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle')
     .eq('contrato_id', id)
     .order('anio', { ascending:true })
     .order('mes', { ascending:true });
@@ -6541,137 +6541,52 @@ async function fetchCuotasOperativasDirectas(contratoId){
     const anio = Number(item.anio || 0);
     const mes = Number(item.mes || 0);
     const estado = normalizeDetalleEstado(item);
+    const sortKey = `${anio}-${String(mes || 1).padStart(2,'0')}`;
 
     return {
-      periodo: `${anio} - ${GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
-      vencimiento: `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
+      detalle_id: item.id,
+      id: item.id,
+      contrato_id: item.contrato_id,
+      anio,
+      mes,
+      periodo: item.periodo || `${anio} - ${GA_MONTH_NAMES[(mes || 1) - 1] || mes}`,
+      vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
       total: toNumber(item.monto_total),
       pagado: toNumber(item.monto_pagado),
       saldo: toNumber(item.saldo),
       servicio: toNumber(item.monto_servicio),
       monto_servicio: toNumber(item.monto_servicio),
       servicio_detalle: item.servicio_detalle || '',
+      estado: item.estado || estado,
       estado_detalle: estado,
       dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
-      sort_key: `${anio}-${String(mes || 1).padStart(2,'0')}`,
+      sort_key: sortKey,
       origen: 'cuotas_operativas',
       fuente_hoja: 'cuotas_operativas'
     };
   });
-}
-
-
-
-async function fetchCuotasOperativasDirectas(contratoId){
-  const id = Number(contratoId || 0);
-  if (!id) return [];
-
-  let res = await sb
-    .from('cuotas_operativas')
-    .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle')
-    .eq('contrato_id', id)
-    .order('anio', { ascending:true })
-    .order('mes', { ascending:true });
-
-  if (res.error) {
-    console.warn('cuotas_operativas full falló, probando mínimo:', res.error.message || res.error);
-
-    res = await sb
-      .from('cuotas_operativas')
-      .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,created_at')
-      .eq('contrato_id', id)
-      .order('anio', { ascending:true })
-      .order('mes', { ascending:true });
-  }
-
-  if (res.error) {
-    console.warn('No se pudieron leer cuotas_operativas directo:', res.error.message || res.error);
-    return [];
-  }
-
-  return (res.data || []).map(item => {
-    const anio = Number(item.anio || 0);
-    const mes = Number(item.mes || 0);
-    const estado = normalizeDetalleEstado(item);
-
-    return {
-      periodo: `${anio} - ${GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
-      vencimiento: `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
-      total: toNumber(item.monto_total),
-      pagado: toNumber(item.monto_pagado),
-      saldo: toNumber(item.saldo),
-      servicio: toNumber(item.monto_servicio),
-      monto_servicio: toNumber(item.monto_servicio),
-      servicio_detalle: item.servicio_detalle || '',
-      estado_detalle: estado,
-      dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
-      sort_key: `${anio}-${String(mes || 1).padStart(2,'0')}`,
-      origen: 'cuotas_operativas',
-      fuente_hoja: 'cuotas_operativas'
-    };
-  });
-}
-
-
-async function fetchCuotasOperativasDirectas(contratoId) {
-  if (!contratoId) return [];
-
-  const { data, error } = await supabase
-    .from('cuotas_operativas')
-    .select('*')
-    .eq('contrato_id', contratoId)
-    .order('anio', { ascending: true })
-    .order('mes', { ascending: true });
-
-  if (error) {
-    console.error('Error leyendo cuotas_operativas directas:', error);
-    return [];
-  }
-
-  return data || [];
 }
 
     async function fetchDetalleReconstruidoRows(row){
-    const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
-const contratoId = row?.contrato_id;
-const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
-if (!code && !contratoId && !selectedName) return [];
+  const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
+  const contratoId = row?.contrato_id || row?.contratoId;
+  const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
 
-if (row?.contrato_id || row?.contratoId) {
-  const contratoId = row.contrato_id || row.contratoId;
-  const cuotas = await fetchCuotasOperativasDirectas(contratoId);
+  if (!code && !contratoId && !selectedName) return [];
 
-  if (cuotas.length) {
-    return cuotas.map(c => ({
-      anio: c.anio,
-      mes: c.mes,
-      periodo: c.periodo || `${c.anio}-${String(c.mes).padStart(2, '0')}`,
-      concepto: c.concepto || 'Alquiler',
-      alquiler: Number(c.alquiler || c.monto_alquiler || 0),
-      impuesto: Number(c.impuesto || c.monto_impuesto || 0),
-      total: Number(c.total || c.monto_total || 0),
-      pagado: Number(c.pagado || c.monto_pagado || 0),
-      saldo: Number(c.saldo || c.monto_saldo || 0),
-      estado: c.estado || 'PENDIENTE',
-      fuente: 'cuotas_operativas'
-    }));
+  // Fuente principal para contratos operativos:
+  // usamos cuotas_operativas directo, no la vista vieja.
+  if (canUseOperationalContrato(row) && contratoId) {
+    const cuotasDirectas = await fetchCuotasOperativasDirectas(contratoId);
+    if (cuotasDirectas.length) {
+      return cuotasDirectas;
+    }
   }
-}
 
-// PRIORIDAD REAL:
-// Si tiene contrato operativo, leemos cuotas_operativas directo.
-// No usamos vw_detalle_mensual_operativo porque puede traer montos reconstruidos viejos.
-if (canUseOperationalContrato(row) && contratoId) {
-  const cuotasDirectas = await fetchCuotasOperativasDirectas(contratoId);
-  if (cuotasDirectas.length) {
-    return cuotasDirectas;
-  }
-}
-
-const detalleRows = await fetchSupabaseRowsSafe(
-  'vw_detalle_mensual_operativo',
-  'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key'
-);
+  const detalleRows = await fetchSupabaseRowsSafe(
+    'vw_detalle_mensual_operativo',
+    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle'
+  );
 
       const sameRow = (item) => {
         const itemCode = normLocalCode(item?.codigo_local || '');
