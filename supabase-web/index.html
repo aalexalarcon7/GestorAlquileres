@@ -6613,11 +6613,50 @@ async function fetchCuotasOperativasDirectas(contratoId){
 }
 
 
+async function fetchCuotasOperativasDirectas(contratoId) {
+  if (!contratoId) return [];
+
+  const { data, error } = await supabase
+    .from('cuotas_operativas')
+    .select('*')
+    .eq('contrato_id', contratoId)
+    .order('anio', { ascending: true })
+    .order('mes', { ascending: true });
+
+  if (error) {
+    console.error('Error leyendo cuotas_operativas directas:', error);
+    return [];
+  }
+
+  return data || [];
+}
+
     async function fetchDetalleReconstruidoRows(row){
     const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
 const contratoId = row?.contrato_id;
 const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
 if (!code && !contratoId && !selectedName) return [];
+
+if (row?.contrato_id || row?.contratoId) {
+  const contratoId = row.contrato_id || row.contratoId;
+  const cuotas = await fetchCuotasOperativasDirectas(contratoId);
+
+  if (cuotas.length) {
+    return cuotas.map(c => ({
+      anio: c.anio,
+      mes: c.mes,
+      periodo: c.periodo || `${c.anio}-${String(c.mes).padStart(2, '0')}`,
+      concepto: c.concepto || 'Alquiler',
+      alquiler: Number(c.alquiler || c.monto_alquiler || 0),
+      impuesto: Number(c.impuesto || c.monto_impuesto || 0),
+      total: Number(c.total || c.monto_total || 0),
+      pagado: Number(c.pagado || c.monto_pagado || 0),
+      saldo: Number(c.saldo || c.monto_saldo || 0),
+      estado: c.estado || 'PENDIENTE',
+      fuente: 'cuotas_operativas'
+    }));
+  }
+}
 
 // PRIORIDAD REAL:
 // Si tiene contrato operativo, leemos cuotas_operativas directo.
