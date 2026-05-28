@@ -4684,7 +4684,6 @@ td:last-child{
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
                     <th class="right">Impuesto</th>
-                    <th class="right js-servicio-col">Servicio</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -4763,23 +4762,11 @@ td:last-child{
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="window.__editandoImpuestoMonto = true" onblur="window.__editandoImpuestoMonto = false; recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
-        <div id="mServicioBox" style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
-  <label class="muted" style="font-size:12px;">Servicio a sumar</label>
-  <input
-    id="mServicioMonto"
-    inputmode="decimal"
-    placeholder="Ej: 25.000"
-    style="width:220px; font-weight:800;"
-    oninput="window.__editandoServicioMonto = true; recalcularCobroModal();"
-    onblur="window.__editandoServicioMonto = false; this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : ''; recalcularCobroModal();"
-  >
-</div>
-
-<div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
-  <label class="muted" style="font-size:12px;">Total a cobrar</label>
-  <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
-</div>
+        <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
+          <label class="muted" style="font-size:12px;">Total a cobrar</label>
+          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
+        </div>
+      </div>
 
       <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
         <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
@@ -5980,89 +5967,27 @@ td:last-child{
     }
 
     function getPeriodSortKeysFromReceiptLike(row={}){
-  // Primero usamos SIEMPRE los períodos declarados en el recibo/pago.
-  // Ej: periodo_aplicado = "03/2026 + 04/2026"
-  // Eso debe pesar más que fecha_pago, anio o mes.
-  const explicitKeys = new Set((extractPaymentPeriodSortKeys(row) || []).filter(Boolean));
+      const keys = new Set((extractPaymentPeriodSortKeys(row) || []).filter(Boolean));
 
-  if (explicitKeys.size) {
-    return [...explicitKeys];
-  }
+      const anio = Number(row?.anio || 0);
+      const mes = Number(row?.mes || 0);
+      const directKey = debtSortKeyFromYearMonth(anio, mes);
+      if (directKey) keys.add(directKey);
 
-  const keys = new Set();
+      const periodo = String(row?.periodo || row?.periodo_aplicado || '').trim();
+      let m = periodo.match(/^\s*(0?[1-9]|1[0-2])\/(20\d{2})\s*$/);
+      if (m) keys.add(debtSortKeyFromYearMonth(m[2], m[1]));
+      m = periodo.match(/^\s*(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\s*$/);
+      if (m) keys.add(debtSortKeyFromYearMonth(m[1], m[2]));
 
-  const anio = Number(row?.anio || 0);
-  const mes = Number(row?.mes || 0);
-  const directKey = debtSortKeyFromYearMonth(anio, mes);
+      try {
+        const ym = inferReciboYearMonth(row);
+        const inferredKey = debtSortKeyFromYearMonth(ym?.anio, ym?.mes);
+        if (inferredKey) keys.add(inferredKey);
+      } catch(e){}
 
-  if (directKey) keys.add(directKey);
-
-  const periodo = String(row?.periodo || row?.periodo_aplicado || '').trim();
-
-  let m = periodo.match(/^\s*(0?[1-9]|1[0-2])\/(20\d{2})\s*$/);
-  if (m) keys.add(debtSortKeyFromYearMonth(m[2], m[1]));
-
-  m = periodo.match(/^\s*(20\d{2})-(0?[1-9]|1[0-2])(?:-\d{1,2})?\s*$/);
-  if (m) keys.add(debtSortKeyFromYearMonth(m[1], m[2]));
-
-  try {
-    const ym = inferReciboYearMonth(row);
-    const inferredKey = debtSortKeyFromYearMonth(ym?.anio, ym?.mes);
-    if (inferredKey) keys.add(inferredKey);
-  } catch(e){}
-
-  return [...keys];
-}
-
-function extractExplicitPeriodKeysOnly(row = {}) {
-  const text = String(
-    row?.periodo_aplicado ||
-    row?.detalle_aplicacion ||
-    row?.periodo ||
-    ''
-  );
-
-  const keys = new Set();
-  const regex = /(\d{1,2})\/(20\d{2})/g;
-
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const mes = Number(match[1]);
-    const anio = Number(match[2]);
-    if (!anio || !mes) continue;
-
-    keys.add(`${anio}-${String(mes).padStart(2, '0')}`);
-  }
-
-  return [...keys];
-}
-
-function extractImpuestosExplicitosPorPeriodo(row = {}) {
-  const text = String(
-    row?.detalle_aplicacion ||
-    row?.observacion ||
-    row?.periodo_aplicado ||
-    ''
-  );
-
-  const result = new Map();
-
-  const regex = /(\d{1,2})\/(20\d{2})[\s\S]{0,90}?impuesto\s*\$?\s*([0-9.,]+)/gi;
-
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const mes = Number(match[1]);
-    const anio = Number(match[2]);
-    const monto = round2(parseMoneyToNumber(match[3]));
-
-    if (!anio || !mes || monto <= 0) continue;
-
-    const key = `${anio}-${String(mes).padStart(2, '0')}`;
-    result.set(key, round2(toNumber(result.get(key)) + monto));
-  }
-
-  return result;
-}
+      return [...keys];
+    }
 
     function receiptImpuestoDedupeKey(row={}, key=''){
       return [
@@ -6075,201 +6000,108 @@ function extractImpuestosExplicitosPorPeriodo(row = {}) {
       ].join('|');
     }
 
-    function extractImpuestosPorPeriodoFromDetalle(row={}){
-  const text = String(row?.detalle_aplicacion || row?.observacion || row?.periodo_aplicado || '');
-  const result = new Map();
+    function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
+      const impuestoTotal = round2(toNumber(row?.monto_impuesto));
+      if (impuestoTotal <= 0) return;
 
-  if (!text) return result;
+      let keys = getPeriodSortKeysFromReceiptLike(row);
+      if (targetKey) keys = keys.filter(k => k === targetKey);
+      if (!keys.length) return;
 
-  // Busca patrones tipo:
-  // 03/2026: impuesto 27000.00
-  // 04/2026: impuesto $27.000,00
-  const regex = /(\d{1,2})\/(\d{4})[\s\S]{0,80}?impuesto\s*\$?\s*([0-9.,]+)/gi;
+      const importePorPeriodo = round2(impuestoTotal / keys.length);
+      keys.forEach((key, index) => {
+        const dedupeKey = receiptImpuestoDedupeKey(row, key);
+        if (maps.seen.has(dedupeKey)) return;
+        maps.seen.add(dedupeKey);
 
-  let match;
-  while ((match = regex.exec(text)) !== null) {
-    const mes = Number(match[1]);
-    const anio = Number(match[2]);
-    const monto = parseMoneyToNumber(match[3]);
+        const importe = index === keys.length - 1
+          ? round2(impuestoTotal - importePorPeriodo * (keys.length - 1))
+          : importePorPeriodo;
 
-    if (!anio || !mes || monto <= 0) continue;
+        const contratoId = String(row?.contrato_id || '').trim();
+        if (contratoId) {
+          const cKey = `${contratoId}|${key}`;
+          maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
+        }
 
-    const key = `${anio}-${String(mes).padStart(2, '0')}`;
-    result.set(key, round2(toNumber(result.get(key)) + monto));
-  }
-
-  return result;
-}
-
-function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
-  const impuestoTotal = round2(toNumber(row?.monto_impuesto));
-  if (impuestoTotal <= 0) return;
-
-  const impuestosExplicitos = extractImpuestosExplicitosPorPeriodo(row);
-
-  // Si el recibo dice explícitamente:
-  // 03/2026: impuesto 27000
-  // 04/2026: impuesto 27000
-  // usamos eso y NO el mes del recibo/fecha de pago.
-  if (impuestosExplicitos.size > 0) {
-    [...impuestosExplicitos.entries()].forEach(([key, importe]) => {
-      if (targetKey && key !== targetKey) return;
-
-      const dedupeKey = [
-        row?.id || row?.recibo_id || row?.pago_id || '',
-        row?.contrato_id || '',
-        row?.numero_recibo || row?.recibo_base || row?.referencia || '',
-        key,
-        Number(importe || 0).toFixed(2)
-      ].join('|');
-
-      if (maps.seen.has(dedupeKey)) return;
-      maps.seen.add(dedupeKey);
-
-      const contratoId = String(row?.contrato_id || '').trim();
-
-      if (contratoId) {
-        const cKey = `${contratoId}|${key}`;
-        maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
-      }
-
-      const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
-      const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
-
-      if (code && name) {
-        const cnKey = `${code}|${name}|${key}`;
-        maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
-      }
-    });
-
-    return;
-  }
-
-  // Fallback solo para recibos viejos sin detalle explícito.
-  let keys = extractExplicitPeriodKeysOnly(row);
-
-  if (!keys.length) {
-    keys = getPeriodSortKeysFromReceiptLike(row);
-  }
-
-  if (targetKey) keys = keys.filter(k => k === targetKey);
-  if (!keys.length) return;
-
-  const importePorPeriodo = round2(impuestoTotal / keys.length);
-
-  keys.forEach((key, index) => {
-    const dedupeKey = receiptImpuestoDedupeKey(row, key);
-    if (maps.seen.has(dedupeKey)) return;
-    maps.seen.add(dedupeKey);
-
-    const importe = index === keys.length - 1
-      ? round2(impuestoTotal - importePorPeriodo * (keys.length - 1))
-      : importePorPeriodo;
-
-    const contratoId = String(row?.contrato_id || '').trim();
-
-    if (contratoId) {
-      const cKey = `${contratoId}|${key}`;
-      maps.byContrato.set(cKey, round2(toNumber(maps.byContrato.get(cKey)) + importe));
+        const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
+        const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
+        if (code && name) {
+          const cnKey = `${code}|${name}|${key}`;
+          maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
+        }
+      });
     }
-
-    const code = normLocalCode(row?.codigo_local || row?.local_codigo || '');
-    const name = normalizeDetalleName(row?.nombre_inquilino || row?.inquilino_nombre || '');
-
-    if (code && name) {
-      const cnKey = `${code}|${name}|${key}`;
-      maps.byCodeName.set(cnKey, round2(toNumber(maps.byCodeName.get(cnKey)) + importe));
-    }
-  });
-}
 
     async function fetchImpuestosOperativosPeriodo(anio, mes){
-  const targetKey = debtSortKeyFromYearMonth(anio, mes);
-  const maps = { byContrato:new Map(), byCodeName:new Map(), seen:new Set() };
+      const targetKey = debtSortKeyFromYearMonth(anio, mes);
+      const maps = { byContrato:new Map(), byCodeName:new Map(), seen:new Set() };
+      if (!targetKey) return maps;
 
-  if (!targetKey) return maps;
+      const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
+      const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
+      const rowsByKey = new Map();
 
-  const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
-  const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
+      const addRows = (rows=[]) => {
+        (rows || []).forEach(row => {
+          const key = [
+            row?.id || '',
+            row?.contrato_id || '',
+            row?.numero_recibo || row?.recibo_base || row?.referencia || '',
+            row?.fecha_pago || row?.created_at || '',
+            Number(row?.monto_impuesto || 0).toFixed(2)
+          ].join('|');
+          rowsByKey.set(key, row);
+        });
+      };
 
-  const rowsByKey = new Map();
+      const readQuery = async (builder) => {
+        try{
+          const { data, error } = await builder;
+          if (error){
+            console.warn('No se pudieron leer impuestos filtrados:', error.message || error);
+            return;
+          }
+          addRows(data || []);
+        } catch(e){
+          console.warn('No se pudieron leer impuestos filtrados:', e?.message || e);
+        }
+      };
 
-  const rowCorrespondeAlPeriodo = (row) => {
-    const keys = getPeriodSortKeysFromReceiptLike(row);
+      // No usamos un select general sin filtro porque Supabase suele limitar a 1000 filas
+      // y los recibos nuevos pueden quedar fuera de esa primera tanda. Traemos solo el período.
+      await readQuery(
+        sb.from('recibos_historicos_operativos')
+          .select(cols)
+          .eq('anio', Number(anio))
+          .eq('mes', Number(mes))
+          .limit(2000)
+      );
 
-    // Si el recibo tiene períodos explícitos, solo entra si incluye el mes consultado.
-    // Ej: 03/2026 + 04/2026 NO puede impactar en 05/2026.
-    if (keys.length) {
-      return keys.includes(targetKey);
+      await readQuery(
+        sb.from('recibos_historicos_operativos')
+          .select(cols)
+          .ilike('periodo_aplicado', `%${periodoSlash}%`)
+          .limit(2000)
+      );
+
+      await readQuery(
+        sb.from('recibos_historicos_operativos')
+          .select(cols)
+          .ilike('detalle_aplicacion', `%${periodoSlash}%`)
+          .limit(2000)
+      );
+
+      await readQuery(
+        sb.from('recibos_historicos_operativos')
+          .select(cols)
+          .ilike('periodo', `%${periodoSlash}%`)
+          .limit(2000)
+      );
+
+      [...rowsByKey.values()].forEach(row => addImpuestoReceiptToMaps(maps, row, targetKey));
+      return maps;
     }
-
-    return false;
-  };
-
-  const addRows = (rows=[]) => {
-  (rows || []).forEach(row => {
-    const explicitKeys = extractExplicitPeriodKeysOnly(row);
-
-    // Si el recibo declara períodos, solo puede impactar en esos períodos.
-    // Ej: 03/2026 + 04/2026 NO puede impactar mayo aunque anio/mes sea 2026/5.
-    if (explicitKeys.length && !explicitKeys.includes(targetKey)) {
-      return;
-    }
-
-    const key = [
-      row?.id || '',
-      row?.contrato_id || '',
-      row?.numero_recibo || row?.recibo_base || row?.referencia || '',
-      row?.fecha_pago || row?.created_at || '',
-      Number(row?.monto_impuesto || 0).toFixed(2)
-    ].join('|');
-
-    rowsByKey.set(key, row);
-  });
-};
-
-  const readQuery = async (builder) => {
-    try{
-      const { data, error } = await builder;
-
-      if (error){
-        console.warn('No se pudieron leer impuestos filtrados:', error.message || error);
-        return;
-      }
-
-      addRows(data || []);
-    } catch(e){
-      console.warn('No se pudieron leer impuestos filtrados:', e?.message || e);
-    }
-  };
-
-  await readQuery(
-    sb.from('recibos_historicos_operativos')
-      .select(cols)
-      .ilike('periodo_aplicado', `%${periodoSlash}%`)
-      .limit(2000)
-  );
-
-  await readQuery(
-    sb.from('recibos_historicos_operativos')
-      .select(cols)
-      .ilike('detalle_aplicacion', `%${periodoSlash}%`)
-      .limit(2000)
-  );
-
-  await readQuery(
-    sb.from('recibos_historicos_operativos')
-      .select(cols)
-      .ilike('periodo', `%${periodoSlash}%`)
-      .limit(2000)
-  );
-
-  [...rowsByKey.values()].forEach(row => {
-    addImpuestoReceiptToMaps(maps, row, targetKey);
-  });
-
-  return maps;
-}
 
     function getImpuestoOperativoForCurrentRow(row={}, entry={}, maps={}, sortKey=''){
       const key = sortKey || debtSortKeyFromYearMonth(row?.anio, row?.mes) || getCurrentDebtSortKey();
@@ -6510,109 +6342,17 @@ function addImpuestoReceiptToMaps(maps, row={}, targetKey=''){
       };
     }
 
-async function fetchCuotasOperativasDirectas(contratoId){
-  const id = Number(contratoId || 0);
-  if (!id) return [];
-
-  let res = await sb
-    .from('cuotas_operativas')
-    .select('id,contrato_id,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle')
-    .eq('contrato_id', id)
-    .order('anio', { ascending:true })
-    .order('mes', { ascending:true });
-
-  if (res.error) {
-    console.warn('cuotas_operativas full falló, probando mínimo:', res.error.message || res.error);
-
-    res = await sb
-      .from('cuotas_operativas')
-      .select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,created_at')
-      .eq('contrato_id', id)
-      .order('anio', { ascending:true })
-      .order('mes', { ascending:true });
-  }
-
-  if (res.error) {
-    console.warn('No se pudieron leer cuotas_operativas directo:', res.error.message || res.error);
-    return [];
-  }
-
-  return (res.data || []).map(item => {
-    const anio = Number(item.anio || 0);
-    const mes = Number(item.mes || 0);
-    const estado = normalizeDetalleEstado(item);
-    const sortKey = `${anio}-${String(mes || 1).padStart(2,'0')}`;
-
-    return {
-      detalle_id: item.id,
-      id: item.id,
-      contrato_id: item.contrato_id,
-      anio,
-      mes,
-      periodo: item.periodo || `${anio} - ${GA_MONTH_NAMES[(mes || 1) - 1] || mes}`,
-      vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
-      total: toNumber(item.monto_total),
-      pagado: toNumber(item.monto_pagado),
-      saldo: toNumber(item.saldo),
-      servicio: toNumber(item.monto_servicio),
-      monto_servicio: toNumber(item.monto_servicio),
-      servicio_detalle: item.servicio_detalle || '',
-      estado: item.estado || estado,
-      estado_detalle: estado,
-      dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
-      sort_key: sortKey,
-      origen: 'cuotas_operativas',
-      fuente_hoja: 'cuotas_operativas'
-    };
-  });
-}
-
-
-async function fetchDetalleMensualOperativoRowsSafe(){
-  const intentos = [
-    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle',
-    'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key',
-    'contrato_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado'
-  ];
-
-  for (const columns of intentos) {
-    const { data, error } = await sb
-      .from('vw_detalle_mensual_operativo')
-      .select(columns);
-
-    if (!error) {
-      return data || [];
-    }
-
-    console.warn('vw_detalle_mensual_operativo falló con columnas:', columns, error.message || error);
-  }
-
-  return [];
-}
-
 
     async function fetchDetalleReconstruidoRows(row){
-  const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
-  const contratoId = row?.contrato_id || row?.contratoId;
-  const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
+      const code = normLocalCode(row?.local_codigo || row?.local_code_normalized);
+      const contratoId = row?.contrato_id;
+      const selectedName = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
+      if (!code && !contratoId && !selectedName) return [];
 
-  if (!code && !contratoId && !selectedName) return [];
-
-  // Fuente principal para contratos operativos:
-  // usamos cuotas_operativas directo, no la vista vieja.
-  if (canUseOperationalContrato(row) && contratoId) {
-    const cuotasDirectas = await fetchCuotasOperativasDirectas(contratoId);
-    if (cuotasDirectas.length) {
-      return cuotasDirectas;
-    }
-  }
-
-  const detalleRows = await fetchSupabaseRowsSafe(
-  'vw_detalle_mensual_operativo',
-  'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key,monto_servicio,servicio_detalle'
-);
-
-
+      const detalleRows = await fetchSupabaseRowsSafe(
+        'vw_detalle_mensual_operativo',
+        'detalle_id,contrato_id,codigo_local,nombre_inquilino,anio,mes,mes_nombre,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,sort_key'
+      );
 
       const sameRow = (item) => {
         const itemCode = normLocalCode(item?.codigo_local || '');
@@ -6627,39 +6367,28 @@ async function fetchDetalleMensualOperativoRowsSafe(){
       };
 
       const rows = (detalleRows || [])
-  .filter(sameRow)
-  .map(item => {
-    const anio = Number(item.anio || 0);
-    const mes = Number(item.mes || 0);
-    const estado = normalizeDetalleEstado(item);
+        .filter(sameRow)
+        .map(item => {
+          const anio = Number(item.anio || 0);
+          const mes = Number(item.mes || 0);
+          const estado = normalizeDetalleEstado(item);
+          return {
+            periodo: `${anio} - ${item.mes_nombre || GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
+            vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
+            total: toNumber(item.monto_total),
+            pagado: toNumber(item.monto_pagado),
+            saldo: toNumber(item.saldo),
+            estado_detalle: estado,
+            dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
+            sort_key: item.sort_key || `${anio}-${String(mes || 1).padStart(2,'0')}`,
+            origen: item.origen,
+            fuente_hoja: item.fuente_hoja
+          };
+        })
+        .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
 
-    return {
-      periodo: `${anio} - ${item.mes_nombre || GA_MONTH_NAMES[(mes || 1) - 1] || item.periodo || mes}`,
-      vencimiento: item.vencimiento || `${anio}-${String(mes || 1).padStart(2,'0')}-10`,
-      total: toNumber(item.monto_total),
-      pagado: toNumber(item.monto_pagado),
-      saldo: toNumber(item.saldo),
-      servicio: toNumber(item.monto_servicio),
-      monto_servicio: toNumber(item.monto_servicio),
-      servicio_detalle: item.servicio_detalle || '',
-      estado: item.estado || estado,
-      estado_detalle: estado,
-      dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
-      sort_key: item.sort_key || `${anio}-${String(mes || 1).padStart(2,'0')}`,
-      origen: item.origen,
-      fuente_hoja: item.fuente_hoja
-    };
-  })
-  .sort((a,b) => String(a.sort_key).localeCompare(String(b.sort_key)));
-
-if (rows.length) {
-  return rows;
-}
-
-// Fallback final:
-// si el resumen tiene deuda pero no hay filas de cuotas,
-// armamos una fila visible para no dejar la tabla vacía.
-return buildDetalleRowsFromResumenReconstruido(row);
+      return rows;
+    }
 
     function normalizeDetalleName(value){
       return String(value || '')
@@ -6767,8 +6496,7 @@ if (aplicaciones.length) {
     return [];
   }
 }
-    }
-    
+
     function ensureGeneratedCurrent2026Rows(detalle2026, sourceRow){
       const rows = Array.isArray(detalle2026) ? [...detalle2026] : [];
       const debt = normalizeStagingDebtRow(sourceRow || {});
@@ -7018,7 +6746,6 @@ function parseAplicacionesFromPagoDetalle(pago){
 function applyImpuestosToDebtRows(rows, pagos){
   const detalleRows = Array.isArray(rows) ? rows : [];
 
-  // Limpieza visual antes de recalcular
   detalleRows.forEach(row => {
     row.impuesto = 0;
     row.pagado_total_recibos = 0;
@@ -7034,164 +6761,180 @@ function applyImpuestosToDebtRows(rows, pagos){
       })
     : [];
 
-  const impuestoByKey = new Map();
-  const pagadoTotalByKey = new Map();
-  const vistos = new Set();
-
-  // 1) PRIORIDAD ABSOLUTA:
-  // Si vienen aplicaciones reales desde recibos_aplicaciones_operativas,
-  // usamos SOLO esas y no interpretamos recibos históricos.
-  const aplicacionesReales = pagosActivos.filter(p => {
-    return (
-      p?.fuente_detalle === 'recibos_aplicaciones_operativas' ||
-      (
-        Number(p?.anio) &&
-        Number(p?.mes) &&
-        (
-          Object.prototype.hasOwnProperty.call(p, 'monto_aplicado') ||
-          Object.prototype.hasOwnProperty.call(p, 'monto_alquiler') ||
-          Object.prototype.hasOwnProperty.call(p, 'monto_impuesto')
-        )
-      )
-    );
-  });
-
-  if (aplicacionesReales.length) {
-    aplicacionesReales.forEach(app => {
-      const anio = Number(app?.anio);
-      const mes = Number(app?.mes);
-      if (!anio || !mes) return;
-
-      const key = `${anio}-${String(mes).padStart(2, '0')}`;
-
-      const impuesto = round2(toNumber(app?.monto_impuesto));
-      const alquiler = round2(toNumber(app?.monto_alquiler));
-      const aplicado = round2(
-        toNumber(app?.monto_aplicado) > 0
-          ? toNumber(app?.monto_aplicado)
-          : alquiler + impuesto
-      );
-
-      const dedupeKey = [
-        app?.id || '',
-        app?.recibo_id || '',
-        app?.pago_id || '',
-        app?.contrato_id || '',
-        key,
-        aplicado,
-        impuesto,
-        alquiler
-      ].join('|');
-
-      if (vistos.has(dedupeKey)) return;
-      vistos.add(dedupeKey);
-
-      impuestoByKey.set(
-        key,
-        round2(toNumber(impuestoByKey.get(key)) + impuesto)
-      );
-
-      pagadoTotalByKey.set(
-        key,
-        round2(toNumber(pagadoTotalByKey.get(key)) + aplicado)
-      );
-    });
-
-    detalleRows.forEach(row => {
-      const key = String(row?.sort_key || '').slice(0, 7);
-      row.impuesto = round2(toNumber(impuestoByKey.get(key)));
-      row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
-    });
-
+  if (!pagosActivos.length) {
     return enrichDebtRowsWithImpuestoTotals(detalleRows);
   }
 
-  // 2) Fallback para recibos viejos sin aplicaciones reales
-  function extractAplicacionesExplicitas(pago = {}) {
-    const text = String(
-      pago?.detalle_aplicacion ||
-      pago?.observacion ||
-      pago?.periodo_aplicado ||
-      pago?.periodo ||
-      ''
+  const impuestoByKey = new Map();
+  const pagadoTotalByKey = new Map();
+  const aplicacionesVistas = new Set();
+
+  function esAplicacionDirecta(pago){
+    const anio = Number(pago?.anio);
+    const mes = Number(pago?.mes);
+
+    if (!anio || !mes) return false;
+
+    return (
+      toNumber(pago?.monto_aplicado) > 0 ||
+      toNumber(pago?.monto_alquiler) > 0 ||
+      toNumber(pago?.monto_impuesto) > 0
     );
-
-    const apps = [];
-
-    const regex = /(\d{1,2})\/(20\d{2})[\s\S]{0,90}?impuesto\s*\$?\s*([0-9.,]+)[\s\S]{0,80}?alquiler\s*\$?\s*([0-9.,]+)/gi;
-
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const mes = Number(match[1]);
-      const anio = Number(match[2]);
-      const impuesto = round2(parseMoneyToNumber(match[3]));
-      const alquiler = round2(parseMoneyToNumber(match[4]));
-
-      if (!anio || !mes) continue;
-
-      apps.push({
-        key: `${anio}-${String(mes).padStart(2, '0')}`,
-        impuesto,
-        alquiler,
-        total: round2(impuesto + alquiler)
-      });
-    }
-
-    return apps;
   }
 
-  function extractPeriodosDeclarados(pago = {}) {
-    const text = String(
-      pago?.periodo_aplicado ||
-      pago?.detalle_aplicacion ||
-      pago?.periodo ||
-      ''
+  const aplicacionesDirectas = pagosActivos.filter(esAplicacionDirecta);
+
+// Si existen aplicaciones reales por mes, usamos SOLO esas.
+// No seguimos leyendo pagos ni recibos históricos porque traen el impuesto total del recibo
+// y eso hace que mayo muestre 74.000 en vez de 47.000.
+if (aplicacionesDirectas.length) {
+  aplicacionesDirectas.forEach(pago => {
+    const anio = Number(pago?.anio);
+    const mes = Number(pago?.mes);
+    if (!anio || !mes) return;
+
+    const key = `${anio}-${String(mes).padStart(2, '0')}`;
+
+    const totalDirecto = toNumber(
+      pago?.monto_aplicado ??
+      pago?.monto_total ??
+      pago?.monto
     );
 
-    const keys = new Set();
-    const regex = /(\d{1,2})\/(20\d{2})/g;
+    const impuestoDirecto = toNumber(pago?.monto_impuesto);
+    const alquilerDirecto = toNumber(pago?.monto_alquiler);
 
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const mes = Number(match[1]);
-      const anio = Number(match[2]);
-      if (!anio || !mes) continue;
-      keys.add(`${anio}-${String(mes).padStart(2, '0')}`);
-    }
+    addAplicacionReal(
+      key,
+      totalDirecto,
+      impuestoDirecto,
+      alquilerDirecto,
+      `app-real:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}:${key}`
+    );
+  });
 
-    return [...keys];
+  detalleRows.forEach(row => {
+    const key = String(row?.sort_key || '').slice(0, 7);
+    row.impuesto = round2(toNumber(impuestoByKey.get(key)));
+    row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+  });
+
+  return enrichDebtRowsWithImpuestoTotals(detalleRows);
+}
+
+
+  const directReciboIds = new Set(
+    aplicacionesDirectas
+      .map(p => String(p?.recibo_id || '').trim())
+      .filter(Boolean)
+  );
+
+  const directPagoIds = new Set(
+    aplicacionesDirectas
+      .map(p => String(p?.pago_id || '').trim())
+      .filter(Boolean)
+  );
+
+  function addAplicacionReal(key, total, impuesto, alquiler, identidad){
+    if (!key) return;
+
+    total = round2(toNumber(total));
+    impuesto = round2(toNumber(impuesto));
+    alquiler = round2(toNumber(alquiler));
+
+    if (total <= 0 && impuesto <= 0 && alquiler <= 0) return;
+    if (total <= 0) total = round2(impuesto + alquiler);
+
+    const appKey = [
+      String(identidad || 'sin-id'),
+      key,
+      total,
+      impuesto,
+      alquiler
+    ].join('|');
+
+    if (aplicacionesVistas.has(appKey)) return;
+    aplicacionesVistas.add(appKey);
+
+    pagadoTotalByKey.set(
+      key,
+      round2(toNumber(pagadoTotalByKey.get(key)) + total)
+    );
+
+    impuestoByKey.set(
+      key,
+      round2(toNumber(impuestoByKey.get(key)) + impuesto)
+    );
   }
 
   pagosActivos.forEach(pago => {
-    const apps = extractAplicacionesExplicitas(pago);
+    // 1) Fuente principal: aplicaciones reales de recibos_aplicaciones_operativas.
+    if (esAplicacionDirecta(pago)) {
+      const anio = Number(pago?.anio);
+      const mes = Number(pago?.mes);
+      const key = `${anio}-${String(mes).padStart(2, '0')}`;
+
+      const totalDirecto = toNumber(
+        pago?.monto_aplicado ??
+        pago?.monto_total ??
+        pago?.monto
+      );
+
+      const impuestoDirecto = toNumber(pago?.monto_impuesto);
+      const alquilerDirecto = toNumber(pago?.monto_alquiler);
+
+      addAplicacionReal(
+        key,
+        totalDirecto,
+        impuestoDirecto,
+        alquilerDirecto,
+        `app:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}`
+      );
+
+      return;
+    }
+
+    // Si ya tenemos aplicaciones reales para ese mismo recibo/pago,
+    // NO volvemos a leer pagos ni recibos históricos para no duplicar.
+    const ownId = String(pago?.id || '').trim();
+    const reciboId = String(pago?.recibo_id || '').trim();
+    const pagoId = String(pago?.pago_id || '').trim();
+
+    const yaTieneAplicacionReal =
+      (ownId && directReciboIds.has(ownId)) ||
+      (reciboId && directReciboIds.has(reciboId)) ||
+      (ownId && directPagoIds.has(ownId)) ||
+      (pagoId && directPagoIds.has(pagoId));
+
+    if (yaTieneAplicacionReal) return;
+
+    // 2) Si no hay aplicación directa, usamos el detalle del recibo.
+    const apps = parseAplicacionesFromPagoDetalle(pago);
 
     if (apps.length) {
+      const reciboKey = String(
+        pago?.numero_recibo ||
+        pago?.recibo_base ||
+        pago?.referencia ||
+        pago?.id ||
+        ''
+      ).trim();
+
       apps.forEach(app => {
-        const dedupeKey = [
-          pago?.id || pago?.recibo_id || pago?.pago_id || '',
-          pago?.numero_recibo || pago?.recibo_base || pago?.referencia || '',
+        addAplicacionReal(
           app.key,
-          app.total
-        ].join('|');
-
-        if (vistos.has(dedupeKey)) return;
-        vistos.add(dedupeKey);
-
-        impuestoByKey.set(
-          app.key,
-          round2(toNumber(impuestoByKey.get(app.key)) + app.impuesto)
-        );
-
-        pagadoTotalByKey.set(
-          app.key,
-          round2(toNumber(pagadoTotalByKey.get(app.key)) + app.total)
+          app.total,
+          app.impuesto,
+          app.alquiler,
+          `detalle:${reciboKey}`
         );
       });
 
       return;
     }
 
-    const keys = extractPeriodosDeclarados(pago);
+    // 3) Fallback para recibos/pagos viejos sin detalle.
+    const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
     if (!keys.length) return;
 
     const impuesto = round2(toNumber(pago?.monto_impuesto));
@@ -7199,26 +6942,27 @@ function applyImpuestosToDebtRows(rows, pagos){
 
     if (impuesto <= 0 && totalPago <= 0) return;
 
-    const impuestoPorPeriodo = round2(impuesto / keys.length);
+    const dedupeKey = getPagoDedupeKeyParaPeriodo(pago, keys, totalPago, impuesto);
     const totalPorPeriodo = round2(totalPago / keys.length);
+    const impuestoPorPeriodo = round2(impuesto / keys.length);
 
     keys.forEach((key, index) => {
-      const impuestoImporte = index === keys.length - 1
-        ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
-        : impuestoPorPeriodo;
-
       const totalImporte = index === keys.length - 1
         ? round2(totalPago - totalPorPeriodo * (keys.length - 1))
         : totalPorPeriodo;
 
-      impuestoByKey.set(
-        key,
-        round2(toNumber(impuestoByKey.get(key)) + impuestoImporte)
-      );
+      const impuestoImporte = index === keys.length - 1
+        ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
+        : impuestoPorPeriodo;
 
-      pagadoTotalByKey.set(
+      const alquilerImporte = round2(totalImporte - impuestoImporte);
+
+      addAplicacionReal(
         key,
-        round2(toNumber(pagadoTotalByKey.get(key)) + totalImporte)
+        totalImporte,
+        impuestoImporte,
+        alquilerImporte,
+        `fallback:${dedupeKey}`
       );
     });
   });
@@ -7238,7 +6982,7 @@ function applyImpuestosToDebtRows(rows, pagos){
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="9" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
         return;
       }
 
@@ -7267,15 +7011,12 @@ function applyImpuestosToDebtRows(rows, pagos){
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${fmtARS.format(impuesto)}</td>
-          <td class="right js-servicio-col">${fmtARS.format(toNumber(x.servicio))}</td>
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${Number(x.dias_atraso || 0)}</td>
         `;
         tb.appendChild(tr);
       });
-
-      updateServicioVisibility(selected, rows || []);
     }
 
     function getDisplayedCurrentMonthDebt(row){
@@ -7567,7 +7308,6 @@ window.addEventListener('online', () => {
             inquilino_documento: c.inquilinos?.documento || '',
             inquilino_telefono: c.inquilinos?.telefono || '',
             inquilino_email: c.inquilinos?.email || '',
-            servicios_habilitados: c.servicios_habilitados === true,
             deuda_total: 0,
             deuda_atrasada: 0,
             meses_adeudados: 0,
@@ -8868,7 +8608,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       let cuotaReal = null;
       let readRes = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento,monto_servicio,servicio_detalle')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,vencimiento')
         .eq('contrato_id', selected.contrato_id)
         .eq('anio', targetYear)
         .eq('mes', targetMonth)
@@ -8880,7 +8620,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
         if (/vencimiento|column|schema cache/i.test(msg)) {
           readRes = await sb
             .from('cuotas_operativas')
-            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,monto_servicio,servicio_detalle')
+            .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion')
             .eq('contrato_id', selected.contrato_id)
             .eq('anio', targetYear)
             .eq('mes', targetMonth)
@@ -8944,7 +8684,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
             .eq('mes', targetMonth);
         }
 
-        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion,monto_servicio,servicio_detalle');
+        return query.select('id,contrato_id,anio,mes,periodo,monto_total,monto_pagado,saldo,estado,observacion');
       };
 
       writeRes = await applyUpdate(payloadUpdate);
@@ -9109,10 +8849,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     function recalcularCobroModal(){
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
       const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-      const servicio = contratoTieneServicios(modalContrato || selected)
-      ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
-      : 0;
-      const total = round2(alquiler + impuesto + servicio);
+      const total = round2(alquiler + impuesto);
       const impPct = 0;
 
       if ($('mImpPct')) $('mImpPct').value = '0';
@@ -9122,7 +8859,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
         $('mPeriodoAplicado').title = `Se aplicará a: ${preview}`;
       }
 
-      return { alquiler, impPct:0, impuesto, servicio, total };
+      return { alquiler, impPct, impuesto, total };
     }
 
     function openPagoModalByContrato(contratoId){
@@ -9316,44 +9053,6 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     function getContratoActivoRow(contratoId){
       return contratosActivos.find(c => String(c.id) === String(contratoId)) || null;
     }
-
-    function contratoTieneServicios(row){
-  const contratoId = row?.contrato_id || row?.id;
-  const contrato = getContratoActivoRow(contratoId);
-
-  return (
-    row?.servicios_habilitados === true ||
-    contrato?.servicios_habilitados === true
-  );
-}
-
-function updateServicioVisibility(row, rows=[]){
-  const mostrarServicio =
-    contratoTieneServicios(row) ||
-    (rows || []).some(x => toNumber(x.servicio || x.monto_servicio) > 0);
-
-  document
-    .querySelectorAll('#detalleCard .js-servicio-col')
-    .forEach(el => {
-      el.style.display = mostrarServicio ? '' : 'none';
-    });
-
-  return mostrarServicio;
-}
-
-function updateServicioModalVisibility(row){
-  const mostrarServicio = contratoTieneServicios(row);
-
-  if ($('mServicioBox')) {
-    $('mServicioBox').style.display = mostrarServicio ? 'flex' : 'none';
-  }
-
-  if (!mostrarServicio && $('mServicioMonto')) {
-    $('mServicioMonto').value = '';
-  }
-
-  return mostrarServicio;
-}
 
     function openAlquilerModal(){
       if (!selected?.contrato_id) {
@@ -10121,42 +9820,19 @@ setTimeout(() => {
     let lastGlobalQuery = "";
 
     async function refreshContratosActivos(){
-  const selectBase = 'id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)';
+      const { data, error } = await sb
+        .from('contratos')
+        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
+        .eq('estado','ACTIVO');
 
-  const selectConServicios = 'id, inquilino_id, monto_mensual, impuesto_mensual, servicios_habilitados, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)';
-
-  let { data, error } = await sb
-    .from('contratos')
-    .select(selectConServicios)
-    .eq('estado','ACTIVO');
-
-  if (error){
-    console.warn('refreshContratosActivos con servicios_habilitados falló:', error.message);
-
-    const fallback = await sb
-      .from('contratos')
-      .select(selectBase)
-      .eq('estado','ACTIVO');
-
-    if (fallback.error){
-      console.warn('refreshContratosActivos fallback:', fallback.error.message);
-      contratosActivos = [];
-      return;
+      if (error){
+        // No cortamos la app si falla, solo dejamos vacío
+        console.warn('refreshContratosActivos:', error.message);
+        contratosActivos = [];
+        return;
+      }
+      contratosActivos = data || [];
     }
-
-    contratosActivos = (fallback.data || []).map(c => ({
-      ...c,
-      servicios_habilitados: false
-    }));
-
-    return;
-  }
-
-  contratosActivos = (data || []).map(c => ({
-    ...c,
-    servicios_habilitados: c.servicios_habilitados === true
-  }));
-}
 
     async function refreshInquilinosSinContrato(){
       try{
@@ -14598,7 +14274,7 @@ error = deleteResponse.error;
       // No usamos vistas acá para evitar que un cambio de columnas rompa el botón Cobro.
       const { data, error } = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion,monto_servicio,servicio_detalle')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion')
         .eq('contrato_id', contratoId)
         .order('anio', { ascending:true })
         .order('mes', { ascending:true });
@@ -14687,29 +14363,18 @@ error = deleteResponse.error;
       return round2(medios.reduce((acc, row) => acc + Number(row.monto || 0), 0));
     }
 
-    function calcularDesgloseCobroPrioridad(totalCobrado, impuestoAdeudado, servicioAdeudado){
-  const total = round2(Math.max(toNumber(totalCobrado), 0));
-
-  const impuestoObjetivo = round2(Math.max(toNumber(impuestoAdeudado), 0));
-  const servicioObjetivo = round2(Math.max(toNumber(servicioAdeudado), 0));
-
-  const impuestoAplicado = round2(Math.min(total, impuestoObjetivo));
-  const restanteDespuesImpuesto = round2(Math.max(total - impuestoAplicado, 0));
-
-  const servicioAplicado = round2(Math.min(restanteDespuesImpuesto, servicioObjetivo));
-  const restanteDespuesServicio = round2(Math.max(restanteDespuesImpuesto - servicioAplicado, 0));
-
-  const alquilerAplicado = round2(restanteDespuesServicio);
-
-  return {
-    alquiler: alquilerAplicado,
-    impuesto: impuestoAplicado,
-    servicio: servicioAplicado,
-    impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
-    servicioPendiente: round2(Math.max(servicioObjetivo - servicioAplicado, 0)),
-    total
-  };
-}
+    function calcularDesgloseImpuestoPrimero(totalCobrado, impuestoAdeudado){
+      const total = round2(Math.max(toNumber(totalCobrado), 0));
+      const impuestoObjetivo = round2(Math.max(toNumber(impuestoAdeudado), 0));
+      const impuestoAplicado = round2(Math.min(total, impuestoObjetivo));
+      const alquilerAplicado = round2(Math.max(total - impuestoAplicado, 0));
+      return {
+        alquiler: alquilerAplicado,
+        impuesto: impuestoAplicado,
+        impuestoPendiente: round2(Math.max(impuestoObjetivo - impuestoAplicado, 0)),
+        total
+      };
+    }
 
 
     function syncCobroDesdeMediosPago(){
@@ -14718,49 +14383,40 @@ error = deleteResponse.error;
   // El impuesto SIEMPRE sale del campo "Impuesto a sumar".
   // Nunca sale de efectivo, transferencia, mixto ni de ningún medio de pago.
   const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-const servicioObjetivo = contratoTieneServicios(modalContrato || selected)
-  ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
-  : 0;
 
-const desglose = calcularDesgloseCobroPrioridad(
-  totalMedios,
-  impuestoObjetivo,
-  servicioObjetivo
-);
+  const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
 
- if ($('mTotal')) $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
-if ($('mAlquiler')) $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
-if (
-  $('mImpMonto') &&
-  !window.__editandoImpuestoMonto &&
-  document.activeElement !== $('mImpMonto')
-) {
-  $('mImpMonto').value = impuestoObjetivo > 0
-    ? formatMoneyInputValue(desglose.impuesto)
-    : '';
-}if (
-  $('mServicioMonto') &&
-  !window.__editandoServicioMonto &&
-  document.activeElement !== $('mServicioMonto')
-) {
-  $('mServicioMonto').value = servicioObjetivo > 0
-    ? formatMoneyInputValue(desglose.servicio)
-    : '';
-}if ($('mImpPct')) $('mImpPct').value = '0';
+  if ($('mTotal')) {
+    $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
+  }
 
-const medios = getPagoMediosFromUI();
-if ($('mMedio')) $('mMedio').value = getMedioPagoGeneral(medios);
+  if ($('mAlquiler')) {
+    $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
+  }
 
-updatePagoMediosResumen();
+  // IMPORTANTE:
+  // No tocar mImpMonto acá.
+  // Si se toca, un medio de pago como TRANSFERENCIA $3.400 puede terminar pisando el impuesto.
+  // El campo impuesto debe conservar lo que escribió o sincronizó el usuario.
+  if ($('mImpPct')) {
+    $('mImpPct').value = '0';
+  }
 
-return {
-  alquiler: desglose.alquiler,
-  impPct: 0,
-  impuesto: desglose.impuesto,
-  servicio: desglose.servicio,
-  total: totalMedios
-};
-    }
+  const medios = getPagoMediosFromUI();
+
+  if ($('mMedio')) {
+    $('mMedio').value = getMedioPagoGeneral(medios);
+  }
+
+  updatePagoMediosResumen();
+
+  return {
+    alquiler: desglose.alquiler,
+    impPct: 0,
+    impuesto: desglose.impuesto,
+    total: totalMedios
+  };
+}
 
     function updatePagoMedioRow(uid, field, value, touched=false){
       pagoMediosRows = (pagoMediosRows || []).map(row => row.uid === uid ? { ...row, [field]: value } : row);
@@ -15062,32 +14718,24 @@ return {
     }
 
     function recalcularCobroModal(){
-  const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
-  const servicio = contratoTieneServicios(modalContrato || selected)
-  ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
-  : 0;
+      const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
 
-  const totalMedios = getTotalMediosPago();
-  if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
-    return syncCobroDesdeMediosPago();
-  }
+      // Flujo profesional impuesto-primero:
+      // si hay medios cargados abajo, esa suma es el total real cobrado.
+      // Primero se reserva/descuenta el impuesto y el resto queda como alquiler.
+      // Así el jefe puede cargar primero el impuesto y no duplicar importes arriba.
+      const totalMedios = getTotalMediosPago();
+      if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
+      return syncCobroDesdeMediosPago();
+    }
 
-  const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-  const total = round2(alquiler + impuesto + servicio);
-
-  if ($('mImpPct')) $('mImpPct').value = '0';
-  if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
-
-  syncPagoMediosConTotal(total);
-
-  return {
-    alquiler,
-    impPct: 0,
-    impuesto,
-    servicio,
-    total
-  };
-}
+      const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
+      const total = round2(alquiler + impuesto);
+      if ($('mImpPct')) $('mImpPct').value = '0';
+      if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
+      syncPagoMediosConTotal(total);
+      return { alquiler, impPct:0, impuesto, total };
+    }
 
 async function obtenerUltimoImpuestoActivo(contratoId){
   try {
@@ -15156,7 +14804,6 @@ function syncCobroAlquilerDesdePeriodo(){
         inquilino_nombre: r.inquilino_nombre || contratoBase.nombre_inquilino || contratoBase.inquilino_nombre || contratoBase?.inquilinos?.nombre || '—'
       };
       modalContrato = r;
-      updateServicioModalVisibility(r);
       const modal = $('modalBack');
       if (!modal) return alert('No se encontró el modal de cobro en el HTML.');
       modal.style.display = 'flex';
@@ -15195,9 +14842,6 @@ if ($('mImpMonto')) {
     : '';
 }
 
-if ($('mServicioMonto')) $('mServicioMonto').value = '';
-updateServicioModalVisibility(r);
-
 // Una vez que el selector ya tiene el mes correcto,
 // sincronizamos el alquiler con el saldo real de esa cuota.
 syncCobroAlquilerDesdePeriodo();
@@ -15229,29 +14873,17 @@ if (periodoSelect) {
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+        const mediosPago = getPagoMediosFromUI();
+        const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
+        if (!mediosPago.length){
+          if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
+          return;
+        }
 
-const servicioObjetivo = contratoTieneServicios(modalContrato || selected)
-  ? (parseMoneyToNumber($('mServicioMonto')?.value || '') || 0)
-  : 0;
-
-const mediosPago = getPagoMediosFromUI();
-const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
-
-if (!mediosPago.length){
-  if (msgEl) msgEl.textContent = 'Agregá al menos un medio de pago.';
-  return;
-}
-
-const desglosePrioritario = calcularDesgloseCobroPrioridad(
-  totalMediosPago,
-  impuestoObjetivo,
-  servicioObjetivo
-);
-
-const amount = desglosePrioritario.total;
-const impuestoFijo = desglosePrioritario.impuesto;
-const servicioFijo = desglosePrioritario.servicio || 0;
-const alquilerBase = desglosePrioritario.alquiler;
+        const desglosePrioritario = calcularDesgloseImpuestoPrimero(totalMediosPago, impuestoObjetivo);
+        const amount = desglosePrioritario.total;
+        const impuestoFijo = desglosePrioritario.impuesto;
+        const alquilerBase = desglosePrioritario.alquiler;
 
         if (amount <= 0){
           if (msgEl) msgEl.textContent = 'Ingresá un monto mayor a 0.';
@@ -15262,9 +14894,8 @@ const alquilerBase = desglosePrioritario.alquiler;
         // Ejemplo: si el impuesto es $5.000 y se cobran $3.000, queda $3.000 a impuesto y $0 a alquiler.
         // Si se cobran $25.000, queda $5.000 a impuesto y $20.000 a alquiler.
         if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(amount);
-if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
-if ($('mServicioMonto')) $('mServicioMonto').value = servicioFijo > 0 ? formatMoneyInputValue(servicioFijo) : '';
-if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
+        if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
+        if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
 
         const medioGeneral = getMedioPagoGeneral(mediosPago);
         const detalleMediosPago = buildMediosPagoDetalle(mediosPago);
