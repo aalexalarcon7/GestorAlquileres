@@ -14820,6 +14820,68 @@ if (periodoSelect) {
 }
     }
     
+    // ─────────────────────────────────────────────────────────────────────────
+    // POST-COBRO: corrige recibos_aplicaciones_operativas
+    //
+    // El RPC registrar_cobro_operativo_v4_multipago calcula correctamente la
+    // distribución mes-a-mes (impuesto + alquiler) y la devuelve en el campo
+    // detalle_aplicacion con el formato:
+    //   "03/2026: impuesto 27000.00 / alquiler 180300.00 | 04/2026: ..."
+    //
+    // Sin embargo, las filas que inserta en recibos_aplicaciones_operativas
+    // pueden quedar con meses incorrectos (ej: todo el impuesto en un mes,
+    // o una fila fantasma en el mes siguiente). Esta función:
+    //   1) Borra las filas que el RPC creó para este pago_id.
+    //   2) Recrea las filas correctas basándose en el texto que devolvió el RPC.
+    //
+    // Si la tabla no existe o falla, el error se silencia (log) para no romper
+    // el cobro que ya se guardó.
+    // ─────────────────────────────────────────────────────────────────────────
+    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto) {
+      if (!pagoId || !contratoId) return;
+
+      // Parsear el texto que devolvió el RPC:
+      // "03/2026: impuesto 27000.00 / alquiler 180300.00 | 04/2026: impuesto 27000.00 / alquiler 146000.00"
+      const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
+      if (!apps.length) return;
+
+      try {
+        await sb.from('recibos_aplicaciones_operativas')
+          .delete()
+          .eq('contrato_id', contratoId)
+          .eq('pago_id', pagoId);
+      } catch (e) {
+        console.warn('[GA] No se pudo limpiar aplicaciones previas del pago:', e?.message || e);
+      }
+
+      const rows = apps.map(app => {
+        const anio = Number(app.key.slice(0, 4));
+        const mes  = Number(app.key.slice(5, 7));
+        return {
+          contrato_id: contratoId,
+          pago_id: pagoId,
+          anio,
+          mes,
+          periodo: `${String(mes).padStart(2, '0')}/${anio}`,
+          monto_aplicado: round2(app.total),
+          monto_alquiler: round2(app.alquiler),
+          monto_impuesto: round2(app.impuesto),
+          created_at: new Date().toISOString()
+        };
+      });
+
+      try {
+        const { error } = await sb.from('recibos_aplicaciones_operativas').insert(rows);
+        if (error) {
+          console.warn('[GA] No se pudo insertar aplicaciones corregidas:', error.message || error);
+        } else {
+          console.info('[GA] Aplicaciones post-cobro corregidas:', rows.map(r => `${r.mes}/${r.anio}: alq=${r.monto_alquiler} imp=${r.monto_impuesto}`).join(' | '));
+        }
+      } catch (e) {
+        console.warn('[GA] Error insertando aplicaciones corregidas:', e?.message || e);
+      }
+    }
+
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
@@ -14984,6 +15046,21 @@ const metadataPatch = await forceCobroReceiptMetadata({
   periodoTexto: periodoRegistrado,
   detalleAplicacion: descripcionFinalRecibo
 });
+
+// ── Corrección post-cobro ──────────────────────────────────────────────────
+// El pago_id recién creado viene de forceCobroReceiptMetadata (que busca el
+// pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
+// usando el texto de distribución que el propio RPC calculó correctamente.
+const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
+const pagoIdRecien = metadataPatch?.pago_id;
+if (pagoIdRecien && distribucionRpc) {
+  await fixAplicacionesOperativasPostCobro(
+    Number(modalContrato.contrato_id),
+    pagoIdRecien,
+    distribucionRpc
+  );
+}
+// ──────────────────────────────────────────────────────────────────────────
 
         if (msgEl) {
           const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
