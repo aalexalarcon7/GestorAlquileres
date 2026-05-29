@@ -14837,59 +14837,140 @@ if (periodoSelect) {
     // Si la tabla no existe o falla, el error se silencia (log) para no romper
     // el cobro que ya se guardó.
     // ─────────────────────────────────────────────────────────────────────────
-    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto) {
+    // ─────────────────────────────────────────────────────────────────────────
+    // fixAplicacionesOperativasPostCobro v2
+    //
+    // El RPC siempre aplica el impuesto mensual completo a cada mes que cubre,
+    // sin verificar si ese mes ya tiene impuesto pagado de antes.
+    // Ejemplo: Febrero ya tiene $27k pagado → el RPC le suma $27k más → aparece
+    // doble ($54k) y el exceso flota hacia Mayo de forma incorrecta.
+    //
+    // Esta versión corrige eso:
+    //   1) Lee las filas VIEJAS de recibos_aplicaciones_operativas (de antes del
+    //      RPC actual) para saber cuánto impuesto ya se pagó por mes.
+    //   2) Ajusta la distribución del RPC: si un mes ya tiene el impuesto cubierto,
+    //      el exceso se reencamina como alquiler del mes siguiente (carryover).
+    //   3) Borra las filas NUEVAS (creadas por el RPC) y reemplaza con las correctas.
+    //
+    // Parámetros:
+    //   contratoId    — ID del contrato
+    //   pagoId        — ID del pago recién creado (puede ser null)
+    //   detalleTexto  — texto devuelto por el RPC con la distribución mensual
+    //   rpcStartTs    — Date.now() justo antes de llamar al RPC
+    // ─────────────────────────────────────────────────────────────────────────
+    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto, rpcStartTs) {
       if (!contratoId) return;
 
-      // Parsear distribución del texto del RPC:
-      // "03/2026: impuesto 27000.00 / alquiler 180300.00 | 04/2026: impuesto 27000.00 / alquiler 146000.00"
+      // Parsear distribución del RPC:
+      // "02/2026: impuesto 27000.00 / alquiler 218900.00 | 03/2026: impuesto 27000.00 / alquiler 27100.00"
       const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
       if (!apps.length) return;
 
-      // Ventana de tiempo: eliminamos las filas creadas en los últimos 90 segundos para
-      // este contrato. El RPC puede crear filas con pago_id=NULL (vinculadas solo por
-      // recibo_id), por eso no alcanza con borrar solo por pago_id.
-      const cutoff = new Date(Date.now() - 90000).toISOString();
+      // Timestamp seguro: 5 segundos antes de que arrancara el RPC.
+      // Filas con created_at < safeTs son "viejas" (pagos anteriores).
+      // Filas con created_at >= safeTs son "nuevas" (del RPC actual, posiblemente incorrectas).
+      const safeTs = new Date((Number(rpcStartTs) || Date.now()) - 5000).toISOString();
 
+      // ── Paso 1: leer impuesto ya pagado por mes (solo filas VIEJAS) ──────────
+      const impuestoPorMes = new Map();
       try {
-        // Estrategia 1: borrar por pago_id (preciso, si existe)
+        const { data: oldRows } = await sb
+          .from('recibos_aplicaciones_operativas')
+          .select('anio, mes, monto_impuesto, deleted_at')
+          .eq('contrato_id', contratoId)
+          .lt('created_at', safeTs);
+
+        (oldRows || [])
+          .filter(r => !r.deleted_at)
+          .forEach(r => {
+            const k = `${Number(r.anio)}-${String(Number(r.mes)).padStart(2,'0')}`;
+            impuestoPorMes.set(k, round2((impuestoPorMes.get(k) || 0) + toNumber(r.monto_impuesto)));
+          });
+      } catch (e) {
+        console.warn('[GA] No se pudo leer impuesto histórico:', e?.message || e);
+      }
+
+      // ── Paso 2: calcular distribución ajustada ───────────────────────────────
+      // Regla: si un mes ya tiene todo su impuesto cubierto, el exceso pasa como
+      // alquiler al mes siguiente (carryover). Así el total de la distribución
+      // se conserva y la deuda de cada mes queda correcta.
+      let carryOver = 0;
+      const adjusted = [];
+
+      for (const app of apps) {
+        const existingImp = round2(toNumber(impuestoPorMes.get(app.key) || 0));
+        const rpcImp      = round2(app.impuesto);
+        const rpcAlq      = round2(app.alquiler);
+
+        // Cuánto impuesto realmente le falta a este mes
+        const impNecesario = round2(Math.max(0, rpcImp - existingImp));
+        // Cuánto impuesto el RPC asignó de más (ya estaba pagado)
+        const impExceso    = round2(rpcImp - impNecesario);
+
+        // El alquiler de este mes + lo que sobró del mes anterior
+        const alqReal  = round2(rpcAlq + carryOver);
+        const aplicado = round2(impNecesario + alqReal);
+
+        carryOver = impExceso; // lo que no se pudo aplicar pasa al siguiente mes
+
+        const anio = Number(app.key.slice(0, 4));
+        const mes  = Number(app.key.slice(5, 7));
+
+        if (aplicado > 0.009 || impNecesario > 0.009) {
+          adjusted.push({ anio, mes, monto_impuesto: impNecesario, monto_alquiler: alqReal, monto_aplicado: aplicado });
+        }
+      }
+
+      // Si queda carryover al final, agregar al último mes como alquiler extra
+      if (carryOver > 0.009 && adjusted.length > 0) {
+        const last = adjusted[adjusted.length - 1];
+        last.monto_alquiler  = round2(last.monto_alquiler + carryOver);
+        last.monto_aplicado  = round2(last.monto_impuesto + last.monto_alquiler);
+      }
+
+      const distribuciones = adjusted.filter(d => d.monto_aplicado > 0.009 || d.monto_impuesto > 0.009 || d.monto_alquiler > 0.009);
+      if (!distribuciones.length) return;
+
+      // ── Paso 3: borrar filas NUEVAS (incorrectas del RPC) ────────────────────
+      try {
         if (pagoId) {
           await sb.from('recibos_aplicaciones_operativas')
             .delete()
             .eq('contrato_id', contratoId)
             .eq('pago_id', pagoId);
         }
-        // Estrategia 2: borrar filas recientes de este contrato (captura filas con pago_id=NULL)
+        // También borra filas recientes sin pago_id (RPC a veces las crea con NULL)
         await sb.from('recibos_aplicaciones_operativas')
           .delete()
           .eq('contrato_id', contratoId)
-          .gte('created_at', cutoff);
+          .gte('created_at', safeTs);
       } catch (e) {
-        console.warn('[GA] No se pudo limpiar aplicaciones previas:', e?.message || e);
+        console.warn('[GA] No se pudo limpiar aplicaciones incorrectas:', e?.message || e);
       }
 
+      // ── Paso 4: insertar filas correctas ─────────────────────────────────────
       const ts = new Date().toISOString();
-      const rows = apps.map(app => {
-        const anio = Number(app.key.slice(0, 4));
-        const mes  = Number(app.key.slice(5, 7));
-        return {
-          contrato_id: contratoId,
-          pago_id: pagoId || null,
-          anio,
-          mes,
-          periodo: `${String(mes).padStart(2, '0')}/${anio}`,
-          monto_aplicado: round2(app.total),
-          monto_alquiler: round2(app.alquiler),
-          monto_impuesto: round2(app.impuesto),
-          created_at: ts
-        };
-      });
+      const rows = distribuciones.map(d => ({
+        contrato_id:    contratoId,
+        pago_id:        pagoId || null,
+        anio:           d.anio,
+        mes:            d.mes,
+        periodo:        `${String(d.mes).padStart(2, '0')}/${d.anio}`,
+        monto_aplicado: d.monto_aplicado,
+        monto_alquiler: d.monto_alquiler,
+        monto_impuesto: d.monto_impuesto,
+        created_at:     ts
+      }));
 
       try {
         const { error } = await sb.from('recibos_aplicaciones_operativas').insert(rows);
         if (error) {
           console.warn('[GA] No se pudo insertar aplicaciones corregidas:', error.message || error);
         } else {
-          console.info('[GA] Aplicaciones post-cobro corregidas:', rows.map(r => `${r.mes}/${r.anio}: alq=${r.monto_alquiler} imp=${r.monto_impuesto}`).join(' | '));
+          console.info(
+            '[GA] Aplicaciones post-cobro corregidas:',
+            rows.map(r => `${r.mes}/${r.anio}: imp=$${r.monto_impuesto} alq=$${r.monto_alquiler}`).join(' | ')
+          );
         }
       } catch (e) {
         console.warn('[GA] Error insertando aplicaciones corregidas:', e?.message || e);
@@ -14992,6 +15073,7 @@ if (periodoSelect) {
           p_impuesto_mensual: impuestoObjetivo
         };
 
+        const rpcStartTs = Date.now(); // marca de tiempo para separar filas viejas de nuevas
         const v4Response = await sb.rpc('registrar_cobro_operativo_v4_multipago', argsV4);
 
 data = v4Response.data;
@@ -15067,14 +15149,12 @@ const metadataPatch = await forceCobroReceiptMetadata({
 // usando el texto de distribución que el propio RPC calculó correctamente.
 const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
 const pagoIdRecien = metadataPatch?.pago_id || null;
-// Corregimos siempre que tengamos distribución, aunque no tengamos pago_id.
-// La nueva versión de fixAplicacionesOperativasPostCobro usa borrado por recencia
-// además de borrado por pago_id, lo que captura filas con pago_id=NULL del RPC.
 if (distribucionRpc) {
   await fixAplicacionesOperativasPostCobro(
     Number(modalContrato.contrato_id),
     pagoIdRecien,
-    distribucionRpc
+    distribucionRpc,
+    rpcStartTs  // ← timestamp antes del RPC, separa filas viejas de nuevas
   );
 }
 // ──────────────────────────────────────────────────────────────────────────
