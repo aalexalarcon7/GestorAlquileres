@@ -14838,35 +14838,49 @@ if (periodoSelect) {
     // el cobro que ya se guardó.
     // ─────────────────────────────────────────────────────────────────────────
     async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto) {
-      if (!pagoId || !contratoId) return;
+      if (!contratoId) return;
 
-      // Parsear el texto que devolvió el RPC:
+      // Parsear distribución del texto del RPC:
       // "03/2026: impuesto 27000.00 / alquiler 180300.00 | 04/2026: impuesto 27000.00 / alquiler 146000.00"
       const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
       if (!apps.length) return;
 
+      // Ventana de tiempo: eliminamos las filas creadas en los últimos 90 segundos para
+      // este contrato. El RPC puede crear filas con pago_id=NULL (vinculadas solo por
+      // recibo_id), por eso no alcanza con borrar solo por pago_id.
+      const cutoff = new Date(Date.now() - 90000).toISOString();
+
       try {
+        // Estrategia 1: borrar por pago_id (preciso, si existe)
+        if (pagoId) {
+          await sb.from('recibos_aplicaciones_operativas')
+            .delete()
+            .eq('contrato_id', contratoId)
+            .eq('pago_id', pagoId);
+        }
+        // Estrategia 2: borrar filas recientes de este contrato (captura filas con pago_id=NULL)
         await sb.from('recibos_aplicaciones_operativas')
           .delete()
           .eq('contrato_id', contratoId)
-          .eq('pago_id', pagoId);
+          .gte('created_at', cutoff);
       } catch (e) {
-        console.warn('[GA] No se pudo limpiar aplicaciones previas del pago:', e?.message || e);
+        console.warn('[GA] No se pudo limpiar aplicaciones previas:', e?.message || e);
       }
 
+      const ts = new Date().toISOString();
       const rows = apps.map(app => {
         const anio = Number(app.key.slice(0, 4));
         const mes  = Number(app.key.slice(5, 7));
         return {
           contrato_id: contratoId,
-          pago_id: pagoId,
+          pago_id: pagoId || null,
           anio,
           mes,
           periodo: `${String(mes).padStart(2, '0')}/${anio}`,
           monto_aplicado: round2(app.total),
           monto_alquiler: round2(app.alquiler),
           monto_impuesto: round2(app.impuesto),
-          created_at: new Date().toISOString()
+          created_at: ts
         };
       });
 
@@ -15052,8 +15066,11 @@ const metadataPatch = await forceCobroReceiptMetadata({
 // pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
 // usando el texto de distribución que el propio RPC calculó correctamente.
 const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
-const pagoIdRecien = metadataPatch?.pago_id;
-if (pagoIdRecien && distribucionRpc) {
+const pagoIdRecien = metadataPatch?.pago_id || null;
+// Corregimos siempre que tengamos distribución, aunque no tengamos pago_id.
+// La nueva versión de fixAplicacionesOperativasPostCobro usa borrado por recencia
+// además de borrado por pago_id, lo que captura filas con pago_id=NULL del RPC.
+if (distribucionRpc) {
   await fixAplicacionesOperativasPostCobro(
     Number(modalContrato.contrato_id),
     pagoIdRecien,
