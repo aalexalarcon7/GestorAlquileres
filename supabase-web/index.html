@@ -6740,14 +6740,22 @@ row.pagado_con_impuesto = round2(pagadoBase + impuesto);
       row.estado_detalle = 'PAGADO';
       row.saldo_con_impuesto = 0;
       row.dias_atraso = 0;
-    } else if (
-      estadoBase.includes('PARCIAL') ||
-      pagadoBase > 0.009 ||
-      pagadoSegunRecibos > 0.009
-    ) {
-      row.estado_detalle = 'PARCIAL';
     } else {
-      row.estado_detalle = 'PENDIENTE';
+      // El impuesto pagado NO debe convertir una cuota pendiente en PARCIAL.
+      // Solo el alquiler efectivamente abonado determina si es PARCIAL.
+      // Ejemplo: si pagado_total_recibos = $54.000 pero todo es impuesto,
+      // pagadoAlquilerRecibos = 0 → la cuota sigue PENDIENTE (no PARCIAL).
+      const pagadoAlquilerRecibos = round2(Math.max(0, pagadoSegunRecibos - impuesto));
+      if (
+        estadoBase.includes('PARCIAL') ||
+        pagadoBase > 0.009 ||
+        pagadoAlquilerRecibos > 0.009
+      ) {
+        row.estado_detalle = 'PARCIAL';
+      } else {
+        // Si hay días de atraso con saldo pendiente → ATRASADO, si no → PENDIENTE.
+        row.estado_detalle = (row.dias_atraso > 0) ? 'ATRASADO' : 'PENDIENTE';
+      }
     }
   });
 
@@ -7061,16 +7069,18 @@ if (aplicacionesDirectas.length) {
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center">Sin detalle de deuda disponible.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="8" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
         return;
       }
 
       rows.forEach(x => {
         const estado = x.estado_detalle || x.estado || '—';
         let cls = 'b-info';
-        if (String(estado).includes('ATRASAD') || String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
+        if (String(estado).includes('ATRASAD')) cls = 'b-bad';
+        else if (String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
         else if (String(estado).includes('PARCIAL')) cls = 'b-warn';
-        else if (String(estado).includes('SALDADA') || String(estado).includes('PAGA')) cls = 'b-ok';
+        else if (String(estado).includes('SALDADA') || String(estado).includes('PAGAD')) cls = 'b-ok';
+        else if (String(estado).includes('VENCE')) cls = 'b-warn';
 
         const impuesto = toNumber(x.impuesto);
         const totalDisplay = Number.isFinite(Number(x.total_con_impuesto))
@@ -7083,16 +7093,25 @@ if (aplicacionesDirectas.length) {
           ? toNumber(x.saldo_con_impuesto)
           : round2(Math.max(0, totalDisplay - pagadoDisplay));
 
+        const diasAtraso = Number(x.dias_atraso || 0);
+        const diasCell = diasAtraso > 0
+          ? `<span style="color:var(--bad);font-weight:900;">${diasAtraso}d</span>`
+          : `<span class="muted">—</span>`;
+
+        const impuestoCell = impuesto > 0
+          ? fmtARS.format(impuesto)
+          : `<span class="muted">—</span>`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
           <td>${String(x.vencimiento || '—').slice(0,10)}</td>
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
-          <td class="right">${fmtARS.format(impuesto)}</td>
+          <td class="right">${impuestoCell}</td>
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
-          <td class="center">${Number(x.dias_atraso || 0)}</td>
+          <td class="center">${diasCell}</td>
         `;
         tb.appendChild(tr);
       });
@@ -8983,148 +9002,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       modalContrato = null;
     }
 
-    async function registrarPagoModal(){
-      const msgEl = $('modalMsg');
-      if (!modalContrato) return;
-      msgEl.textContent = 'Procesando cobro...';
-
-      try{
-        const fecha = $('mFecha').value || today();
-        const medio = $('mMedio').value;
-        const referencia = String($('mReferencia')?.value || '').trim();
-        const descripcionPago = String($('mDescripcion')?.value || '').trim();
-
-        const alquilerStr = parseMoneyToDecimalString($('mAlquiler')?.value || '');
-        const impuestoStr = parseMoneyToDecimalString($('mImpMonto')?.value || '') || '0.00';
-        const impPct = 0;
-
-        if (!alquilerStr){
-          msgEl.textContent = 'Monto de alquiler inválido.';
-          return;
-        }
-
-        const alquilerNum = Number(alquilerStr);
-        const impuestoNum = Number(impuestoStr);
-        if (impuestoNum < 0){
-          msgEl.textContent = 'El impuesto a sumar no puede ser negativo.';
-          return;
-        }
-        const totalNum = round2(alquilerNum + impuestoNum);
-
-        const montoAlquiler = alquilerNum.toFixed(2);
-        const montoImpuesto = impuestoNum.toFixed(2);
-        const montoTotal = totalNum.toFixed(2);
-
-        if (Number(montoTotal) <= 0){
-          msgEl.textContent = 'El total a cobrar debe ser mayor a 0.';
-          return;
-        }
-
-        if (!canUseOperationalContrato(modalContrato)){
-          msgEl.textContent = 'Este activo no tiene contrato operativo para registrar el cobro.';
-          return;
-        }
-
-        const selectedPeriodChoice = getSelectedPaymentPeriodChoice();
-        const applicationPlan = await buildPaymentApplicationPlan(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
-        const periodoAplicado = applicationPlan.label || getPaymentApplicationPreview(modalContrato, alquilerNum, fecha, selectedPeriodChoice);
-
-        const paymentPayload = {
-          contrato_id: modalContrato.contrato_id,
-          fecha_pago: fecha,
-          monto: Number(montoTotal),
-          medio,
-          referencia: referencia || null,
-          monto_alquiler: Number(montoAlquiler),
-          monto_impuesto: Number(montoImpuesto),
-          impuesto_porcentaje: 0,
-          periodo_aplicado: periodoAplicado,
-          detalle_aplicacion: applicationPlan.detalle || periodoAplicado
-        };
-
-        msgEl.textContent = `Guardando pago e imputando a ${periodoAplicado}...`;
-
-        const { pago, via, rpcRow } = await ensurePagoRegistrado(paymentPayload);
-        const pagoId = pago?.id || rpcRow?.pago_id || rpcRow?.id || null;
-
-        try{
-          await applyPaymentPlanToStaging(applicationPlan);
-        } catch (applyError){
-          console.error('Pago guardado, pero no se pudo aplicar a deuda/staging:', applyError);
-          msgEl.textContent = `El pago se guardó, pero no se pudo bajar la deuda: ${applyError.message || applyError}`;
-          return;
-        }
-
-        const reciboNumero = referencia || buildReciboNumero({
-          id: pagoId,
-          fecha_pago: fecha,
-          referencia: pago?.referencia || referencia || null
-        }, true);
-
-        const descripcionFinal = [
-          descripcionPago,
-          `Aplicado a: ${periodoAplicado}`
-        ].filter(Boolean).join(' · ');
-
-        const generatedRecibo = buildReciboPreviewData({
-          pagoId,
-          fecha,
-          medio,
-          referencia: referencia || reciboNumero,
-          reciboNumero,
-          alquilerNum,
-          impuestoNum,
-          impPct,
-          totalNum,
-          contratoId: modalContrato.contrato_id,
-          descripcionPago: descripcionFinal,
-          periodoAplicado,
-          detalleAplicacion: applicationPlan.detalle || periodoAplicado
-        });
-
-        msgEl.textContent = `Pago registrado exitosamente ✅ | ${reciboNumero} | ${periodoAplicado} | Total: ${fmtARS.format(totalNum)}`;
-
-        const generatedReciboKey = getReciboKey(generatedRecibo) || String(generatedRecibo.numero_recibo || `tmp-${Date.now()}`);
-        generatedRecibo.__cache_key = generatedReciboKey;
-        reciboActual = generatedRecibo;
-
-        paymentDescriptionMap[generatedReciboKey] = String(generatedRecibo.descripcion_pago || '').trim();
-        if (generatedRecibo.numero_recibo) {
-          paymentDescriptionMap[String(generatedRecibo.numero_recibo)] = String(generatedRecibo.descripcion_pago || '').trim();
-        }
-        savePaymentDescriptionMap();
-
-        const existingReciboIndex = recibosInternosCache.findIndex(item => getReciboKey(item) === generatedReciboKey);
-        if (existingReciboIndex >= 0) {
-          recibosInternosCache[existingReciboIndex] = { ...recibosInternosCache[existingReciboIndex], ...generatedRecibo };
-        } else {
-          recibosInternosCache.unshift(generatedRecibo);
-        }
-
-        const manualReceipts = loadManualReceipts();
-        const existingManualIndex = manualReceipts.findIndex(item => getReciboKey(item) === generatedReciboKey);
-        if (existingManualIndex >= 0) {
-          manualReceipts[existingManualIndex] = { ...manualReceipts[existingManualIndex], ...generatedRecibo };
-        } else {
-          manualReceipts.unshift(generatedRecibo);
-        }
-        saveManualReceipts(manualReceipts);
-        saveReceiptsCache();
-
-        recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
-
-        await refreshAll();
-
-        closePagoModal();
-        if (route === 'recibos') {
-          await renderRecibosPage();
-        }
-        showPagoSuccessToast(`Se guardó el recibo ${generatedRecibo.numero_recibo} y se imputó a ${periodoAplicado}.`);
-      } catch(e){
-        console.error(e);
-        msgEl.textContent = 'Error inesperado: ' + String(e?.message || e);
-      }
-    }
+    // registrarPagoModal: definición real más abajo (versión v4 con multipago y RPC operativa).
 
     let activoEditContrato = null;
     let activoModalMode = 'full';
