@@ -10999,10 +10999,18 @@ setTimeout(() => {
         });
       }
 
-      const historicosRaw = await fetchSupabaseRowsSafe(
-        'recibos_historicos_operativos',
-        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen'
-      );
+      // Usamos query directa con limit alto para evitar el corte de 1000 filas por defecto de Supabase.
+      // Con 1148 historicos totales, fetchSupabaseRowsSafe (sin limit) cortaba en 1000.
+      let historicosRaw = [];
+      try {
+        const { data: histData } = await sb
+          .from('recibos_historicos_operativos')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen')
+          .limit(10000);
+        historicosRaw = histData || [];
+      } catch(e) {
+        console.warn('No se pudieron cargar historicos completos:', e?.message || e);
+      }
       const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
       // Los historicos van primero, las filas del RPC (más completas) los sobreescriben.
       // Antes estaba al revés: historicos sobreescribían el monto_impuesto del RPC con 0.
