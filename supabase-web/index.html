@@ -6946,9 +6946,12 @@ if (aplicacionesDirectas.length) {
       round2(toNumber(pagadoTotalByKey.get(key)) + total)
     );
 
+    // Usar MAX en lugar de SUM para el impuesto por mes.
+    // Un mes puede tener múltiples pagos parciales (cada uno con $27k impuesto),
+    // pero el impuesto mensual estándar sigue siendo $27k, no $27k × pagos.
     impuestoByKey.set(
       key,
-      round2(toNumber(impuestoByKey.get(key)) + impuesto)
+      round2(Math.max(toNumber(impuestoByKey.get(key)), impuesto))
     );
   }
 
