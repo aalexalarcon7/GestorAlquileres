@@ -8004,8 +8004,8 @@ window.addEventListener('online', () => {
         periodo_aplicado: periodo,
         detalle_aplicacion: item.observacion || 'Recibo histórico operativo.',
         descripcion_pago: item.observacion || 'Recibo histórico operativo.',
-        monto_alquiler: montoTotal,
-        monto_impuesto: 0,
+        monto_alquiler: Number(item.monto_alquiler ?? montoTotal),
+        monto_impuesto: Number(item.monto_impuesto ?? 0),
         impuesto_porcentaje: 0,
         monto_total: montoTotal,
         monto: montoTotal,
@@ -10983,10 +10983,12 @@ setTimeout(() => {
 
       const historicosRaw = await fetchSupabaseRowsSafe(
         'recibos_historicos_operativos',
-        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,medio,referencia,observacion,origen'
+        'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen'
       );
       const historicos = (historicosRaw || []).map(mapReciboHistoricoRow);
-      rows = mergeRecibosRows(rows, historicos);
+      // Los historicos van primero, las filas del RPC (más completas) los sobreescriben.
+      // Antes estaba al revés: historicos sobreescribían el monto_impuesto del RPC con 0.
+      rows = mergeRecibosRows(historicos, rows);
       rows = applyCobroReceiptOverrides(rows);
       rows = syncRecibosContactsFromActiveRows(rows);
 
