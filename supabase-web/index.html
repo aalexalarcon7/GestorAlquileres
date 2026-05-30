@@ -8139,16 +8139,14 @@ const aplicacionesReales = pagosAplicadosList.filter(p => {
   );
 });
 
-// IMPORTANTE:
-// Si existen aplicaciones reales desde recibos_aplicaciones_operativas,
-// usamos SOLO eso para calcular Cuotas y deuda.
-// No sumamos recibos vinculados porque duplican el mismo pago.
-const fuentesImpuesto = aplicacionesReales.length
-  ? aplicacionesReales
-  : [
-      ...pagosAplicadosList,
-      ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
-    ];
+// Las aplicaciones reales (recibos_aplicaciones_operativas) son la fuente primaria
+// para los meses que cubren. Los recibos vinculados históricos completan el resto
+// de meses (ej: 2025 completo que no tiene filas en recibos_aplicaciones).
+// La deduplicación en addAplicacionReal evita contar el mismo pago dos veces.
+const fuentesImpuesto = [
+  ...(aplicacionesReales.length ? aplicacionesReales : pagosAplicadosList),
+  ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
+];
 
 const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
 
