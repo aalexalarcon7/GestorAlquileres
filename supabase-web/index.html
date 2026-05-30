@@ -4684,6 +4684,7 @@ td:last-child{
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
                     <th class="right">Impuesto</th>
+                    <th class="right">Servicio</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -7068,7 +7069,7 @@ if (aplicacionesDirectas.length) {
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="8" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="9" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
         return;
       }
 
@@ -7101,6 +7102,11 @@ if (aplicacionesDirectas.length) {
           ? fmtARS.format(impuesto)
           : `<span class="muted">—</span>`;
 
+        const servicio = toNumber(x.servicio ?? x.monto_servicio);
+        const servicioCell = servicio > 0
+          ? fmtARS.format(servicio)
+          : `<span class="muted">—</span>`;
+
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
@@ -7108,6 +7114,7 @@ if (aplicacionesDirectas.length) {
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${impuestoCell}</td>
+          <td class="right">${servicioCell}</td>
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${diasCell}</td>
