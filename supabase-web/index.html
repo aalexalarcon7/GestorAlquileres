@@ -6888,6 +6888,51 @@ if (aplicacionesDirectas.length) {
     const impuestoDirecto = toNumber(pago?.monto_impuesto);
     const alquilerDirecto = toNumber(pago?.monto_alquiler);
 
+
+// Rescate de impuesto post-cobro:
+// si existen aplicaciones reales, pero alguna vino sin monto_impuesto,
+// intentamos completar SOLO la columna impuesto desde recibos/pagos vinculados.
+// No suma pagos ni cambia saldos.
+pagosActivos
+  .filter(pago => !aplicacionesDirectas.includes(pago))
+  .forEach(pago => {
+    const apps = parseAplicacionesFromPagoDetalle(pago);
+
+    if (apps.length) {
+      apps.forEach(app => {
+        const key = app.key;
+        const impuesto = round2(toNumber(app.impuesto));
+        if (!key || impuesto <= 0) return;
+
+        if (toNumber(impuestoByKey.get(key)) <= 0.009) {
+          impuestoByKey.set(key, impuesto);
+        }
+      });
+
+      return;
+    }
+
+    const keys = extractPaymentPeriodSortKeys(pago).filter(Boolean);
+    const impuesto = round2(toNumber(pago?.monto_impuesto));
+
+    if (!keys.length || impuesto <= 0) return;
+
+    const impuestoPorPeriodo = round2(impuesto / keys.length);
+
+    keys.forEach((key, index) => {
+      const impuestoImporte = index === keys.length - 1
+        ? round2(impuesto - impuestoPorPeriodo * (keys.length - 1))
+        : impuestoPorPeriodo;
+
+      if (toNumber(impuestoByKey.get(key)) <= 0.009) {
+        impuestoByKey.set(key, impuestoImporte);
+      }
+    });
+  });
+
+
+
+
     addAplicacionReal(
       key,
       totalDirecto,
@@ -14896,8 +14941,29 @@ if (periodoSelect) {
 
       // Parsear distribución del RPC:
       // "02/2026: impuesto 27000.00 / alquiler 218900.00 | 03/2026: impuesto 27000.00 / alquiler 27100.00"
-      const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
-      if (!apps.length) return;
+      let apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
+
+// Fallback: si la RPC no devolvió detalle parseable,
+// armamos una aplicación manual con el mes elegido en el modal.
+if (!apps.length) {
+  const choice = parseCuotaChoice($('mPeriodoAplicado')?.value || 'AUTO');
+  if (!choice.auto && Number(choice.anio) && Number(choice.mes)) {
+    const impuesto = round2(parseMoneyToNumber($('mImpMonto')?.value || '') || 0);
+    const alquiler = round2(parseMoneyToNumber($('mAlquiler')?.value || '') || 0);
+
+    if (impuesto > 0.009 || alquiler > 0.009) {
+      apps = [{
+        anio: Number(choice.anio),
+        mes: Number(choice.mes),
+        impuesto,
+        alquiler,
+        monto_aplicado: round2(impuesto + alquiler)
+      }];
+    }
+  }
+}
+
+if (!apps.length) return;
 
       // Timestamp seguro: 5 segundos antes de que arrancara el RPC.
       // Filas con created_at < safeTs son "viejas" (pagos anteriores).
@@ -15181,15 +15247,14 @@ const metadataPatch = await forceCobroReceiptMetadata({
 // pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
 // usando el texto de distribución que el propio RPC calculó correctamente.
 const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
-const pagoIdRecien = metadataPatch?.pago_id || null;
-if (distribucionRpc) {
-  await fixAplicacionesOperativasPostCobro(
-    Number(modalContrato.contrato_id),
-    pagoIdRecien,
-    distribucionRpc,
-    rpcStartTs  // ← timestamp antes del RPC, separa filas viejas de nuevas
-  );
-}
+const pagoIdRecien = metadataPatch?.pago_id || res?.pago_id || res?.id || null;
+
+await fixAplicacionesOperativasPostCobro(
+  Number(modalContrato.contrato_id),
+  pagoIdRecien,
+  distribucionRpc || descripcionFinalRecibo || '',
+  rpcStartTs
+);
 // ──────────────────────────────────────────────────────────────────────────
 
         if (msgEl) {
