@@ -6741,15 +6741,13 @@ row.pagado_con_impuesto = round2(pagadoBase + impuesto);
       row.saldo_con_impuesto = 0;
       row.dias_atraso = 0;
     } else {
-      // El estado se recalcula SOLO en base a números, no al campo estado de la BD.
-      // Esto evita que el RPC escriba mal estado='PARCIAL' en cuotas_operativas
-      // y eso contamine la vista aunque monto_pagado sea 0.
-      //
-      // PARCIAL = se pagó alquiler real (no solo impuesto).
-      // El impuesto pagado NO alcanza para marcar una cuota como PARCIAL.
-      const pagadoAlquilerRecibos = round2(Math.max(0, pagadoSegunRecibos - impuesto));
-      const hayPagoAlquilerReal = pagadoBase > 0.009 || pagadoAlquilerRecibos > 0.009;
-      if (hayPagoAlquilerReal) {
+      // La fuente de verdad para PARCIAL es cuotas_operativas.monto_pagado (pagadoBase).
+      // Los recibos/historicos solo se usan para mostrar el impuesto en la columna,
+      // no para determinar si una cuota tiene pago real de alquiler.
+      // Esto evita que historicos con alquiler>0 marquen como PARCIAL un mes
+      // donde cuotas_operativas.monto_pagado = 0 (ej: GARCIA LUCIO mar-2026,
+      // YANINA PINTO may-2025 reseteados manualmente).
+      if (pagadoBase > 0.009) {
         row.estado_detalle = 'PARCIAL';
       } else {
         row.estado_detalle = (row.dias_atraso > 0) ? 'ATRASADO' : 'PENDIENTE';
