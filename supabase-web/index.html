@@ -8120,13 +8120,27 @@ window.addEventListener('online', () => {
         const pagosAplicados = await fetchPagoAplicacionesDetalle(r);
         if (seq !== detalleLoadSeq) return;
 
+        // Recibos para mostrar en la sección "Recibos vinculados" (tabla inferior).
         let recibosVinculadosParaImpuestos = [];
         try {
           const recibosResult = await fetchRecibosInternosData();
           if (seq !== detalleLoadSeq) return;
           recibosVinculadosParaImpuestos = getDetalleRecibosVinculados(r, recibosResult.rows || []);
         } catch (recErr) {
-          console.warn('No se pudieron leer recibos para sincronizar impuestos:', recErr?.message || recErr);
+          console.warn('No se pudieron leer recibos vinculados:', recErr?.message || recErr);
+        }
+
+        // Históricos del contrato específico para cálculo de impuesto.
+        // Usamos fetchImpuestoRowsForContrato (query directa al contrato)
+        // en vez de depender de fetchRecibosInternosData que está limitado a ~1000 filas globales.
+        let impuestosHistoricosContrato = [];
+        try {
+          if (r?.contrato_id) {
+            impuestosHistoricosContrato = await fetchImpuestoRowsForContrato(r.contrato_id);
+            if (seq !== detalleLoadSeq) return;
+          }
+        } catch (impErr) {
+          console.warn('No se pudieron leer impuestos históricos del contrato:', impErr?.message || impErr);
         }
 
         const pagosAplicadosList = Array.isArray(pagosAplicados) ? pagosAplicados : [];
@@ -8142,13 +8156,16 @@ const aplicacionesReales = pagosAplicadosList.filter(p => {
   );
 });
 
-// Las aplicaciones reales (recibos_aplicaciones_operativas) son la fuente primaria
-// para los meses que cubren. Los recibos vinculados históricos completan el resto
-// de meses (ej: 2025 completo que no tiene filas en recibos_aplicaciones).
-// La deduplicación en addAplicacionReal evita contar el mismo pago dos veces.
+// Fuentes de impuesto en orden de prioridad:
+// 1) recibos_aplicaciones_operativas (datos exactos del v4 RPC, por mes)
+// 2) pagos (fallback si no hay aplicaciones)
+// 3) recibosVinculadosParaImpuestos (del caché global, puede ser incompleto)
+// 4) impuestosHistoricosContrato (query directa = siempre completo para este contrato)
+// La deduplicación en addAplicacionReal + MAX en impuesto evitan duplicados.
 const fuentesImpuesto = [
   ...(aplicacionesReales.length ? aplicacionesReales : pagosAplicadosList),
-  ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : [])
+  ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : []),
+  ...(Array.isArray(impuestosHistoricosContrato) ? impuestosHistoricosContrato : [])
 ];
 
 const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
