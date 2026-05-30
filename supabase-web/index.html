@@ -14891,13 +14891,38 @@ if (periodoSelect) {
     //   detalleTexto  — texto devuelto por el RPC con la distribución mensual
     //   rpcStartTs    — Date.now() justo antes de llamar al RPC
     // ─────────────────────────────────────────────────────────────────────────
-    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto, rpcStartTs) {
+    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto, rpcStartTs, fallbackApp = null) {
       if (!contratoId) return;
 
       // Parsear distribución del RPC:
       // "02/2026: impuesto 27000.00 / alquiler 218900.00 | 03/2026: impuesto 27000.00 / alquiler 27100.00"
-      const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
-      if (!apps.length) return;
+      let apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
+
+// Fallback real post-cobro:
+// si la RPC no devolvió un detalle parseable tipo
+// "04/2026: impuesto 13500 / alquiler 390500",
+// armamos la aplicación mensual desde el mes elegido en el modal.
+if (!apps.length && fallbackApp && Number(fallbackApp.anio) && Number(fallbackApp.mes)) {
+  const anio = Number(fallbackApp.anio);
+  const mes = Number(fallbackApp.mes);
+  const impuesto = round2(toNumber(fallbackApp.monto_impuesto ?? fallbackApp.impuesto));
+  const alquiler = round2(toNumber(fallbackApp.monto_alquiler ?? fallbackApp.alquiler));
+  const total = round2(toNumber(fallbackApp.monto_aplicado ?? fallbackApp.total ?? (impuesto + alquiler)));
+
+  if (impuesto > 0.009 || alquiler > 0.009 || total > 0.009) {
+    apps = [{
+      key: `${anio}-${String(mes).padStart(2, '0')}`,
+      impuesto,
+      alquiler: alquiler > 0.009 ? alquiler : round2(Math.max(0, total - impuesto)),
+      total: total > 0.009 ? total : round2(impuesto + alquiler)
+    }];
+  }
+}
+
+if (!apps.length) {
+  console.warn('[GA] No hay distribución parseable ni fallback para corregir aplicaciones post-cobro.');
+  return;
+}
 
       // Timestamp seguro: 5 segundos antes de que arrancara el RPC.
       // Filas con created_at < safeTs son "viejas" (pagos anteriores).
@@ -15181,15 +15206,25 @@ const metadataPatch = await forceCobroReceiptMetadata({
 // pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
 // usando el texto de distribución que el propio RPC calculó correctamente.
 const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
-const pagoIdRecien = metadataPatch?.pago_id || null;
-if (distribucionRpc) {
-  await fixAplicacionesOperativasPostCobro(
-    Number(modalContrato.contrato_id),
-    pagoIdRecien,
-    distribucionRpc,
-    rpcStartTs  // ← timestamp antes del RPC, separa filas viejas de nuevas
-  );
-}
+const pagoIdRecien = metadataPatch?.pago_id || res?.pago_id || res?.id || null;
+
+const fallbackAplicacionPostCobro = (!choice.auto && Number(choice.anio) && Number(choice.mes))
+  ? {
+      anio: Number(choice.anio),
+      mes: Number(choice.mes),
+      monto_impuesto: impuestoRegistrado,
+      monto_alquiler: alquilerRegistrado,
+      monto_aplicado: round2(impuestoRegistrado + alquilerRegistrado)
+    }
+  : null;
+
+await fixAplicacionesOperativasPostCobro(
+  Number(modalContrato.contrato_id),
+  pagoIdRecien,
+  distribucionRpc,
+  rpcStartTs,
+  fallbackAplicacionPostCobro
+);
 // ──────────────────────────────────────────────────────────────────────────
 
         if (msgEl) {
