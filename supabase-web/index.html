@@ -7122,7 +7122,7 @@ if (aplicacionesDirectas.length) {
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td>${String(x.periodo || '—')}</td>
-          <td>${String(x.vencimiento || '—').slice(0,10)}</td>
+          <td>${formatDateDisplay(x.vencimiento)}</td>
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${impuestoCell}</td>
@@ -7834,10 +7834,11 @@ window.addEventListener('online', () => {
         const contrato = contratosActivos.find(c => String(c.id) === String(r?.contrato_id)) || {};
         const inq = contrato?.inquilinos || {};
         const pendientes = (cuotasRows || []).filter(x => toNumber(x?.saldo) > 0);
-        const proximo = pendientes
+        const proximoISO = pendientes
           .map(x => String(x?.vencimiento || '').slice(0,10))
           .filter(Boolean)
-          .sort()[0] || '—';
+          .sort()[0] || '';
+        const proximo = proximoISO ? formatDateDisplay(proximoISO) : '—';
 
         const reconstructed = !!r?.reconstructed;
         const statusInfo = getContratoStatus(r || {});
@@ -7907,8 +7908,8 @@ window.addEventListener('online', () => {
             ['Impuesto mensual', impuestoActual > 0 ? fmtARS.format(impuestoActual) : 'No definido', false],
             ['Ajuste', ajustePctActual != null ? `${ajustePctActual.toFixed(2)}% cada ${ajusteMesesActual} mes(es)` : `Cada ${ajusteMesesActual} mes(es)`, false],
             ['Día de vencimiento', diaVtoLabel, false],
-            ['Fecha de inicio', formatDateValue(contrato?.fecha_inicio) || 'No definida', false],
-            ['Fecha de fin', formatDateValue(contrato?.fecha_fin) || 'Sin fecha fin', false],
+            ['Fecha de inicio', formatDateDisplay(contrato?.fecha_inicio) !== '—' ? formatDateDisplay(contrato?.fecha_inicio) : 'No definida', false],
+            ['Fecha de fin', formatDateDisplay(contrato?.fecha_fin) !== '—' ? formatDateDisplay(contrato?.fecha_fin) : 'Sin fecha fin', false],
             ['Contrato operativo', canUseOperationalContrato(r) ? `Sí · ${r?.contrato_id}` : 'No vinculado', false],
             ['Observaciones', contrato?.observaciones || 'Sin observaciones', true]
           ];
@@ -10528,12 +10529,50 @@ setTimeout(() => {
 
     function formatDateDisplay(value){
       if (!value) return '—';
-      return String(value).slice(0, 10);
+      try {
+        const raw = String(value).trim();
+        if (!raw) return '—';
+        // Date-only strings (YYYY-MM-DD) se tratan como hora local para no correr
+        // el día por el offset UTC-3 de Argentina.
+        const parsed = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw + 'T00:00:00' : raw;
+        const d = new Date(parsed);
+        if (!Number.isFinite(d.getTime())) {
+          const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+          return m ? `${m[3]}/${m[2]}/${m[1]}` : raw.slice(0, 10) || '—';
+        }
+        const dd = d.toLocaleDateString('es-AR', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          timeZone: 'America/Argentina/Buenos_Aires'
+        });
+        return dd.replace(/\./g, '/');
+      } catch(e) {
+        const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]}` : String(value).slice(0, 10) || '—';
+      }
     }
 
     function formatDateTimeDisplay(value){
       if (!value) return '—';
-      return String(value).slice(0, 19).replace('T', ' ');
+      try {
+        const raw = String(value).trim();
+        if (!raw) return '—';
+        const d = new Date(raw);
+        if (!Number.isFinite(d.getTime())) {
+          const m = raw.match(/^(\d{4})-(\d{2})-(\d{2})(?:T| )(\d{2}):(\d{2})/);
+          return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : raw.replace('T', ' ').slice(0, 16) || '—';
+        }
+        const tz = 'America/Argentina/Buenos_Aires';
+        const dd = d.toLocaleDateString('es-AR', {
+          day: '2-digit', month: '2-digit', year: 'numeric', timeZone: tz
+        }).replace(/\./g, '/');
+        const hhmm = d.toLocaleTimeString('es-AR', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz
+        });
+        return `${dd} ${hhmm}`;
+      } catch(e) {
+        const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})(?:T| )(\d{2}):(\d{2})/);
+        return m ? `${m[3]}/${m[2]}/${m[1]} ${m[4]}:${m[5]}` : String(value).replace('T', ' ').slice(0, 16) || '—';
+      }
     }
 
     function buildReciboNumero(pago, createIfMissing=false){
@@ -11054,17 +11093,21 @@ setTimeout(() => {
       rows = syncRecibosContactsFromActiveRows(rows);
 
       rows.sort((a,b) => {
-        const timeA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
-        const timeB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
-        if (timeA !== timeB) return timeB - timeA;
+        // 1. fecha_pago descendente (día real del cobro).
+        //    Comparación léxica sobre YYYY-MM-DD funciona correctamente.
+        const fpA = String(a.fecha_pago || '').slice(0, 10);
+        const fpB = String(b.fecha_pago || '').slice(0, 10);
+        if (fpA !== fpB) return fpB < fpA ? -1 : 1;
 
+        // 2. Mismo día: created_at descendente (momento exacto de registro).
+        const caA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
+        const caB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
+        if (caA !== caB) return caB - caA;
+
+        // 3. Fallback: número de recibo mayor primero.
         const numA = parseInt(String(a.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
         const numB = parseInt(String(b.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
-        if (numA !== numB) return numB - numA;
-
-        const keyA = String(a.id || a.pago_id || a.__cache_key || '');
-        const keyB = String(b.id || b.pago_id || b.__cache_key || '');
-        return keyB.localeCompare(keyA);
+        return numB - numA;
       });
 
       recibosInternosCache = rows;
