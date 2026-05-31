@@ -7737,6 +7737,8 @@ window.addEventListener('online', () => {
         else if (filtro === 'AL_DIA') rows = rows.filter(r => getContratoStatus(r).key === 'AL_DIA');
       }
 
+      rows = [...rows].sort(sortActivosCodigo);
+
       $('unitsCount').textContent = `${rows.length} resultados`;
 
       const tb = $('tbodyUnits');
@@ -8257,6 +8259,27 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       } catch (e){
         return '';
       }
+    }
+
+    // Orden fijo de tipos de local: Puestos → Locales → Islas → Patios de comida.
+    // Acepta un objeto {local_codigo} o un string de código directamente.
+    function sortActivosCodigo(a, b){
+      const tipoOrden = c => {
+        const s = String(c || '').trim().toUpperCase();
+        if (/^PTO/.test(s)) return 0;
+        if (/^LC/.test(s))  return 1;
+        if (/^IS/.test(s))  return 2;
+        if (/^PC/.test(s))  return 3;
+        return 9;
+      };
+      const numCodigo = c => {
+        const m = String(c || '').match(/(\d+)/);
+        return m ? parseInt(m[1], 10) : 0;
+      };
+      const ca = String(a?.local_codigo ?? a ?? '');
+      const cb = String(b?.local_codigo ?? b ?? '');
+      const dt = tipoOrden(ca) - tipoOrden(cb);
+      return dt !== 0 ? dt : numCodigo(ca) - numCodigo(cb);
     }
 
     function formatMoneyInputValue(value){
@@ -10520,7 +10543,7 @@ setTimeout(() => {
       sel.appendChild(allOpt);
 
       const opts = [...unidades]
-        .sort((a,b)=>String(a.local_codigo).localeCompare(String(b.local_codigo)))
+        .sort(sortActivosCodigo)
         .map(u => ({ id:u.contrato_id, label:`${u.local_codigo} — ${u.inquilino_nombre}`}));
 
       for (const o of opts){
