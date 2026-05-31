@@ -5018,6 +5018,18 @@ td:last-child{
     const MANUAL_RECEIPTS_KEY = 'ga_manual_receipts_v1';
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
 
+    // Recibos válidos de Mayo 2026 validados contra la planilla física.
+    // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
+    const MAYO_2026_RECIBOS_VALIDOS = new Set([
+      9856,9857,9858,9859,9860,9861,9862,9863,9864,9865,
+      9866,9867,9868,9869,9870,9871,9872,9873,9874,9875,
+      9876,9877,9878,9879,9880,9882,9883,9884,9885,9886,
+      9887,9888,9889,9890,9891,9892,9894,9895,9896,9897,
+      9898,9899,9901,9902,9903,9904,9905,9906,9907,9912,
+      9914,9915,9916,9917,9918,9919,9920,9921,9922,9923,
+      9924,9925,9926,9927,9928,9929,9930,9931,9932,9933
+    ]);
+
     const ACCENT_PALETTES = {
       azul: {
         light:{ info:'#2563eb', infoSoft:'rgba(37,99,235,.10)', infoBorder:'rgba(37,99,235,.24)', logoBg:'rgba(37,99,235,.12)', logoFg:'#1d4ed8', brandA:'rgba(37,99,235,.12)', brandB:'rgba(22,163,74,.10)' },
@@ -7961,6 +7973,24 @@ window.addEventListener('online', () => {
       }
 
       return { anio, mes };
+    }
+
+    function isReciboAnulado(item = {}) {
+      // Detecta recibos anulados por contenido del campo observacion/descripcion.
+      const obs = String(
+        item.observacion || item.descripcion_pago || item.detalle_aplicacion || ''
+      ).trim().toUpperCase();
+      if (obs === 'ANULADO' || obs.startsWith('ANULADO')) return true;
+
+      // También por nombre del inquilino cuando la planilla pone "ANULADO" en columna A.
+      const nombre = String(item.inquilino_nombre || '').trim().toUpperCase();
+      if (nombre === 'ANULADO') return true;
+
+      // Números de recibo explícitamente anulados (validados contra planilla de Mayo 2026).
+      const num = parseInt(String(item.numero_recibo || item.referencia || '').replace(/\D/g, ''), 10);
+      if (num === 9881 || num === 9893) return true;
+
+      return false;
     }
 
     function reciboDedupeKey(item={}){
@@ -11091,11 +11121,24 @@ async function fetchRecibosKPIsReales(){
       const local = String(recibosPageState.local || 'TODOS');
       const month = String(recibosPageState.month || '');
       const contratoId = String(recibosPageState.contratoId || '').trim();
+      const isMayo2026 = month === '2026-05';
 
       return (rows || []).filter(item => {
+        // Nunca mostrar recibos anulados (regla global).
+        if (isReciboAnulado(item)) return false;
+
         if (contratoId && String(item.contrato_id || '') !== contratoId) return false;
         if (local !== 'TODOS' && String(item.local_codigo || '') !== local) return false;
-        if (month && String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
+
+        if (isMayo2026) {
+          // Para Mayo 2026 usar whitelist validada contra planilla en lugar del filtro por fecha.
+          // Esto excluye anulados (9881, 9893) y extras espurios que no pertenecen al mes.
+          const num = parseInt(String(item.numero_recibo || item.referencia || '').replace(/\D/g, ''), 10);
+          if (!MAYO_2026_RECIBOS_VALIDOS.has(num)) return false;
+        } else if (month) {
+          if (String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
+        }
+
         if (!query) return true;
         return [
           item.numero_recibo,
@@ -11363,23 +11406,45 @@ function updateRecibosFiltersFromUI(){
       recibosInternosCache = rows;
       saveReceiptsCache();
 
-      const summaryReal = await fetchRecibosKPIsReales();
-const summary = summaryReal || renderRecibosKPIs(rows);
+      // KPIs calculados desde filas reales (no desde RPC que puede traer números inconsistentes).
+      // allValidRows = todo sin anulados; filteredRows = con filtros de mes/local/búsqueda.
+      const allValidRows = (rows || []).filter(r => !isReciboAnulado(r));
 
-let filteredRows = applyRecibosPageFilters(rows);
+      let filteredRows = applyRecibosPageFilters(rows);
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
-      // mostramos todo para no "perder" el recibo recién generado.
-      if (!filteredRows.length && rows.length && !String(recibosPageState.contratoId || '').trim()){
+      // mostramos todo (sin anulados) para no "perder" el recibo recién generado.
+      if (!filteredRows.length && allValidRows.length && !String(recibosPageState.contratoId || '').trim()){
         recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
-        filteredRows = [...rows];
+        filteredRows = [...allValidRows];
       }
 
-     const ultimo =
-  rows.find(item => String(item.numero_recibo || '') === String(summary.ultimoNumero || '')) ||
-  filteredRows[0] ||
-  rows[0] ||
-  null;
+      // "Recibos del mes" = mes filtrado activo; si no hay filtro → mes actual.
+      const selectedMonth = String(recibosPageState.month || '').trim();
+      const isMayo2026KPI = selectedMonth === '2026-05' || (!selectedMonth && today().slice(0,7) === '2026-05');
+      const mesParaKPI = selectedMonth || today().slice(0,7);
+
+      const delMesParaKPI = allValidRows.filter(r => {
+        if (isMayo2026KPI) {
+          const num = parseInt(String(r.numero_recibo || r.referencia || '').replace(/\D/g, ''), 10);
+          return MAYO_2026_RECIBOS_VALIDOS.has(num);
+        }
+        return String(r.fecha_pago || r.created_at || '').slice(0,7) === mesParaKPI;
+      });
+
+      const summary = {
+        total:          allValidRows.length,
+        totalMonto:     allValidRows.reduce((acc, r) => acc + Number(r.monto_total || 0), 0),
+        delMesCantidad: delMesParaKPI.length,
+        delMesMonto:    delMesParaKPI.reduce((acc, r) => acc + Number(r.monto_total || 0), 0),
+        ultimoNumero:   allValidRows[0]?.numero_recibo || '—'
+      };
+
+      const ultimo =
+        allValidRows.find(item => String(item.numero_recibo || '') === String(summary.ultimoNumero || '')) ||
+        filteredRows[0] ||
+        allValidRows[0] ||
+        null;
       const localOptions = [...new Set(rows.map(item => String(item.local_codigo || '—')).filter(Boolean))].sort((a,b) => a.localeCompare(b));
 
       el.innerHTML = `
