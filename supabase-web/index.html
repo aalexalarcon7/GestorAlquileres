@@ -15207,11 +15207,30 @@ if (periodoSelect) {
         let error;
         let usedCobroV4 = false;
 
+        // p_impuesto_mensual = TASA MENSUAL del contrato (cuánto impuesto corresponde POR MES).
+        // NO debe confundirse con el total del pago.
+        //
+        // Bug sin este fix: si el usuario ingresa $27.000 (2 meses × $13.500) y se pasa
+        // ese total como p_impuesto_mensual, el RPC asigna $27.000 a Abril y $0 a Mayo,
+        // en lugar de $13.500 a cada mes → impuesto duplicado en Abril.
+        //
+        // Ejemplo correcto con pago de $500.000 aplicado a Abril + Mayo:
+        //   p_monto_impuesto = 27000   (total a distribuir como impuesto en el pago)
+        //   p_impuesto_mensual = 13500 (cuánto corresponde por mes según el contrato)
+        //   → RPC: Abril $13.500, Mayo $13.500 ✓
+        const contratoDataRpc = getContratoActivoRow(Number(modalContrato.contrato_id));
+        const impuestoMensualContrato = round2(
+          toNumber(contratoDataRpc?.impuesto_mensual) ||
+          toNumber(modalContrato?.impuesto_mensual) ||
+          0
+        );
+        // Usar la tasa mensual del contrato. Si no está disponible, usar el total del pago
+        // como fallback para mantener compatibilidad con contratos sin impuesto configurado.
+        const impuestoMensualRPC = impuestoMensualContrato > 0 ? impuestoMensualContrato : impuestoObjetivo;
+
         const argsV4 = {
           ...args,
-          // En v4 este valor representa el impuesto mensual objetivo.
-          // La función decide cuánto va a impuesto y cuánto a alquiler en cada mes.
-          p_impuesto_mensual: impuestoObjetivo
+          p_impuesto_mensual: impuestoMensualRPC
         };
 
         const rpcStartTs = Date.now(); // marca de tiempo para separar filas viejas de nuevas
