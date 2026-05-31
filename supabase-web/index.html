@@ -15180,7 +15180,17 @@ const metadataPatch = await forceCobroReceiptMetadata({
 // El pago_id recién creado viene de forceCobroReceiptMetadata (que busca el
 // pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
 // usando el texto de distribución que el propio RPC calculó correctamente.
-const distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
+let distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
+
+// Fallback: si el RPC no devolvió detalle_aplicacion pero hay impuesto y período
+// conocido, construir la distribución sintética en el formato que espera
+// parseAplicacionesFromPagoDetalle ("MM/YYYY: impuesto X / alquiler Y").
+// Sin este fallback, recibos_aplicaciones_operativas queda con monto_impuesto = 0
+// y el impuesto no aparece en "Cuotas y deuda" aunque el cobro fue correcto.
+if (!distribucionRpc && impuestoRegistrado > 0.009 && !choice.auto && choice.anio && choice.mes) {
+  distribucionRpc = `${String(choice.mes).padStart(2,'0')}/${choice.anio}: impuesto ${impuestoRegistrado.toFixed(2)} / alquiler ${alquilerRegistrado.toFixed(2)}`;
+}
+
 const pagoIdRecien = metadataPatch?.pago_id || null;
 if (distribucionRpc) {
   await fixAplicacionesOperativasPostCobro(
