@@ -8193,15 +8193,39 @@ const aplicacionesReales = pagosAplicadosList.filter(p => {
 });
 
 // Fuentes de impuesto en orden de prioridad:
-// 1) recibos_aplicaciones_operativas (datos exactos del v4 RPC, por mes)
-// 2) pagos (fallback si no hay aplicaciones)
-// 3) recibosVinculadosParaImpuestos (del caché global, puede ser incompleto)
-// 4) impuestosHistoricosContrato (query directa = siempre completo para este contrato)
-// La deduplicación en addAplicacionReal + MAX en impuesto evitan duplicados.
+// 1) recibos_aplicaciones_operativas → distribución exacta por mes (fuente de verdad)
+// 2) pagos                           → fallback si no hay aplicaciones directas
+// 3) recibosVinculadosParaImpuestos  → solo períodos NO cubiertos por (1)
+// 4) impuestosHistoricosContrato     → solo períodos NO cubiertos por (1)
+//
+// IMPORTANTE: los históricos (3 y 4) guardan el impuesto TOTAL del recibo
+// (ej: $27.000 para un pago de 2 meses) asociado al mes inicial del pago.
+// Si se combinan con MAX junto a los datos por-mes de (1), el MAX toma el
+// total ($27.000) en lugar del per-mes correcto ($13.500) → duplicación visual.
+// Solución: excluir de (3) y (4) cualquier período que (1) ya cubre.
+
+// Períodos ya cubiertos por recibos_aplicaciones_operativas.
+const periodosConAplicaciones = new Set(
+  aplicacionesReales.map(p => {
+    const a = Number(p?.anio);
+    const m = Number(p?.mes);
+    return (a && m) ? `${a}-${String(m).padStart(2, '0')}` : null;
+  }).filter(Boolean)
+);
+
+// Excluye una fuente secundaria si recibos_aplicaciones ya cubre ese período.
+// Filas sin anio/mes se conservan (pueden aportar via fallback de parsing de texto).
+const sinConflicto = r => {
+  const a = Number(r?.anio);
+  const m = Number(r?.mes);
+  if (!a || !m) return true;
+  return !periodosConAplicaciones.has(`${a}-${String(m).padStart(2, '0')}`);
+};
+
 const fuentesImpuesto = [
   ...(aplicacionesReales.length ? aplicacionesReales : pagosAplicadosList),
-  ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos : []),
-  ...(Array.isArray(impuestosHistoricosContrato) ? impuestosHistoricosContrato : [])
+  ...(Array.isArray(recibosVinculadosParaImpuestos) ? recibosVinculadosParaImpuestos.filter(sinConflicto) : []),
+  ...(Array.isArray(impuestosHistoricosContrato) ? impuestosHistoricosContrato.filter(sinConflicto) : [])
 ];
 
 const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
