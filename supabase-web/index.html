@@ -5582,10 +5582,14 @@ td:last-child{
 
     function getReconstructedDebtStatus(row){
       const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
-      const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
-      const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
-      const deudaVencidaBase = round2(arrastre2025 + deuda2026Vencida);
-      const tolerance = 1;
+const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
+const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
+
+// La deuda vencida real ya viene reconstruida en deuda_total_2025_2026.
+// Incluye 2025, enero-abril 2026 y meses vencidos posteriores como mayo.
+const deudaVencidaBase = round2(
+  toNumber(row?.deuda_total_2025_2026 ?? (arrastre2025 + deuda2026Vencida))
+);
 
       // La deuda 2025 + enero-abril 2026 ya está vencida.
       if (deudaVencidaBase > tolerance) {
@@ -6218,13 +6222,18 @@ td:last-child{
             estado_2026_hasta_abril: null,
             meses_deuda_texto_2026: '',
             deuda_mes_actual: 0,
-            monto_mes_actual: 0,
-            pagado_mes_actual: 0,
-            estado_mes_actual: null,
-            impuesto_mes_actual: 0,
-            deuda_mes_actual_cruda: 0,
-            pagado_mes_actual_con_impuesto: 0,
-            manual_override: true
+monto_mes_actual: 0,
+pagado_mes_actual: 0,
+estado_mes_actual: null,
+impuesto_mes_actual: 0,
+deuda_mes_actual_cruda: 0,
+pagado_mes_actual_con_impuesto: 0,
+
+// Deuda vencida posterior a abril, por ejemplo mayo 2026 cuando ya estamos en junio.
+deuda_post_abril_vencida: 0,
+meses_post_abril_vencidos: 0,
+
+manual_override: true
           });
         }
         return nextMap.get(key);
@@ -6251,37 +6260,82 @@ td:last-child{
         entry.meses_deuda_texto_2026 = row.meses_deuda_texto || '';
       });
 
-      (detalleMesActualRows || [])
-        .filter(row => Number(row.anio) === Number(ymActualEstado.year) && Number(row.mes) === Number(ymActualEstado.month))
-        .forEach(row => {
-          const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
-          if (!entry) return;
-          if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
-          const currentSortKey = debtSortKeyFromYearMonth(row.anio, row.mes);
-          const impuestoMes = getImpuestoOperativoForCurrentRow(row, entry, impuestosActualesMap, currentSortKey);
-          const saldoCrudo = toNumber(row.saldo);
-          const pagadoBase = toNumber(row.monto_pagado);
+      const currentKeyPostAbril = debtSortKeyFromYearMonth(ymActualEstado.year, ymActualEstado.month);
 
-          entry.impuesto_mes_actual = impuestoMes;
-          entry.deuda_mes_actual_cruda = saldoCrudo;
-          entry.deuda_mes_actual = round2(Math.max(0, saldoCrudo - impuestoMes));
-          entry.monto_mes_actual = toNumber(row.monto_total);
-          entry.pagado_mes_actual = pagadoBase;
-          entry.pagado_mes_actual_con_impuesto = round2(pagadoBase + impuestoMes);
-          entry.estado_mes_actual = row.estado || null;
-        });
+(detalleMesActualRows || [])
+  // Desde mayo 2026 en adelante, las cuotas operativas reales también forman parte de la deuda visible.
+  .filter(row => Number(row.anio) === 2026 && Number(row.mes) >= 5)
+  .forEach(row => {
+    const anio = Number(row.anio);
+    const mes = Number(row.mes);
+    const rowKey = debtSortKeyFromYearMonth(anio, mes);
+
+    // No sumar cuotas futuras.
+    if (rowKey > currentKeyPostAbril) return;
+
+    const saldoVisual = round2(Math.max(0, toNumber(row.saldo)));
+    if (saldoVisual <= 0.009) return;
+
+    const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
+    if (!entry) return;
+
+    if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
+
+    const pagadoBase = toNumber(row.monto_pagado);
+
+    // Si el período ya es anterior al mes actual, es deuda atrasada.
+    // Ejemplo: mayo 2026 con fecha actual junio 2026.
+    const esPeriodoVencido = rowKey < currentKeyPostAbril || !isBeforeOrOnCurrentDueDay();
+
+    if (esPeriodoVencido) {
+      entry.deuda_post_abril_vencida = round2(
+        toNumber(entry.deuda_post_abril_vencida) + saldoVisual
+      );
+      entry.meses_post_abril_vencidos = Number(entry.meses_post_abril_vencidos || 0) + 1;
+    } else {
+      // Mes actual antes del vencimiento: se muestra, pero no se marca atrasado todavía.
+      const currentSortKey = debtSortKeyFromYearMonth(anio, mes);
+      const impuestoMes = getImpuestoOperativoForCurrentRow(row, entry, impuestosActualesMap, currentSortKey);
+
+      entry.impuesto_mes_actual = impuestoMes;
+      entry.deuda_mes_actual_cruda = saldoVisual;
+      entry.deuda_mes_actual = saldoVisual;
+      entry.monto_mes_actual = toNumber(row.monto_total);
+      entry.pagado_mes_actual = pagadoBase;
+      entry.pagado_mes_actual_con_impuesto = round2(pagadoBase + impuestoMes);
+      entry.estado_mes_actual = row.estado || null;
+    }
+  });
 
       nextMap.forEach(entry => {
-        entry.deuda_total_2025_2026 = round2(toNumber(entry.deuda_arrastre_2025) + toNumber(entry.deuda_total_2026));
-        entry.meses_adeudados_total = Number(entry.meses_deuda_2025 || 0) + Number(entry.meses_con_deuda_2026 || 0);
-        const debe2025 = toNumber(entry.deuda_arrastre_2025) > 0;
-        const debe2026 = toNumber(entry.deuda_total_2026) > 0;
-        if (debe2025 && debe2026) entry.situacion_general = 'Debe 2025 y 2026 hasta abril';
-        else if (debe2025) entry.situacion_general = 'Debe 2025';
-        else if (debe2026) entry.situacion_general = 'Debe 2026 hasta abril';
-        else entry.situacion_general = 'Al día según estados operativos';
-        entry.prioridad_total = entry.deuda_total_2025_2026 > 0 ? 'OPERATIVA' : 'AL_DIA';
-      });
+  const deudaPostAbrilVencida = round2(toNumber(entry.deuda_post_abril_vencida));
+  const mesesPostAbrilVencidos = Number(entry.meses_post_abril_vencidos || 0);
+
+  // Deuda 2026 visible = enero-abril + meses vencidos posteriores, como mayo.
+  entry.deuda_total_2026 = round2(toNumber(entry.deuda_total_2026) + deudaPostAbrilVencida);
+  entry.meses_con_deuda_2026 = Number(entry.meses_con_deuda_2026 || 0) + mesesPostAbrilVencidos;
+
+  entry.deuda_total_2025_2026 = round2(
+    toNumber(entry.deuda_arrastre_2025) + toNumber(entry.deuda_total_2026)
+  );
+
+  entry.meses_adeudados_total =
+    Number(entry.meses_deuda_2025 || 0) + Number(entry.meses_con_deuda_2026 || 0);
+
+  const debe2025 = toNumber(entry.deuda_arrastre_2025) > 0;
+  const debe2026 = toNumber(entry.deuda_total_2026) > 0;
+  const debeMesActual = toNumber(entry.deuda_mes_actual) > 0;
+
+  if (debe2025 && debe2026) entry.situacion_general = 'Debe 2025 y 2026';
+  else if (debe2025) entry.situacion_general = 'Debe 2025';
+  else if (debe2026) entry.situacion_general = 'Debe 2026';
+  else if (debeMesActual) entry.situacion_general = 'Mes actual pendiente';
+  else entry.situacion_general = 'Al día según estados operativos';
+
+  entry.prioridad_total = (entry.deuda_total_2025_2026 > 0 || debeMesActual)
+    ? 'OPERATIVA'
+    : 'AL_DIA';
+});
 
       activosReconstruidosMap = nextMap;
       return nextMap;
@@ -6306,8 +6360,10 @@ td:last-child{
         monto_sugerido_2026: toNumber(recon.monto_sugerido_2026),
         deuda_arrastre_2025: toNumber(recon.deuda_arrastre_2025),
         deuda_2026: toNumber(recon.deuda_total_2026),
-        deuda_total_2025_2026: total,
-        prioridad_total: recon.prioridad_total || null,
+deuda_total_2025_2026: total,
+deuda_post_abril_vencida: toNumber(recon.deuda_post_abril_vencida),
+meses_post_abril_vencidos: Number(recon.meses_post_abril_vencidos || 0),
+prioridad_total: recon.prioridad_total || null,
         situacion_general: recon.situacion_general || null,
         tipo_deuda_2025: recon.tipo_deuda_2025 || null,
         tipo_deuda_2026: recon.tipo_deuda_2026 || null,
