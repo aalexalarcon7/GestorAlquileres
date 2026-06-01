@@ -11245,6 +11245,14 @@ async function fetchRecibosKPIsReales(){
 
     let recibosFilterTimer = null;
 
+    // Devuelve "YYYY-MM" de un recibo usando: fecha_pago → anio+mes → created_at.
+    function getReciboMesKey(r) {
+      const fp = String(r.fecha_pago || '').slice(0, 7);
+      if (fp) return fp;
+      if (r.anio && r.mes) return `${r.anio}-${String(r.mes).padStart(2, '0')}`;
+      return String(r.created_at || '').slice(0, 7);
+    }
+
 function updateRecibosHistoryFromState(){
   const body = $('recibosBody');
   if (!body) return;
@@ -11265,7 +11273,7 @@ function updateRecibosHistoryFromState(){
   const allValid = (recibosInternosCache || []).filter(r => !isReciboAnulado(r));
   const selMonth = String(recibosPageState.month || '').trim();
   const mesPara = selMonth || today().slice(0, 7);
-  const delMes = allValid.filter(r => String(r.fecha_pago || r.created_at || '').slice(0, 7) === mesPara);
+  const delMes = allValid.filter(r => getReciboMesKey(r) === mesPara);
   const kpiCant = $('kpiDelMesCantidad');
   const kpiMon  = $('kpiDelMesMonto');
   if (kpiCant) kpiCant.textContent = delMes.length;
@@ -11523,9 +11531,7 @@ function updateRecibosFiltersFromUI(){
       const selectedMonth = String(recibosPageState.month || '').trim();
       const mesParaKPI = selectedMonth || today().slice(0,7);
 
-      const delMesParaKPI = allValidRows.filter(r =>
-        String(r.fecha_pago || r.created_at || '').slice(0, 7) === mesParaKPI
-      );
+      const delMesParaKPI = allValidRows.filter(r => getReciboMesKey(r) === mesParaKPI);
 
       const summary = {
         total:          allValidRows.length,
