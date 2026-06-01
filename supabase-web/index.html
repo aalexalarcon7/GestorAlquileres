@@ -8037,7 +8037,7 @@ window.addEventListener('online', () => {
         anio: ym.anio || null,
         mes: ym.mes || null,
         fecha_pago: fecha,
-        created_at: fecha,
+        created_at: item.created_at || fecha,
         medio: item.medio || 'EFECTIVO',
         referencia: item.referencia || numero,
         numero_recibo: numero,
@@ -11126,7 +11126,7 @@ setTimeout(() => {
       try {
         const { data: histData } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen')
           .limit(10000);
         historicosRaw = histData || [];
       } catch(e) {
@@ -11191,17 +11191,18 @@ async function fetchRecibosKPIsReales(){
 }
 
 
-    function renderRecibosKPIs(rows){
-      const total = rows.length;
-      const totalMonto = rows.reduce((acc, item) => acc + Number(item.monto_total || 0), 0);
-      const monthKey = today().slice(0,7);
-      const delMes = rows.filter(item => String(item.fecha_pago || item.created_at || '').slice(0,7) === monthKey);
-      const ultimo = rows[0];
+    function renderRecibosKPIs(rows, selectedMonth){
+      const validRows = (rows || []).filter(r => !isReciboAnulado(r));
+      const total = validRows.length;
+      const totalMonto = validRows.reduce((acc, r) => acc + reciboMonto(r), 0);
+      const monthKey = selectedMonth || today().slice(0, 7);
+      const delMes = validRows.filter(r => getReceiptMonthKey(r) === monthKey);
+      const ultimo = validRows[0];
       return {
         total,
         totalMonto,
         delMesCantidad: delMes.length,
-        delMesMonto: delMes.reduce((acc, item) => acc + Number(item.monto_total || 0), 0),
+        delMesMonto: delMes.reduce((acc, r) => acc + reciboMonto(r), 0),
         ultimoNumero: ultimo?.numero_recibo || '—'
       };
     }
@@ -11211,7 +11212,6 @@ async function fetchRecibosKPIsReales(){
       const local = String(recibosPageState.local || 'TODOS');
       const month = String(recibosPageState.month || '');
       const contratoId = String(recibosPageState.contratoId || '').trim();
-      const isMayo2026 = month === '2026-05';
 
       return (rows || []).filter(item => {
         // Nunca mostrar recibos anulados (regla global).
@@ -11220,14 +11220,7 @@ async function fetchRecibosKPIsReales(){
         if (contratoId && String(item.contrato_id || '') !== contratoId) return false;
         if (local !== 'TODOS' && String(item.local_codigo || '') !== local) return false;
 
-        if (isMayo2026) {
-          // Para Mayo 2026 usar whitelist validada contra planilla en lugar del filtro por fecha.
-          // Esto excluye anulados (9881, 9893) y extras espurios que no pertenecen al mes.
-          const num = parseInt(String(item.numero_recibo || item.referencia || '').replace(/\D/g, ''), 10);
-          if (!MAYO_2026_RECIBOS_VALIDOS.has(num)) return false;
-        } else if (month) {
-          if (String(item.fecha_pago || item.created_at || '').slice(0,7) !== month) return false;
-        }
+        if (month && getReceiptMonthKey(item) !== month) return false;
 
         if (!query) return true;
         return [
@@ -11245,32 +11238,58 @@ async function fetchRecibosKPIsReales(){
 
     let recibosFilterTimer = null;
 
-    // Extrae "YYYY-MM" de cualquier formato de fecha:
-    //   ISO date      "2026-05-31"        → "2026-05"
-    //   ISO timestamp "2026-05-31T..."    → "2026-05"
-    //   Argentino     "31/05/2026"        → "2026-05"
-    //   Periodo       "05/2026"           → "2026-05"
+    // Extrae "YYYY-MM" interno desde cualquier formato de fecha.
+    // NUNCA usar sobre fechas ya formateadas para display (DD/MM/YYYY visual).
+    // Soporta: "2026-05-31", "2026-05-31T13:25:00", "31/05/2026", "05/2026", "Mayo 2026".
+    const _MESES_ES = {enero:'01',febrero:'02',marzo:'03',abril:'04',mayo:'05',junio:'06',julio:'07',agosto:'08',septiembre:'09',octubre:'10',noviembre:'11',diciembre:'12'};
     function parseFechaToYM(value) {
-      const s = String(value || '').trim();
-      if (!s) return '';
-      // ISO: YYYY-MM-DD o YYYY-MM-DDTHH:mm:ss...
+      const s = String(value ?? '').trim();
+      if (!s || s === 'null' || s === 'undefined') return '';
+      // ISO date/timestamp: YYYY-MM-... (Postgres, JS toISOString, "2026-05-31 00:00:00")
       const iso = s.match(/^(\d{4})-(\d{2})/);
       if (iso) return `${iso[1]}-${iso[2]}`;
-      // DD/MM/YYYY (formato argentino)
+      // DD/MM/YYYY (formato argentino visual)
       const arg = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (arg) return `${arg[3]}-${String(arg[2]).padStart(2, '0')}`;
-      // MM/YYYY (periodo)
+      // MM/YYYY (periodo estilo "05/2026")
       const per = s.match(/^(\d{1,2})\/(\d{4})$/);
       if (per) return `${per[2]}-${String(per[1]).padStart(2, '0')}`;
+      // "Mayo 2026" / "mayo de 2026"
+      const mes_es = s.toLowerCase().match(/^(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+de)?\s+(\d{4})$/);
+      if (mes_es) return `${mes_es[2]}-${_MESES_ES[mes_es[1]]}`;
+      // YYYY-MM sin día (ya sea directo o dentro de otro string)
+      const ym = s.match(/(\d{4})[\/\-](\d{2})/);
+      if (ym) return `${ym[1]}-${ym[2]}`;
       return '';
     }
 
-    // Devuelve "YYYY-MM" de un recibo usando: fecha_pago → anio+mes → created_at.
-    function getReciboMesKey(r) {
-      const fp = parseFechaToYM(r.fecha_pago);
-      if (fp) return fp;
-      if (r.anio && r.mes) return `${r.anio}-${String(r.mes).padStart(2, '0')}`;
-      return parseFechaToYM(r.created_at);
+    // Devuelve "YYYY-MM" de un recibo siguiendo prioridad:
+    //   1. fecha_pago  2. created_at  3. anio+mes  4. periodo_aplicado / periodo
+    // Nunca usa la fecha ya formateada en display. Si no puede determinarlo, retorna ''.
+    function getReceiptMonthKey(item) {
+      if (!item) return '';
+      let ym;
+      ym = parseFechaToYM(item.fecha_pago);
+      if (ym) return ym;
+      ym = parseFechaToYM(item.created_at);
+      if (ym) return ym;
+      const anio = Number(item.anio || 0);
+      const mes  = Number(item.mes  || 0);
+      if (anio > 2000 && mes >= 1 && mes <= 12) return `${anio}-${String(mes).padStart(2, '0')}`;
+      ym = parseFechaToYM(item.periodo_aplicado || item.periodo || '');
+      if (ym) return ym;
+      return '';
+    }
+
+    // Alias para compatibilidad con usos anteriores de getReciboMesKey.
+    function getReciboMesKey(r) { return getReceiptMonthKey(r); }
+
+    // Devuelve el monto total de un recibo: monto_total → monto → componentes.
+    function reciboMonto(r) {
+      if (!r) return 0;
+      const total = Number(r.monto_total ?? r.monto ?? 0);
+      if (total > 0) return total;
+      return Number(r.monto_alquiler || 0) + Number(r.monto_impuesto || 0) + Number(r.monto_servicio || 0);
     }
 
 function updateRecibosHistoryFromState(){
@@ -11293,11 +11312,18 @@ function updateRecibosHistoryFromState(){
   const allValid = (recibosInternosCache || []).filter(r => !isReciboAnulado(r));
   const selMonth = String(recibosPageState.month || '').trim();
   const mesPara = selMonth || today().slice(0, 7);
-  const delMes = allValid.filter(r => getReciboMesKey(r) === mesPara);
+  const seenNums = new Set();
+  const delMes = allValid.filter(r => {
+    if (getReceiptMonthKey(r) !== mesPara) return false;
+    const dedupeNum = String(r.numero_recibo || r.referencia || r.id || '');
+    if (dedupeNum && seenNums.has(dedupeNum)) return false;
+    if (dedupeNum) seenNums.add(dedupeNum);
+    return true;
+  });
   const kpiCant = $('kpiDelMesCantidad');
   const kpiMon  = $('kpiDelMesMonto');
   if (kpiCant) kpiCant.textContent = delMes.length;
-  if (kpiMon)  kpiMon.textContent  = fmtARS.format(delMes.reduce((acc, r) => acc + Number(r.monto_total || 0), 0));
+  if (kpiMon)  kpiMon.textContent  = fmtARS.format(delMes.reduce((acc, r) => acc + reciboMonto(r), 0));
 
   if (typeof closeReciboFloatingMenu === 'function') {
     closeReciboFloatingMenu();
@@ -11551,20 +11577,30 @@ function updateRecibosFiltersFromUI(){
       const selectedMonth = String(recibosPageState.month || '').trim();
       const mesParaKPI = selectedMonth || today().slice(0,7);
 
-      const delMesParaKPI = allValidRows.filter(r => getReciboMesKey(r) === mesParaKPI);
+      const seenKPINums = new Set();
+      const delMesParaKPI = allValidRows.filter(r => {
+        if (getReceiptMonthKey(r) !== mesParaKPI) return false;
+        const k = String(r.numero_recibo || r.referencia || r.id || '');
+        if (k && seenKPINums.has(k)) return false;
+        if (k) seenKPINums.add(k);
+        return true;
+      });
 
-      // DEBUG temporal — abrir F12 → Console para ver qué fechas tienen los recibos.
-      console.log('[KPI-MES] mesParaKPI:', mesParaKPI, '| total válidos:', allValidRows.length, '| del mes:', delMesParaKPI.length);
+      // Diagnóstico en consola — F12 → Console.
+      console.log('[KPI-MES] mes:', mesParaKPI, '| válidos:', allValidRows.length, '| del mes:', delMesParaKPI.length);
       if (allValidRows.length) {
-        const sample = allValidRows.slice(0, 5).map(r => ({ num: r.numero_recibo, fp: r.fecha_pago, ca: r.created_at, anio: r.anio, mes: r.mes, key: getReciboMesKey(r) }));
-        console.log('[KPI-MES] Muestra primeros 5:', sample);
+        console.log('[KPI-MES] Muestra primeros 5:', allValidRows.slice(0, 5).map(r => ({
+          num: r.numero_recibo, fp: r.fecha_pago, ca: r.created_at,
+          anio: r.anio, mes: r.mes, periodo: r.periodo_aplicado,
+          key: getReceiptMonthKey(r)
+        })));
       }
 
       const summary = {
         total:          allValidRows.length,
-        totalMonto:     allValidRows.reduce((acc, r) => acc + Number(r.monto_total || 0), 0),
+        totalMonto:     allValidRows.reduce((acc, r) => acc + reciboMonto(r), 0),
         delMesCantidad: delMesParaKPI.length,
-        delMesMonto:    delMesParaKPI.reduce((acc, r) => acc + Number(r.monto_total || 0), 0),
+        delMesMonto:    delMesParaKPI.reduce((acc, r) => acc + reciboMonto(r), 0),
         ultimoNumero:   allValidRows[0]?.numero_recibo || '—'
       };
 
