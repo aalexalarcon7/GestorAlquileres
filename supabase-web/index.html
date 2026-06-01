@@ -5556,7 +5556,7 @@ td:last-child{
       if (route === 'config') renderConfigPage();
     }
 
-    function today(){ return new Date().toISOString().slice(0,10); }
+    function today(){ const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
     function addDays(iso, days){ const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate()+days); return d.toISOString().slice(0,10); }
     function monthStartISO(d=new Date()){ return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0,10); }
     function nextMonthStartISO(d=new Date()){ return new Date(d.getFullYear(), d.getMonth()+1, 1).toISOString().slice(0,10); }
@@ -14922,6 +14922,7 @@ error = deleteResponse.error;
       const pagoTarget = await findRecentPaymentLike({ contratoId:Number(contratoId), fechaPago, monto:rpcTotalParaBusqueda });
       if (pagoTarget?.id){
         const pagoPatch = {
+          fecha_pago: fechaPago,
           referencia: numero || pagoTarget.referencia || null,
           descripcion_pago: obs || null,
           observacion: obs || null,
@@ -14960,6 +14961,7 @@ error = deleteResponse.error;
           const target = rows.find(r => String(r.fecha_pago || '').slice(0,10) === fechaKey && Math.abs(Number(r.monto || 0) - total) < 0.01) || rows[0];
           if (target?.id){
             const histPatch = {
+              fecha_pago: fechaPago,
               numero_recibo: numero || target.numero_recibo || null,
               recibo_base: numero || target.numero_recibo || null,
               referencia: numero || target.referencia || null,
@@ -15362,6 +15364,38 @@ if (periodoSelect) {
       }
     }
 
+    // Corrige cuotas_operativas.saldo cuando el RPC lo pone a 0 en un pago parcial.
+    // Solo actúa si el saldo esperado (saldoAntes - alquilerPagado) > 0 y el DB quedó en 0.
+    async function fixCuotaSaldoSiErroneoPostCobro(contratoId, anio, mes, saldoAntes, alquilerPagado) {
+      const saldoEsperado = round2(Math.max(0, saldoAntes - alquilerPagado));
+      if (saldoEsperado <= 0.009) return; // pago completo, no hay nada que corregir
+      try {
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select('id, monto_total, monto_pagado, saldo')
+          .eq('contrato_id', contratoId)
+          .eq('anio', anio)
+          .eq('mes', mes)
+          .maybeSingle();
+        if (error || !data?.id) return;
+        const saldoActual = round2(toNumber(data.saldo));
+        if (Math.abs(saldoActual - saldoEsperado) <= 0.009) return; // ya está correcto
+        const montoTotal = round2(toNumber(data.monto_total));
+        const montoPagadoCorrecto = round2(Math.max(0, montoTotal - saldoEsperado));
+        const { error: updErr } = await sb
+          .from('cuotas_operativas')
+          .update({ saldo: saldoEsperado, monto_pagado: montoPagadoCorrecto, estado: 'PARCIAL' })
+          .eq('id', data.id);
+        if (!updErr) {
+          console.info(`[GA] Saldo corregido ${mes}/${anio}: ${saldoActual} → ${saldoEsperado} (monto_pagado: ${montoPagadoCorrecto})`);
+        } else {
+          console.warn('[GA] No se pudo corregir saldo post-cobro:', updErr.message || updErr);
+        }
+      } catch (e) {
+        console.warn('[GA] Error en fixCuotaSaldoSiErroneoPostCobro:', e?.message || e);
+      }
+    }
+
     async function registrarPagoModal(){
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
@@ -15423,6 +15457,15 @@ if (periodoSelect) {
           const oldest = getOldestPendingCuotaParaCobro();
           if (oldest) choice = { auto:false, anio:Number(oldest.anio), mes:Number(oldest.mes) };
         }
+
+        // Capturar saldo_alquiler antes del cobro para detectar pagos parciales mal aplicados por el RPC.
+        const cuotaAntesCobro = !choice.auto && choice.anio && choice.mes
+          ? (pagoCuotasPendientesActuales || []).find(r =>
+              Number(r.anio) === Number(choice.anio) && Number(r.mes) === Number(choice.mes))
+          : getOldestPendingCuotaParaCobro();
+        const saldoAlquilerAntesCobro = round2(
+          toNumber(cuotaAntesCobro?.saldo_alquiler ?? cuotaAntesCobro?.saldo ?? 0)
+        );
 
         const periodoTexto = choice.auto
           ? 'deuda más antigua'
@@ -15603,6 +15646,17 @@ if (distribucionRpc || servicioMonto > 0.009) {
   );
 }
 // ──────────────────────────────────────────────────────────────────────────
+
+// Guard: si el RPC marcó la cuota como PAGADA pero el pago fue parcial, corregir cuotas_operativas.
+if (alquilerBase > 0.009 && !choice.auto && choice.anio && choice.mes && saldoAlquilerAntesCobro > alquilerBase + 0.009) {
+  await fixCuotaSaldoSiErroneoPostCobro(
+    Number(modalContrato.contrato_id),
+    choice.anio,
+    choice.mes,
+    saldoAlquilerAntesCobro,
+    alquilerBase
+  );
+}
 
         if (msgEl) {
           const numeroMsg = numeroManual || metadataPatch?.numero_recibo || '';
