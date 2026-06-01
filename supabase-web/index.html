@@ -11311,22 +11311,35 @@ async function fetchRecibosKPIsReales(){
 
 
     function renderRecibosKPIs(rows, selectedMonth){
-      const validRows = sortRecibosByNewestFirst(
-  (rows || []).filter(r => !isReciboAnulado(r))
-);
-      const total = validRows.length;
-      const totalMonto = validRows.reduce((acc, r) => acc + reciboMonto(r), 0);
-      const monthKey = selectedMonth || localMonthKey();
-      const delMes = validRows.filter(r => getReceiptMonthKey(r) === monthKey);
-      const ultimo = validRows[0];
-      return {
-        total,
-        totalMonto,
-        delMesCantidad: delMes.length,
-        delMesMonto: delMes.reduce((acc, r) => acc + reciboMonto(r), 0),
-        ultimoNumero: ultimo?.numero_recibo || '—'
-      };
-    }
+  const validRows = sortRecibosByNewestFirst(
+    (rows || []).filter(r => !isReciboAnulado(r))
+  );
+
+  const total = validRows.length;
+  const totalMonto = validRows.reduce((acc, r) => acc + reciboMonto(r), 0);
+  const monthKey = selectedMonth || localMonthKey();
+
+  const seen = new Set();
+  const delMes = validRows.filter(r => {
+    if (getReceiptKpiMonthKey(r) !== monthKey) return false;
+
+    const k = String(r.numero_recibo || r.referencia || r.id || '');
+    if (k && seen.has(k)) return false;
+    if (k) seen.add(k);
+
+    return true;
+  });
+
+  const ultimo = validRows[0];
+
+  return {
+    total,
+    totalMonto,
+    delMesCantidad: delMes.length,
+    delMesMonto: delMes.reduce((acc, r) => acc + reciboMonto(r), 0),
+    ultimoNumero: ultimo?.numero_recibo || '—'
+  };
+}
 
     function applyRecibosPageFilters(rows){
       const query = String(recibosPageState.query || '').trim().toLowerCase();
@@ -11404,6 +11417,36 @@ async function fetchRecibosKPIsReales(){
 
     // Alias para compatibilidad con usos anteriores de getReciboMesKey.
     function getReciboMesKey(r) { return getReceiptMonthKey(r); }
+
+// Devuelve "YYYY-MM" para KPIs mensuales de recibos.
+// Para el KPI importa cuándo se registró el recibo en el sistema,
+// no necesariamente la fecha_pago que puede venir mal desde el RPC.
+function getReceiptKpiMonthKey(item) {
+  if (!item) return '';
+  let ym;
+
+  ym = parseFechaToYM(item.created_at);
+  if (ym) return ym;
+
+  ym = parseFechaToYM(item.registrado_en || item.fecha_registro || item.createdAt || '');
+  if (ym) return ym;
+
+  ym = parseFechaToYM(item.fecha_pago);
+  if (ym) return ym;
+
+  const anio = Number(item.anio || 0);
+  const mes  = Number(item.mes  || 0);
+  if (anio > 2000 && mes >= 1 && mes <= 12) {
+    return `${anio}-${String(mes).padStart(2, '0')}`;
+  }
+
+  ym = parseFechaToYM(item.periodo_aplicado || item.periodo || '');
+  if (ym) return ym;
+
+  return '';
+}
+
+
 
     // Devuelve el monto total de un recibo: monto_total → monto → componentes.
     function reciboMonto(r) {
@@ -11712,12 +11755,12 @@ function updateRecibosFiltersFromUI(){
 
       const seenKPINums = new Set();
       const delMesParaKPI = allValidRows.filter(r => {
-        if (getReceiptMonthKey(r) !== mesParaKPI) return false;
-        const k = String(r.numero_recibo || r.referencia || r.id || '');
-        if (k && seenKPINums.has(k)) return false;
-        if (k) seenKPINums.add(k);
-        return true;
-      });
+  if (getReceiptKpiMonthKey(r) !== mesParaKPI) return false;
+  const k = String(r.numero_recibo || r.referencia || r.id || '');
+  if (k && seenKPINums.has(k)) return false;
+  if (k) seenKPINums.add(k);
+  return true;
+});
 
       // ── Diagnóstico KPI-MES (F12 → Console) ────────────────────────────────
       console.log(
@@ -11735,17 +11778,17 @@ function updateRecibosFiltersFromUI(){
           ca: r.created_at,
           anio: r.anio, mes: r.mes,
           periodo: r.periodo_aplicado,
-          keyDetectado: getReceiptMonthKey(r),
-          coincide: getReceiptMonthKey(r) === mesParaKPI
+          keyDetectado: getReceiptKpiMonthKey(r),
+coincide: getReceiptKpiMonthKey(r) === mesParaKPI
         })));
         // Muestra recibos que NO coinciden con el mes buscado (primeros 5)
-        const fuera = allValidRows.filter(r => getReceiptMonthKey(r) !== mesParaKPI).slice(0, 5);
+        const fuera = allValidRows.filter(r => getReceiptKpiMonthKey(r) !== mesParaKPI).slice(0, 5);
         if (fuera.length) {
           console.log('[KPI-MES] Recibos NO incluidos en KPI (primeros 5):', fuera.map(r => ({
             num: r.numero_recibo,
             fp: r.fecha_pago,
             ca: r.created_at,
-            keyDetectado: getReceiptMonthKey(r),
+            keyDetectado: getReceiptKpiMonthKey(r),
             mesBuscado: mesParaKPI
           })));
         }
