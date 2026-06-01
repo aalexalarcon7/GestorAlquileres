@@ -15351,19 +15351,31 @@ const metadataPatch = await forceCobroReceiptMetadata({
 });
 
 // ── Corrección post-cobro ──────────────────────────────────────────────────
-// El pago_id recién creado viene de forceCobroReceiptMetadata (que busca el
-// pago por fecha + monto). Con ese id reescribimos recibos_aplicaciones_operativas
-// usando el texto de distribución que el propio RPC calculó correctamente.
+// Reconstruye recibos_aplicaciones_operativas con los valores correctos.
+//
+// Problema conocido del RPC: puede devolver detalle_aplicacion con "impuesto 0.00"
+// aunque se haya pasado p_monto_impuesto > 0. En ese caso detalleRpcLimpio tiene el
+// impuesto incorrecto (0) y si se usa tal cual, fixAplicacionesOperativasPostCobro
+// crea la fila con monto_impuesto = 0 → impuesto no aparece en "Cuotas y deuda".
+//
+// Solución en tres niveles de prioridad:
+// 1) rpcNoImputoImpuesto = true → RPC devolvió monto_impuesto=0 pese a haberlo cobrado.
+//    El detalleRpcLimpio también tiene impuesto=0. Usamos los valores del cliente.
+//    Solo para pagos de UN período conocido (multi-mes necesita la distribución del RPC).
+// 2) detalleRpcLimpio vacío → RPC no devolvió distribución. Usamos synthetic fallback.
+// 3) detalleRpcLimpio válido y RPC imputó impuesto → usar el del RPC directamente.
+
 let distribucionRpc = detalleRpcLimpio || String(res?.detalle_aplicacion || '').trim();
 
-// Fallback: si el RPC no devolvió detalle_aplicacion pero hay impuesto y período
-// conocido, construir la distribución sintética en el formato que espera
-// parseAplicacionesFromPagoDetalle ("MM/YYYY: impuesto X / alquiler Y").
-// Sin este fallback, recibos_aplicaciones_operativas queda con monto_impuesto = 0
-// y el impuesto no aparece en "Cuotas y deuda" aunque el cobro fue correcto.
-if (!distribucionRpc && impuestoRegistrado > 0.009 && !choice.auto && choice.anio && choice.mes) {
+if (rpcNoImputoImpuesto && impuestoRegistrado > 0.009 && !choice.auto && choice.anio && choice.mes) {
+  // Caso 1: RPC devolvió impuesto=0 en su respuesta pero el cobro incluyó impuesto.
+  // detalleRpcLimpio también tiene "impuesto 0.00" → ignorarlo y usar valores del cliente.
+  distribucionRpc = `${String(choice.mes).padStart(2,'0')}/${choice.anio}: impuesto ${impuestoRegistrado.toFixed(2)} / alquiler ${alquilerRegistrado.toFixed(2)}`;
+} else if (!distribucionRpc && impuestoRegistrado > 0.009 && !choice.auto && choice.anio && choice.mes) {
+  // Caso 2: RPC no devolvió detalle_aplicacion. Construir distribución sintética.
   distribucionRpc = `${String(choice.mes).padStart(2,'0')}/${choice.anio}: impuesto ${impuestoRegistrado.toFixed(2)} / alquiler ${alquilerRegistrado.toFixed(2)}`;
 }
+// Caso 3: RPC devolvió detalle_aplicacion correcto → distribucionRpc ya está seteado.
 
 const pagoIdRecien = metadataPatch?.pago_id || null;
 if (distribucionRpc) {
