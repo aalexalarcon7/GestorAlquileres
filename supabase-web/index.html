@@ -7742,6 +7742,39 @@ window.addEventListener('online', () => {
       ) || null;
     }
 
+
+
+function getReciboNumeroOrden(item){
+  const raw = String(item?.numero_recibo || item?.recibo_base || item?.referencia || '');
+  const nums = raw.match(/\d+/g);
+  if (!nums || !nums.length) return 0;
+
+  // Si viene algo tipo "9987-9988", toma el número mayor/final.
+  return Math.max(...nums.map(n => Number(n) || 0));
+}
+
+function sortRecibosByNewestFirst(rows){
+  return [...(rows || [])].sort((a,b) => {
+    // 1. Número de recibo mayor primero: 9947 arriba de 9946.
+    const numA = getReciboNumeroOrden(a);
+    const numB = getReciboNumeroOrden(b);
+    if (numA !== numB) return numB - numA;
+
+    // 2. Fallback: registrado en sistema.
+    const caA = new Date(a?.created_at || a?.fecha_pago || 0).getTime() || 0;
+    const caB = new Date(b?.created_at || b?.fecha_pago || 0).getTime() || 0;
+    if (caA !== caB) return caB - caA;
+
+    // 3. Último fallback: fecha de pago.
+    const fpA = String(a?.fecha_pago || '').slice(0, 10);
+    const fpB = String(b?.fecha_pago || '').slice(0, 10);
+    if (fpA !== fpB) return fpB.localeCompare(fpA);
+
+    return 0;
+  });
+}
+
+
     async function syncContactosActivosDesdeRecibos(button){
       const msg = $('unitsMsg');
       const prevText = button?.textContent || '';
@@ -11241,7 +11274,7 @@ setTimeout(() => {
       rows = syncRecibosContactsFromActiveRows(rows);
       console.log('[RECIBOS-FETCH] Final (con overrides y contactos):', rows.length);
 
-      rows.sort((a,b) => {
+      rows = sortRecibosByNewestFirst(rows);
   // Orden principal del historial:
   // el recibo más nuevo debe aparecer arriba.
   // Usamos primero numero_recibo porque es correlativo:
@@ -11678,13 +11711,13 @@ function updateRecibosFiltersFromUI(){
       // allValidRows = todo sin anulados; filteredRows = con filtros de mes/local/búsqueda.
       const allValidRows = (rows || []).filter(r => !isReciboAnulado(r));
 
-      let filteredRows = applyRecibosPageFilters(rows);
+      let filteredRows = sortRecibosByNewestFirst(applyRecibosPageFilters(rows));
 
       // Si hay recibos pero los filtros dejaron la tabla vacía,
       // mostramos todo (sin anulados) para no "perder" el recibo recién generado.
       if (!filteredRows.length && allValidRows.length && !String(recibosPageState.contratoId || '').trim()){
         recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
-        filteredRows = [...allValidRows];
+        filteredRows = sortRecibosByNewestFirst(allValidRows);
       }
 
       // "Recibos del mes" = mes filtrado activo; si no hay filtro → mes actual.
