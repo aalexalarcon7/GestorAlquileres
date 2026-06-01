@@ -11242,22 +11242,26 @@ setTimeout(() => {
       console.log('[RECIBOS-FETCH] Final (con overrides y contactos):', rows.length);
 
       rows.sort((a,b) => {
-        // 1. fecha_pago descendente (día real del cobro).
-        //    Comparación léxica sobre YYYY-MM-DD funciona correctamente.
-        const fpA = String(a.fecha_pago || '').slice(0, 10);
-        const fpB = String(b.fecha_pago || '').slice(0, 10);
-        if (fpA !== fpB) return fpB < fpA ? -1 : 1;
+  // Orden principal del historial:
+  // el recibo más nuevo debe aparecer arriba.
+  // Usamos primero numero_recibo porque es correlativo:
+  // 9947 debe ir arriba de 9946, aunque fecha_pago venga mal desde el RPC.
+  const numA = parseInt(String(a.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
+  const numB = parseInt(String(b.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
+  if (numA !== numB) return numB - numA;
 
-        // 2. Mismo día: created_at descendente (momento exacto de registro).
-        const caA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
-        const caB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
-        if (caA !== caB) return caB - caA;
+  // Fallback: fecha/hora real de registro en sistema.
+  const caA = new Date(a.created_at || a.fecha_pago || 0).getTime() || 0;
+  const caB = new Date(b.created_at || b.fecha_pago || 0).getTime() || 0;
+  if (caA !== caB) return caB - caA;
 
-        // 3. Fallback: número de recibo mayor primero.
-        const numA = parseInt(String(a.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
-        const numB = parseInt(String(b.numero_recibo || '').replace(/\D/g, ''), 10) || 0;
-        return numB - numA;
-      });
+  // Último fallback: fecha de pago.
+  const fpA = String(a.fecha_pago || '').slice(0, 10);
+  const fpB = String(b.fecha_pago || '').slice(0, 10);
+  if (fpA !== fpB) return fpB < fpA ? -1 : 1;
+
+  return 0;
+});
 
       recibosInternosCache = rows;
       try { localStorage.setItem(RECEIPTS_CACHE_KEY, JSON.stringify(rows)); } catch(e){}
