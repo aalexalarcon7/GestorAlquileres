@@ -11261,6 +11261,16 @@ function updateRecibosHistoryFromState(){
     count.textContent = `${filteredRows.length} visibles`;
   }
 
+  // Recalcular KPI "Recibos del mes" al cambiar filtro de mes.
+  const allValid = (recibosInternosCache || []).filter(r => !isReciboAnulado(r));
+  const selMonth = String(recibosPageState.month || '').trim();
+  const mesPara = selMonth || today().slice(0, 7);
+  const delMes = allValid.filter(r => String(r.fecha_pago || r.created_at || '').slice(0, 7) === mesPara);
+  const kpiCant = $('kpiDelMesCantidad');
+  const kpiMon  = $('kpiDelMesMonto');
+  if (kpiCant) kpiCant.textContent = delMes.length;
+  if (kpiMon)  kpiMon.textContent  = fmtARS.format(delMes.reduce((acc, r) => acc + Number(r.monto_total || 0), 0));
+
   if (typeof closeReciboFloatingMenu === 'function') {
     closeReciboFloatingMenu();
   }
@@ -11511,16 +11521,11 @@ function updateRecibosFiltersFromUI(){
 
       // "Recibos del mes" = mes filtrado activo; si no hay filtro → mes actual.
       const selectedMonth = String(recibosPageState.month || '').trim();
-      const isMayo2026KPI = selectedMonth === '2026-05' || (!selectedMonth && today().slice(0,7) === '2026-05');
       const mesParaKPI = selectedMonth || today().slice(0,7);
 
-      const delMesParaKPI = allValidRows.filter(r => {
-        if (isMayo2026KPI) {
-          const num = parseInt(String(r.numero_recibo || r.referencia || '').replace(/\D/g, ''), 10);
-          return MAYO_2026_RECIBOS_VALIDOS.has(num);
-        }
-        return String(r.fecha_pago || r.created_at || '').slice(0,7) === mesParaKPI;
-      });
+      const delMesParaKPI = allValidRows.filter(r =>
+        String(r.fecha_pago || r.created_at || '').slice(0, 7) === mesParaKPI
+      );
 
       const summary = {
         total:          allValidRows.length,
@@ -11559,10 +11564,10 @@ function updateRecibosFiltersFromUI(){
                   <div class="value">${fmtARS.format(summary.totalMonto)}</div>
                   <div class="sub">Suma total registrada</div>
                 </div>
-                <div class="section-mini-stat">
+                <div class="section-mini-stat" id="kpiDelMesCard">
                   <div class="label">Recibos del mes</div>
-                  <div class="value">${summary.delMesCantidad}</div>
-                  <div class="sub">${fmtARS.format(summary.delMesMonto)}</div>
+                  <div class="value" id="kpiDelMesCantidad">${summary.delMesCantidad}</div>
+                  <div class="sub" id="kpiDelMesMonto">${fmtARS.format(summary.delMesMonto)}</div>
                 </div>
                 <div class="section-mini-stat">
                   <div class="label">Último número</div>
