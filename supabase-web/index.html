@@ -5581,31 +5581,36 @@ td:last-child{
     }
 
     function getReconstructedDebtStatus(row){
-      const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
-const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
-const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
+  const tolerance = 1;
 
-// La deuda vencida real ya viene reconstruida en deuda_total_2025_2026.
-// Incluye 2025, enero-abril 2026 y meses vencidos posteriores como mayo.
-const deudaVencidaBase = round2(
-  toNumber(row?.deuda_total_2025_2026 ?? (arrastre2025 + deuda2026Vencida))
-);
+  const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
+  const deuda2026Vencida = toNumber(row?.deuda_2026 ?? row?.deuda_total_2026);
+  const deudaMesActual = toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0);
 
-      // La deuda 2025 + enero-abril 2026 ya está vencida.
-      if (deudaVencidaBase > tolerance) {
-        return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
-      }
+  // La deuda vencida real puede venir ya reconstruida.
+  // Incluye 2025, enero-abril 2026 y meses vencidos posteriores como mayo 2026.
+  const deudaTotalReconstruida = toNumber(row?.deuda_total_2025_2026);
 
-      // El mes actual se muestra como importe a abonar, pero antes del día de vencimiento
-      // no debe marcarse como atraso.
-      if (deudaMesActual > tolerance) {
-        return isBeforeOrOnCurrentDueDay()
-          ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
-          : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
-      }
+  const deudaVencidaBase = round2(
+    deudaTotalReconstruida > tolerance
+      ? deudaTotalReconstruida
+      : arrastre2025 + deuda2026Vencida
+  );
 
-      return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
-    }
+  // Toda deuda vencida debe marcarse como ATRASADO.
+  if (deudaVencidaBase > tolerance) {
+    return { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+  }
+
+  // El mes actual puede aparecer como pendiente, pero antes del vencimiento no es atraso.
+  if (deudaMesActual > tolerance) {
+    return isBeforeOrOnCurrentDueDay()
+      ? { key:'VENCE_PRONTO', label:'VENCE PRONTO', className:'b-warn' }
+      : { key:'ATRASADO', label:'ATRASADO', className:'b-bad' };
+  }
+
+  return { key:'AL_DIA', label:'AL DÍA', className:'b-ok' };
+}
 
     function getContratoStatus(row){
       if (row?.reconstructed) return getReconstructedDebtStatus(row);
