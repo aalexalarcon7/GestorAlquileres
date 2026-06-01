@@ -4763,6 +4763,10 @@ td:last-child{
           <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
           <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="window.__editandoImpuestoMonto = true" onblur="window.__editandoImpuestoMonto = false; recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
         </div>
+        <div id="mServicioBox" style="display:none; flex-direction:column; gap:6px; min-width:220px;">
+          <label class="muted" style="font-size:12px;">Servicio</label>
+          <input id="mServMonto" inputmode="decimal" placeholder="—" style="width:220px; font-weight:800;" oninput="recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">
+        </div>
         <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
           <label class="muted" style="font-size:12px;">Total a cobrar</label>
           <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
@@ -4782,7 +4786,7 @@ td:last-child{
         <div class="multi-pay-head">
           <div>
             <div class="multi-pay-title">Medios de pago</div>
-            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios es el total cobrado; el sistema imputa primero al impuesto y después el resto al alquiler.</div>
+            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios es el total cobrado; el sistema imputa primero al impuesto, luego al servicio y después el resto al alquiler.</div>
           </div>
         </div>
         <div class="multi-pay-list" id="mMediosPagoList"></div>
@@ -6723,19 +6727,20 @@ if (aplicaciones.length) {
     const pagadoBase = round2(toNumber(row.pagado ?? row.monto_pagado));
     const pagadoSegunRecibos = round2(toNumber(row.pagado_total_recibos));
 
+    // Servicio: monto del mes según cuotas_operativas
+    const servicio = round2(toNumber(row.servicio ?? row.monto_servicio));
+    // Servicio ya abonado: suma de monto_servicio de recibos_aplicaciones_operativas
+    const servicioPagado = round2(toNumber(row.servicio_pagado || 0));
+
     row.impuesto = impuesto;
 
     // El total de la tabla sigue siendo el alquiler/base del mes.
     row.total_con_impuesto = totalBase;
 
-    // El pagado mostrado debe ser:
-// alquiler pagado en cuotas_operativas + impuesto aplicado del mes.
-// No usar pagado_total_recibos como reemplazo, porque puede traer el recibo completo
-// o una distribución que no representa el acumulado del mes.
-row.pagado_con_impuesto = round2(pagadoBase + impuesto);
+    // Pagado = alquiler pagado + impuesto aplicado + servicio abonado.
+    row.pagado_con_impuesto = round2(pagadoBase + impuesto + servicioPagado);
 
-    // El saldo correcto sale de cuotas_operativas.saldo.
-    // No se recalcula restando impuesto, porque eso puede marcar como pagado algo parcial.
+    // Saldo base (solo alquiler) viene de cuotas_operativas.saldo.
     const tieneSaldoBase =
       row.saldo !== null &&
       row.saldo !== undefined &&
@@ -6745,7 +6750,16 @@ row.pagado_con_impuesto = round2(pagadoBase + impuesto);
       ? round2(toNumber(row.saldo))
       : round2(Math.max(0, totalBase - pagadoBase));
 
-    row.saldo_con_impuesto = round2(Math.max(0, saldoBase));
+    // Si el alquiler está pendiente (saldo > 0), se suma también el servicio pendiente.
+    // Para meses históricos ya PAGADOS (saldo = 0), el servicio se considera saldado
+    // aunque no haya sido registrado en recibos (para no retroactivamente reabrir meses).
+    const servicioPendiente = saldoBase > 0.009
+      ? round2(Math.max(0, servicio - servicioPagado))
+      : 0;
+
+    // Saldo solo de alquiler (para el campo Alquiler del modal de cobro).
+    row.saldo_alquiler = round2(Math.max(0, saldoBase));
+    row.saldo_con_impuesto = round2(Math.max(0, saldoBase + servicioPendiente));
 
     const estadoBase = String(row.estado || row.estado_detalle || '').toUpperCase();
 
@@ -6845,6 +6859,7 @@ function applyImpuestosToDebtRows(rows, pagos){
   detalleRows.forEach(row => {
     row.impuesto = 0;
     row.pagado_total_recibos = 0;
+    row.servicio_pagado = 0;
   });
 
   const pagosActivos = Array.isArray(pagos)
@@ -6863,6 +6878,7 @@ function applyImpuestosToDebtRows(rows, pagos){
 
   const impuestoByKey = new Map();
   const pagadoTotalByKey = new Map();
+  const servicioPagadoByKey = new Map();
   const aplicacionesVistas = new Set();
 
   function esAplicacionDirecta(pago){
@@ -6907,12 +6923,19 @@ if (aplicacionesDirectas.length) {
       alquilerDirecto,
       `app-real:${pago?.recibo_id || pago?.pago_id || pago?.id || ''}:${key}`
     );
+
+    // Acumular servicio pagado por mes (SUM, no MAX — cada pago puede aportar parte del servicio)
+    const servicioAplicado = round2(toNumber(pago?.monto_servicio));
+    if (servicioAplicado > 0) {
+      servicioPagadoByKey.set(key, round2((servicioPagadoByKey.get(key) || 0) + servicioAplicado));
+    }
   });
 
   detalleRows.forEach(row => {
     const key = String(row?.sort_key || '').slice(0, 7);
     row.impuesto = round2(toNumber(impuestoByKey.get(key)));
     row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+    row.servicio_pagado = round2(toNumber(servicioPagadoByKey.get(key)));
   });
 
   return enrichDebtRowsWithImpuestoTotals(detalleRows);
@@ -7070,6 +7093,7 @@ if (aplicacionesDirectas.length) {
     const key = String(row?.sort_key || '').slice(0, 7);
     row.impuesto = round2(toNumber(impuestoByKey.get(key)));
     row.pagado_total_recibos = round2(toNumber(pagadoTotalByKey.get(key)));
+    row.servicio_pagado = round2(toNumber(servicioPagadoByKey.get(key)));
   });
 
   return enrichDebtRowsWithImpuestoTotals(detalleRows);
@@ -14526,7 +14550,7 @@ error = deleteResponse.error;
       // No usamos vistas acá para evitar que un cambio de columnas rompa el botón Cobro.
       const { data, error } = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion')
+        .select('id,contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,periodo,mes_nombre,vencimiento,monto_total,monto_pagado,saldo,estado,origen,fuente_hoja,observacion,monto_servicio,servicio_detalle')
         .eq('contrato_id', contratoId)
         .order('anio', { ascending:true })
         .order('mes', { ascending:true });
@@ -14534,7 +14558,9 @@ error = deleteResponse.error;
       return (data || []).map(row => ({
         ...row,
         detalle_id: row.id,
-        sort_key: `${row.anio}-${String(row.mes).padStart(2,'0')}`
+        sort_key: `${row.anio}-${String(row.mes).padStart(2,'0')}`,
+        servicio: toNumber(row.monto_servicio),
+        monto_servicio: toNumber(row.monto_servicio)
       }));
     }
 
@@ -14633,23 +14659,25 @@ error = deleteResponse.error;
   const totalMedios = getTotalMediosPago();
 
   // El impuesto SIEMPRE sale del campo "Impuesto a sumar".
-  // Nunca sale de efectivo, transferencia, mixto ni de ningún medio de pago.
   const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+  // El servicio sale del campo "Servicio" (auto-llenado desde la cuota).
+  const servicioObjetivo = parseMoneyToNumber($('mServMonto')?.value || '') || 0;
 
-  const desglose = calcularDesgloseImpuestoPrimero(totalMedios, impuestoObjetivo);
+  // Prioridad de imputación: impuesto → servicio → alquiler.
+  const impuestoAplicado = round2(Math.min(totalMedios, impuestoObjetivo));
+  const restaTrasTax = round2(Math.max(0, totalMedios - impuestoAplicado));
+  const servicioAplicado = round2(Math.min(restaTrasTax, servicioObjetivo));
+  const alquilerAplicado = round2(Math.max(0, restaTrasTax - servicioAplicado));
 
   if ($('mTotal')) {
     $('mTotal').value = totalMedios > 0 ? formatMoneyInputValue(totalMedios) : '';
   }
 
   if ($('mAlquiler')) {
-    $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(desglose.alquiler) : '';
+    $('mAlquiler').value = totalMedios > 0 ? formatMoneyInputValue(alquilerAplicado) : '';
   }
 
-  // IMPORTANTE:
-  // No tocar mImpMonto acá.
-  // Si se toca, un medio de pago como TRANSFERENCIA $3.400 puede terminar pisando el impuesto.
-  // El campo impuesto debe conservar lo que escribió o sincronizó el usuario.
+  // No tocar mImpMonto ni mServMonto: el usuario los controla.
   if ($('mImpPct')) {
     $('mImpPct').value = '0';
   }
@@ -14663,9 +14691,10 @@ error = deleteResponse.error;
   updatePagoMediosResumen();
 
   return {
-    alquiler: desglose.alquiler,
+    alquiler: alquilerAplicado,
+    servicio: servicioAplicado,
     impPct: 0,
-    impuesto: desglose.impuesto,
+    impuesto: impuestoAplicado,
     total: totalMedios
   };
 }
@@ -14786,8 +14815,9 @@ error = deleteResponse.error;
 
       const visiblesPendientes = getDetalleCuotasPendientesParaCobro();
       const map = new Map();
-      // Priorizar Supabase porque después de modificar alquiler la vista local puede quedar vieja.
-[...dbPendientes, ...visiblesPendientes].forEach(row => {
+      // Prioridad: visibles primero (tienen servicio_pagado enriquecido correctamente).
+      // DB primero para meses que no están en la vista local (ej: modificación de alquiler reciente).
+      [...visiblesPendientes, ...dbPendientes].forEach(row => {
   const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
   if (!map.has(key)) map.set(key, row);
 });
@@ -14803,7 +14833,7 @@ error = deleteResponse.error;
       if (!target?.id || !patch || !Object.keys(patch).length) return null;
       const attempts = [
         patch,
-        Object.fromEntries(Object.entries(patch).filter(([k]) => !['descripcion_pago','monto_alquiler','monto_impuesto','impuesto_porcentaje','periodo_aplicado','detalle_aplicacion','updated_at'].includes(k))),
+        Object.fromEntries(Object.entries(patch).filter(([k]) => !['descripcion_pago','monto_alquiler','monto_impuesto','monto_servicio','impuesto_porcentaje','periodo_aplicado','detalle_aplicacion','updated_at'].includes(k))),
         Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','numero_recibo','recibo_base','observacion'].includes(k))),
         Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia','observacion'].includes(k))),
         Object.fromEntries(Object.entries(patch).filter(([k]) => ['referencia'].includes(k)))
@@ -14814,7 +14844,7 @@ error = deleteResponse.error;
           const { data, error } = await sb.from(table).update(attempt).eq('id', target.id).select('id').maybeSingle();
           if (!error) return data || target;
           const msg = String(error.message || error);
-          if (!/column|schema cache|updated_at|descripcion_pago|monto_alquiler|monto_impuesto|impuesto_porcentaje|periodo_aplicado|detalle_aplicacion/i.test(msg)) {
+          if (!/column|schema cache|updated_at|descripcion_pago|monto_alquiler|monto_impuesto|monto_servicio|impuesto_porcentaje|periodo_aplicado|detalle_aplicacion/i.test(msg)) {
             console.warn(`No se pudo actualizar ${table}:`, msg);
             return null;
           }
@@ -14845,12 +14875,13 @@ error = deleteResponse.error;
       }
     }
 
-    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, numeroManual, observacionFinal, alquilerBase, impuestoFijo, periodoTexto, detalleAplicacion }){
+    async function forceCobroReceiptMetadata({ contratoId, fechaPago, monto, servicioMonto, numeroManual, observacionFinal, alquilerBase, impuestoFijo, periodoTexto, detalleAplicacion }){
       const numero = String(numeroManual || '').trim();
       const obs = String(observacionFinal || '').trim();
       const total = Number(monto || 0);
       const alquiler = Number(alquilerBase || 0);
       const impuesto = Number(impuestoFijo || 0);
+      const servicio = round2(toNumber(servicioMonto));
       const periodo = String(periodoTexto || '').trim();
       const detalle = String(detalleAplicacion || obs || '').trim();
 
@@ -14863,6 +14894,7 @@ error = deleteResponse.error;
         monto: total,
         monto_alquiler: alquiler,
         monto_impuesto: impuesto,
+        monto_servicio: servicio,
         impuesto_porcentaje: 0,
         numero_recibo: numero || null,
         referencia: numero || null,
@@ -14884,7 +14916,10 @@ error = deleteResponse.error;
 
       // 1) Intentar actualizar el pago operativo. listar_recibos_operativos normalmente lee desde pagos,
       // por eso esta parte es clave para que no vuelva a aparecer REC-00000.
-      const pagoTarget = await findRecentPaymentLike({ contratoId:Number(contratoId), fechaPago, monto:total });
+      // El RPC crea el pago con monto=rpcTotal (sin servicio). Buscamos por ese monto
+      // y luego actualizamos a total (con servicio).
+      const rpcTotalParaBusqueda = servicio > 0 ? round2(total - servicio) : total;
+      const pagoTarget = await findRecentPaymentLike({ contratoId:Number(contratoId), fechaPago, monto:rpcTotalParaBusqueda });
       if (pagoTarget?.id){
         const pagoPatch = {
           referencia: numero || pagoTarget.referencia || null,
@@ -14892,11 +14927,17 @@ error = deleteResponse.error;
           observacion: obs || null,
           monto_alquiler: alquiler,
           monto_impuesto: impuesto,
+          monto_servicio: servicio,
           impuesto_porcentaje: 0,
           periodo_aplicado: periodo || null,
           detalle_aplicacion: detalle || null,
           updated_at: new Date().toISOString()
         };
+        // Si hay servicio, actualizar también el monto total del pago para que el recibo sea correcto.
+        if (servicio > 0) {
+          pagoPatch.monto = total;
+          pagoPatch.monto_total = total;
+        }
         const pagoUpd = await updateFirstMatchingRowSafe('pagos', pagoTarget, pagoPatch);
         if (pagoUpd) {
           updated = { ...(updated || {}), pago_id: pagoTarget.id };
@@ -14971,22 +15012,22 @@ error = deleteResponse.error;
 
     function recalcularCobroModal(){
       const impuesto = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+      const servicio = parseMoneyToNumber($('mServMonto')?.value || '') || 0;
 
       // Flujo profesional impuesto-primero:
       // si hay medios cargados abajo, esa suma es el total real cobrado.
-      // Primero se reserva/descuenta el impuesto y el resto queda como alquiler.
-      // Así el jefe puede cargar primero el impuesto y no duplicar importes arriba.
+      // Primero se reserva/descuenta el impuesto, luego el servicio y el resto al alquiler.
       const totalMedios = getTotalMediosPago();
       if (totalMedios > 0 && !window.__editandoImpuestoMonto) {
       return syncCobroDesdeMediosPago();
     }
 
       const alquiler = parseMoneyToNumber($('mAlquiler')?.value || '');
-      const total = round2(alquiler + impuesto);
+      const total = round2(alquiler + servicio + impuesto);
       if ($('mImpPct')) $('mImpPct').value = '0';
       if ($('mTotal')) $('mTotal').value = total > 0 ? formatMoneyInputValue(total) : '';
       syncPagoMediosConTotal(total);
-      return { alquiler, impPct:0, impuesto, total };
+      return { alquiler, servicio, impPct:0, impuesto, total };
     }
 
 async function obtenerUltimoImpuestoActivo(contratoId){
@@ -15035,10 +15076,29 @@ function syncCobroAlquilerDesdePeriodo(){
     return;
   }
 
-  const saldo = toNumber(cuota.saldo);
-
+  // saldo_alquiler = saldo puro del alquiler (sin servicio), calculado en enrichDebtRowsWithImpuestoTotals.
+  // Fallback: monto_total - monto_pagado para cuotas sin enriquecer.
+  const saldoAlquilerReal = round2(Math.max(0,
+    cuota.saldo_alquiler != null
+      ? toNumber(cuota.saldo_alquiler)
+      : toNumber(cuota.monto_total) - toNumber(cuota.monto_pagado)
+  ));
   if ($('mAlquiler')) {
-    $('mAlquiler').value = formatMoneyInputValue(saldo);
+    $('mAlquiler').value = formatMoneyInputValue(saldoAlquilerReal);
+  }
+
+  // Servicio del período: solo si hay monto_servicio en la cuota.
+  const servicioCuota = round2(toNumber(cuota.monto_servicio ?? cuota.servicio ?? 0));
+  const servicioPagado = round2(toNumber(cuota.servicio_pagado || 0));
+  const servicioPendiente = round2(Math.max(0, servicioCuota - servicioPagado));
+
+  const servicioBox = $('mServicioBox');
+  const servicioInput = $('mServMonto');
+  if (servicioBox) {
+    servicioBox.style.display = servicioPendiente > 0 ? 'flex' : 'none';
+  }
+  if (servicioInput) {
+    servicioInput.value = servicioPendiente > 0 ? formatMoneyInputValue(servicioPendiente) : '';
   }
 
   recalcularCobroModal();
@@ -15070,6 +15130,8 @@ function syncCobroAlquilerDesdePeriodo(){
       if ($('mAlquiler')) $('mAlquiler').value = '';
 if ($('mImpPct')) $('mImpPct').value = '0';
 if ($('mImpMonto')) $('mImpMonto').value = '';
+if ($('mServMonto')) $('mServMonto').value = '';
+if ($('mServicioBox')) $('mServicioBox').style.display = 'none';
 
 await refreshPaymentPeriodOptions(r, false);
 
@@ -15155,13 +15217,15 @@ if (periodoSelect) {
     //   detalleTexto  — texto devuelto por el RPC con la distribución mensual
     //   rpcStartTs    — Date.now() justo antes de llamar al RPC
     // ─────────────────────────────────────────────────────────────────────────
-    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto, rpcStartTs) {
+    async function fixAplicacionesOperativasPostCobro(contratoId, pagoId, detalleTexto, rpcStartTs, servicioMonto = 0, servicioAnio = null, servicioMes = null) {
       if (!contratoId) return;
+      servicioMonto = round2(toNumber(servicioMonto));
 
       // Parsear distribución del RPC:
       // "02/2026: impuesto 27000.00 / alquiler 218900.00 | 03/2026: impuesto 27000.00 / alquiler 27100.00"
       const apps = parseAplicacionesFromPagoDetalle({ detalle_aplicacion: String(detalleTexto || '') });
-      if (!apps.length) return;
+      // Solo salir temprano si no hay distribución ni servicio que registrar.
+      if (!apps.length && servicioMonto <= 0.009) return;
 
       // Timestamp seguro: 5 segundos antes de que arrancara el RPC.
       // Filas con created_at < safeTs son "viejas" (pagos anteriores).
@@ -15194,6 +15258,16 @@ if (periodoSelect) {
       let carryOver = 0;
       const adjusted = [];
 
+      // Determinar a qué key de período pertenece el servicio.
+      // Si el detalleTexto tiene distribución, usar el primer mes.
+      // Si no, usar servicioAnio/servicioMes si se pasaron.
+      let servicioAsignadoKey = null;
+      if (apps.length > 0) {
+        servicioAsignadoKey = apps[0].key;
+      } else if (servicioAnio && servicioMes) {
+        servicioAsignadoKey = `${servicioAnio}-${String(servicioMes).padStart(2,'0')}`;
+      }
+
       for (const app of apps) {
         const existingImp = round2(toNumber(impuestoPorMes.get(app.key) || 0));
         const rpcImp      = round2(app.impuesto);
@@ -15206,16 +15280,29 @@ if (periodoSelect) {
 
         // El alquiler de este mes + lo que sobró del mes anterior
         const alqReal  = round2(rpcAlq + carryOver);
-        const aplicado = round2(impNecesario + alqReal);
+
+        // Servicio: solo al período principal (primer mes de la distribución).
+        const servEste = (servicioMonto > 0.009 && app.key === servicioAsignadoKey)
+          ? servicioMonto
+          : 0;
+
+        const aplicado = round2(impNecesario + alqReal + servEste);
 
         carryOver = impExceso; // lo que no se pudo aplicar pasa al siguiente mes
 
         const anio = Number(app.key.slice(0, 4));
         const mes  = Number(app.key.slice(5, 7));
 
-        if (aplicado > 0.009 || impNecesario > 0.009) {
-          adjusted.push({ anio, mes, monto_impuesto: impNecesario, monto_alquiler: alqReal, monto_aplicado: aplicado });
+        if (aplicado > 0.009 || impNecesario > 0.009 || servEste > 0.009) {
+          adjusted.push({ anio, mes, monto_impuesto: impNecesario, monto_alquiler: alqReal, monto_servicio: servEste, monto_aplicado: aplicado });
         }
+      }
+
+      // Si no hay distribución del RPC pero sí hay servicio, crear un registro solo con servicio.
+      if (adjusted.length === 0 && servicioMonto > 0.009 && servicioAsignadoKey) {
+        const anio = Number(servicioAsignadoKey.slice(0, 4));
+        const mes  = Number(servicioAsignadoKey.slice(5, 7));
+        adjusted.push({ anio, mes, monto_impuesto: 0, monto_alquiler: 0, monto_servicio: servicioMonto, monto_aplicado: servicioMonto });
       }
 
       // Si queda carryover al final, agregar al último mes como alquiler extra
@@ -15256,6 +15343,7 @@ if (periodoSelect) {
         monto_aplicado: d.monto_aplicado,
         monto_alquiler: d.monto_alquiler,
         monto_impuesto: d.monto_impuesto,
+        monto_servicio: round2(toNumber(d.monto_servicio)),
         created_at:     ts
       }));
 
@@ -15266,7 +15354,7 @@ if (periodoSelect) {
         } else {
           console.info(
             '[GA] Aplicaciones post-cobro corregidas:',
-            rows.map(r => `${r.mes}/${r.anio}: imp=$${r.monto_impuesto} alq=$${r.monto_alquiler}`).join(' | ')
+            rows.map(r => `${r.mes}/${r.anio}: imp=$${r.monto_impuesto} serv=$${r.monto_servicio} alq=$${r.monto_alquiler}`).join(' | ')
           );
         }
       } catch (e) {
@@ -15282,6 +15370,8 @@ if (periodoSelect) {
         if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
+        // Servicio del período (solo para inquilinos con servicio habilitado).
+        const servicioMonto = round2(parseMoneyToNumber($('mServMonto')?.value || '') || 0);
         const mediosPago = getPagoMediosFromUI();
         const totalMediosPago = round2(mediosPago.reduce((acc, row) => acc + Number(row.monto || 0), 0));
         if (!mediosPago.length){
@@ -15289,8 +15379,12 @@ if (periodoSelect) {
           return;
         }
 
-        const desglosePrioritario = calcularDesgloseImpuestoPrimero(totalMediosPago, impuestoObjetivo);
-        const amount = desglosePrioritario.total;
+        // El RPC sólo recibe alquiler + impuesto (sin servicio).
+        // Así cuotas_operativas.monto_pagado refleja solo el alquiler real, sin overflow.
+        const rpcTotal = round2(Math.max(0, totalMediosPago - servicioMonto));
+        const desglosePrioritario = calcularDesgloseImpuestoPrimero(rpcTotal, impuestoObjetivo);
+        // amount = total real cobrado al inquilino (alquiler + servicio + impuesto).
+        const amount = totalMediosPago;
         const impuestoFijo = desglosePrioritario.impuesto;
         const alquilerBase = desglosePrioritario.alquiler;
 
@@ -15299,9 +15393,7 @@ if (periodoSelect) {
           return;
         }
 
-        // Regla operativa: primero se cobra/imputa el impuesto y después el alquiler.
-        // Ejemplo: si el impuesto es $5.000 y se cobran $3.000, queda $3.000 a impuesto y $0 a alquiler.
-        // Si se cobran $25.000, queda $5.000 a impuesto y $20.000 a alquiler.
+        // Regla: impuesto primero, luego servicio, luego alquiler.
         if ($('mTotal')) $('mTotal').value = formatMoneyInputValue(amount);
         if ($('mImpMonto')) $('mImpMonto').value = impuestoFijo > 0 ? formatMoneyInputValue(impuestoFijo) : '';
         if ($('mAlquiler')) $('mAlquiler').value = alquilerBase > 0 ? formatMoneyInputValue(alquilerBase) : '';
@@ -15316,9 +15408,12 @@ if (periodoSelect) {
           if ($('mReferencia')) $('mReferencia').value = numeroManual;
         }
         const descripcionBase = String($('mDescripcion')?.value || '').trim();
-        const desgloseCobroBase = impuestoFijo > 0
-          ? `Imputación impuesto primero: ${fmtARS.format(impuestoFijo)} a impuesto · ${fmtARS.format(alquilerBase)} a alquiler · Total cobrado: ${fmtARS.format(amount)}`
-          : `Sin impuesto imputado · ${fmtARS.format(alquilerBase)} a alquiler · Total cobrado: ${fmtARS.format(amount)}`;
+        // Descripción del desglose: impuesto → servicio → alquiler
+        const partesDesglose = [];
+        if (impuestoFijo > 0) partesDesglose.push(`${fmtARS.format(impuestoFijo)} a impuesto`);
+        if (servicioMonto > 0) partesDesglose.push(`${fmtARS.format(servicioMonto)} a servicio`);
+        partesDesglose.push(`${fmtARS.format(alquilerBase)} a alquiler`);
+        const desgloseCobroBase = `Imputación: ${partesDesglose.join(' · ')} · Total cobrado: ${fmtARS.format(amount)}`;
         const desgloseCobro = detalleMediosPago
           ? `${desgloseCobroBase} · Medios de pago: ${detalleMediosPago}`
           : desgloseCobroBase;
@@ -15342,13 +15437,13 @@ if (periodoSelect) {
           p_contrato_id: Number(modalContrato.contrato_id),
           p_anio: choice.anio,
           p_mes: choice.mes,
-          p_monto_pago: amount,
+          // El RPC recibe solo alquiler + impuesto. El servicio se registra por separado
+          // en recibos_aplicaciones_operativas para no inflar cuotas_operativas.monto_pagado.
+          p_monto_pago: rpcTotal,
           p_fecha_pago: $('mFecha')?.value || today(),
           p_medio: medioGeneral,
           p_referencia: numeroManual || null,
           p_observacion: observacionFinal,
-          // Estos campos son necesarios para que Supabase guarde y devuelva exactamente
-          // el número manual, el impuesto fijo y la descripción en el recibo.
           p_numero_recibo: numeroManual || null,
           p_monto_alquiler: alquilerBase,
           p_monto_impuesto: impuestoFijo,
@@ -15429,11 +15524,18 @@ const detalleRpcLimpio = String(res?.detalle_aplicacion || '')
   .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
   .trim();
 
-const distribucionFallback = impuestoRegistrado > 0.009
-  ? `Imputación: ${fmtARS.format(impuestoRegistrado)} a impuesto · ${fmtARS.format(alquilerRegistrado)} a alquiler`
-  : `Imputación: ${fmtARS.format(alquilerRegistrado)} a alquiler`;
+// Descripción de la distribución para el recibo (impuesto → servicio → alquiler).
+const partesDistribucion = [];
+if (impuestoRegistrado > 0.009) partesDistribucion.push(`${fmtARS.format(impuestoRegistrado)} a impuesto`);
+if (servicioMonto > 0.009) partesDistribucion.push(`${fmtARS.format(servicioMonto)} a servicio`);
+partesDistribucion.push(`${fmtARS.format(alquilerRegistrado)} a alquiler`);
 
-const distribucionFinal = detalleRpcLimpio || distribucionFallback;
+const distribucionFallback = `Imputación: ${partesDistribucion.join(' · ')}`;
+const distribucionFinal = detalleRpcLimpio
+  ? (servicioMonto > 0.009
+      ? `${detalleRpcLimpio} · servicio ${servicioMonto.toFixed(2)}`
+      : detalleRpcLimpio)
+  : distribucionFallback;
 
 const mediosFinal = detalleMediosPago
   ? `Medios de pago: ${detalleMediosPago}`
@@ -15451,6 +15553,7 @@ const metadataPatch = await forceCobroReceiptMetadata({
   contratoId: Number(modalContrato.contrato_id),
   fechaPago: args.p_fecha_pago,
   monto: amount,
+  servicioMonto,
   numeroManual: res?.numero_recibo || numeroManual,
   observacionFinal: descripcionFinalRecibo,
   alquilerBase: alquilerRegistrado,
@@ -15480,19 +15583,23 @@ if (rpcNoImputoImpuesto && impuestoRegistrado > 0.009 && !choice.auto && choice.
   // Caso 1: RPC devolvió impuesto=0 en su respuesta pero el cobro incluyó impuesto.
   // detalleRpcLimpio también tiene "impuesto 0.00" → ignorarlo y usar valores del cliente.
   distribucionRpc = `${String(choice.mes).padStart(2,'0')}/${choice.anio}: impuesto ${impuestoRegistrado.toFixed(2)} / alquiler ${alquilerRegistrado.toFixed(2)}`;
-} else if (!distribucionRpc && impuestoRegistrado > 0.009 && !choice.auto && choice.anio && choice.mes) {
-  // Caso 2: RPC no devolvió detalle_aplicacion. Construir distribución sintética.
+} else if (!distribucionRpc && !choice.auto && choice.anio && choice.mes) {
+  // Caso 2: RPC no devolvió detalle_aplicacion. Construir distribución sintética
+  // (incluye cuando no hay impuesto pero sí hay alquiler o servicio).
   distribucionRpc = `${String(choice.mes).padStart(2,'0')}/${choice.anio}: impuesto ${impuestoRegistrado.toFixed(2)} / alquiler ${alquilerRegistrado.toFixed(2)}`;
 }
 // Caso 3: RPC devolvió detalle_aplicacion correcto → distribucionRpc ya está seteado.
 
 const pagoIdRecien = metadataPatch?.pago_id || null;
-if (distribucionRpc) {
+if (distribucionRpc || servicioMonto > 0.009) {
   await fixAplicacionesOperativasPostCobro(
     Number(modalContrato.contrato_id),
     pagoIdRecien,
-    distribucionRpc,
-    rpcStartTs  // ← timestamp antes del RPC, separa filas viejas de nuevas
+    distribucionRpc || '',
+    rpcStartTs,  // ← timestamp antes del RPC, separa filas viejas de nuevas
+    servicioMonto,
+    choice.anio,
+    choice.mes
   );
 }
 // ──────────────────────────────────────────────────────────────────────────

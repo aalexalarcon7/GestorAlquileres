@@ -4,3 +4,4 @@ supabase-web/.env.*
 supabase-web/env.import
 supabase-web/.env.import
 .vscode/
+.claude/settings.json
