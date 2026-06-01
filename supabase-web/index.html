@@ -6536,7 +6536,7 @@ td:last-child{
     // Esta tabla dice cuánto fue a impuesto y cuánto fue a alquiler por mes.
     const appRes = await sb
       .from('recibos_aplicaciones_operativas')
-      .select('id,recibo_id,pago_id,contrato_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,deleted_at,created_at')
+      .select('id,recibo_id,pago_id,contrato_id,anio,mes,periodo,monto_aplicado,monto_impuesto,monto_alquiler,monto_servicio,deleted_at,created_at')
       .eq('contrato_id', row.contrato_id)
       .order('anio', { ascending:true })
       .order('mes', { ascending:true });
@@ -6750,16 +6750,18 @@ if (aplicaciones.length) {
       ? round2(toNumber(row.saldo))
       : round2(Math.max(0, totalBase - pagadoBase));
 
-    // Si el alquiler está pendiente (saldo > 0), se suma también el servicio pendiente.
-    // Para meses históricos ya PAGADOS (saldo = 0), el servicio se considera saldado
-    // aunque no haya sido registrado en recibos (para no retroactivamente reabrir meses).
-    const servicioPendiente = saldoBase > 0.009
-      ? round2(Math.max(0, servicio - servicioPagado))
-      : 0;
+    // Saldo real operativo: la deuda principal debe salir de cuotas_operativas.saldo.
+// El servicio se muestra en su columna, pero no debe inflar el saldo pendiente
+// cuando el saldo operativo ya viene corregido desde la base.
+const servicioPendiente = round2(Math.max(0, servicio - servicioPagado));
 
-    // Saldo solo de alquiler (para el campo Alquiler del modal de cobro).
-    row.saldo_alquiler = round2(Math.max(0, saldoBase));
-    row.saldo_con_impuesto = round2(Math.max(0, saldoBase + servicioPendiente));
+row.saldo_alquiler = round2(Math.max(0, saldoBase));
+row.servicio_pendiente = servicioPendiente;
+
+// IMPORTANTE:
+// No sumar servicioPendiente al saldo visual principal.
+// En casos como Samir, cuotas_operativas.saldo = 41000 y ese es el saldo correcto.
+row.saldo_con_impuesto = round2(Math.max(0, saldoBase));
 
     const estadoBase = String(row.estado || row.estado_detalle || '').toUpperCase();
 
@@ -7125,9 +7127,13 @@ if (aplicacionesDirectas.length) {
         const pagadoDisplay = Number.isFinite(Number(x.pagado_con_impuesto))
           ? toNumber(x.pagado_con_impuesto)
           : round2(toNumber(x.pagado) + impuesto);
-        const saldoDisplay = Number.isFinite(Number(x.saldo_con_impuesto))
-          ? toNumber(x.saldo_con_impuesto)
-          : round2(Math.max(0, totalDisplay - pagadoDisplay));
+        const saldoDisplay = Number.isFinite(Number(x.saldo_alquiler))
+  ? toNumber(x.saldo_alquiler)
+  : Number.isFinite(Number(x.saldo))
+    ? toNumber(x.saldo)
+    : Number.isFinite(Number(x.saldo_con_impuesto))
+      ? toNumber(x.saldo_con_impuesto)
+      : round2(Math.max(0, totalDisplay - pagadoDisplay));
 
         const diasAtraso = Number(x.dias_atraso || 0);
         const diasCell = diasAtraso > 0
@@ -7187,19 +7193,27 @@ if (aplicacionesDirectas.length) {
       });
 
       if (currentRow) {
-        if (Number.isFinite(Number(currentRow?.saldo_con_impuesto))) {
-          return round2(Math.max(0, toNumber(currentRow.saldo_con_impuesto)));
-        }
+  if (Number.isFinite(Number(currentRow?.saldo_alquiler))) {
+    return round2(Math.max(0, toNumber(currentRow.saldo_alquiler)));
+  }
 
-        const totalBase = toNumber(currentRow?.total ?? currentRow?.monto_total);
-        const pagadoBase = toNumber(currentRow?.pagado ?? currentRow?.monto_pagado);
-        const impuesto = toNumber(currentRow?.impuesto ?? currentRow?.monto_impuesto);
-        if (totalBase > 0 || pagadoBase > 0 || impuesto > 0) {
-          return round2(Math.max(0, totalBase - (pagadoBase + impuesto)));
-        }
+  if (Number.isFinite(Number(currentRow?.saldo))) {
+    return round2(Math.max(0, toNumber(currentRow.saldo)));
+  }
 
-        return round2(Math.max(0, toNumber(currentRow?.saldo)));
-      }
+  if (Number.isFinite(Number(currentRow?.saldo_con_impuesto))) {
+    return round2(Math.max(0, toNumber(currentRow.saldo_con_impuesto)));
+  }
+
+  const totalBase = toNumber(currentRow?.total ?? currentRow?.monto_total);
+  const pagadoBase = toNumber(currentRow?.pagado ?? currentRow?.monto_pagado);
+
+  if (totalBase > 0 || pagadoBase > 0) {
+    return round2(Math.max(0, totalBase - pagadoBase));
+  }
+
+  return 0;
+}
 
       return getDisplayedCurrentMonthDebt(row);
     }
@@ -14760,9 +14774,11 @@ error = deleteResponse.error;
       const anio = Number(row.anio || sortKey.slice(0,4) || 0);
       const mes = Number(row.mes || sortKey.slice(5,7) || 0);
       if (!anio || !mes) return null;
-      const saldo = Number.isFinite(Number(row.saldo_con_impuesto))
-        ? toNumber(row.saldo_con_impuesto)
-        : toNumber(row.saldo);
+      const saldo = Number.isFinite(Number(row.saldo_alquiler))
+  ? toNumber(row.saldo_alquiler)
+  : Number.isFinite(Number(row.saldo))
+    ? toNumber(row.saldo)
+    : toNumber(row.saldo_con_impuesto);
       const total = Number.isFinite(Number(row.total_con_impuesto))
         ? toNumber(row.total_con_impuesto)
         : toNumber(row.monto_total ?? row.total);
@@ -14817,7 +14833,7 @@ error = deleteResponse.error;
       const map = new Map();
       // Prioridad: visibles primero (tienen servicio_pagado enriquecido correctamente).
       // DB primero para meses que no están en la vista local (ej: modificación de alquiler reciente).
-      [...visiblesPendientes, ...dbPendientes].forEach(row => {
+      [...dbPendientes, ...visiblesPendientes].forEach(row => {
   const key = `${row.anio}-${String(row.mes).padStart(2,'0')}`;
   if (!map.has(key)) map.set(key, row);
 });
@@ -15081,10 +15097,12 @@ function syncCobroAlquilerDesdePeriodo(){
   // saldo_alquiler = saldo puro del alquiler (sin servicio), calculado en enrichDebtRowsWithImpuestoTotals.
   // Fallback: monto_total - monto_pagado para cuotas sin enriquecer.
   const saldoAlquilerReal = round2(Math.max(0,
-    cuota.saldo_alquiler != null
-      ? toNumber(cuota.saldo_alquiler)
+  cuota.saldo_alquiler != null
+    ? toNumber(cuota.saldo_alquiler)
+    : cuota.saldo != null
+      ? toNumber(cuota.saldo)
       : toNumber(cuota.monto_total) - toNumber(cuota.monto_pagado)
-  ));
+));
   if ($('mAlquiler')) {
     $('mAlquiler').value = formatMoneyInputValue(saldoAlquilerReal);
   }
@@ -15381,11 +15399,23 @@ if (periodoSelect) {
         const saldoActual = round2(toNumber(data.saldo));
         if (Math.abs(saldoActual - saldoEsperado) <= 0.009) return; // ya está correcto
         const montoTotal = round2(toNumber(data.monto_total));
-        const montoPagadoCorrecto = round2(Math.max(0, montoTotal - saldoEsperado));
-        const { error: updErr } = await sb
-          .from('cuotas_operativas')
-          .update({ saldo: saldoEsperado, monto_pagado: montoPagadoCorrecto, estado: 'PARCIAL' })
-          .eq('id', data.id);
+const montoPagadoActual = round2(toNumber(data.monto_pagado));
+
+const patch = {
+  saldo: saldoEsperado,
+  estado: 'PARCIAL'
+};
+
+// Solo corregir monto_pagado si no viene acumulado por recibos.
+// En casos como Samir, monto_pagado puede ser mayor que monto_total y no debe pisarse.
+if (montoPagadoActual <= montoTotal + 0.009) {
+  patch.monto_pagado = round2(Math.max(0, montoTotal - saldoEsperado));
+}
+
+const { error: updErr } = await sb
+  .from('cuotas_operativas')
+  .update(patch)
+  .eq('id', data.id);
         if (!updErr) {
           console.info(`[GA] Saldo corregido ${mes}/${anio}: ${saldoActual} → ${saldoEsperado} (monto_pagado: ${montoPagadoCorrecto})`);
         } else {
