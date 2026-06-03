@@ -15245,19 +15245,6 @@ function syncCobroAlquilerDesdePeriodo(){
     $('mAlquiler').value = formatMoneyInputValue(saldoAlquilerReal);
   }
 
-  // Impuesto pendiente para este período.
-  // cuota.impuesto = total impuesto ya pagado/registrado para este mes
-  //                  (suma de recibos_aplicaciones_operativas + historicos).
-  // Si el impuesto mensual efectivo ya está cubierto → mImpMonto = 0.
-  // Usamos _pagoImpuestoMensual (calculado en openPagoModal con fallback a
-  // ultimoImpuesto) porque impuesto_mensual puede estar en 0 en el contrato.
-  const impMensualEfectivo = round2(toNumber(_pagoImpuestoMensual || 0));
-  const impPagadoEsteMes   = round2(toNumber(cuota.impuesto || 0));
-  const impPendiente       = round2(Math.max(0, impMensualEfectivo - impPagadoEsteMes));
-  if ($('mImpMonto')) {
-    $('mImpMonto').value = impPendiente > 0 ? formatMoneyInputValue(impPendiente) : '';
-  }
-
   // Servicio del período: solo si hay monto_servicio en la cuota.
   const servicioCuota = round2(toNumber(cuota.monto_servicio ?? cuota.servicio ?? 0));
   const servicioPagado = round2(toNumber(cuota.servicio_pagado || 0));
@@ -15340,10 +15327,14 @@ initPagoMediosRows(cobroInicial?.total || 0);
 const periodoSelect = $('mPeriodoAplicado');
 if (periodoSelect) {
   periodoSelect.onchange = () => {
-  // syncCobroAlquilerDesdePeriodo ya calcula y actualiza mAlquiler y mImpMonto
-  // correctamente según el saldo real del período (incluye detectar si el
-  // impuesto ya fue pagado). No se sobreescribe mImpMonto aquí.
   syncCobroAlquilerDesdePeriodo();
+
+  // Mantiene el impuesto efectivo del cobro al cambiar período.
+  // El impuesto SIEMPRE se muestra aunque ya esté pago en ese mes —
+  // fixAplicacionesOperativasPostCobro lo redistribuye al período correcto.
+  if ($('mImpMonto') && _pagoImpuestoMensual > 0) {
+    $('mImpMonto').value = formatMoneyInputValue(_pagoImpuestoMensual);
+  }
 
   const recalculado = recalcularCobroModal();
   syncPagoMediosConTotal(recalculado?.total || 0);
@@ -15763,9 +15754,12 @@ const { error: updErr } = await sb
           toNumber(modalContrato?.impuesto_mensual) ||
           0
         );
-        // Usar la tasa mensual del contrato. Si no está disponible, usar el total del pago
-        // como fallback para mantener compatibilidad con contratos sin impuesto configurado.
-        const impuestoMensualRPC = impuestoMensualContrato > 0 ? impuestoMensualContrato : impuestoObjetivo;
+        // Usar la tasa mensual del contrato. Si el contrato no tiene impuesto_mensual en la BD
+        // (campo vacío/0), usar _pagoImpuestoMensual que ya incluye el fallback a ultimoImpuesto.
+        // Esto garantiza que el RPC reciba la tasa correcta aunque el contrato tenga el campo en 0.
+        const impuestoMensualRPC = impuestoMensualContrato > 0
+          ? impuestoMensualContrato
+          : (_pagoImpuestoMensual > 0 ? _pagoImpuestoMensual : impuestoObjetivo);
 
         const argsV4 = {
           ...args,
