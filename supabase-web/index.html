@@ -15458,6 +15458,34 @@ if (periodoSelect) {
         console.warn('[GA] No se pudo leer impuesto de históricos:', e?.message || e);
       }
 
+      // ── Paso 1.5: eliminar aplicaciones huérfanas de intentos fallidos ──────────
+      // Si el usuario eliminó un pago (o el cobro falló), las entradas de
+      // recibos_aplicaciones_operativas quedan en la BD con un pago_id que ya no
+      // existe. Con el tiempo se acumulan e inflan existingImp, haciendo que
+      // fixAplicaciones piense que el impuesto ya está N× pagado y lo elimine.
+      // Solución: borrarlas ahora, antes de calcular la distribución.
+      try {
+        const { data: allOldRows } = await sb
+          .from('recibos_aplicaciones_operativas')
+          .select('id, pago_id')
+          .eq('contrato_id', contratoId)
+          .lt('created_at', safeTs)
+          .not('pago_id', 'is', null);
+
+        const orphanIds = (allOldRows || [])
+          .filter(r => !validPagoIds.has(Number(r.pago_id)))
+          .map(r => r.id);
+
+        if (orphanIds.length > 0) {
+          await sb.from('recibos_aplicaciones_operativas')
+            .delete()
+            .in('id', orphanIds);
+          console.log(`[GA] Auto-limpieza: ${orphanIds.length} aplicación(es) huérfana(s) eliminada(s) para contrato ${contratoId}`);
+        }
+      } catch (e) {
+        console.warn('[GA] Auto-limpieza de huérfanas:', e?.message || e);
+      }
+
       // ── Paso 2: calcular distribución ajustada ───────────────────────────────
       // Regla: si un mes ya tiene todo su impuesto cubierto, el exceso pasa como
       // alquiler al mes siguiente (carryover). Así el total de la distribución
