@@ -8344,13 +8344,19 @@ const aplicacionesReales = pagosAplicadosList.filter(p => {
 // total ($27.000) en lugar del per-mes correcto ($13.500) → duplicación visual.
 // Solución: excluir de (3) y (4) cualquier período que (1) ya cubre.
 
-// Períodos ya cubiertos por recibos_aplicaciones_operativas.
+// Períodos ya cubiertos por recibos_aplicaciones_operativas CON impuesto registrado.
+// Solo excluimos el historico cuando la aplicacion ya trae monto_impuesto > 0.
+// Si la aplicacion existe pero su impuesto es 0 (ej: alquiler parcial en un mes
+// cuyo impuesto fue pagado históricamente), el historico debe seguir aportando
+// el impuesto para ese período.
 const periodosConAplicaciones = new Set(
-  aplicacionesReales.map(p => {
-    const a = Number(p?.anio);
-    const m = Number(p?.mes);
-    return (a && m) ? `${a}-${String(m).padStart(2, '0')}` : null;
-  }).filter(Boolean)
+  aplicacionesReales
+    .filter(p => toNumber(p?.monto_impuesto) > 0.009)
+    .map(p => {
+      const a = Number(p?.anio);
+      const m = Number(p?.mes);
+      return (a && m) ? `${a}-${String(m).padStart(2, '0')}` : null;
+    }).filter(Boolean)
 );
 
 // Excluye una fuente secundaria si recibos_aplicaciones ya cubre ese período.
