@@ -4676,7 +4676,7 @@ td:last-child{
             </div>
 
             <div class="tableWrap detalle-cuotas-table-wrap">
-              <table>
+              <table id="detalleCuotasTable">
                 <thead>
                   <tr>
                     <th>Periodo</th>
@@ -4684,7 +4684,7 @@ td:last-child{
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
                     <th class="right">Impuesto</th>
-                    <th class="right">Servicio</th>
+                    <th id="detalleThServicio" class="right">Servicio</th>
                     <th class="right">Saldo</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
@@ -5001,6 +5001,7 @@ td:last-child{
     let unidades = [];      // v_deuda_por_contrato
     let selected = null;    // fila seleccionada
     let detalleLoadSeq = 0; // evita que una carga vieja pise el detalle actual
+    let _detalleShowServicio = false; // true solo para Dovis, Samir y Vera (servicios_habilitados)
     let detalleCuotasActuales = []; // últimas cuotas visibles del detalle abierto, usadas para imputar el cobro al mes correcto
     let modalContrato = null;
     let recibosInternosCache = [];
@@ -7168,7 +7169,7 @@ if (aplicacionesDirectas.length) {
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="9" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="${_detalleShowServicio ? 9 : 8}" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
         return;
       }
 
@@ -7217,7 +7218,7 @@ if (aplicacionesDirectas.length) {
           <td class="right">${fmtARS.format(totalDisplay)}</td>
           <td class="right">${fmtARS.format(pagadoDisplay)}</td>
           <td class="right">${impuestoCell}</td>
-          <td class="right">${servicioCell}</td>
+          ${_detalleShowServicio ? `<td class="right">${servicioCell}</td>` : ''}
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center"><span class="badge ${cls}">${estado}</span></td>
           <td class="center">${diasCell}</td>
@@ -8283,6 +8284,11 @@ function sortRecibosByNewestFirst(rows){
         const statusInfo = getContratoStatus(r || {});
         if ($('detalleMeta')) $('detalleMeta').textContent = `Contrato: ${r?.contrato_id || '—'} | Código: ${r?.local_codigo || '—'} | Inquilino: ${r?.inquilino_nombre || '—'}`;
         setDetalleBadge(r);
+
+        // Mostrar columna Servicio solo si el contrato tiene servicios_habilitados = true
+        _detalleShowServicio = !!(getContratoActivoRow(r?.contrato_id)?.servicios_habilitados);
+        const _thServ = $('detalleThServicio');
+        if (_thServ) _thServ.style.display = _detalleShowServicio ? '' : 'none';
 
         const rows = await fetchDetalleReconstruidoRows(r);
         if (seq !== detalleLoadSeq) return;
@@ -10010,7 +10016,7 @@ setTimeout(() => {
     async function refreshContratosActivos(){
       const { data, error } = await sb
         .from('contratos')
-        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
+        .select('id, inquilino_id, monto_mensual, impuesto_mensual, ajuste_porcentaje, ajuste_cada_meses, dia_vencimiento, fecha_inicio, fecha_fin, observaciones, oculto, oculto_at, oculto_motivo, servicios_habilitados, locales(id,codigo,codigo_local), inquilinos(id,nombre,telefono,email,documento)')
         .eq('estado','ACTIVO');
 
       if (error){
