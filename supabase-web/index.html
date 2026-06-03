@@ -15394,23 +15394,58 @@ if (periodoSelect) {
       // Filas con created_at >= safeTs son "nuevas" (del RPC actual, posiblemente incorrectas).
       const safeTs = new Date((Number(rpcStartTs) || Date.now()) - 5000).toISOString();
 
-      // ── Paso 1: leer impuesto ya pagado por mes (solo filas VIEJAS) ──────────
+      // ── Paso 0: obtener pago_ids válidos para filtrar aplicaciones huérfanas ──
+      // Las aplicaciones cuyo pago_id no existe en `pagos` son de intentos fallidos
+      // y no deben contarse como "impuesto ya pagado" (inflarían existingImp y
+      // borrarían el impuesto de períodos siguientes por carryover incorrecto).
+      const validPagoIds = new Set();
+      try {
+        const { data: vp } = await sb.from('pagos').select('id').eq('contrato_id', contratoId);
+        (vp || []).forEach(p => validPagoIds.add(Number(p.id)));
+      } catch (e) {
+        console.warn('[GA] No se pudieron leer pagos válidos:', e?.message || e);
+      }
+
+      // ── Paso 1: leer impuesto ya pagado por mes ───────────────────────────────
+      // Fuente A: recibos_aplicaciones_operativas (solo filas VIEJAS y NO huérfanas).
       const impuestoPorMes = new Map();
       try {
         const { data: oldRows } = await sb
           .from('recibos_aplicaciones_operativas')
-          .select('anio, mes, monto_impuesto, deleted_at')
+          .select('anio, mes, monto_impuesto, deleted_at, pago_id')
           .eq('contrato_id', contratoId)
           .lt('created_at', safeTs);
 
         (oldRows || [])
-          .filter(r => !r.deleted_at)
+          .filter(r => !r.deleted_at && (r.pago_id === null || validPagoIds.has(Number(r.pago_id))))
           .forEach(r => {
             const k = `${Number(r.anio)}-${String(Number(r.mes)).padStart(2,'0')}`;
             impuestoPorMes.set(k, round2((impuestoPorMes.get(k) || 0) + toNumber(r.monto_impuesto)));
           });
       } catch (e) {
-        console.warn('[GA] No se pudo leer impuesto histórico:', e?.message || e);
+        console.warn('[GA] No se pudo leer impuesto de aplicaciones:', e?.message || e);
+      }
+
+      // Fuente B: recibos_historicos_operativos con pago_id=null.
+      // Representan impuesto cobrado antes de que el sistema usara recibos_aplicaciones
+      // (importaciones Excel, carga manual histórica). Sin esto, el RPC re-aplicaría
+      // el impuesto y fixAplicaciones no lo detectaría, creando una aplicacion nueva
+      // que sombrea el historico y hace "desaparecer" el impuesto ya pagado.
+      try {
+        const { data: histRows } = await sb
+          .from('recibos_historicos_operativos')
+          .select('anio, mes, monto_impuesto')
+          .eq('contrato_id', contratoId)
+          .is('pago_id', null);
+
+        (histRows || [])
+          .filter(r => toNumber(r.monto_impuesto) > 0.009)
+          .forEach(r => {
+            const k = `${Number(r.anio)}-${String(Number(r.mes)).padStart(2,'0')}`;
+            impuestoPorMes.set(k, round2((impuestoPorMes.get(k) || 0) + toNumber(r.monto_impuesto)));
+          });
+      } catch (e) {
+        console.warn('[GA] No se pudo leer impuesto de históricos:', e?.message || e);
       }
 
       // ── Paso 2: calcular distribución ajustada ───────────────────────────────
