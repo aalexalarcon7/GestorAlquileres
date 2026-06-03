@@ -15520,7 +15520,7 @@ if (periodoSelect) {
         const mes  = Number(app.key.slice(5, 7));
 
         if (aplicado > 0.009 || impNecesario > 0.009 || servEste > 0.009) {
-          adjusted.push({ anio, mes, monto_impuesto: impNecesario, monto_alquiler: alqReal, monto_servicio: servEste, monto_aplicado: aplicado });
+          adjusted.push({ anio, mes, monto_impuesto: impNecesario, monto_alquiler: alqReal, monto_servicio: servEste, monto_aplicado: aplicado, _rpcAlq: rpcAlq });
         }
       }
 
@@ -15585,6 +15585,36 @@ if (periodoSelect) {
         }
       } catch (e) {
         console.warn('[GA] Error insertando aplicaciones corregidas:', e?.message || e);
+      }
+
+      // ── Paso 5: sincronizar cuotas_operativas cuando hubo carryover ──────────
+      // Cuando fixAplicaciones mueve el exceso de impuesto de un mes al siguiente
+      // como alquiler (carryover), el RPC ya actualizó la cuota con el alquiler
+      // original (sin carryover). Hay que sumar la diferencia para que el saldo
+      // de la cuota refleje el pago real.
+      for (const d of distribuciones) {
+        const extraAlq = round2((d.monto_alquiler || 0) - (d._rpcAlq || 0));
+        if (extraAlq <= 0.009) continue; // sin carryover, nada que corregir
+        try {
+          const { data: cuota } = await sb
+            .from('cuotas_operativas')
+            .select('id, monto_total, monto_pagado, saldo, estado')
+            .eq('contrato_id', contratoId)
+            .eq('anio', d.anio)
+            .eq('mes', d.mes)
+            .maybeSingle();
+          if (!cuota?.id) continue;
+          const nuevoPagado = round2(toNumber(cuota.monto_pagado) + extraAlq);
+          const nuevoSaldo  = round2(Math.max(0, toNumber(cuota.monto_total) - nuevoPagado));
+          const nuevoEstado = nuevoSaldo <= 0.009 ? 'PAGADO'
+            : nuevoPagado > 0.009 ? 'PARCIAL' : 'PENDIENTE';
+          await sb.from('cuotas_operativas')
+            .update({ monto_pagado: nuevoPagado, saldo: nuevoSaldo, estado: nuevoEstado })
+            .eq('id', cuota.id);
+          console.info(`[GA] Cuota ${d.mes}/${d.anio} sincronizada: pagado +${extraAlq} → ${nuevoPagado}, saldo → ${nuevoSaldo}`);
+        } catch (e) {
+          console.warn(`[GA] No se pudo sincronizar cuota ${d.mes}/${d.anio}:`, e?.message || e);
+        }
       }
     }
 
