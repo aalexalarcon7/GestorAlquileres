@@ -4931,14 +4931,28 @@ td:last-child{
             ⚠ Modo global: modificará cuotas pendientes/parciales de múltiples contratos. No tocará cuotas pagadas, pagos ni recibos históricos. Revisá la vista previa antes de aplicar.
           </div>
         </div>
-        <!-- Política de aplicación (solo en modo global) -->
-        <div id="aumentoPctPoliticaBox" style="display:none;margin-bottom:14px;">
-          <label class="muted" style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;">Política de aplicación</label>
-          <select id="aumentoPctPolitica" style="width:100%;box-sizing:border-box;min-height:42px;border-radius:12px;border:1px solid var(--border,#e2e8f0);background:var(--surface);color:var(--text);padding:0 12px;font-size:13px;">
-            <option value="desde_periodo">1 — Todos los pendientes desde el período seleccionado</option>
-            <option value="respetar_1_2">2 — Respetar 1-2 meses de deuda · solo actualizar el más reciente</option>
-            <option value="solo_3_mas">3 — Solo contratos con más de 3 meses adeudados</option>
-          </select>
+        <!-- Criterio de inclusión (solo en modo global) -->
+        <div id="aumentoPctCriterioBox" style="display:none;margin-bottom:14px;">
+          <div style="font-size:12px;font-weight:700;color:var(--muted,#64748b);margin-bottom:8px;">Aplicar aumento a:</div>
+          <div style="display:flex;flex-direction:column;gap:7px;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="aumentoPctCriterio" value="todos" onchange="onAumentoPctCriterioChange()" checked> Todos los contratos activos
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="aumentoPctCriterio" value="hasta_corte" onchange="onAumentoPctCriterioChange()"> Solo contratos con deuda hasta un mes de corte
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="aumentoPctCriterio" value="manual" onchange="onAumentoPctCriterioChange()"> Selección manual en la vista previa
+            </label>
+          </div>
+          <!-- Mes de corte -->
+          <div id="aumentoPctCorteBox" style="display:none;margin-top:12px;padding:10px 12px;border-radius:8px;background:rgba(59,130,246,.06);border:1px solid rgba(59,130,246,.15);">
+            <label class="muted" style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;">Mes de corte de deuda</label>
+            <select id="aumentoPctMesCorte" style="width:100%;box-sizing:border-box;min-height:42px;border-radius:12px;border:1px solid var(--border,#e2e8f0);background:var(--surface);color:var(--text);padding:0 12px;font-size:13px;"></select>
+            <div class="muted" style="font-size:11px;margin-top:6px;line-height:1.5;">
+              Solo se incluyen contratos con saldo pendiente en este mes o en meses anteriores (desde 01/2025).
+            </div>
+          </div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px;">
           <div>
@@ -16339,15 +16353,38 @@ exposeGlobalFunction('saveActivoModal', typeof saveActivoModal !== 'undefined' ?
 // AUMENTO PORCENTUAL — MODO INDIVIDUAL Y GLOBAL
 // ============================================================
 
-let _aumentoPctPreviewData = null; // { porcentaje, periodo:{anio,mes}, items:[], esPorContrato, politica }
+let _aumentoPctPreviewData = null; // { porcentaje, periodo:{anio,mes}, items:[], esPorContrato, criterio, mesCortePeriodo }
 let _aumentoPctContrato    = null; // contrato actual cuando se abre desde "Modificar alquiler"
 
 function onAumentoPctModoChange() {
   const esGlobal    = document.querySelector('input[name="aumentoPctModo"]:checked')?.value === 'global';
   const avisoEl     = $('aumentoPctModoAviso');
-  const politicaBox = $('aumentoPctPoliticaBox');
+  const criterioBox = $('aumentoPctCriterioBox');
   if (avisoEl)     avisoEl.style.display     = esGlobal ? '' : 'none';
-  if (politicaBox) politicaBox.style.display = esGlobal ? '' : 'none';
+  if (criterioBox) criterioBox.style.display = esGlobal ? '' : 'none';
+}
+
+function onAumentoPctCriterioChange() {
+  const criterio = document.querySelector('input[name="aumentoPctCriterio"]:checked')?.value || 'todos';
+  const corteBox = $('aumentoPctCorteBox');
+  if (corteBox) corteBox.style.display = criterio === 'hasta_corte' ? '' : 'none';
+}
+
+// Genera opciones de meses en un <select> desde startAnio/startMes hasta endAnio/endMes
+function _generarOpcionesMeses(selectId, startAnio, startMes, endAnio, endMes, defaultAnio, defaultMes) {
+  const sel = $(selectId);
+  if (!sel) return;
+  sel.innerHTML = '';
+  let a = startAnio, m = startMes;
+  while (a < endAnio || (a === endAnio && m <= endMes)) {
+    const opt = document.createElement('option');
+    opt.value = `${a}-${String(m).padStart(2,'0')}`;
+    opt.textContent = `${GA_MONTH_NAMES[m - 1]} ${a}`;
+    if (defaultAnio && defaultMes && a === defaultAnio && m === defaultMes) opt.selected = true;
+    sel.appendChild(opt);
+    m++;
+    if (m > 12) { m = 1; a++; }
+  }
 }
 
 function abrirModalAumentoPct(contrato) {
@@ -16374,20 +16411,23 @@ function abrirModalAumentoPct(contrato) {
   if (radGlob) radGlob.checked = false;
   onAumentoPctModoChange();
 
-  // Poblar select de períodos: mes actual + 11 siguientes
-  const sel = $('aumentoPctPeriodo');
-  if (!sel) return;
-  sel.innerHTML = '';
-  const hoy = new Date();
-  let a = hoy.getFullYear(), m = hoy.getMonth() + 1;
-  for (let i = 0; i < 12; i++) {
-    let cm = m + i, ca = a;
-    while (cm > 12) { cm -= 12; ca++; }
-    const opt = document.createElement('option');
-    opt.value = `${ca}-${String(cm).padStart(2,'0')}`;
-    opt.textContent = `${GA_MONTH_NAMES[cm - 1]} ${ca}`;
-    sel.appendChild(opt);
-  }
+  // Resetear criterio a "todos"
+  const radTodos = document.querySelector('input[name="aumentoPctCriterio"][value="todos"]');
+  if (radTodos) radTodos.checked = true;
+  onAumentoPctCriterioChange();
+
+  // Período desde donde se aplica el aumento: 01/2025 → mes actual + 12
+  // Default: mes actual
+  const hoy  = new Date();
+  const hoyA = hoy.getFullYear(), hoyM = hoy.getMonth() + 1;
+  let endA = hoyA, endM = hoyM + 12;
+  while (endM > 12) { endM -= 12; endA++; }
+  _generarOpcionesMeses('aumentoPctPeriodo', 2025, 1, endA, endM, hoyA, hoyM);
+
+  // Mes de corte de deuda: 01/2025 → mes actual; default = mes anterior al actual
+  let corteDefA = hoyA, corteDefM = hoyM - 1;
+  if (corteDefM < 1) { corteDefM = 12; corteDefA--; }
+  _generarOpcionesMeses('aumentoPctMesCorte', 2025, 1, hoyA, hoyM, corteDefA, corteDefM);
 
   const inp = $('aumentoPctInput');
   if (inp) inp.value = '';
@@ -16440,10 +16480,13 @@ async function generarVistaPreviaAumento() {
     return;
   }
 
-  const periodoBase    = targetAnio * 100 + targetMes;
-  const modoUI         = document.querySelector('input[name="aumentoPctModo"]:checked')?.value || 'individual';
-  const esPorContrato  = modoUI !== 'global';
-  const politica       = $('aumentoPctPolitica')?.value || 'desde_periodo';
+  const periodoBase      = targetAnio * 100 + targetMes;
+  const modoUI           = document.querySelector('input[name="aumentoPctModo"]:checked')?.value || 'individual';
+  const esPorContrato    = modoUI !== 'global';
+  const criterio         = document.querySelector('input[name="aumentoPctCriterio"]:checked')?.value || 'todos';
+  const mesCorteVal      = $('aumentoPctMesCorte')?.value || '';
+  const [corteAnio, corteMes] = mesCorteVal ? mesCorteVal.split('-').map(Number) : [0, 0];
+  const mesCortePeriodo  = (corteAnio && corteMes) ? corteAnio * 100 + corteMes : 0;
 
   let contratos;
   if (esPorContrato) {
@@ -16461,6 +16504,10 @@ async function generarVistaPreviaAumento() {
       if (msgEl) msgEl.textContent = 'No hay contratos activos con monto mensual definido.';
       return;
     }
+    if (criterio === 'hasta_corte' && !mesCortePeriodo) {
+      if (msgEl) msgEl.textContent = 'Seleccioná un mes de corte de deuda.';
+      return;
+    }
   }
 
   if (msgEl) msgEl.textContent = 'Consultando cuotas...';
@@ -16469,13 +16516,13 @@ async function generarVistaPreviaAumento() {
   try {
     items = esPorContrato
       ? await _buildIndividualItems(contratos[0], periodoBase, porcentaje)
-      : await _buildGlobalItems(contratos, periodoBase, porcentaje, politica);
+      : await _buildGlobalItems(contratos, periodoBase, porcentaje, criterio, mesCortePeriodo);
   } catch (e) {
     if (msgEl) msgEl.textContent = `Error al leer cuotas: ${e.message}`;
     return;
   }
 
-  _aumentoPctPreviewData = { porcentaje, periodo: { anio: targetAnio, mes: targetMes }, items, esPorContrato, politica };
+  _aumentoPctPreviewData = { porcentaje, periodo: { anio: targetAnio, mes: targetMes }, items, esPorContrato, criterio, mesCortePeriodo };
 
   if (msgEl) msgEl.textContent = '';
   _renderAumentoPctPreview();
@@ -16504,17 +16551,19 @@ async function _buildIndividualItems(contrato, periodoBase, porcentaje) {
   const montoActual = toNumber(contrato.monto_mensual);
   const montoNuevo  = Math.round(montoActual * (1 + porcentaje / 100));
   return [{ contrato, montoActual, montoNuevo, diferencia: montoNuevo - montoActual,
-    cuotasAfectadas, cuotasSalteadas, totalPendientes: null, reglaAplicada: null, reglaDesc: null }];
+    cuotasAfectadas, cuotasSalteadas, incluido: true, motivo: 'Contrato actual', totalPendientes: null,
+    deudaHastaCorte: null, pendientesHastaCorte: null }];
 }
 
-async function _buildGlobalItems(contratos, periodoBase, porcentaje, politica) {
+async function _buildGlobalItems(contratos, periodoBase, porcentaje, criterio, mesCortePeriodo) {
   const contratoIds = contratos.map(c => c.id);
 
-  // Fetch ALL cuotas (cualquier período) para calcular total pendiente real por contrato
+  // Fetch desde 01/2025 para capturar deuda histórica completa
   const { data: todasCuotas, error } = await sb
     .from('cuotas_operativas')
     .select('id, contrato_id, anio, mes, monto_total, monto_pagado, saldo, estado')
     .in('contrato_id', contratoIds)
+    .gte('anio', 2025)
     .order('anio').order('mes');
 
   if (error) throw error;
@@ -16528,127 +16577,154 @@ async function _buildGlobalItems(contratos, periodoBase, porcentaje, politica) {
   }
 
   return contratos.map(c => {
-    const cData           = porContrato[c.id] || { pendientes: [], pagadas: [] };
-    const montoActual     = toNumber(c.monto_mensual);
-    const montoNuevo      = Math.round(montoActual * (1 + porcentaje / 100));
-    const totalPendientes = cData.pendientes.length;
+    const cData       = porContrato[c.id] || { pendientes: [], pagadas: [] };
+    const montoActual = toNumber(c.monto_mensual);
+    const montoNuevo  = Math.round(montoActual * (1 + porcentaje / 100));
 
-    const pendientesDesde = cData.pendientes.filter(q => q.anio * 100 + q.mes >= periodoBase);
-    const pagadasDesde    = cData.pagadas.filter(q => q.anio * 100 + q.mes >= periodoBase);
+    const totalPendientes    = cData.pendientes.length;
+    const pendientesDesde    = cData.pendientes.filter(q => q.anio * 100 + q.mes >= periodoBase);
+    const pagadasDesde       = cData.pagadas.filter(q => q.anio * 100 + q.mes >= periodoBase);
 
-    let cuotasAfectadas, cuotasSalteadas, reglaAplicada, reglaDesc;
+    // Deuda hasta mes de corte (desde 01/2025)
+    const pendientesHastaCorte = mesCortePeriodo
+      ? cData.pendientes.filter(q => q.anio * 100 + q.mes <= mesCortePeriodo)
+      : cData.pendientes;
+    const deudaHastaCorte = pendientesHastaCorte.reduce((acc, q) => acc + toNumber(q.saldo), 0);
+    const tieneDesdaHastaCorte = pendientesHastaCorte.length > 0;
 
-    if (politica === 'desde_periodo') {
-      cuotasAfectadas = pendientesDesde;
-      cuotasSalteadas = pagadasDesde;
-      reglaAplicada   = totalPendientes === 0 ? 'al_dia' : 'aplica';
-      reglaDesc       = totalPendientes === 0 ? 'Al día' : `${totalPendientes} mes${totalPendientes !== 1 ? 'es' : ''} adeud.`;
+    let incluido, motivo;
 
-    } else if (politica === 'respetar_1_2') {
-      if (totalPendientes === 0) {
-        cuotasAfectadas = pendientesDesde;
-        cuotasSalteadas = pagadasDesde;
-        reglaAplicada = 'al_dia'; reglaDesc = 'Al día → aplica';
-      } else if (totalPendientes <= 2) {
-        // Solo el más reciente de TODOS los pendientes (respetamos los anteriores)
-        const sorted = [...cData.pendientes].sort((a,b) => (b.anio*100+b.mes)-(a.anio*100+a.mes));
-        const ultimo = sorted[0];
-        cuotasAfectadas = [ultimo];
-        cuotasSalteadas = [
-          ...cData.pendientes.filter(q => q !== ultimo && q.anio*100+q.mes >= periodoBase),
-          ...pagadasDesde
-        ];
-        reglaAplicada = '1_o_2';
-        reglaDesc = `${totalPendientes} mes${totalPendientes !== 1 ? 'es' : ''} → solo el último`;
+    if (criterio === 'todos') {
+      incluido = true;
+      motivo   = totalPendientes === 0
+        ? 'Al día — incluido'
+        : `${totalPendientes} cuota${totalPendientes !== 1 ? 's' : ''} pendiente${totalPendientes !== 1 ? 's' : ''} — incluido`;
+
+    } else if (criterio === 'hasta_corte') {
+      if (tieneDesdaHastaCorte) {
+        const prim = pendientesHastaCorte[0];
+        const primLabel = `${GA_MONTH_NAMES[prim.mes - 1]} ${prim.anio}`;
+        incluido = true;
+        motivo   = `Incluido: debe desde ${primLabel}`;
+      } else if (totalPendientes === 0) {
+        incluido = false;
+        motivo   = 'Excluido: al día';
       } else {
-        cuotasAfectadas = pendientesDesde;
-        cuotasSalteadas = pagadasDesde;
-        reglaAplicada = 'mas_de_2';
-        reglaDesc = `${totalPendientes} meses → aplica desde período`;
+        // Solo tiene deuda posterior al corte
+        const primerPost = cData.pendientes.sort((a,b) => a.anio*100+a.mes - b.anio*100-b.mes)[0];
+        const postLabel  = primerPost ? `${GA_MONTH_NAMES[primerPost.mes - 1]} ${primerPost.anio}` : '';
+        incluido = false;
+        motivo   = `Excluido: solo debe desde ${postLabel} (posterior al corte)`;
       }
 
-    } else { // solo_3_mas
-      if (totalPendientes > 3) {
-        cuotasAfectadas = pendientesDesde;
-        cuotasSalteadas = pagadasDesde;
-        reglaAplicada = 'incluido'; reglaDesc = `${totalPendientes} meses → incluido`;
-      } else {
-        cuotasAfectadas = [];
-        cuotasSalteadas = [...pendientesDesde, ...pagadasDesde];
-        reglaAplicada = 'excluido'; reglaDesc = `${totalPendientes} meses → excluido (≤ 3)`;
-      }
+    } else { // manual
+      incluido = true;
+      motivo   = totalPendientes === 0
+        ? 'Al día — incluido (desmarcar si no corresponde)'
+        : `${totalPendientes} cuota${totalPendientes !== 1 ? 's' : ''} pendiente${totalPendientes !== 1 ? 's' : ''} — incluido`;
     }
 
-    return { contrato: c, montoActual, montoNuevo, diferencia: montoNuevo - montoActual,
-      cuotasAfectadas, cuotasSalteadas, totalPendientes, reglaAplicada, reglaDesc };
+    return {
+      contrato: c, montoActual, montoNuevo, diferencia: montoNuevo - montoActual,
+      cuotasAfectadas: incluido ? pendientesDesde : [],
+      cuotasSalteadas: pagadasDesde,
+      incluido, motivo, totalPendientes,
+      deudaHastaCorte: mesCortePeriodo ? deudaHastaCorte : null,
+      pendientesHastaCorte: mesCortePeriodo ? pendientesHastaCorte.length : null
+    };
   });
 }
 
+// Toggle manual desde checkbox en la preview
+function toggleAumentoPctItem(contratoId, checked) {
+  if (!_aumentoPctPreviewData) return;
+  const item = _aumentoPctPreviewData.items.find(p => String(p.contrato.id) === String(contratoId));
+  if (item) item.incluido = checked;
+  const motivoEl = document.getElementById(`aumentoPctMotivo_${contratoId}`);
+  if (motivoEl) {
+    motivoEl.textContent = checked ? 'Incluido manualmente' : 'Excluido manualmente';
+    motivoEl.style.color = checked ? '#2563eb' : '#9ca3af';
+  }
+  const row = document.querySelector(`tr[data-row-contrato="${contratoId}"]`);
+  if (row) row.style.opacity = checked ? '' : '.35';
+}
+
 function _renderAumentoPctPreview() {
-  const { porcentaje, periodo, items, esPorContrato, politica } = _aumentoPctPreviewData;
-  const periodoLabel        = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
-  const totalCuotasAfect    = items.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
-  const totalCuotasSalt     = items.reduce((acc, p) => acc + p.cuotasSalteadas.length, 0);
-  const totalContratosAfect = items.filter(p => p.cuotasAfectadas.length > 0).length;
+  const { porcentaje, periodo, items, esPorContrato, criterio, mesCortePeriodo } = _aumentoPctPreviewData;
+  const periodoLabel   = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
+  const incluidos      = items.filter(p => p.incluido);
+  const excluidos      = items.filter(p => !p.incluido);
+  const totalCuotasAfect = incluidos.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
+  const totalCuotasSalt  = items.reduce((acc, p) => acc + p.cuotasSalteadas.length, 0);
 
   const previewMsg = $('aumentoPctPreviewMsg');
   if (previewMsg) previewMsg.textContent = '';
 
+  // Encabezado del resumen
   let summaryExtra = '';
   if (esPorContrato && items[0]) {
-    const p0  = items[0];
+    const p0 = items[0];
     const cod = p0.contrato.locales?.codigo || p0.contrato.locales?.codigo_local || '—';
     const nom = p0.contrato.inquilinos?.nombre || '—';
     summaryExtra = `<br><span class="muted" style="font-size:12px;">Solo afecta: <strong>${cod} · ${nom}</strong> (Contrato ${p0.contrato.id})</span>`;
   } else if (!esPorContrato) {
-    const politicaLabels = {
-      desde_periodo: 'Política 1 — todos los pendientes desde el período',
-      respetar_1_2:  'Política 2 — respetar 1-2 meses de deuda · solo el más reciente',
-      solo_3_mas:    'Política 3 — solo contratos con más de 3 meses adeudados'
-    };
-    summaryExtra = `<br><span class="muted" style="font-size:12px;">${politicaLabels[politica] || ''} &nbsp;·&nbsp; ${totalContratosAfect} contrato${totalContratosAfect !== 1 ? 's' : ''} con cuotas a actualizar</span>`;
+    let cDesc = '';
+    if (criterio === 'hasta_corte' && mesCortePeriodo) {
+      const cA = Math.floor(mesCortePeriodo / 100), cM = mesCortePeriodo % 100;
+      cDesc = ` · Corte: ${GA_MONTH_NAMES[cM - 1]} ${cA}`;
+    } else if (criterio === 'manual') {
+      cDesc = ' · Selección manual (marcá/desmarcá)';
+    }
+    summaryExtra = `<br><span class="muted" style="font-size:12px;"><strong>${incluidos.length}</strong> incluido${incluidos.length !== 1 ? 's' : ''} · <strong>${excluidos.length}</strong> excluido${excluidos.length !== 1 ? 's' : ''}${cDesc}</span>`;
   }
 
-  const colRegla    = !esPorContrato ? '<th>Regla</th>' : '';
-  const colSaltadas = '<th>Salteadas (pagadas/excluidas)</th>';
+  const colChk    = !esPorContrato ? '<th style="width:36px;text-align:center;" title="Incluir/excluir">✓</th>' : '';
+  const colCorte  = (!esPorContrato && mesCortePeriodo) ? '<th class="right">Deuda hasta corte</th>' : '';
+  const colMotivo = !esPorContrato ? '<th>Motivo</th>' : '';
 
   let html = `
     <div class="aumento-preview-summary">
       <strong>Aumento del ${porcentaje}% &mdash; desde ${periodoLabel}</strong>${summaryExtra}<br>
       <span class="muted">
         ${totalCuotasAfect} cuota${totalCuotasAfect !== 1 ? 's' : ''} que se actualizará${totalCuotasAfect !== 1 ? 'n' : ''}
-        ${totalCuotasSalt > 0 ? ` &nbsp;·&nbsp; ${totalCuotasSalt} salteada${totalCuotasSalt !== 1 ? 's' : ''} (pagadas/excluidas)` : ''}
+        ${totalCuotasSalt > 0 ? ` &nbsp;·&nbsp; ${totalCuotasSalt} salteada${totalCuotasSalt !== 1 ? 's' : ''} (pagadas)` : ''}
       </span>
-    </div>
-    <table class="aumento-preview-table">
-      <thead>
-        <tr>
-          <th>Contrato</th>
-          <th>Local</th>
-          <th>Inquilino</th>
-          <th class="right">Alquiler actual</th>
-          <th class="right">Nuevo alquiler</th>
-          <th class="right">Diferencia</th>
-          <th>Cuotas a actualizar</th>
-          ${colRegla}
-          ${colSaltadas}
-        </tr>
-      </thead>
-      <tbody>`;
+    </div>`;
 
-  const REGLA_COLOR = {
-    al_dia:'#16a34a', aplica:'#2563eb', '1_o_2':'#b45309',
-    mas_de_2:'#2563eb', incluido:'#dc2626', excluido:'#9ca3af'
-  };
+  if (!esPorContrato && criterio === 'manual') {
+    html += `<div style="font-size:11px;color:#b45309;padding:7px 10px;border-radius:7px;background:rgba(234,179,8,.07);border:1px solid rgba(234,179,8,.18);margin-bottom:10px;">
+      Modo manual: todos empiezan incluidos. Desmarcá los que <strong>NO</strong> deben recibir el aumento.
+    </div>`;
+  }
 
-  for (const p of items) {
-    const c        = p.contrato;
-    const codigo   = c.locales?.codigo || c.locales?.codigo_local || '—';
-    const inq      = c.inquilinos?.nombre || '—';
-    const excluido = p.reglaAplicada === 'excluido';
+  html += `<table class="aumento-preview-table">
+    <thead>
+      <tr>
+        ${colChk}
+        <th>Cto.</th>
+        <th>Local</th>
+        <th>Inquilino</th>
+        <th class="right">Actual</th>
+        <th class="right">Nuevo</th>
+        <th class="right">Dif.</th>
+        ${colCorte}
+        <th>Cuotas a actualizar</th>
+        ${colMotivo}
+        <th>Salteadas (pagadas)</th>
+      </tr>
+    </thead>
+    <tbody>`;
+
+  // Primero los incluidos, luego los excluidos
+  const sortedItems = [...incluidos, ...excluidos];
+
+  for (const p of sortedItems) {
+    const c      = p.contrato;
+    const codigo = c.locales?.codigo || c.locales?.codigo_local || '—';
+    const inq    = c.inquilinos?.nombre || '—';
 
     const cuotasHtml = p.cuotasAfectadas.length === 0
-      ? '<span class="muted" style="font-size:11px;">Sin cuotas pendientes</span>'
+      ? `<span class="muted" style="font-size:11px;">${p.incluido ? 'Sin pendientes' : '—'}</span>`
       : p.cuotasAfectadas.map(q => {
           const est = (q.estado || 'PENDIENTE').toLowerCase();
           const cls = ['pendiente','parcial','atrasado'].includes(est) ? est : 'pendiente';
@@ -16658,34 +16734,47 @@ function _renderAumentoPctPreview() {
     const saltadasHtml = p.cuotasSalteadas.length === 0
       ? '<span class="muted" style="font-size:11px;">—</span>'
       : p.cuotasSalteadas.map(q =>
-          `<span style="font-size:11px;color:var(--muted,#64748b);padding:2px 5px;border-radius:5px;background:rgba(0,0,0,.05);display:inline-block;margin:1px;">${GA_MONTH_NAMES[q.mes - 1]} ${q.anio}</span>`
+          `<span style="font-size:11px;color:var(--muted,#64748b);padding:2px 4px;border-radius:4px;background:rgba(0,0,0,.05);display:inline-block;margin:1px;">${GA_MONTH_NAMES[q.mes - 1]} ${q.anio}</span>`
         ).join('');
 
-    const reglaHtml = (!esPorContrato && p.reglaDesc)
-      ? `<span style="font-size:11px;font-weight:600;color:${REGLA_COLOR[p.reglaAplicada] || '#6b7280'};">${p.reglaDesc}</span>`
+    const chkHtml = !esPorContrato
+      ? `<td style="text-align:center;"><input type="checkbox" data-contrato="${c.id}" ${p.incluido ? 'checked' : ''} onchange="toggleAumentoPctItem(${c.id}, this.checked)" style="width:15px;height:15px;cursor:pointer;"></td>`
       : '';
 
+    const motivoColor  = p.incluido ? '#2563eb' : '#9ca3af';
+    const motivoHtml   = !esPorContrato
+      ? `<td style="font-size:11px;max-width:160px;"><span id="aumentoPctMotivo_${c.id}" style="color:${motivoColor};">${p.motivo}</span></td>`
+      : '';
+
+    const corteHtml = (!esPorContrato && mesCortePeriodo)
+      ? `<td class="right" style="font-size:12px;">${p.deudaHastaCorte != null ? fmtARS.format(p.deudaHastaCorte) : '—'}</td>`
+      : '';
+
+    const rowOpacity = p.incluido ? '' : 'opacity:.38;';
+
     html += `
-      <tr style="${excluido ? 'opacity:.45;' : ''}">
+      <tr data-row-contrato="${c.id}" style="${rowOpacity}">
+        ${chkHtml}
         <td style="font-size:12px;color:var(--muted,#64748b);">${c.id}</td>
         <td style="font-weight:700;">${codigo}</td>
         <td>${inq}</td>
         <td class="right">${fmtARS.format(p.montoActual)}</td>
-        <td class="right"><strong>${excluido ? fmtARS.format(p.montoActual) : fmtARS.format(p.montoNuevo)}</strong></td>
-        <td class="right" style="color:${excluido ? 'var(--muted,#64748b)' : '#16a34a'};">
-          ${excluido ? '—' : '+' + fmtARS.format(p.diferencia)}
+        <td class="right"><strong>${p.incluido ? fmtARS.format(p.montoNuevo) : fmtARS.format(p.montoActual)}</strong></td>
+        <td class="right" style="color:${p.incluido ? '#16a34a' : 'var(--muted,#64748b)'};">
+          ${p.incluido ? '+' + fmtARS.format(p.diferencia) : '—'}
         </td>
+        ${corteHtml}
         <td style="font-size:12px;max-width:180px;">${cuotasHtml}</td>
-        ${!esPorContrato ? `<td style="font-size:11px;max-width:120px;">${reglaHtml}</td>` : ''}
-        <td style="font-size:12px;max-width:160px;">${saltadasHtml}</td>
+        ${motivoHtml}
+        <td style="font-size:12px;max-width:140px;">${saltadasHtml}</td>
       </tr>`;
   }
 
   html += `</tbody></table>
     <div class="muted" style="font-size:11px;margin-top:10px;line-height:1.5;">
       ${esPorContrato
-        ? 'Solo se modifica <strong>este contrato</strong>. Las cuotas pagadas no se tocan. No se afectan otros contratos, recibos históricos ni pagos.'
-        : 'Las cuotas pagadas y los contratos excluidos por política <strong>no se modifican</strong>. No se tocan recibos históricos ni pagos.'}
+        ? 'Solo se modifica <strong>este contrato</strong>. Las cuotas pagadas no se tocan.'
+        : 'Solo se modifican los contratos marcados (✓). Las cuotas pagadas no se tocan. No se tocan recibos históricos ni pagos.'}
     </div>`;
 
   const container = $('aumentoPctPreviewContainer');
@@ -16699,31 +16788,47 @@ async function aplicarAumentoPct() {
   if (!_aumentoPctPreviewData) return;
 
   const { porcentaje, periodo, items, esPorContrato } = _aumentoPctPreviewData;
-  const periodoLabel         = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
-  const totalCuotas          = items.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
-  const contratosConCuotas   = items.filter(p => p.cuotasAfectadas.length > 0).length;
+  const periodoLabel = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
+
+  // Determinar qué items aplicar: individual = todos, global = solo los marcados en el DOM
+  let itemsAplicar;
+  if (esPorContrato) {
+    itemsAplicar = items;
+  } else {
+    itemsAplicar = items.filter(p => {
+      const chk = document.querySelector(`input[data-contrato="${p.contrato.id}"]`);
+      return chk ? chk.checked : p.incluido;
+    });
+    if (itemsAplicar.length === 0) {
+      const previewMsg = $('aumentoPctPreviewMsg');
+      if (previewMsg) previewMsg.textContent = 'No hay contratos seleccionados para aplicar.';
+      return;
+    }
+  }
+
+  const totalCuotas       = itemsAplicar.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
+  const contratosAplicar  = itemsAplicar.length;
 
   let confirmMsg;
   if (esPorContrato && items[0]) {
-    const p0   = items[0];
-    const cod  = p0.contrato.locales?.codigo || p0.contrato.locales?.codigo_local || '—';
-    const nom  = p0.contrato.inquilinos?.nombre || '—';
+    const p0  = items[0];
+    const cod = p0.contrato.locales?.codigo || p0.contrato.locales?.codigo_local || '—';
+    const nom = p0.contrato.inquilinos?.nombre || '—';
     confirmMsg =
       `¿Aplicar un aumento del ${porcentaje}% al contrato de ${cod} / ${nom}?\n\n` +
       `Desde: ${periodoLabel}\n` +
       `Cuotas pendientes/parciales a actualizar: ${totalCuotas}\n\n` +
-      `Solo se modificará ESTE contrato (ID: ${p0.contrato.id}).\n` +
-      `No se tocarán cuotas pagadas, recibos históricos ni pagos ya realizados.\n` +
-      `No se afectarán otros inquilinos ni contratos.\n\n` +
-      `Esta acción modifica datos en Supabase y no se revierte automáticamente.`;
+      `Solo se modificará ESTE contrato.\n` +
+      `No se tocarán cuotas pagadas, recibos históricos ni pagos.\n\n` +
+      `Esta acción modifica datos en Supabase.`;
   } else {
     confirmMsg =
       `¿Aplicar un aumento del ${porcentaje}% — MODO GLOBAL — desde ${periodoLabel}?\n\n` +
-      `Contratos con cuotas a actualizar: ${contratosConCuotas}\n` +
-      `Cuotas pendientes/parciales a actualizar: ${totalCuotas}\n\n` +
-      `Esta acción modificará alquileres y cuotas de múltiples contratos.\n` +
-      `No se tocarán cuotas pagadas, recibos históricos ni pagos ya realizados.\n\n` +
-      `Esta acción modifica datos en Supabase y no se revierte automáticamente.`;
+      `Contratos seleccionados: ${contratosAplicar}\n` +
+      `Cuotas a actualizar: ${totalCuotas}\n\n` +
+      `Solo se modificarán los contratos marcados en la vista previa.\n` +
+      `No se tocarán cuotas pagadas, recibos históricos ni pagos.\n\n` +
+      `Esta acción modifica datos en Supabase.`;
   }
 
   if (!confirm(confirmMsg)) return;
@@ -16736,11 +16841,8 @@ async function aplicarAumentoPct() {
   let okContratos = 0, okCuotas = 0;
   const errores = [];
 
-  for (const p of items) {
+  for (const p of itemsAplicar) {
     const c = p.contrato;
-
-    // Saltar contratos excluidos por política (politica solo_3_mas con ≤3 meses)
-    if (!esPorContrato && p.reglaAplicada === 'excluido') continue;
 
     // 1. Actualizar monto_mensual (base para cuotas futuras)
     try {
@@ -16867,6 +16969,8 @@ function cerrarYAbrirAumentoPct() {
 }
 
 exposeGlobalFunction('onAumentoPctModoChange', onAumentoPctModoChange);
+exposeGlobalFunction('onAumentoPctCriterioChange', onAumentoPctCriterioChange);
+exposeGlobalFunction('toggleAumentoPctItem', toggleAumentoPctItem);
 exposeGlobalFunction('abrirModalAumentoPct', abrirModalAumentoPct);
 exposeGlobalFunction('cerrarModalAumentoPct', cerrarModalAumentoPct);
 exposeGlobalFunction('volverAumentoPctPaso1', volverAumentoPctPaso1);
