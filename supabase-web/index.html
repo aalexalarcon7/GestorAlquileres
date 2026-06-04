@@ -16611,7 +16611,7 @@ async function _buildGlobalItems(contratos, periodoBase, porcentaje, criterio, m
         motivo   = 'Excluido: al día';
       } else {
         // Solo tiene deuda posterior al corte
-        const primerPost = cData.pendientes.sort((a,b) => a.anio*100+a.mes - b.anio*100-b.mes)[0];
+        const primerPost = [...cData.pendientes].sort((a,b) => a.anio*100+a.mes - b.anio*100-b.mes)[0];
         const postLabel  = primerPost ? `${GA_MONTH_NAMES[primerPost.mes - 1]} ${primerPost.anio}` : '';
         incluido = false;
         motivo   = `Excluido: solo debe desde ${postLabel} (posterior al corte)`;
