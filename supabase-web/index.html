@@ -4365,10 +4365,27 @@ td:last-child{
       }
     }
 
-/* Ocultar aumento porcentual: no se usa */
+/* Ocultar aumento porcentual per-contrato: no se usa en modal de edición */
 #actAjustePct,
 #actAjusteMeses{
   display:none !important;
+}
+
+/* === Modal Aumento Porcentual Global === */
+#modalAumentoPctBack .modal{max-width:min(860px,96vw);max-height:calc(100vh - 28px);overflow:auto;-webkit-overflow-scrolling:touch;}
+.aumento-preview-table{width:100%;border-collapse:collapse;font-size:13px;margin-top:10px;}
+.aumento-preview-table th,.aumento-preview-table td{padding:7px 10px;border-bottom:1px solid var(--border);text-align:left;vertical-align:middle;}
+.aumento-preview-table th{font-weight:700;background:var(--surface2,rgba(0,0,0,.03));font-size:12px;}
+.aumento-preview-table td.right,.aumento-preview-table th.right{text-align:right;}
+.aumento-preview-table td.center,.aumento-preview-table th.center{text-align:center;}
+.aumento-cuota-tag{display:inline-block;font-size:11px;padding:2px 6px;border-radius:6px;margin:2px 1px;font-weight:600;white-space:nowrap;}
+.aumento-cuota-tag.pendiente,.aumento-cuota-tag.atrasado{background:rgba(239,68,68,.1);color:#dc2626;}
+.aumento-cuota-tag.parcial{background:rgba(234,179,8,.12);color:#b45309;}
+.aumento-preview-summary{padding:12px 14px;border-radius:10px;background:rgba(59,130,246,.07);border:1px solid rgba(59,130,246,.18);margin-bottom:14px;font-size:14px;line-height:1.55;}
+@media(max-width:700px){
+  #modalAumentoPctBack .modal{width:calc(100vw - 20px)!important;max-width:calc(100vw - 20px)!important;max-height:none!important;margin:8px auto 90px!important;}
+  .aumento-preview-table{font-size:11px;}
+  .aumento-preview-table th,.aumento-preview-table td{padding:5px 6px;}
 }
 
 
@@ -4589,6 +4606,7 @@ td:last-child{
                 <h2 style="margin:0;">Activos</h2>
               </div>
               <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
+                <button class="btn" type="button" onclick="abrirModalAumentoPct()" title="Aplicar aumento porcentual a todos los alquileres">Aumento %</button>
                 <button class="btn primary" type="button" onclick="openInqModal('create')">Agregar locatario</button>
                 <span class="badge b-info" id="unitsCount">0 resultados</span>
               </div>
@@ -4880,6 +4898,58 @@ td:last-child{
 
       <div class="row" style="margin-top:12px;justify-content:flex-end;">
         <button class="btn primary" onclick="saveInqModal()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL AUMENTO PORCENTUAL GLOBAL DE ALQUILERES -->
+  <div class="modalBack" id="modalAumentoPctBack" style="display:none;">
+    <div class="modal">
+      <!-- Encabezado -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:18px;">
+        <div>
+          <h2 style="margin:0;font-size:18px;font-weight:900;">Aumento porcentual de alquileres</h2>
+          <div class="muted" style="font-size:12px;margin-top:3px;">Herramienta global · afecta todos los contratos activos</div>
+        </div>
+        <button class="btn" onclick="cerrarModalAumentoPct()" style="flex:0 0 auto;padding:0;width:34px;height:34px;border-radius:50%;font-size:18px;line-height:1;">×</button>
+      </div>
+
+      <!-- PASO 1: Parámetros -->
+      <div id="aumentoPctStep1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:4px;">
+          <div>
+            <label class="muted" style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;">Porcentaje de aumento (%)</label>
+            <input id="aumentoPctInput" type="number" step="0.01" min="0.01" placeholder="Ej: 10" style="width:100%;box-sizing:border-box;min-height:42px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 14px;font-size:15px;">
+          </div>
+          <div>
+            <label class="muted" style="display:block;font-size:12px;font-weight:700;margin-bottom:6px;">Aplicar desde el período</label>
+            <select id="aumentoPctPeriodo" style="width:100%;box-sizing:border-box;min-height:42px;border-radius:12px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 12px;font-size:14px;"></select>
+          </div>
+        </div>
+        <div class="toast" id="aumentoPctMsg" style="min-height:18px;"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;">
+          <button class="btn" onclick="cerrarModalAumentoPct()">Cancelar</button>
+          <button class="btn primary" onclick="generarVistaPreviaAumento()">Ver vista previa</button>
+        </div>
+      </div>
+
+      <!-- PASO 2: Vista previa -->
+      <div id="aumentoPctStep2" style="display:none;">
+        <div id="aumentoPctPreviewContainer" style="overflow-x:auto;"></div>
+        <div class="toast" id="aumentoPctPreviewMsg" style="min-height:18px;margin-top:8px;"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn" onclick="volverAumentoPctPaso1()">Volver</button>
+          <button class="btn primary" id="aumentoPctAplicarBtn" onclick="aplicarAumentoPct()">Aplicar aumento</button>
+        </div>
+      </div>
+
+      <!-- PASO 3: Resultado -->
+      <div id="aumentoPctStep3" style="display:none;">
+        <div id="aumentoPctResultadoContainer"></div>
+        <div style="margin-top:16px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">
+          <button class="btn" onclick="cerrarModalAumentoPct()">Cerrar</button>
+          <button class="btn primary" onclick="recargarTrasAumento()">Recargar datos</button>
+        </div>
       </div>
     </div>
   </div>
@@ -16225,6 +16295,346 @@ exposeGlobalFunction('openActivoModal', typeof openActivoModal !== 'undefined' ?
 exposeGlobalFunction('openAlquilerModal', typeof openAlquilerModal !== 'undefined' ? openAlquilerModal : null);
 exposeGlobalFunction('closeActivoModal', typeof closeActivoModal !== 'undefined' ? closeActivoModal : null);
 exposeGlobalFunction('saveActivoModal', typeof saveActivoModal !== 'undefined' ? saveActivoModal : null);
+
+// ============================================================
+// AUMENTO PORCENTUAL GLOBAL DE ALQUILERES
+// ============================================================
+
+let _aumentoPctPreviewData = null; // { porcentaje, periodo:{anio,mes}, items:[] }
+
+function abrirModalAumentoPct() {
+  _aumentoPctPreviewData = null;
+
+  // Poblar el select de períodos: mes actual + 11 meses siguientes
+  const sel = $('aumentoPctPeriodo');
+  if (!sel) return;
+  sel.innerHTML = '';
+  const hoy = new Date();
+  let a = hoy.getFullYear();
+  let m = hoy.getMonth() + 1;
+  for (let i = 0; i < 12; i++) {
+    let cm = m + i, ca = a;
+    while (cm > 12) { cm -= 12; ca++; }
+    const opt = document.createElement('option');
+    opt.value = `${ca}-${String(cm).padStart(2,'0')}`;
+    opt.textContent = `${GA_MONTH_NAMES[cm - 1]} ${ca}`;
+    sel.appendChild(opt);
+  }
+
+  const inp = $('aumentoPctInput');
+  if (inp) inp.value = '';
+  const msgEl = $('aumentoPctMsg');
+  if (msgEl) msgEl.textContent = '';
+
+  $('aumentoPctStep1').style.display = '';
+  $('aumentoPctStep2').style.display = 'none';
+  $('aumentoPctStep3').style.display = 'none';
+  $('modalAumentoPctBack').style.display = 'flex';
+}
+
+function cerrarModalAumentoPct() {
+  const back = $('modalAumentoPctBack');
+  if (back) back.style.display = 'none';
+  _aumentoPctPreviewData = null;
+}
+
+function volverAumentoPctPaso1() {
+  $('aumentoPctStep1').style.display = '';
+  $('aumentoPctStep2').style.display = 'none';
+  const msgEl = $('aumentoPctMsg');
+  if (msgEl) msgEl.textContent = '';
+}
+
+async function generarVistaPreviaAumento() {
+  const msgEl = $('aumentoPctMsg');
+  if (msgEl) msgEl.textContent = '';
+
+  const raw = (($('aumentoPctInput') || {}).value || '').trim().replace(',', '.');
+  const porcentaje = parseFloat(raw);
+  if (!porcentaje || porcentaje <= 0 || !Number.isFinite(porcentaje)) {
+    if (msgEl) msgEl.textContent = 'Ingresá un porcentaje mayor a 0 (ej: 10 para 10%).';
+    return;
+  }
+  if (porcentaje > 999) {
+    if (msgEl) msgEl.textContent = 'El porcentaje ingresado parece incorrecto. Verificá.';
+    return;
+  }
+
+  const periodoVal = ($('aumentoPctPeriodo') || {}).value;
+  if (!periodoVal) {
+    if (msgEl) msgEl.textContent = 'Seleccioná el período desde el que se aplica.';
+    return;
+  }
+  const [targetAnio, targetMes] = periodoVal.split('-').map(Number);
+  if (!targetAnio || !targetMes) {
+    if (msgEl) msgEl.textContent = 'Período inválido.';
+    return;
+  }
+
+  // Contratos activos con monto definido (no ocultos)
+  const contratos = (contratosActivos || []).filter(c => !c.oculto && toNumber(c.monto_mensual) > 0);
+  if (!contratos.length) {
+    if (msgEl) msgEl.textContent = 'No hay contratos activos con monto mensual definido.';
+    return;
+  }
+
+  if (msgEl) msgEl.textContent = 'Consultando cuotas pendientes...';
+
+  // Fetch cuotas_operativas para todos los contratos desde el período objetivo
+  const contratoIds = contratos.map(c => c.id);
+  const periodoBase = targetAnio * 100 + targetMes;
+  let cuotasMap = {};
+
+  try {
+    const { data: cuotas, error } = await sb
+      .from('cuotas_operativas')
+      .select('id, contrato_id, anio, mes, monto_total, monto_pagado, saldo, estado')
+      .in('contrato_id', contratoIds)
+      .gte('anio', targetAnio)
+      .order('anio').order('mes');
+
+    if (error) throw error;
+
+    for (const q of (cuotas || [])) {
+      const periodoQ = q.anio * 100 + q.mes;
+      if (periodoQ < periodoBase) continue; // antes del período objetivo
+      if (toNumber(q.saldo) <= 0.009) continue; // ya pagada, no tocar
+      if (!cuotasMap[q.contrato_id]) cuotasMap[q.contrato_id] = [];
+      cuotasMap[q.contrato_id].push(q);
+    }
+  } catch (e) {
+    if (msgEl) msgEl.textContent = `Error al leer cuotas: ${e.message}`;
+    return;
+  }
+
+  // Construir items de la vista previa
+  const items = contratos.map(c => {
+    const montoActual = toNumber(c.monto_mensual);
+    const montoNuevo = Math.round(montoActual * (1 + porcentaje / 100));
+    return {
+      contrato: c,
+      montoActual,
+      montoNuevo,
+      diferencia: montoNuevo - montoActual,
+      cuotasAfectadas: cuotasMap[c.id] || []
+    };
+  });
+
+  _aumentoPctPreviewData = { porcentaje, periodo: { anio: targetAnio, mes: targetMes }, items };
+
+  if (msgEl) msgEl.textContent = '';
+  _renderAumentoPctPreview();
+  $('aumentoPctStep1').style.display = 'none';
+  $('aumentoPctStep2').style.display = '';
+}
+
+function _renderAumentoPctPreview() {
+  const { porcentaje, periodo, items } = _aumentoPctPreviewData;
+  const periodoLabel = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
+  const totalCuotas = items.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
+
+  const previewMsg = $('aumentoPctPreviewMsg');
+  if (previewMsg) previewMsg.textContent = '';
+
+  let html = `
+    <div class="aumento-preview-summary">
+      <strong>Aumento del ${porcentaje}% &mdash; desde ${periodoLabel}</strong><br>
+      <span class="muted">${items.length} contrato${items.length !== 1 ? 's' : ''} activo${items.length !== 1 ? 's' : ''} &nbsp;·&nbsp; ${totalCuotas} cuota${totalCuotas !== 1 ? 's' : ''} pendiente/parcial afectada${totalCuotas !== 1 ? 's' : ''}</span>
+    </div>
+    <table class="aumento-preview-table">
+      <thead>
+        <tr>
+          <th>Contrato</th>
+          <th>Local</th>
+          <th>Inquilino</th>
+          <th class="right">Alquiler actual</th>
+          <th class="right">Nuevo alquiler</th>
+          <th class="right">Diferencia</th>
+          <th>Cuotas pendientes</th>
+        </tr>
+      </thead>
+      <tbody>`;
+
+  for (const p of items) {
+    const c = p.contrato;
+    const codigo = c.locales?.codigo || c.locales?.codigo_local || '—';
+    const inquilino = c.inquilinos?.nombre || '—';
+
+    let cuotasHtml = '';
+    if (p.cuotasAfectadas.length === 0) {
+      cuotasHtml = '<span class="muted" style="font-size:11px;">Sin cuotas pendientes</span>';
+    } else {
+      cuotasHtml = p.cuotasAfectadas.map(q => {
+        const est = (q.estado || 'PENDIENTE').toLowerCase().replace('atrasado','atrasado').replace('parcial','parcial').replace('pendiente','pendiente');
+        const clsName = ['pendiente','parcial','atrasado'].includes(est) ? est : 'pendiente';
+        return `<span class="aumento-cuota-tag ${clsName}">${GA_MONTH_NAMES[q.mes - 1]} ${q.anio}</span>`;
+      }).join('');
+    }
+
+    html += `
+      <tr>
+        <td style="font-size:12px;color:var(--muted,#64748b);">${c.id}</td>
+        <td style="font-weight:700;">${codigo}</td>
+        <td>${inquilino}</td>
+        <td class="right">${fmtARS.format(p.montoActual)}</td>
+        <td class="right"><strong>${fmtARS.format(p.montoNuevo)}</strong></td>
+        <td class="right" style="color:#16a34a;">+${fmtARS.format(p.diferencia)}</td>
+        <td style="font-size:12px;max-width:200px;">${cuotasHtml}</td>
+      </tr>`;
+  }
+
+  html += `</tbody></table>
+    <div class="muted" style="font-size:11px;margin-top:10px;line-height:1.5;">
+      Las cuotas con saldo = 0 (pagadas) <strong>no se modifican</strong>. Solo se actualizan cuotas con saldo pendiente desde ${periodoLabel}.
+    </div>`;
+
+  const container = $('aumentoPctPreviewContainer');
+  if (container) container.innerHTML = html;
+
+  const btn = $('aumentoPctAplicarBtn');
+  if (btn) { btn.disabled = false; btn.textContent = 'Aplicar aumento'; }
+}
+
+async function aplicarAumentoPct() {
+  if (!_aumentoPctPreviewData) return;
+
+  const { porcentaje, periodo, items } = _aumentoPctPreviewData;
+  const periodoLabel = `${GA_MONTH_NAMES[periodo.mes - 1]} ${periodo.anio}`;
+  const totalCuotas = items.reduce((acc, p) => acc + p.cuotasAfectadas.length, 0);
+
+  const confirmMsg =
+    `¿Aplicar un aumento del ${porcentaje}% desde ${periodoLabel}?\n\n` +
+    `Esto actualizará:\n` +
+    `  • El alquiler base de ${items.length} contrato${items.length !== 1 ? 's' : ''}\n` +
+    `  • ${totalCuotas} cuota${totalCuotas !== 1 ? 's' : ''} pendiente${totalCuotas !== 1 ? 's' : ''}/parcial${totalCuotas !== 1 ? 'es' : ''}\n\n` +
+    `Las cuotas ya pagadas NO se tocarán.\n` +
+    `Esta acción modifica datos en Supabase y no se revierte automáticamente.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  const btn = $('aumentoPctAplicarBtn');
+  if (btn) { btn.disabled = true; btn.textContent = 'Aplicando...'; }
+  const previewMsg = $('aumentoPctPreviewMsg');
+  if (previewMsg) previewMsg.textContent = 'Aplicando cambios en Supabase...';
+
+  let okContratos = 0;
+  let okCuotas = 0;
+  const errores = [];
+
+  for (const p of items) {
+    const c = p.contrato;
+
+    // 1. Actualizar monto_mensual en contratos (base para cuotas futuras)
+    try {
+      const { error } = await sb
+        .from('contratos')
+        .update({ monto_mensual: p.montoNuevo })
+        .eq('id', c.id);
+      if (error) throw error;
+      okContratos++;
+
+      // Actualizar caché en memoria
+      if (contratosActivos) {
+        contratosActivos = contratosActivos.map(ca =>
+          String(ca.id) === String(c.id) ? { ...ca, monto_mensual: p.montoNuevo } : ca
+        );
+      }
+    } catch (e) {
+      errores.push(`Contrato ${c.id} (${c.locales?.codigo || '—'}): error al actualizar base — ${e.message}`);
+      continue; // no tocar cuotas si el contrato falló
+    }
+
+    // 2. Actualizar cada cuota pendiente/parcial con el RPC existente
+    for (const q of p.cuotasAfectadas) {
+      try {
+        // El nuevo monto de la cuota = porcentaje sobre el monto_total de ESA cuota
+        // (puede diferir del contrato si fue ajustada manualmente)
+        const nuevoMontoCuota = Math.round(toNumber(q.monto_total) * (1 + porcentaje / 100));
+
+        const rpcResult = await sb.rpc('modificar_cuota_operativa_alquiler', {
+          p_contrato_id: Number(c.id),
+          p_anio: Number(q.anio),
+          p_mes: Number(q.mes),
+          p_monto_total: Number(nuevoMontoCuota)
+        });
+
+        if (rpcResult?.error) throw rpcResult.error;
+        const cuotaActualizada = Array.isArray(rpcResult?.data) ? rpcResult.data[0] : rpcResult.data;
+        if (!cuotaActualizada?.ok) {
+          throw new Error(cuotaActualizada?.mensaje || 'El RPC no devolvió ok.');
+        }
+        okCuotas++;
+      } catch (e) {
+        const label = `${GA_MONTH_NAMES[q.mes - 1]} ${q.anio}`;
+        errores.push(`Contrato ${c.id} / ${label}: ${e.message}`);
+      }
+    }
+  }
+
+  if (previewMsg) previewMsg.textContent = '';
+  _mostrarResultadoAumento({ okContratos, okCuotas, errores, porcentaje, periodoLabel });
+  $('aumentoPctStep2').style.display = 'none';
+  $('aumentoPctStep3').style.display = '';
+}
+
+function _mostrarResultadoAumento({ okContratos, okCuotas, errores, porcentaje, periodoLabel }) {
+  const container = $('aumentoPctResultadoContainer');
+  if (!container) return;
+
+  const todoOk = errores.length === 0;
+  const colorBg   = todoOk ? 'rgba(22,163,74,.08)' : 'rgba(234,179,8,.08)';
+  const colorBord = todoOk ? 'rgba(22,163,74,.22)' : 'rgba(234,179,8,.22)';
+  const colorIcon = todoOk ? 'rgba(22,163,74,.15)' : 'rgba(234,179,8,.15)';
+  const icono     = todoOk ? '✓' : '⚠';
+  const titulo    = todoOk ? 'Aumento aplicado correctamente' : 'Aumento aplicado con advertencias';
+
+  let html = `
+    <div style="display:flex;align-items:center;gap:14px;padding:16px;border-radius:14px;background:${colorBg};border:1px solid ${colorBord};margin-bottom:16px;">
+      <div style="width:44px;height:44px;flex:0 0 44px;border-radius:12px;background:${colorIcon};display:grid;place-items:center;font-size:22px;">${icono}</div>
+      <div>
+        <div style="font-weight:900;font-size:15px;">${titulo}</div>
+        <div style="font-size:13px;color:var(--muted,#64748b);margin-top:3px;">
+          ${porcentaje}% desde ${periodoLabel} &nbsp;·&nbsp;
+          ${okContratos} contrato${okContratos !== 1 ? 's' : ''} actualizado${okContratos !== 1 ? 's' : ''} &nbsp;·&nbsp;
+          ${okCuotas} cuota${okCuotas !== 1 ? 's' : ''} modificada${okCuotas !== 1 ? 's' : ''}
+        </div>
+      </div>
+    </div>`;
+
+  if (errores.length > 0) {
+    html += `
+      <div style="margin-bottom:14px;">
+        <strong style="font-size:13px;color:#b45309;">Advertencias (${errores.length}):</strong>
+        <ul style="margin:6px 0 0 16px;font-size:12px;color:var(--muted,#64748b);line-height:1.7;">
+          ${errores.map(e => `<li>${e}</li>`).join('')}
+        </ul>
+      </div>`;
+  }
+
+  html += `
+    <div style="font-size:12px;color:var(--muted,#64748b);padding:10px 12px;border-radius:8px;background:var(--surface2,rgba(0,0,0,.03));line-height:1.5;">
+      Hacé clic en <strong>Recargar datos</strong> para ver los cambios reflejados en la pantalla.
+    </div>`;
+
+  container.innerHTML = html;
+}
+
+async function recargarTrasAumento() {
+  cerrarModalAumentoPct();
+  // Recargar lista de activos
+  if (typeof renderUnidades === 'function') renderUnidades();
+  // Recargar detalle del activo abierto si hay uno
+  if (selected && typeof loadDetalle === 'function') {
+    try { await loadDetalle(selected); } catch (e) { /* silencioso */ }
+  }
+}
+
+exposeGlobalFunction('abrirModalAumentoPct', abrirModalAumentoPct);
+exposeGlobalFunction('cerrarModalAumentoPct', cerrarModalAumentoPct);
+exposeGlobalFunction('volverAumentoPctPaso1', volverAumentoPctPaso1);
+exposeGlobalFunction('generarVistaPreviaAumento', generarVistaPreviaAumento);
+exposeGlobalFunction('aplicarAumentoPct', aplicarAumentoPct);
+exposeGlobalFunction('recargarTrasAumento', recargarTrasAumento);
 
 init();
   
