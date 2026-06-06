@@ -8020,6 +8020,7 @@ function sortRecibosByNewestFirst(rows){
       if (mobileList) mobileList.innerHTML = '';
 
       rows.forEach(r => {
+        const badge = badgeEstado(r);
         const tr = document.createElement('tr');
         tr.innerHTML = `
           <td><b>${r.local_codigo}</b></td>
@@ -8027,7 +8028,7 @@ function sortRecibosByNewestFirst(rows){
           <td class="right">${fmtARS.format(getDisplayedDebtTotal(r))}</td>
           <td class="right">${fmtARS.format(toNumber(r.deuda_arrastre_2025))}</td>
           <td class="center">${getDisplayedMonthsOwed(r)}</td>
-          <td class="center">${badgeEstado(r)}</td>
+          <td class="center">${badge}</td>
           <td class="center">
             <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
             <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
@@ -8041,7 +8042,7 @@ function sortRecibosByNewestFirst(rows){
           card.innerHTML = `
             <div class="mobile-card-top">
               <span class="mobile-code">${r.local_codigo}</span>
-              ${badgeEstado(r)}
+              ${badge}
             </div>
             <div class="mobile-tenant">${r.inquilino_nombre}</div>
             <div class="mobile-meta-grid">
