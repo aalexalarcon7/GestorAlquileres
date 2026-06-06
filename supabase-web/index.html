@@ -7646,10 +7646,13 @@ window.addEventListener('online', () => {
       $('unitsMsg').textContent = '';
       // refreshContratosActivos debe ir primero: refreshInquilinosSinContrato lee contratosActivos.
       await refreshContratosActivos();
-      // refreshInquilinosSinContrato y refreshActivosReconstruidosData son independientes entre sí.
-      await Promise.all([
+      // refreshInquilinosSinContrato, refreshActivosReconstruidosData y las vistas de resumen
+      // de Inicio son todas independientes entre sí; se ejecutan en paralelo.
+      const [, , resumen2025, resumen2026] = await Promise.all([
         refreshInquilinosSinContrato(),
-        refreshActivosReconstruidosData()
+        refreshActivosReconstruidosData(),
+        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
+        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
       ]);
 
       const baseRows = (contratosActivos || [])
@@ -7689,12 +7692,12 @@ window.addEventListener('online', () => {
       proximoVencimientoMap = {};
 
       renderUnidades();
-      await renderInicio();
+      await renderInicio(resumen2025, resumen2026);
       buildInqCache();
     }
 
 
-    async function renderInicio(){
+    async function renderInicio(resumen2025Prefetched = null, resumen2026Prefetched = null){
       const total = unidades.length;
       const deudaTotal = unidades.reduce((a,r)=>a+getDisplayedDebtTotal(r),0);
       const deudaAtrasada = deudaTotal;
@@ -7702,10 +7705,16 @@ window.addEventListener('online', () => {
       const libres = 0;
       const ocupPerc = total ? 100 : 0;
 
-      const [res2025, res2026] = await Promise.all([
-        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
-        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
-      ]);
+      let res2025, res2026;
+      if (resumen2025Prefetched && resumen2026Prefetched) {
+        res2025 = resumen2025Prefetched;
+        res2026 = resumen2026Prefetched;
+      } else {
+        [res2025, res2026] = await Promise.all([
+          fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
+          fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
+        ]);
+      }
       const r25 = (res2025 || [])[0] || {};
       const r26 = (res2026 || [])[0] || {};
 
