@@ -7632,9 +7632,13 @@ window.addEventListener('online', () => {
 
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
+      // refreshContratosActivos debe ir primero: refreshInquilinosSinContrato lee contratosActivos.
       await refreshContratosActivos();
-      await refreshInquilinosSinContrato();
-      await refreshActivosReconstruidosData();
+      // refreshInquilinosSinContrato y refreshActivosReconstruidosData son independientes entre sí.
+      await Promise.all([
+        refreshInquilinosSinContrato(),
+        refreshActivosReconstruidosData()
+      ]);
 
       const baseRows = (contratosActivos || [])
         .map(c => {
@@ -11868,7 +11872,7 @@ function updateRecibosFiltersFromUI(){
 
       const { rows, pagosError, contratosError } = await fetchRecibosInternosData();
       recibosInternosCache = rows;
-      saveReceiptsCache();
+      // saveReceiptsCache() ya fue llamada dentro de fetchRecibosInternosData(); no repetir.
 
       // KPIs calculados desde filas reales (no desde RPC que puede traer números inconsistentes).
       // allValidRows = todo sin anulados; filteredRows = con filtros de mes/local/búsqueda.
@@ -11897,38 +11901,6 @@ function updateRecibosFiltersFromUI(){
   if (k) seenKPINums.add(k);
   return true;
 });
-
-      // ── Diagnóstico KPI-MES (F12 → Console) ────────────────────────────────
-      console.log(
-        '[KPI-MES] mes buscado:', mesParaKPI,
-        '| filas totales (raw+merged):', (rows || []).length,
-        '| válidas (sin anulados):', allValidRows.length,
-        '| del mes:', delMesParaKPI.length,
-        '| monto del mes:', delMesParaKPI.reduce((a, r) => a + reciboMonto(r), 0)
-      );
-      if (allValidRows.length) {
-        // Muestra primeros 5 con todos los campos que usa getReceiptMonthKey
-        console.log('[KPI-MES] Primeros 5 válidos:', allValidRows.slice(0, 5).map(r => ({
-          num: r.numero_recibo,
-          fp: r.fecha_pago,
-          ca: r.created_at,
-          anio: r.anio, mes: r.mes,
-          periodo: r.periodo_aplicado,
-          keyDetectado: getReceiptKpiMonthKey(r),
-coincide: getReceiptKpiMonthKey(r) === mesParaKPI
-        })));
-        // Muestra recibos que NO coinciden con el mes buscado (primeros 5)
-        const fuera = allValidRows.filter(r => getReceiptKpiMonthKey(r) !== mesParaKPI).slice(0, 5);
-        if (fuera.length) {
-          console.log('[KPI-MES] Recibos NO incluidos en KPI (primeros 5):', fuera.map(r => ({
-            num: r.numero_recibo,
-            fp: r.fecha_pago,
-            ca: r.created_at,
-            keyDetectado: getReceiptKpiMonthKey(r),
-            mesBuscado: mesParaKPI
-          })));
-        }
-      }
 
       const summary = {
         total:          allValidRows.length,
