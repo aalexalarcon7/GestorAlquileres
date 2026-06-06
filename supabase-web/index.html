@@ -7500,6 +7500,10 @@ function globalSearch(){
 let gaTabHiddenAt = 0;
 let gaTabRecovering = false;
 let gaLastTabRecoveryAt = 0;
+let gaLastFullRefreshAt = 0;            // timestamp del último refreshAll() por recovery
+
+const GA_REFRESH_TTL_MS = 30_000;         // no relanzar refreshAll si hubo uno en < 30s
+const GA_TAB_HIDDEN_THRESHOLD_MS = 5_000; // ignorar pausas de pestaña menores a 5s
 
 function isGaModalOpen(){
   const modalIds = [
@@ -7563,8 +7567,6 @@ async function recoverAppAfterTabWake(reason = 'tab-wake'){
   gaTabRecovering = true;
 
   try {
-    console.info('[GA] Recuperando app al volver a la pestaña:', reason);
-
     // Cerrar menú flotante si quedó abierto.
     if (typeof closeReciboFloatingMenu === 'function') {
       closeReciboFloatingMenu();
@@ -7581,8 +7583,18 @@ async function recoverAppAfterTabWake(reason = 'tab-wake'){
 
     toggle(true, user);
 
-    // Refrescar datos base.
+    // Si ya hubo un refreshAll reciente, no relanzamos 8+ queries a Supabase.
+    // Los datos en memoria son suficientemente frescos.
+    if (now - gaLastFullRefreshAt < GA_REFRESH_TTL_MS) {
+      console.info('[GA] Recovery liviano (datos frescos < 30s):', reason);
+      return;
+    }
+
+    console.info('[GA] Recuperando app al volver a la pestaña:', reason);
+
+    // Refrescar datos base y registrar el timestamp.
     await refreshAll();
+    gaLastFullRefreshAt = Date.now();
 
     // Si no hay modal abierto, re-renderizamos la ruta actual.
     // Si hay modal abierto, no lo tocamos para no borrar datos que el usuario esté cargando.
@@ -7605,8 +7617,8 @@ document.addEventListener('visibilitychange', () => {
 
   const hiddenMs = Date.now() - gaTabHiddenAt;
 
-  // Si estuvo más de 2 segundos fuera, hacemos recovery suave.
-  if (hiddenMs > 2000) {
+  // Si estuvo más de 5 segundos fuera, hacemos recovery suave.
+  if (hiddenMs > GA_TAB_HIDDEN_THRESHOLD_MS) {
     setTimeout(() => recoverAppAfterTabWake('visibilitychange'), 180);
   }
 });
@@ -7614,7 +7626,7 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', () => {
   const hiddenMs = Date.now() - gaTabHiddenAt;
 
-  if (gaTabHiddenAt && hiddenMs > 2000) {
+  if (gaTabHiddenAt && hiddenMs > GA_TAB_HIDDEN_THRESHOLD_MS) {
     setTimeout(() => recoverAppAfterTabWake('focus'), 180);
   }
 });
