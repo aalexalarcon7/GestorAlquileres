@@ -5056,6 +5056,36 @@ td:last-child{
         </button>
       </section>
 
+      <!-- Sección: Servicio de luz — solo para Dovis, Samir, Vera Andrés (servicios_habilitados=true) -->
+      <section class="activo-modal-section activo-section-servicio" id="seccionServicioLuz" style="display:none;border-top:1px dashed var(--border,#e2e8f0);padding-top:16px;margin-top:6px;">
+        <div class="activo-modal-section-title" style="display:flex;align-items:center;gap:8px;">
+          Servicio de luz
+          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px;background:rgba(234,179,8,.12);color:#92400e;letter-spacing:.3px;">Solo este contrato</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted,#64748b);line-height:1.55;margin-bottom:14px;">
+          Este campo solo está disponible para contratos que tienen servicio asociado. Permite modificar el monto del servicio desde un período determinado <strong>sin tocar recibos históricos ni cuotas pagadas.</strong>
+        </div>
+        <div class="activo-modal-fields" style="margin-bottom:14px;">
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <label class="muted" style="font-size:12px;font-weight:900;">Servicio actual</label>
+            <div id="servicioActualDisplay" style="font-size:16px;font-weight:900;color:var(--text);padding:8px 18px;background:var(--surface-soft,rgba(0,0,0,.04));border-radius:12px;border:1px solid var(--border,#e2e8f0);">—</div>
+          </div>
+          <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <label class="muted" style="font-size:12px;font-weight:900;" for="actNuevoServicio">Nuevo monto servicio</label>
+            <input id="actNuevoServicio" placeholder="Ej: 15000" autocomplete="off" style="width:100%;max-width:320px;text-align:center;">
+          </div>
+          <div class="full" style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+            <label class="muted" style="font-size:12px;font-weight:900;" for="actPeriodoServicio">Desde el período</label>
+            <select id="actPeriodoServicio" style="width:100%;max-width:420px;min-height:46px;text-align:center;font-weight:900;border-radius:16px;border:1px solid var(--border);background:var(--surface);color:var(--text);padding:0 14px;"></select>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;">
+          <button class="btn" type="button" id="btnPreviewServicio" onclick="previewServicioLuz()">Vista previa del servicio</button>
+          <button class="btn primary" type="button" id="btnAplicarServicio" onclick="aplicarServicioLuz()" style="display:none;">Aplicar cambio de servicio</button>
+        </div>
+        <div id="servicioPreviewPanel" style="display:none;margin-top:16px;font-size:13px;"></div>
+      </section>
+
       <div class="activo-modal-actions">
         <button class="btn" data-toggle-ocultar-activo="1" onclick="toggleOcultarActivoActual()">Ocultar activo</button>
         <button class="btn danger" onclick="deleteActivoActual()">Borrar activo</button>
@@ -9491,6 +9521,13 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     const el = $(id);
     if (el) el.disabled = true;
   });
+
+  // Sección servicio: solo en modo alquiler y para contratos con servicios_habilitados
+  const secServicio = $('seccionServicioLuz');
+  if (secServicio) {
+    const contratoConServicio = isContratoConServicio(activoEditContrato);
+    secServicio.style.display = (isAlquilerMode && contratoConServicio) ? 'block' : 'none';
+  }
 }
 
     function parseModalNumber(value){
@@ -9662,6 +9699,18 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
 
       setActivoModalModeUI(isAlquilerMode);
       if (isAlquilerMode) populateRentPeriodOptions();
+      if (isAlquilerMode && isContratoConServicio(contrato)) {
+        populateServicioPeriodOptions();
+        const servicioActual = getServicioActualDisplay();
+        const displayEl = $('servicioActualDisplay');
+        if (displayEl) displayEl.textContent = servicioActual > 0 ? fmtARS.format(servicioActual) : '$0';
+        const inputEl = $('actNuevoServicio');
+        if (inputEl) inputEl.value = '';
+        const previewPanel = $('servicioPreviewPanel');
+        if (previewPanel) { previewPanel.style.display = 'none'; previewPanel.innerHTML = ''; }
+        const btnAplicar = $('btnAplicarServicio');
+        if (btnAplicar) { btnAplicar.style.display = 'none'; btnAplicar.disabled = false; }
+      }
       const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
       if (saveBtn) saveBtn.textContent = isAlquilerMode ? 'Guardar alquiler' : 'Guardar cambios';
       $('modalActivoBack').style.display = 'flex';
@@ -9675,6 +9724,233 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       const saveBtn = document.querySelector('#modalActivoBack .btn.primary[onclick="saveActivoModal()"]');
       if (saveBtn) saveBtn.textContent = 'Guardar cambios';
     }
+
+    // ---- SERVICIO DE LUZ ----
+
+    function isContratoConServicio(contrato) {
+      return !!(contrato?.servicios_habilitados);
+    }
+
+    function getServicioActualDisplay() {
+      const rows = (detalleCuotasActuales || [])
+        .filter(r => toNumber(r.monto_servicio ?? r.servicio) > 0)
+        .sort((a, b) => String(b.sort_key || '').localeCompare(String(a.sort_key || '')));
+      return rows.length > 0 ? toNumber(rows[0].monto_servicio ?? rows[0].servicio ?? 0) : 0;
+    }
+
+    function populateServicioPeriodOptions() {
+      const el = $('actPeriodoServicio');
+      if (!el) return;
+      const currentKey = getCurrentRentPeriodKey();
+      const rows = getRentPeriodVisibleRows();
+      const seen = new Set();
+      el.innerHTML = '';
+      const add = (key, label) => {
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        const opt = document.createElement('option');
+        opt.value = key;
+        opt.textContent = label;
+        el.appendChild(opt);
+      };
+      for (const r of rows) {
+        const key = String(r.sort_key || '');
+        if (/^\d{4}-\d{2}$/.test(key)) add(key, getRentPeriodLabelFromKey(key));
+      }
+      if (!seen.has(currentKey)) add(currentKey, getRentPeriodLabelFromKey(currentKey));
+      if (seen.has(currentKey)) el.value = currentKey;
+    }
+
+    function previewServicioLuz() {
+      const nuevoServicioRaw = ($('actNuevoServicio')?.value || '').trim();
+      const nuevoServicio = nuevoServicioRaw !== '' ? parseModalNumber(nuevoServicioRaw) : null;
+      const panel = $('servicioPreviewPanel');
+      const btnAplicar = $('btnAplicarServicio');
+
+      const showError = (txt) => {
+        panel.style.display = 'block';
+        panel.innerHTML = `<div style="color:#dc2626;font-size:12px;padding:8px 12px;background:rgba(220,38,38,.07);border-radius:10px;">${txt}</div>`;
+        btnAplicar.style.display = 'none';
+      };
+
+      if (nuevoServicio === null) return showError('Ingresá el nuevo monto del servicio (puede ser 0).');
+      if (nuevoServicio < 0) return showError('El monto del servicio debe ser mayor o igual a 0.');
+
+      const periodKey = $('actPeriodoServicio')?.value || getCurrentRentPeriodKey();
+      const rows = (detalleCuotasActuales || [])
+        .filter(r => {
+          const key = String(r.sort_key || '');
+          return /^\d{4}-\d{2}$/.test(key) && key >= periodKey;
+        })
+        .sort((a, b) => String(a.sort_key || '').localeCompare(String(b.sort_key || '')));
+
+      if (rows.length === 0) {
+        panel.style.display = 'block';
+        panel.innerHTML = `<div style="color:#64748b;font-size:12px;">No hay cuotas visibles desde ese período.</div>`;
+        btnAplicar.style.display = 'none';
+        return;
+      }
+
+      let hasChanges = false;
+      let html = `<div style="margin-bottom:10px;font-size:12px;color:var(--muted);">
+        Período desde: <strong>${getRentPeriodLabelFromKey(periodKey)}</strong> &nbsp;·&nbsp;
+        Nuevo servicio: <strong>${fmtARS.format(nuevoServicio)}</strong>
+      </div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead>
+            <tr style="background:rgba(0,0,0,.05);">
+              <th style="padding:6px 8px;text-align:left;">Período</th>
+              <th style="padding:6px 8px;text-align:right;">Serv. actual</th>
+              <th style="padding:6px 8px;text-align:right;">Nuevo serv.</th>
+              <th style="padding:6px 8px;text-align:right;">Diferencia</th>
+              <th style="padding:6px 8px;text-align:center;">Estado</th>
+              <th style="padding:6px 8px;text-align:center;">Acción</th>
+            </tr>
+          </thead><tbody>`;
+
+      for (const row of rows) {
+        const estado = String(row.estado_detalle || row.estado || '').trim().toUpperCase();
+        const isPagado = estado === 'PAGADO';
+        const servicioActual = toNumber(row.monto_servicio ?? row.servicio ?? 0);
+        const dif = round2(nuevoServicio - servicioActual);
+        const periodoLabel = getRentPeriodLabelFromKey(String(row.sort_key || ''));
+        const accion = isPagado ? '⏭ Saltear' : (Math.abs(dif) < 0.009 ? '— Sin cambio' : '✎ Actualizar');
+        const accionColor = isPagado ? '#94a3b8' : (Math.abs(dif) < 0.009 ? '#64748b' : '#16a34a');
+        const difColor = dif > 0.009 ? '#dc2626' : (dif < -0.009 ? '#16a34a' : '#94a3b8');
+        if (!isPagado && Math.abs(dif) > 0.009) hasChanges = true;
+        html += `<tr style="border-bottom:1px solid rgba(0,0,0,.06);">
+          <td style="padding:6px 8px;">${periodoLabel}</td>
+          <td style="padding:6px 8px;text-align:right;">${fmtARS.format(servicioActual)}</td>
+          <td style="padding:6px 8px;text-align:right;">${fmtARS.format(nuevoServicio)}</td>
+          <td style="padding:6px 8px;text-align:right;color:${difColor};">${dif >= 0 ? '+' : ''}${fmtARS.format(dif)}</td>
+          <td style="padding:6px 8px;text-align:center;">${estado}</td>
+          <td style="padding:6px 8px;text-align:center;color:${accionColor};font-weight:700;">${accion}</td>
+        </tr>`;
+      }
+      html += `</tbody></table></div>`;
+
+      panel.style.display = 'block';
+      panel.innerHTML = html;
+      btnAplicar.style.display = hasChanges ? 'inline-block' : 'none';
+    }
+
+    async function aplicarServicioLuz() {
+      const msg = $('activoModalMsg');
+      const btnAplicar = $('btnAplicarServicio');
+      const contrato = activoEditContrato || getContratoActivoRow(selected?.contrato_id);
+
+      if (!contrato || !isContratoConServicio(contrato)) {
+        msg.textContent = 'Este contrato no tiene servicio habilitado.';
+        return;
+      }
+
+      const nuevoServicioRaw = ($('actNuevoServicio')?.value || '').trim();
+      const nuevoServicio = nuevoServicioRaw !== '' ? parseModalNumber(nuevoServicioRaw) : null;
+
+      if (nuevoServicio === null || nuevoServicio < 0) {
+        msg.textContent = 'El nuevo monto del servicio es inválido.';
+        return;
+      }
+
+      const periodKey = $('actPeriodoServicio')?.value || getCurrentRentPeriodKey();
+      const periodoAnio = Number(periodKey.split('-')[0]);
+      const periodoMes = Number(periodKey.split('-')[1]);
+
+      const confirmar = confirm(
+        `Esto modificará el servicio de luz solo para este contrato\n` +
+        `desde ${getRentPeriodLabelFromKey(periodKey)} inclusive.\n\n` +
+        `Nuevo monto: ${fmtARS.format(nuevoServicio)}\n\n` +
+        `No tocará otros inquilinos, cuotas pagadas, pagos ni recibos históricos.\n\n¿Confirmar?`
+      );
+      if (!confirmar) return;
+
+      btnAplicar.disabled = true;
+      msg.textContent = 'Aplicando cambio de servicio...';
+
+      try {
+        const contratoId = Number(selected.contrato_id);
+
+        const { data: cuotas, error: cuotasErr } = await sb
+          .from('cuotas_operativas')
+          .select('id,anio,mes,monto_total,monto_pagado,saldo,estado,monto_servicio')
+          .eq('contrato_id', contratoId)
+          .gte('anio', periodoAnio)
+          .order('anio', { ascending: true })
+          .order('mes', { ascending: true });
+
+        if (cuotasErr) throw cuotasErr;
+
+        const cuotasAfectadas = (cuotas || []).filter(c => {
+          if (c.anio < periodoAnio) return false;
+          if (c.anio === periodoAnio && c.mes < periodoMes) return false;
+          const est = String(c.estado || '').toUpperCase();
+          return est !== 'PAGADO';
+        });
+
+        let actualizadas = 0;
+
+        for (const cuota of cuotasAfectadas) {
+          const oldServicio = toNumber(cuota.monto_servicio);
+          if (Math.abs(oldServicio - nuevoServicio) < 0.009) continue;
+
+          const delta = round2(nuevoServicio - oldServicio);
+          const newMontoTotal = round2(toNumber(cuota.monto_total) + delta);
+          const newSaldo = Math.max(0, round2(newMontoTotal - toNumber(cuota.monto_pagado)));
+          const pagadoActual = toNumber(cuota.monto_pagado);
+
+          let newEstado;
+          if (newSaldo <= 0.009) newEstado = 'PAGADO';
+          else if (pagadoActual > 0.009) newEstado = 'PARCIAL';
+          else newEstado = cuota.estado === 'ATRASADO' ? 'ATRASADO' : 'PENDIENTE';
+
+          const { error: updErr } = await sb
+            .from('cuotas_operativas')
+            .update({ monto_servicio: nuevoServicio, monto_total: newMontoTotal, saldo: newSaldo, estado: newEstado })
+            .eq('id', cuota.id)
+            .eq('contrato_id', contratoId)
+            .eq('anio', cuota.anio)
+            .eq('mes', cuota.mes);
+
+          if (updErr) throw updErr;
+          actualizadas++;
+        }
+
+        // Actualizar estado local en memoria
+        detalleCuotasActuales = (detalleCuotasActuales || []).map(row => {
+          const key = String(row.sort_key || '');
+          if (key < periodKey) return row;
+          const est = String(row.estado_detalle || row.estado || '').toUpperCase();
+          if (est === 'PAGADO') return row;
+          const oldServ = toNumber(row.monto_servicio ?? row.servicio ?? 0);
+          if (Math.abs(oldServ - nuevoServicio) < 0.009) return row;
+          const delta = round2(nuevoServicio - oldServ);
+          const newTotal = round2(toNumber(row.total ?? row.monto_total ?? 0) + delta);
+          const pagado = toNumber(row.pagado ?? row.monto_pagado ?? 0);
+          const newSaldo = Math.max(0, round2(newTotal - pagado));
+          let newEst = est;
+          if (newSaldo <= 0.009) newEst = 'PAGADO';
+          else if (pagado > 0.009) newEst = 'PARCIAL';
+          return { ...row, monto_servicio: nuevoServicio, servicio: nuevoServicio, total: newTotal, monto_total: newTotal, saldo: newSaldo, estado: newEst, estado_detalle: newEst };
+        });
+
+        const displayEl = $('servicioActualDisplay');
+        if (displayEl) displayEl.textContent = fmtARS.format(nuevoServicio);
+        $('btnAplicarServicio').style.display = 'none';
+        $('servicioPreviewPanel').style.display = 'none';
+        $('servicioPreviewPanel').innerHTML = '';
+
+        msg.textContent = `Servicio actualizado en ${actualizadas} cuota${actualizadas !== 1 ? 's' : ''} correctamente.`;
+
+      } catch (err) {
+        console.error('aplicarServicioLuz error:', err);
+        msg.textContent = `Error al actualizar servicio: ${err?.message || 'Error desconocido'}`;
+      } finally {
+        btnAplicar.disabled = false;
+      }
+    }
+
+    // ---- FIN SERVICIO DE LUZ ----
 
 async function saveActivoModal(){
   const msg = $('activoModalMsg');
