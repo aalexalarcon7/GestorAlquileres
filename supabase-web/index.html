@@ -5512,7 +5512,7 @@ td:last-child{
         recibo_base: numero || row.recibo_base || row.numero_recibo,
         referencia: numero || row.referencia,
         descripcion_pago: descripcion || row.descripcion_pago || 'Cobro operativo registrado desde la página.',
-        detalle_aplicacion: override.detalle_aplicacion || row.detalle_aplicacion || descripcion,
+        detalle_aplicacion: (row.detalle_aplicacion && row.detalle_aplicacion !== 'Cobro operativo registrado desde la página.' ? row.detalle_aplicacion : null) || override.detalle_aplicacion || row.detalle_aplicacion || descripcion,
         observacion: descripcion || row.observacion || '',
         monto_alquiler: Number.isFinite(alquiler) ? alquiler : Number(total || 0),
         monto_impuesto: Number.isFinite(impuesto) ? impuesto : 0,
@@ -11551,7 +11551,9 @@ setTimeout(() => {
       const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
       const total = fmtARS.format(Number(item.monto_total || item.monto || 0));
-      const descripcionRecibo = String(item.descripcion_pago || item.detalle_aplicacion || item.observacion || '')
+      const rawDetalle = String(item.detalle_aplicacion || '').trim();
+      const detalleParaDisplay = (rawDetalle && rawDetalle !== 'Cobro operativo registrado desde la página.') ? rawDetalle : '';
+      const descripcionRecibo = String(detalleParaDisplay || item.descripcion_pago || item.observacion || '')
       .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
       .trim();
       return `
