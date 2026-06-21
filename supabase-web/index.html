@@ -5288,6 +5288,7 @@ td:last-child{
     let modalContrato = null;
     let recibosInternosCache = [];
     let reciboActual = null;
+    let reciboActualAplicaciones = null; // aplicaciones reales del recibo abierto (Etapa 5)
     let recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
     let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
@@ -11669,7 +11670,49 @@ setTimeout(() => {
       return lines.join('\n');
     }
 
-    function buildReceiptPrintHtml(item){
+    // ── Etapa 5: recibos desde aplicaciones reales ───────────────────────────
+
+    // Busca aplicaciones activas para un recibo/pago.
+    // Prioridad: pago_id → recibo_id. Siempre filtra deleted_at IS NULL.
+    async function fetchAplicacionesRealesRecibo(item) {
+      const pagoId   = Number(item?.pago_id  || 0) || null;
+      const reciboId = Number(item?.recibo_id || item?.id || 0) || null;
+      if (!pagoId && !reciboId) return null;
+      try {
+        let q = sb
+          .from('recibos_aplicaciones_operativas')
+          .select('id,recibo_id,pago_id,anio,mes,monto_aplicado,monto_alquiler,monto_impuesto,monto_servicio')
+          .is('deleted_at', null)
+          .order('anio', { ascending: true })
+          .order('mes',  { ascending: true });
+        if (pagoId)   q = q.eq('pago_id',   pagoId);
+        else          q = q.eq('recibo_id',  reciboId);
+        const { data, error } = await q;
+        if (error || !data?.length) return null;
+        return data;
+      } catch(e) {
+        console.warn('[Recibos] No se pudieron cargar aplicaciones reales:', e);
+        return null;
+      }
+    }
+
+    // Construye el texto de distribución desde aplicaciones reales.
+    // Omite componentes en cero para no ensuciar el recibo.
+    // Ejemplo: "05/2026: alquiler $213.460 | 06/2026: impuesto $13.500 / alquiler $7.040"
+    function buildDetalleReciboDesdeAplicaciones(apps) {
+      if (!apps?.length) return null;
+      const lineas = apps.map(a => {
+        const per = `${String(a.mes).padStart(2,'0')}/${a.anio}`;
+        const ps  = [];
+        if (Number(a.monto_impuesto) > 0) ps.push(`impuesto ${fmtARS.format(Number(a.monto_impuesto))}`);
+        if (Number(a.monto_servicio) > 0) ps.push(`servicio ${fmtARS.format(Number(a.monto_servicio))}`);
+        if (Number(a.monto_alquiler) > 0) ps.push(`alquiler ${fmtARS.format(Number(a.monto_alquiler))}`);
+        return ps.length ? `${per}: ${ps.join(' / ')}` : null;
+      }).filter(Boolean);
+      return lineas.length ? lineas.join(' | ') : null;
+    }
+
+    function buildReceiptPrintHtml(item, apps = null){
       const negocio = escapeHtml(appSettings?.negocio?.nombre || 'Gestión de Alquileres');
       const initials = escapeHtml((appSettings?.negocio?.nombre || 'GA').split(/\s+/).map(part => part[0] || '').join('').slice(0,2).toUpperCase() || 'GA');
       const numero = escapeHtml(item.numero_recibo || '—');
@@ -11686,11 +11729,18 @@ setTimeout(() => {
       const alquiler = fmtARS.format(Number(item.monto_alquiler || 0));
       const impuesto = fmtARS.format(Number(item.monto_impuesto || 0));
       const total = fmtARS.format(Number(item.monto_total || item.monto || 0));
+      // Prioridad de fuentes para el detalle del recibo:
+      // 1) aplicaciones reales activas (fetchAplicacionesRealesRecibo)
+      // 2) detalle_aplicacion guardado (texto actualizado por la RPC)
+      // 3) descripcion_pago; 4) observacion
+      // Los overrides de localStorage NUNCA ganan sobre aplicaciones reales.
+      const detalleDesdeApps = buildDetalleReciboDesdeAplicaciones(apps);
       const rawDetalle = String(item.detalle_aplicacion || '').trim();
-      const detalleParaDisplay = (rawDetalle && rawDetalle !== 'Cobro operativo registrado desde la página.') ? rawDetalle : '';
+      const detalleParaDisplay = detalleDesdeApps
+        || (rawDetalle && rawDetalle !== 'Cobro operativo registrado desde la página.' ? rawDetalle : '');
       const descripcionRecibo = String(detalleParaDisplay || item.descripcion_pago || item.observacion || '')
-      .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
-      .trim();
+        .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
+        .trim();
       return `
         <div class="recibo-sheet" id="reciboSheetPrintable">
           <div class="recibo-sheet-head">
@@ -12755,22 +12805,35 @@ error = deleteResponse.error;
       if ($('reciboModalMsg')) $('reciboModalMsg').textContent = '';
     }
 
-    function openReciboModal(id){
+    async function openReciboModal(id){
       const item = getReciboById(id);
-      if (!item){
-        alert('No se encontró el recibo.');
-        return;
-      }
-      reciboActual = item;
+      if (!item){ alert('No se encontró el recibo.'); return; }
+      if (isReciboAnulado(item)){ alert('Este recibo está anulado y no puede mostrarse como activo.'); return; }
+
+      reciboActual              = item;
+      reciboActualAplicaciones  = null;
+
       $('modalReciboBack').style.display = 'flex';
-      $('reciboModalMeta').textContent = `${item.numero_recibo} · ${item.inquilino_nombre} · ${item.local_codigo}`;
-      $('reciboPreviewBody').innerHTML = buildReceiptPrintHtml(item);
+      $('reciboModalMeta').textContent    = `${item.numero_recibo} · ${item.inquilino_nombre} · ${item.local_codigo}`;
+      // Render inicial rápido con datos del cache (sin apps todavía)
+      $('reciboPreviewBody').innerHTML = buildReceiptPrintHtml(item, null);
       if ($('reciboModalMsg')) $('reciboModalMsg').textContent = '';
+
+      // Fetch aplicaciones reales y re-render si existen (Etapa 5)
+      try {
+        const apps = await fetchAplicacionesRealesRecibo(item);
+        reciboActualAplicaciones = apps;
+        if (apps?.length) {
+          $('reciboPreviewBody').innerHTML = buildReceiptPrintHtml(item, apps);
+        }
+      } catch(e) {
+        console.warn('[Recibos] No se pudieron cargar aplicaciones para el recibo:', e?.message || e);
+      }
     }
 
     function printReciboActual(){
       if (!reciboActual) return;
-      const printable = buildReceiptPrintHtml(reciboActual);
+      const printable = buildReceiptPrintHtml(reciboActual, reciboActualAplicaciones);
       const w = window.open('', '_blank', 'width=960,height=800');
       if (!w) return;
       w.document.write(`
