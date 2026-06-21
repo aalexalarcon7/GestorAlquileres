@@ -1199,6 +1199,25 @@ td:last-child{
       padding:20px;
       background:linear-gradient(180deg, var(--card-solid), rgba(255,255,255,.84));
     }
+    /* ── Cobro por componentes (Etapa 4) ── */
+    #cobroCompBack .modal{width:min(920px,calc(100vw - 20px));max-height:92vh;overflow-y:auto;}
+    .cobro-comp-table{width:100%;border-collapse:collapse;font-size:13px;}
+    .cobro-comp-table th{background:#f1f5f9;padding:6px 8px;text-align:right;font-size:11px;color:#64748b;white-space:nowrap;}
+    .cobro-comp-table th:first-child{text-align:left;}
+    .cobro-comp-table td{padding:5px 6px;border-bottom:1px solid #f1f5f9;text-align:right;vertical-align:middle;}
+    .cobro-comp-table td:first-child{text-align:left;font-weight:700;}
+    .cobro-comp-input{width:110px;text-align:right;font-weight:700;padding:4px 6px;border-radius:6px;border:1px solid #cbd5e1;}
+    .cobro-comp-input:disabled{background:#f8fafc;color:#94a3b8;}
+    .cobro-comp-sub{color:#64748b;font-size:12px;}
+    .cobro-comp-badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:700;}
+    .cobro-comp-badge.pagado{background:#dcfce7;color:#15803d;}
+    .cobro-comp-badge.parcial{background:#fef9c3;color:#854d0e;}
+    .cobro-comp-badge.pendiente,.cobro-comp-badge.atrasado{background:#fee2e2;color:#dc2626;}
+    .cobro-comp-preview-box{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px;margin-top:14px;}
+    .cobro-comp-preview-row{font-size:12px;border-collapse:collapse;width:100%;}
+    .cobro-comp-preview-row th{color:#64748b;font-weight:600;padding:2px 6px 2px 0;text-align:left;}
+    .cobro-comp-preview-row td{padding:2px 4px;}
+    .cobro-comp-preview-row td:last-child{text-align:right;font-weight:700;}
 
     [data-theme="dark"] .modal{background:linear-gradient(180deg, var(--card-solid-dark), rgba(15,23,36,.94))}
 
@@ -4662,6 +4681,7 @@ td:last-child{
                 </div>
                 <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
                   <button class="btn primary" type="button" onclick="openPagoModal(selected)">Cobro</button>
+                  <button class="btn" type="button" onclick="openCobroComp(selected)" title="Cobro con desglose por alquiler, impuesto y servicio (nuevo)">Cobro ⚡</button>
                   <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
                   <button class="btn" id="btnToggleOcultarActivo" data-toggle-ocultar-activo="1" type="button" onclick="toggleOcultarActivoActual()">Ocultar activo</button>
                   <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
@@ -5108,6 +5128,102 @@ td:last-child{
       <button class="btn" id="pagoSuccessToastClose" aria-label="Cerrar aviso" style="width:34px;height:34px;flex:0 0 34px;border-radius:12px;border:1px solid rgba(15,23,42,.12);background:rgba(15,23,42,.03);color:#0f172a;font-size:20px;line-height:1;cursor:pointer;">×</button>
     </div>
   </div>
+    </div>
+  </div>
+
+  <!-- MODAL COBRO POR COMPONENTES (Etapa 4 — Beta) -->
+  <div class="modalBack" id="cobroCompBack" style="display:none;">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div>
+          <h3 style="margin:0;">Cobro por componentes <span style="font-size:13px;font-weight:500;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;margin-left:6px;">Beta</span></h3>
+          <div class="muted" style="font-size:12px;margin-top:3px;">Imputá alquiler, impuesto y servicio por separado. Siempre con vista previa antes de guardar.</div>
+        </div>
+        <button class="btn" onclick="closeCobroComp()">Cerrar</button>
+      </div>
+
+      <div id="cobroCompMeta" style="font-weight:700;margin:8px 0;color:#475569;"></div>
+
+      <!-- Bloqueo: contrato sin componentes -->
+      <div id="cobroCompNoComp" style="display:none;padding:14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:10px 0;">
+        <strong>Este contrato todavía no tiene componentes preparados.</strong><br>
+        Podés seguir usando el botón <em>Cobro</em> (viejo), o ejecutar la Etapa 2B para este contrato primero.
+      </div>
+
+      <div id="cobroCompFormArea">
+        <!-- Datos del cobro -->
+        <div class="row" style="margin-top:14px;align-items:flex-end;flex-wrap:wrap;gap:12px;">
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="muted" style="font-size:12px;">Fecha de pago</label>
+            <input id="cobroCompFecha" type="date" style="width:160px;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="muted" style="font-size:12px;">Total recibido</label>
+            <input id="cobroCompTotal" type="text" inputmode="decimal" placeholder="Ej: 50.000"
+              style="width:170px;font-weight:900;" oninput="calcTotalesCobroComp()">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="muted" style="font-size:12px;">Medio de pago</label>
+            <select id="cobroCompMedio" style="width:160px;">
+              <option>EFECTIVO</option>
+              <option>TRANSFERENCIA</option>
+              <option>CHEQUE</option>
+              <option>OTRO</option>
+            </select>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="muted" style="font-size:12px;">N° recibo (opcional)</label>
+            <input id="cobroCompNumRecibo" type="text" placeholder="Auto" style="width:120px;">
+          </div>
+          <div style="display:flex;flex-direction:column;gap:4px;">
+            <label class="muted" style="font-size:12px;">Observación</label>
+            <input id="cobroCompObs" type="text" placeholder="Opcional" style="width:200px;">
+          </div>
+        </div>
+
+        <!-- Grilla de imputación -->
+        <div style="margin-top:16px;overflow-x:auto;">
+          <div id="cobroCompGridWrap"></div>
+        </div>
+
+        <!-- Totales en tiempo real -->
+        <div class="row" style="margin-top:12px;align-items:center;flex-wrap:wrap;gap:18px;padding:10px 0;border-top:1px solid #f1f5f9;">
+          <div>
+            <span class="muted" style="font-size:12px;">Total recibido:</span>
+            <strong id="cobroCompTotalDisplay" style="margin-left:4px;">$0</strong>
+          </div>
+          <div>
+            <span class="muted" style="font-size:12px;">Total imputado:</span>
+            <strong id="cobroCompImputadoDisplay" style="margin-left:4px;">$0</strong>
+          </div>
+          <div>
+            <span class="muted" style="font-size:12px;">Diferencia:</span>
+            <strong id="cobroCompDifDisplay" style="margin-left:4px;color:#dc2626;">$0</strong>
+          </div>
+          <div id="cobroCompDifMsg" style="font-size:12px;color:#dc2626;display:none;font-weight:600;">
+            El total imputado no coincide con el total recibido.
+          </div>
+        </div>
+
+        <!-- Acciones -->
+        <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn" type="button" onclick="sugerirDistribucionCobroComp()">Sugerir distribución</button>
+          <button class="btn" type="button" onclick="limpiarDistribucionCobroComp()">Limpiar</button>
+          <button class="btn primary" id="cobroCompBtnPreview" type="button" onclick="vistaPreviewCobroComp()" disabled>Vista previa</button>
+          <button class="btn primary" id="cobroCompBtnConfirmar" type="button" onclick="confirmarCobroComp()" disabled
+            style="background:#15803d;border-color:#15803d;">Confirmar cobro</button>
+        </div>
+
+        <div class="toast" id="cobroCompMsg" style="margin-top:8px;"></div>
+
+        <!-- Panel vista previa dry_run -->
+        <div id="cobroCompPreviewPanel" class="cobro-comp-preview-box" style="display:none;">
+          <div style="font-weight:700;color:#15803d;margin-bottom:10px;">
+            Vista previa validada ✓ — Ningún dato fue modificado aún
+          </div>
+          <div id="cobroCompPreviewBody"></div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -16633,6 +16749,354 @@ setTimeout(() => {
       }
     }
 
+    // ============================================================
+    // COBRO POR COMPONENTES — Etapa 4 (Beta)
+    // Usa RPC registrar_cobro_por_componentes con p_dry_run
+    // NO reemplaza el cobro viejo. NO tocar registrarPagoModal.
+    // ============================================================
+
+    let _cobroCompContrato  = null;  // contrato activo del modal
+    let _cobroCompCuotas    = [];    // cuotas pendientes con columnas nuevas
+    let _cobroCompDryRunOk  = false; // flag: última vista previa fue exitosa
+    let _cobroCompDryRunData= null;  // resultado del último dry_run
+
+    async function openCobroComp(r) {
+      if (!r || !r.contrato_id) { alert('Primero seleccioná un activo con contrato operativo.'); return; }
+      _cobroCompContrato   = r;
+      _cobroCompCuotas     = [];
+      _cobroCompDryRunOk   = false;
+      _cobroCompDryRunData = null;
+
+      const back = $('cobroCompBack');
+      if (!back) return;
+      back.style.display = 'flex';
+
+      const nombre = r.inquilino_nombre || r.nombre_inquilino || '—';
+      const local  = r.local_codigo || r.codigo_local || '—';
+      $('cobroCompMeta').textContent   = `${local} — ${nombre}`;
+      $('cobroCompFecha').value        = today();
+      $('cobroCompTotal').value        = '';
+      $('cobroCompNumRecibo').value    = '';
+      $('cobroCompObs').value          = '';
+      $('cobroCompMsg').textContent    = '';
+      $('cobroCompNoComp').style.display   = 'none';
+      $('cobroCompFormArea').style.display = 'block';
+      $('cobroCompPreviewPanel').style.display = 'none';
+      $('cobroCompBtnPreview').disabled    = true;
+      $('cobroCompBtnConfirmar').disabled  = true;
+      $('cobroCompTotalDisplay').textContent    = '$0';
+      $('cobroCompImputadoDisplay').textContent = '$0';
+      $('cobroCompDifDisplay').textContent      = '$0';
+      $('cobroCompGridWrap').innerHTML = '<div class="muted" style="padding:12px;">Cargando cuotas…</div>';
+
+      const cuotas = await fetchCuotasParaCobroComp(r.contrato_id);
+
+      // Detectar si las columnas nuevas están pobladas
+      const sinComponentes = !cuotas.length || cuotas.every(c => c.monto_alquiler_total == null);
+      if (sinComponentes) {
+        $('cobroCompNoComp').style.display = 'block';
+        $('cobroCompGridWrap').innerHTML   = '';
+        return;
+      }
+
+      _cobroCompCuotas = cuotas;
+      const contrato   = getContratoActivoRow(r.contrato_id) || {};
+      const tieneServ  = !!contrato.servicios_habilitados || cuotas.some(c => toNumber(c.monto_servicio) > 0);
+      renderGridCobroComp(cuotas, tieneServ);
+      calcTotalesCobroComp();
+    }
+
+    function closeCobroComp() {
+      const back = $('cobroCompBack');
+      if (back) back.style.display = 'none';
+      _cobroCompContrato  = null;
+      _cobroCompCuotas    = [];
+      _cobroCompDryRunOk  = false;
+      _cobroCompDryRunData= null;
+    }
+
+    async function fetchCuotasParaCobroComp(contratoId) {
+      const id = Number(contratoId || 0);
+      if (!id) return [];
+      try {
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select([
+            'id,contrato_id,anio,mes,periodo,estado',
+            'monto_total,monto_pagado,saldo',
+            'monto_alquiler_total,monto_alquiler_pagado,saldo_alquiler',
+            'monto_impuesto_total,monto_impuesto_pagado,saldo_impuesto',
+            'monto_servicio,monto_servicio_pagado,saldo_servicio'
+          ].join(','))
+          .eq('contrato_id', id)
+          .order('anio', { ascending: true })
+          .order('mes',  { ascending: true });
+        if (error) { console.warn('[CobroComp] error cuotas:', error.message); return []; }
+        // Solo cuotas con saldo pendiente en algún componente
+        return (data || []).filter(c => {
+          const sA = c.saldo_alquiler != null ? toNumber(c.saldo_alquiler) : toNumber(c.saldo);
+          return sA > 0.009 || toNumber(c.saldo_impuesto) > 0.009 || toNumber(c.saldo_servicio) > 0.009;
+        });
+      } catch(e) { console.warn('[CobroComp]', e); return []; }
+    }
+
+    function renderGridCobroComp(cuotas, tieneServicio) {
+      const wrap = $('cobroCompGridWrap');
+      if (!wrap) return;
+      const headServ = tieneServicio
+        ? '<th>Imp. pendiente</th><th>Pagar imp.</th><th>Serv. pendiente</th><th>Pagar serv.</th><th>Alq. pendiente</th><th>Pagar alq.</th>'
+        : '<th>Imp. pendiente</th><th>Pagar imp.</th><th>Alq. pendiente</th><th>Pagar alq.</th>';
+
+      const filas = cuotas.map(c => {
+        const salAlq  = round2(c.saldo_alquiler != null ? toNumber(c.saldo_alquiler) : toNumber(c.saldo));
+        const salImp  = round2(toNumber(c.saldo_impuesto));
+        const salServ = round2(toNumber(c.saldo_servicio));
+        const estado  = String(c.estado || '').toUpperCase();
+        const badge   = e => {
+          const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
+          return `<span class="cobro-comp-badge ${cls}">${e||'—'}</span>`;
+        };
+        const inp = (comp, saldo) => saldo > 0.009
+          ? `<input class="cobro-comp-input" id="cobroComp_${comp}_${c.id}" type="text" inputmode="decimal" placeholder="0" oninput="calcTotalesCobroComp()">`
+          : `<input class="cobro-comp-input" id="cobroComp_${comp}_${c.id}" type="text" placeholder="—" disabled>`;
+        const periodo = c.periodo || `${String(c.mes).padStart(2,'0')}/${c.anio}`;
+        const colServ = tieneServicio
+          ? `<td class="cobro-comp-sub">${salServ>0.009?fmtARS.format(salServ):'—'}</td><td>${inp('serv',salServ)}</td>`
+          : '';
+        return `<tr data-cuota-id="${c.id}">
+          <td>${periodo}</td>
+          <td class="cobro-comp-sub">${salImp>0.009?fmtARS.format(salImp):'—'}</td>
+          <td>${inp('imp',salImp)}</td>
+          ${colServ}
+          <td class="cobro-comp-sub">${salAlq>0.009?fmtARS.format(salAlq):'—'}</td>
+          <td>${inp('alq',salAlq)}</td>
+          <td id="cobroComp_sub_${c.id}" style="font-weight:700;min-width:80px;">$0</td>
+          <td>${badge(estado)}</td>
+        </tr>`;
+      }).join('');
+
+      wrap.innerHTML = `<table class="cobro-comp-table">
+        <thead><tr>
+          <th style="text-align:left;">Período</th>
+          ${headServ}
+          <th>Subtotal</th><th>Estado</th>
+        </tr></thead>
+        <tbody>${filas}</tbody>
+      </table>`;
+    }
+
+    function calcTotalesCobroComp() {
+      // Si el usuario edita, la vista previa anterior ya no es válida
+      _cobroCompDryRunOk   = false;
+      _cobroCompDryRunData = null;
+      if ($('cobroCompBtnConfirmar')) $('cobroCompBtnConfirmar').disabled = true;
+      if ($('cobroCompPreviewPanel')) $('cobroCompPreviewPanel').style.display = 'none';
+
+      const totalRec = round2(parseMoneyToNumber($('cobroCompTotal')?.value || '') || 0);
+      let totalImp   = 0;
+
+      for (const c of _cobroCompCuotas) {
+        const alq  = round2(parseMoneyToNumber($(`cobroComp_alq_${c.id}`)?.value || '') || 0);
+        const imp  = round2(parseMoneyToNumber($(`cobroComp_imp_${c.id}`)?.value || '') || 0);
+        const serv = round2(parseMoneyToNumber($(`cobroComp_serv_${c.id}`)?.value || '') || 0);
+        const sub  = round2(alq + imp + serv);
+        totalImp   = round2(totalImp + sub);
+        const subEl = $(`cobroComp_sub_${c.id}`);
+        if (subEl) subEl.textContent = sub > 0 ? fmtARS.format(sub) : '$0';
+      }
+
+      const dif   = round2(totalRec - totalImp);
+      const difOk = Math.abs(dif) <= 0.009;
+
+      if ($('cobroCompTotalDisplay'))    $('cobroCompTotalDisplay').textContent    = fmtARS.format(totalRec);
+      if ($('cobroCompImputadoDisplay')) $('cobroCompImputadoDisplay').textContent = fmtARS.format(totalImp);
+      if ($('cobroCompDifDisplay')) {
+        $('cobroCompDifDisplay').textContent = difOk ? '✓ 0'
+          : (dif > 0 ? `faltan ${fmtARS.format(dif)}` : `sobran ${fmtARS.format(Math.abs(dif))}`);
+        $('cobroCompDifDisplay').style.color = difOk ? '#16a34a' : '#dc2626';
+      }
+      if ($('cobroCompDifMsg')) $('cobroCompDifMsg').style.display = difOk ? 'none' : 'block';
+      if ($('cobroCompBtnPreview')) $('cobroCompBtnPreview').disabled = !(difOk && totalImp > 0);
+    }
+
+    function sugerirDistribucionCobroComp() {
+      const totalRec = round2(parseMoneyToNumber($('cobroCompTotal')?.value || '') || 0);
+      if (totalRec <= 0) { $('cobroCompMsg').textContent = 'Ingresá primero el total recibido.'; return; }
+      $('cobroCompMsg').textContent = '';
+      let restante = totalRec;
+
+      for (const c of _cobroCompCuotas) {
+        if (restante <= 0.009) break;
+        const salAlq  = round2(c.saldo_alquiler != null ? toNumber(c.saldo_alquiler) : toNumber(c.saldo));
+        const salImp  = round2(toNumber(c.saldo_impuesto));
+        const salServ = round2(toNumber(c.saldo_servicio));
+
+        let pImp=0, pServ=0, pAlq=0;
+        if (salImp  > 0.009 && restante > 0.009) { pImp  = round2(Math.min(salImp,  restante)); restante = round2(restante - pImp);  }
+        if (salServ > 0.009 && restante > 0.009) { pServ = round2(Math.min(salServ, restante)); restante = round2(restante - pServ); }
+        if (salAlq  > 0.009 && restante > 0.009) { pAlq  = round2(Math.min(salAlq,  restante)); restante = round2(restante - pAlq);  }
+
+        const set = (comp, val) => { const el=$(`cobroComp_${comp}_${c.id}`); if(el&&!el.disabled) el.value=val>0?formatMoneyInputValue(val):''; };
+        set('imp', pImp); set('serv', pServ); set('alq', pAlq);
+      }
+      calcTotalesCobroComp();
+    }
+
+    function limpiarDistribucionCobroComp() {
+      for (const c of _cobroCompCuotas) {
+        ['alq','imp','serv'].forEach(comp => { const el=$(`cobroComp_${comp}_${c.id}`); if(el) el.value=''; });
+      }
+      calcTotalesCobroComp();
+    }
+
+    function getAplicacionesCobroComp() {
+      const apps = [];
+      for (const c of _cobroCompCuotas) {
+        const alq  = round2(parseMoneyToNumber($(`cobroComp_alq_${c.id}`)?.value||'')||0);
+        const imp  = round2(parseMoneyToNumber($(`cobroComp_imp_${c.id}`)?.value||'')||0);
+        const serv = round2(parseMoneyToNumber($(`cobroComp_serv_${c.id}`)?.value||'')||0);
+        if (alq > 0 || imp > 0 || serv > 0) {
+          apps.push({ anio:Number(c.anio), mes:Number(c.mes), monto_alquiler:alq, monto_impuesto:imp, monto_servicio:serv });
+        }
+      }
+      return apps;
+    }
+
+    async function vistaPreviewCobroComp() {
+      _cobroCompDryRunOk   = false;
+      _cobroCompDryRunData = null;
+      $('cobroCompBtnConfirmar').disabled = true;
+      $('cobroCompPreviewPanel').style.display = 'none';
+      $('cobroCompBtnPreview').disabled   = true;
+      $('cobroCompMsg').textContent       = 'Validando con el servidor (dry run)…';
+
+      try {
+        const total   = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+        const { data, error } = await sb.rpc('registrar_cobro_por_componentes', {
+          p_contrato_id:    Number(_cobroCompContrato.contrato_id),
+          p_fecha_pago:     $('cobroCompFecha')?.value || today(),
+          p_total_recibido: total,
+          p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
+          p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
+          p_medios_pago:    [{ metodo: $('cobroCompMedio')?.value||'EFECTIVO', monto: total }],
+          p_aplicaciones:   getAplicacionesCobroComp(),
+          p_usuario:        'jefe',
+          p_dry_run:        true
+        });
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) {
+          $('cobroCompMsg').textContent = `Error: ${res?.error || 'Sin respuesta'}`;
+          return;
+        }
+        _cobroCompDryRunOk   = true;
+        _cobroCompDryRunData = res;
+        $('cobroCompMsg').textContent = '';
+        renderDryRunCobroComp(res);
+        $('cobroCompBtnConfirmar').disabled = false;
+      } catch(e) {
+        console.error('[CobroComp] dry_run:', e);
+        $('cobroCompMsg').textContent = 'Error en validación: ' + (e?.message || String(e));
+      } finally {
+        calcTotalesCobroComp(); // re-habilita botón de preview si totales siguen ok
+      }
+    }
+
+    function renderDryRunCobroComp(res) {
+      const panel = $('cobroCompPreviewPanel');
+      const body  = $('cobroCompPreviewBody');
+      if (!panel || !body) return;
+
+      const badge = e => {
+        const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
+        return `<span class="cobro-comp-badge ${cls}">${e||'—'}</span>`;
+      };
+      const fmt = v => fmtARS.format(Number(v)||0);
+      const fila = (label, antes, despues) =>
+        `<tr><th>${label}</th><td>${antes}</td><td>${despues}</td></tr>`;
+
+      const cuotasHtml = (res.cuotas_afectadas||[]).map(c => {
+        const a = c.antes || {}, d = c.despues || {};
+        const rows = [
+          fila('Alquiler pagado', fmt(a.monto_alquiler_pagado), fmt(d.monto_alquiler_pagado)),
+          fila('Saldo alquiler',  fmt(a.saldo_alquiler),        fmt(d.saldo_alquiler))
+        ];
+        if ((a.monto_impuesto_pagado||0)>0||(c.imputado?.monto_impuesto||0)>0) {
+          rows.push(fila('Impuesto pagado', fmt(a.monto_impuesto_pagado), fmt(d.monto_impuesto_pagado)));
+          rows.push(fila('Saldo impuesto',  fmt(a.saldo_impuesto),        fmt(d.saldo_impuesto)));
+        }
+        if ((a.monto_servicio_pagado||0)>0||(c.imputado?.monto_servicio||0)>0) {
+          rows.push(fila('Servicio pagado', fmt(a.monto_servicio_pagado), fmt(d.monto_servicio_pagado)));
+          rows.push(fila('Saldo servicio',  fmt(a.saldo_servicio),        fmt(d.saldo_servicio)));
+        }
+        rows.push(fila('Estado', badge(a.estado), badge(d.estado)));
+        return `<div style="margin-bottom:12px;padding:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;">
+          <div style="font-weight:700;margin-bottom:6px;">${String(c.mes).padStart(2,'0')}/${c.anio}</div>
+          <table class="cobro-comp-preview-row"><thead><tr>
+            <th></th><th style="text-align:right;padding:2px 4px;">Antes</th>
+            <th style="text-align:right;padding:2px 4px;">Después</th>
+          </tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+      }).join('');
+
+      body.innerHTML = cuotasHtml || '<div class="muted">Sin cuotas afectadas.</div>';
+      panel.style.display = 'block';
+    }
+
+    async function confirmarCobroComp() {
+      if (!_cobroCompDryRunOk) { alert('Primero ejecutá la vista previa y asegurate de que sea exitosa.'); return; }
+      const total   = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+      const nombre  = _cobroCompContrato?.inquilino_nombre || _cobroCompContrato?.nombre_inquilino || '';
+      const apps    = getAplicacionesCobroComp();
+      const resumen = (res=>res.cuotas_afectadas||[])(_cobroCompDryRunData||{})
+        .map(c=>`${String(c.mes).padStart(2,'0')}/${c.anio}: ${c.despues?.estado||'?'}`).join(', ');
+
+      const ok = confirm(
+        `Esto registrará un PAGO REAL de ${fmtARS.format(total)} para ${nombre}.\n\n` +
+        `${resumen ? `Resultado esperado: ${resumen}\n\n` : ''}` +
+        `Se generará recibo, aplicaciones y se actualizarán las cuotas.\n\n¿Confirmás?`
+      );
+      if (!ok) return;
+
+      const msg = $('cobroCompMsg');
+      if (msg) msg.textContent = 'Registrando cobro real…';
+      $('cobroCompBtnConfirmar').disabled = true;
+      $('cobroCompBtnPreview').disabled   = true;
+
+      try {
+        const { data, error } = await sb.rpc('registrar_cobro_por_componentes', {
+          p_contrato_id:    Number(_cobroCompContrato.contrato_id),
+          p_fecha_pago:     $('cobroCompFecha')?.value || today(),
+          p_total_recibido: total,
+          p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
+          p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
+          p_medios_pago:    [{ metodo: $('cobroCompMedio')?.value||'EFECTIVO', monto: total }],
+          p_aplicaciones:   apps,
+          p_usuario:        'jefe',
+          p_dry_run:        false
+        });
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo registrar el cobro.');
+
+        clearReceiptsCache('cobro-componentes');
+        closeCobroComp();
+        await refreshAll();
+
+        const contratoId = Number(_cobroCompContrato?.contrato_id);
+        if (selected?.contrato_id === contratoId || String(selected?.contrato_id) === String(contratoId)) {
+          const refreshed = unidades.find(x => Number(x.contrato_id) === contratoId);
+          if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
+        }
+        setTimeout(() => showPagoSuccessToast(
+          `Cobro registrado. Recibo ${res.numero_recibo}. Total: ${fmtARS.format(total)}.`
+        ), 120);
+      } catch(e) {
+        console.error('[CobroComp] confirmar:', e);
+        if (msg) msg.textContent = 'Error: ' + (e?.message || String(e));
+        $('cobroCompBtnConfirmar').disabled = false;
+      }
+    }
+
     // Exponer funciones operativas para los onclick inline del HTML.
 function exposeGlobalFunction(name, fn){
   if (typeof fn === 'function') {
@@ -16646,6 +17110,14 @@ exposeGlobalFunction('openPagoModal', typeof openPagoModal !== 'undefined' ? ope
 exposeGlobalFunction('openPagoModalByContrato', typeof openPagoModalByContrato !== 'undefined' ? openPagoModalByContrato : null);
 exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? closePagoModal : null);
 exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
+// Cobro por componentes (Etapa 4)
+exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
+exposeGlobalFunction('closeCobroComp',                 typeof closeCobroComp                 !== 'undefined' ? closeCobroComp                 : null);
+exposeGlobalFunction('calcTotalesCobroComp',           typeof calcTotalesCobroComp           !== 'undefined' ? calcTotalesCobroComp           : null);
+exposeGlobalFunction('sugerirDistribucionCobroComp',   typeof sugerirDistribucionCobroComp   !== 'undefined' ? sugerirDistribucionCobroComp   : null);
+exposeGlobalFunction('limpiarDistribucionCobroComp',   typeof limpiarDistribucionCobroComp   !== 'undefined' ? limpiarDistribucionCobroComp   : null);
+exposeGlobalFunction('vistaPreviewCobroComp',          typeof vistaPreviewCobroComp          !== 'undefined' ? vistaPreviewCobroComp          : null);
+exposeGlobalFunction('confirmarCobroComp',             typeof confirmarCobroComp             !== 'undefined' ? confirmarCobroComp             : null);
 exposeGlobalFunction('refreshPaymentPeriodOptions', typeof refreshPaymentPeriodOptions !== 'undefined' ? refreshPaymentPeriodOptions : null);
 exposeGlobalFunction('recalcularCobroModal', typeof recalcularCobroModal !== 'undefined' ? recalcularCobroModal : null);
 
