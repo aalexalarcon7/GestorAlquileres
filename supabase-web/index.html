@@ -1214,10 +1214,25 @@ td:last-child{
     .cobro-comp-badge.parcial{background:#fef9c3;color:#854d0e;}
     .cobro-comp-badge.pendiente,.cobro-comp-badge.atrasado{background:#fee2e2;color:#dc2626;}
     .cobro-comp-preview-box{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px;margin-top:14px;}
-    .cobro-comp-preview-row{font-size:12px;border-collapse:collapse;width:100%;}
-    .cobro-comp-preview-row th{color:#64748b;font-weight:600;padding:2px 6px 2px 0;text-align:left;}
-    .cobro-comp-preview-row td{padding:2px 4px;}
-    .cobro-comp-preview-row td:last-child{text-align:right;font-weight:700;}
+    /* Tarjetas de vista previa dry_run */
+    .dryrun-summary{background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:12px 16px;margin-bottom:12px;}
+    .dryrun-summary-title{font-weight:700;color:#15803d;margin-bottom:8px;font-size:14px;}
+    .dryrun-summary-row{display:flex;justify-content:space-between;font-size:13px;padding:2px 0;}
+    .dryrun-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;margin-bottom:10px;overflow:hidden;}
+    .dryrun-card-header{font-weight:700;font-size:14px;padding:9px 14px;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
+    .dryrun-section{padding:9px 14px;}
+    .dryrun-section-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px;}
+    .dryrun-section.sec-antes .dryrun-section-title{color:#94a3b8;}
+    .dryrun-section.sec-cobro{background:#eff6ff;border-top:1px solid #bfdbfe;border-bottom:1px solid #bfdbfe;}
+    .dryrun-section.sec-cobro .dryrun-section-title{color:#1d4ed8;}
+    .dryrun-section.sec-despues{background:#f0fdf4;}
+    .dryrun-section.sec-despues .dryrun-section-title{color:#15803d;}
+    .dryrun-row{display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:2px 0;}
+    .dryrun-row .dr-label{color:#64748b;}
+    .dryrun-row .dr-value{font-weight:600;text-align:right;}
+    .dryrun-row .dr-value.dr-blue{color:#1d4ed8;}
+    .dryrun-row .dr-value.dr-green{color:#15803d;}
+    .dryrun-row .dr-value.dr-sub{font-size:13px;font-weight:700;}
 
     [data-theme="dark"] .modal{background:linear-gradient(180deg, var(--card-solid-dark), rgba(15,23,36,.94))}
 
@@ -5216,11 +5231,8 @@ td:last-child{
 
         <div class="toast" id="cobroCompMsg" style="margin-top:8px;"></div>
 
-        <!-- Panel vista previa dry_run -->
+        <!-- Panel vista previa dry_run (contenido generado por renderDryRunCobroComp) -->
         <div id="cobroCompPreviewPanel" class="cobro-comp-preview-box" style="display:none;">
-          <div style="font-weight:700;color:#15803d;margin-bottom:10px;">
-            Vista previa validada ✓ — Ningún dato fue modificado aún
-          </div>
           <div id="cobroCompPreviewBody"></div>
         </div>
       </div>
@@ -17020,38 +17032,87 @@ setTimeout(() => {
       const body  = $('cobroCompPreviewBody');
       if (!panel || !body) return;
 
-      const badge = e => {
+      const fmt   = v  => fmtARS.format(Number(v) || 0);
+      const n     = v  => Number(v) || 0;
+      const badge = e  => {
         const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
         return `<span class="cobro-comp-badge ${cls}">${e||'—'}</span>`;
       };
-      const fmt = v => fmtARS.format(Number(v)||0);
-      const fila = (label, antes, despues) =>
-        `<tr><th>${label}</th><td>${antes}</td><td>${despues}</td></tr>`;
+      const dr = (label, value, cls='') =>
+        `<div class="dryrun-row"><span class="dr-label">${label}</span><span class="dr-value${cls?' '+cls:''}">${value}</span></div>`;
 
-      const cuotasHtml = (res.cuotas_afectadas||[]).map(c => {
-        const a = c.antes || {}, d = c.despues || {};
-        const rows = [
-          fila('Alquiler pagado', fmt(a.monto_alquiler_pagado), fmt(d.monto_alquiler_pagado)),
-          fila('Saldo alquiler',  fmt(a.saldo_alquiler),        fmt(d.saldo_alquiler))
-        ];
-        if ((a.monto_impuesto_pagado||0)>0||(c.imputado?.monto_impuesto||0)>0) {
-          rows.push(fila('Impuesto pagado', fmt(a.monto_impuesto_pagado), fmt(d.monto_impuesto_pagado)));
-          rows.push(fila('Saldo impuesto',  fmt(a.saldo_impuesto),        fmt(d.saldo_impuesto)));
-        }
-        if ((a.monto_servicio_pagado||0)>0||(c.imputado?.monto_servicio||0)>0) {
-          rows.push(fila('Servicio pagado', fmt(a.monto_servicio_pagado), fmt(d.monto_servicio_pagado)));
-          rows.push(fila('Saldo servicio',  fmt(a.saldo_servicio),        fmt(d.saldo_servicio)));
-        }
-        rows.push(fila('Estado', badge(a.estado), badge(d.estado)));
-        return `<div style="margin-bottom:12px;padding:10px;background:#fff;border:1px solid #d1fae5;border-radius:8px;">
-          <div style="font-weight:700;margin-bottom:6px;">${String(c.mes).padStart(2,'0')}/${c.anio}</div>
-          <table class="cobro-comp-preview-row"><thead><tr>
-            <th></th><th style="text-align:right;padding:2px 4px;">Antes</th>
-            <th style="text-align:right;padding:2px 4px;">Después</th>
-          </tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
+      // ── Resumen del cobro ─────────────────────────────────────────────────
+      const difOk  = Math.abs(n(res.diferencia)) <= 0.009;
+      const sumHtml = `
+        <div class="dryrun-summary">
+          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          <div class="dryrun-summary-row"><span style="color:#64748b;">Total recibido</span><strong>${fmt(res.total_recibido)}</strong></div>
+          <div class="dryrun-summary-row"><span style="color:#64748b;">Total imputado</span><strong>${fmt(res.total_imputado)}</strong></div>
+          <div class="dryrun-summary-row"><span style="color:#64748b;">Diferencia</span>
+            <strong style="color:${difOk?'#15803d':'#dc2626'}">${difOk?'$0 ✓':fmt(res.diferencia)}</strong></div>
+        </div>`;
+
+      // ── Tarjeta por período ───────────────────────────────────────────────
+      const cardsHtml = (res.cuotas_afectadas || []).map(c => {
+        const a   = c.antes    || {};
+        const d   = c.despues  || {};
+        const imp = c.imputado || {};
+        const per = `${String(c.mes).padStart(2,'0')}/${c.anio}`;
+
+        // Detectar qué componentes hay que mostrar (impuesto y servicio opcionales)
+        const hayImp  = n(a.monto_impuesto_pagado)>0 || n(d.monto_impuesto_pagado)>0 || n(imp.monto_impuesto)>0 || n(a.saldo_impuesto)>0 || n(d.saldo_impuesto)>0;
+        const hayServ = n(a.monto_servicio_pagado)>0 || n(d.monto_servicio_pagado)>0 || n(imp.monto_servicio)>0 || n(a.saldo_servicio)>0  || n(d.saldo_servicio)>0;
+
+        // ── ANTES ────────────────────────────────────────────────────────────
+        const antesHtml = [
+          dr('Alquiler pagado', fmt(a.monto_alquiler_pagado)),
+          dr('Saldo alquiler',  fmt(a.saldo_alquiler)),
+          hayImp  && dr('Impuesto pagado', fmt(a.monto_impuesto_pagado)),
+          hayImp  && dr('Saldo impuesto',  fmt(a.saldo_impuesto)),
+          hayServ && dr('Servicio pagado', fmt(a.monto_servicio_pagado)),
+          hayServ && dr('Saldo servicio',  fmt(a.saldo_servicio)),
+          dr('Estado', badge(a.estado)),
+        ].filter(Boolean).join('');
+
+        // ── ESTE COBRO ────────────────────────────────────────────────────────
+        const subTotal  = n(imp.monto_alquiler) + n(imp.monto_impuesto) + n(imp.monto_servicio);
+        const cobroRows = [
+          n(imp.monto_impuesto) > 0 && dr('Impuesto',  fmt(imp.monto_impuesto), 'dr-blue'),
+          n(imp.monto_servicio) > 0 && dr('Servicio',  fmt(imp.monto_servicio), 'dr-blue'),
+          n(imp.monto_alquiler) > 0 && dr('Alquiler',  fmt(imp.monto_alquiler), 'dr-blue'),
+          dr('Subtotal', fmt(subTotal), 'dr-blue dr-sub'),
+        ].filter(Boolean).join('');
+
+        // ── DESPUÉS ────────────────────────────────────────────────────────────
+        const despuesHtml = [
+          dr('Alquiler pagado', fmt(d.monto_alquiler_pagado)),
+          dr('Saldo alquiler',  fmt(d.saldo_alquiler),  n(d.saldo_alquiler)<=0.009  ? 'dr-green' : ''),
+          hayImp  && dr('Impuesto pagado', fmt(d.monto_impuesto_pagado)),
+          hayImp  && dr('Saldo impuesto',  fmt(d.saldo_impuesto),  n(d.saldo_impuesto)<=0.009  ? 'dr-green' : ''),
+          hayServ && dr('Servicio pagado', fmt(d.monto_servicio_pagado)),
+          hayServ && dr('Saldo servicio',  fmt(d.saldo_servicio),  n(d.saldo_servicio)<=0.009  ? 'dr-green' : ''),
+          dr('Estado', badge(d.estado)),
+        ].filter(Boolean).join('');
+
+        return `
+          <div class="dryrun-card">
+            <div class="dryrun-card-header">Período ${per}</div>
+            <div class="dryrun-section sec-antes">
+              <div class="dryrun-section-title">Antes del cobro</div>
+              ${antesHtml}
+            </div>
+            <div class="dryrun-section sec-cobro">
+              <div class="dryrun-section-title">Este cobro aplica</div>
+              ${cobroRows}
+            </div>
+            <div class="dryrun-section sec-despues">
+              <div class="dryrun-section-title">Cómo queda después</div>
+              ${despuesHtml}
+            </div>
+          </div>`;
       }).join('');
 
-      body.innerHTML = cuotasHtml || '<div class="muted">Sin cuotas afectadas.</div>';
+      body.innerHTML = sumHtml + (cardsHtml || '<div class="muted">Sin cuotas afectadas.</div>');
       panel.style.display = 'block';
     }
 
