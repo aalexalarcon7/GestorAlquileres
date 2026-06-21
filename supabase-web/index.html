@@ -11942,7 +11942,9 @@ setTimeout(() => {
       // Los historicos van primero, las filas del RPC (más completas) los sobreescriben.
       // Antes estaba al revés: historicos sobreescribían el monto_impuesto del RPC con 0.
       rows = mergeRecibosRows(historicos, rows);
-      console.log('[RECIBOS-FETCH] Después de merge (deduplicado):', rows.length);
+      // Etapa 5B: filtro de defensa post-merge — excluir anulados que hayan sobrevivido
+      rows = rows.filter(r => !isReciboAnulado(r));
+      console.log('[RECIBOS-FETCH] Después de merge (deduplicado, sin anulados):', rows.length);
       rows = applyCobroReceiptOverrides(rows);
       rows = syncRecibosContactsFromActiveRows(rows);
       console.log('[RECIBOS-FETCH] Final (con overrides y contactos):', rows.length);
