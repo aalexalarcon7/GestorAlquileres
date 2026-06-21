@@ -6392,7 +6392,8 @@ td:last-child{
       const rowsByKey = new Map();
 
       const addRows = (rows=[]) => {
-        (rows || []).forEach(row => {
+        // Etapa 4C: ignorar recibos históricos anulados (soft-delete o estado=ANULADO)
+        (rows || []).filter(row => !row?.deleted_at && String(row?.estado||'').toUpperCase() !== 'ANULADO').forEach(row => {
           const key = [
             row?.id || '',
             row?.contrato_id || '',
@@ -6948,6 +6949,7 @@ if (aplicaciones.length) {
       .from('pagos')
       .select('id,contrato_id,fecha_pago,monto,monto_total,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,descripcion_pago,created_at')
       .eq('contrato_id', row.contrato_id)
+      .is('deleted_at', null)
       .order('fecha_pago', { ascending:true });
 
     if (res.error){
@@ -6957,6 +6959,7 @@ if (aplicaciones.length) {
           .from('pagos')
           .select('id,contrato_id,fecha_pago,monto,referencia,created_at')
           .eq('contrato_id', row.contrato_id)
+          .is('deleted_at', null)
           .order('fecha_pago', { ascending:true });
       }
     }
@@ -7253,7 +7256,8 @@ function applyImpuestosToDebtRows(rows, pagos){
         if (!pago) return false;
         if (pago.deleted_at) return false;
         if (pago.eliminado) return false;
-        if (String(pago.estado || '').toUpperCase() === 'ELIMINADO') return false;
+        const _estadoUp = String(pago.estado || '').toUpperCase();
+        if (_estadoUp === 'ELIMINADO' || _estadoUp === 'ANULADO') return false;
         return true;
       })
     : [];
@@ -8460,6 +8464,9 @@ function sortRecibosByNewestFirst(rows){
     }
 
     function isReciboAnulado(item = {}) {
+      // Columnas nuevas de soft-delete (Etapa 4C)
+      if (item.deleted_at) return true;
+      if (String(item.estado || '').toUpperCase() === 'ANULADO') return true;
       // Detecta recibos anulados por contenido del campo observacion/descripcion.
       const obs = String(
         item.observacion || item.descripcion_pago || item.detalle_aplicacion || ''
@@ -11875,7 +11882,8 @@ setTimeout(() => {
           .from('recibos_historicos_operativos')
           .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen')
           .limit(10000);
-        historicosRaw = histData || [];
+        // Etapa 4C: excluir recibos anulados (soft-delete o estado=ANULADO)
+        historicosRaw = (histData || []).filter(r => !r.deleted_at && String(r.estado||'').toUpperCase() !== 'ANULADO');
       } catch(e) {
         console.warn('No se pudieron cargar historicos completos:', e?.message || e);
       }
@@ -14279,7 +14287,7 @@ error = deleteResponse.error;
 
       let lastError = null;
       for (const sel of selects){
-        let q = sb.from('pagos').select(sel).order('fecha_pago', { ascending:false });
+        let q = sb.from('pagos').select(sel).is('deleted_at', null).order('fecha_pago', { ascending:false });
         if (!isAllContratos(contratoId)) q = q.eq('contrato_id', contratoId);
         const { data, error } = await q;
         if (!error) return { data: data || [], error: null };
