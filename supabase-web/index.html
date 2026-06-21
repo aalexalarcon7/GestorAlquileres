@@ -16998,7 +16998,20 @@ setTimeout(() => {
         console.error('[CobroComp] dry_run:', e);
         $('cobroCompMsg').textContent = 'Error en validación: ' + (e?.message || String(e));
       } finally {
-        calcTotalesCobroComp(); // re-habilita botón de preview si totales siguen ok
+        // Re-habilitar botón de preview si totales siguen siendo válidos.
+        // NO llamar calcTotalesCobroComp() porque resetea _cobroCompDryRunOk=false
+        // y deshabilita el botón Confirmar justo después de haberlo habilitado.
+        if ($('cobroCompBtnPreview')) {
+          const _tR = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+          let _tI = 0;
+          for (const _c of _cobroCompCuotas) {
+            _tI = round2(_tI
+              + (round2(parseMoneyToNumber($(`cobroComp_alq_${_c.id}`)?.value||'')||0))
+              + (round2(parseMoneyToNumber($(`cobroComp_imp_${_c.id}`)?.value||'')||0))
+              + (round2(parseMoneyToNumber($(`cobroComp_serv_${_c.id}`)?.value||'')||0)));
+          }
+          $('cobroCompBtnPreview').disabled = !(Math.abs(_tR - _tI) <= 0.009 && _tI > 0);
+        }
       }
     }
 
