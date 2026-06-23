@@ -1263,6 +1263,14 @@ td:last-child{
     #editarImpuestoBack .modal{width:min(540px,calc(100vw - 40px));max-height:88vh;overflow-y:auto;overflow-x:hidden;}
     /* ── Modal editar servicio del mes (Etapa 9) ── */
     #editarServicioBack .modal{width:min(540px,calc(100vw - 40px));max-height:88vh;overflow-y:auto;overflow-x:hidden;}
+    /* ── Modal anular cobro por componentes (Etapa 11) ── */
+    #anularCobroCompBack .modal{width:min(640px,calc(100vw - 40px));max-height:90vh;overflow-y:auto;overflow-x:hidden;}
+    .anular-apps-table{width:100%;border-collapse:collapse;font-size:12px;margin-top:8px;}
+    .anular-apps-table th{background:#f8fafc;padding:6px 8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;}
+    .anular-apps-table th:first-child{text-align:left;}
+    .anular-apps-table td{padding:5px 8px;border-bottom:1px solid #f1f5f9;text-align:right;vertical-align:middle;}
+    .anular-apps-table td:first-child{text-align:left;font-weight:700;}
+    .anular-apps-table tfoot td{background:#f8fafc;font-weight:800;border-top:2px solid #e2e8f0;}
     .ei-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;}
     .ei-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;}
     .ei-label{color:#64748b;}
@@ -5456,6 +5464,59 @@ td:last-child{
     </div>
   </div>
 
+  <!-- MODAL ANULAR COBRO POR COMPONENTES (Etapa 11) -->
+  <div class="modalBack" id="anularCobroCompBack" style="display:none;">
+    <div class="modal">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid #fca5a5;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin:0 0 3px;font-size:15px;color:#dc2626;">Anular cobro</h3>
+          <div style="font-size:12px;color:#64748b;">Revertirá el cobro y actualizará las cuotas afectadas. No se borra físicamente.</div>
+        </div>
+        <button class="btn" style="flex-shrink:0;" onclick="closeAnularCobro()">Cerrar</button>
+      </div>
+
+      <div id="anularCobroMeta" style="margin:10px 0 4px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;"></div>
+
+      <div id="anularCobroBloqueo" style="display:none;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:8px 0;font-size:13px;"></div>
+
+      <div id="anularCobroFormArea">
+
+        <div style="margin-top:12px;">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px;">Aplicaciones que se revertirán</div>
+          <div id="anularCobroAppsWrap" style="overflow-x:auto;">
+            <div class="muted" style="padding:8px;font-size:13px;">Cargando aplicaciones…</div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;font-size:12px;color:#92400e;line-height:1.6;">
+          <strong>Atención:</strong> El recibo quedará marcado como <strong>ANULADO</strong> y las cuotas volverán al saldo anterior. Acción registrada en auditoría. No se puede deshacer desde el sistema.
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Motivo de la anulación <span style="color:#dc2626;">*</span> (obligatorio)
+          </label>
+          <textarea id="anularCobroMotivo" rows="2"
+            placeholder="Ej: Cobro cargado por error&#10;Ej: Medio de pago incorrecto"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;min-height:52px;"
+            oninput="onAnularCobroMotivoChange()"></textarea>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn" type="button" onclick="closeAnularCobro()">Cancelar</button>
+          <button id="anularCobroBtnConfirmar" type="button" onclick="confirmarAnularCobro()" disabled
+            style="padding:7px 16px;border-radius:8px;border:1px solid #dc2626;background:#dc2626;color:#fff;font-weight:700;cursor:pointer;font-size:13px;">
+            Confirmar anulación
+          </button>
+        </div>
+
+        <div class="toast" id="anularCobroMsg" style="margin-top:8px;"></div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL EDITAR SERVICIO DEL MES (Etapa 9) -->
   <div class="modalBack" id="editarServicioBack" style="display:none;">
     <div class="modal">
@@ -9040,12 +9101,25 @@ function sortRecibosByNewestFirst(rows){
         return `<tr><td colspan="8" class="center">No hay recibos cargados para este contrato.</td></tr>`;
       }
 
+      // Poblar cache para el modal de anulación (Etapa 11)
+      if (!window._recibosAnularCache) window._recibosAnularCache = {};
+
       return rows.map(item => {
         const interno = isReciboHistoricoInterno(item);
         const tipoClass = interno ? 'b-warn' : 'b-ok';
         const tipoLabel = interno ? 'Interno / Histórico' : 'Real';
         const key = getReciboKey(item);
         const ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
+
+        // Anulación solo para COBRO_COMPONENTES (Etapa 11)
+        const reciboIdNum = Number(item.recibo_id || item.id || 0);
+        const esAnulable  = item.origen === 'COBRO_COMPONENTES' && reciboIdNum > 0;
+        if (esAnulable) window._recibosAnularCache[reciboIdNum] = item;
+
+        const anularBtn = esAnulable
+          ? `<button class="btn" type="button" onclick="openAnularCobro(${reciboIdNum})" style="color:#dc2626;border-color:#fca5a5;margin-left:5px;" title="Anular este cobro">Anular</button>`
+          : '';
+
         return `
           <tr>
             <td><span class="badge ${tipoClass}">${tipoLabel}</span></td>
@@ -9056,7 +9130,7 @@ function sortRecibosByNewestFirst(rows){
             <td class="right"><b>${fmtARS.format(Number(item.monto_total ?? item.monto ?? 0))}</b></td>
             <td>${escapeHtml(item.medio || 'EFECTIVO')}</td>
             <td class="center">
-              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>
+              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>${anularBtn}
             </td>
           </tr>
         `;
@@ -18189,6 +18263,177 @@ setTimeout(() => {
     }
 
     // ============================================================
+    // ANULAR COBRO POR COMPONENTES — Etapa 11
+    // Botón en Recibos internos solo para origen=COBRO_COMPONENTES.
+    // Llama a RPC anular_cobro_por_componentes (ya existente).
+    // NO borra físicamente nada; soft-delete + auditoría.
+    // ============================================================
+
+    let _anularCobroItem = null;
+
+    async function openAnularCobro(reciboId) {
+      const item = window._recibosAnularCache?.[Number(reciboId)];
+      if (!item) { alert('No se encontraron los datos del recibo. Recargá la sección de recibos.'); return; }
+      if (item.origen !== 'COBRO_COMPONENTES') {
+        alert('Solo se pueden anular cobros registrados por el nuevo flujo (COBRO_COMPONENTES).'); return;
+      }
+
+      _anularCobroItem = item;
+      const back = $('anularCobroCompBack');
+      if (!back) return;
+      back.style.display = 'flex';
+
+      $('anularCobroMotivo').value            = '';
+      $('anularCobroMsg').textContent         = '';
+      $('anularCobroBtnConfirmar').disabled   = true;
+      $('anularCobroBloqueo').style.display   = 'none';
+      $('anularCobroFormArea').style.display  = 'block';
+      $('anularCobroAppsWrap').innerHTML      = '<div class="muted" style="padding:8px;font-size:13px;">Cargando aplicaciones…</div>';
+
+      // Meta
+      const nombre  = item.inquilino_nombre || '—';
+      const local   = item.local_codigo     || '—';
+      const numero  = item.numero_recibo    || '—';
+      const total   = fmtARS.format(Number(item.monto_total ?? item.monto ?? 0));
+      const periodo = item.periodo_aplicado || '—';
+      $('anularCobroMeta').innerHTML =
+        `<strong>${local}</strong> · ${nombre} · ` +
+        `N° <strong>${numero}</strong> · ` +
+        `Fecha: <strong>${formatDateDisplay(item.fecha_pago)}</strong> · ` +
+        `Total: <strong>${total}</strong> · ` +
+        `Medio: ${item.medio || 'EFECTIVO'} · ` +
+        `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">COBRO_COMPONENTES</span>`;
+
+      // Cargar aplicaciones desde BD
+      try {
+        const pagoId = Number(item.pago_id || 0);
+        if (!pagoId) {
+          _showAnularBloqueo('No se encontró el ID de pago asociado a este recibo.'); return;
+        }
+
+        const { data, error } = await sb
+          .from('recibos_aplicaciones_operativas')
+          .select('id,anio,mes,periodo,monto_aplicado,monto_alquiler,monto_impuesto,monto_servicio')
+          .eq('pago_id', pagoId)
+          .is('deleted_at', null)
+          .order('anio', { ascending: true })
+          .order('mes',  { ascending: true });
+
+        if (error) throw error;
+        const apps = data || [];
+        if (!apps.length) {
+          _showAnularBloqueo('No hay aplicaciones activas para revertir en este cobro.'); return;
+        }
+
+        const fmt  = v => fmtARS.format(Number(v)||0);
+        const filas = apps.map(a => {
+          const per     = a.periodo || `${String(a.mes).padStart(2,'0')}/${a.anio}`;
+          const hayImp  = Number(a.monto_impuesto||0) > 0;
+          const hayServ = Number(a.monto_servicio||0) > 0;
+          return `<tr>
+            <td>${per}</td>
+            <td>${fmt(a.monto_alquiler)}</td>
+            <td>${hayImp  ? fmt(a.monto_impuesto) : '<span class="muted">—</span>'}</td>
+            <td>${hayServ ? fmt(a.monto_servicio)  : '<span class="muted">—</span>'}</td>
+            <td><strong>${fmt(a.monto_aplicado)}</strong></td>
+          </tr>`;
+        }).join('');
+        const totalApps = apps.reduce((s,a) => s + Number(a.monto_aplicado||0), 0);
+
+        $('anularCobroAppsWrap').innerHTML = `
+          <table class="anular-apps-table">
+            <thead><tr>
+              <th style="text-align:left;">Período</th>
+              <th>Alquiler</th><th>Impuesto</th><th>Servicio</th><th>Total aplicado</th>
+            </tr></thead>
+            <tbody>${filas}</tbody>
+            <tfoot><tr>
+              <td style="text-align:left;">TOTAL A REVERTIR</td>
+              <td colspan="3"></td>
+              <td>${fmt(totalApps)}</td>
+            </tr></tfoot>
+          </table>`;
+
+      } catch(e) {
+        console.error('[AnularCobro] cargar apps:', e);
+        _showAnularBloqueo('Error al cargar las aplicaciones: ' + (e?.message || String(e)));
+      }
+    }
+
+    function _showAnularBloqueo(msg) {
+      $('anularCobroBloqueo').textContent      = msg;
+      $('anularCobroBloqueo').style.display    = 'block';
+      $('anularCobroFormArea').style.display   = 'none';
+    }
+
+    function closeAnularCobro() {
+      const back = $('anularCobroCompBack');
+      if (back) back.style.display = 'none';
+      _anularCobroItem = null;
+    }
+
+    function onAnularCobroMotivoChange() {
+      const motivo = ($('anularCobroMotivo')?.value || '').trim();
+      if ($('anularCobroBtnConfirmar')) $('anularCobroBtnConfirmar').disabled = !motivo.length;
+    }
+
+    async function confirmarAnularCobro() {
+      if (!_anularCobroItem) return;
+      const motivo = ($('anularCobroMotivo')?.value || '').trim();
+      if (!motivo) {
+        if ($('anularCobroMsg')) $('anularCobroMsg').textContent = 'El motivo es obligatorio.';
+        $('anularCobroMotivo')?.focus();
+        return;
+      }
+
+      const numero     = _anularCobroItem.numero_recibo || '—';
+      const nombre     = _anularCobroItem.inquilino_nombre || '';
+      const totalStr   = fmtARS.format(Number(_anularCobroItem.monto_total ?? _anularCobroItem.monto ?? 0));
+      const contratoId = Number(_anularCobroItem.contrato_id || 0);
+
+      const ok = confirm(
+        `¿Confirmás anular el cobro N° ${numero} de ${nombre} por ${totalStr}?\n\n` +
+        `Las cuotas afectadas volverán al saldo anterior.\n` +
+        `Motivo: "${motivo}"\n\n` +
+        `Esta acción queda en auditoría y no se puede deshacer desde el sistema.`
+      );
+      if (!ok) return;
+
+      const msg = $('anularCobroMsg');
+      if (msg) msg.textContent = 'Ejecutando anulación…';
+      if ($('anularCobroBtnConfirmar')) $('anularCobroBtnConfirmar').disabled = true;
+
+      try {
+        const params = {
+          p_pago_id:   _anularCobroItem.pago_id   ? Number(_anularCobroItem.pago_id)   : null,
+          p_recibo_id: _anularCobroItem.recibo_id  ? Number(_anularCobroItem.recibo_id) : null,
+          p_motivo:    motivo,
+          p_usuario:   'jefe'
+        };
+
+        const { data, error } = await sb.rpc('anular_cobro_por_componentes', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo anular el cobro.');
+
+        clearReceiptsCache('anulacion-cobro-componentes');
+        closeAnularCobro();
+        await refreshAll();
+
+        if (contratoId && (selected?.contrato_id === contratoId || String(selected?.contrato_id) === String(contratoId))) {
+          const refreshed = unidades.find(x => Number(x.contrato_id) === contratoId);
+          if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
+        }
+        setTimeout(() => showPagoSuccessToast(`Cobro N° ${numero} anulado correctamente.`, 'Cobro anulado'), 120);
+
+      } catch(e) {
+        console.error('[AnularCobro] confirmar:', e);
+        if (msg) msg.textContent = 'Error: ' + (e?.message || String(e));
+        if ($('anularCobroBtnConfirmar')) $('anularCobroBtnConfirmar').disabled = false;
+      }
+    }
+
+    // ============================================================
     // EDITAR SERVICIO DEL MES — Etapa 9
     // Modal para cargar/editar/quitar monto_servicio por mes.
     // Solo aplica a contratos con servicios_habilitados=true.
@@ -18891,6 +19136,11 @@ exposeGlobalFunction('openCobroComp',                  typeof openCobroComp     
 exposeGlobalFunction('agregarMedioCobroComp',          typeof agregarMedioCobroComp          !== 'undefined' ? agregarMedioCobroComp          : null);
 exposeGlobalFunction('eliminarMedioCobroComp',         typeof eliminarMedioCobroComp         !== 'undefined' ? eliminarMedioCobroComp         : null);
 exposeGlobalFunction('onMedioCobroCompChange',         typeof onMedioCobroCompChange         !== 'undefined' ? onMedioCobroCompChange         : null);
+// Anular cobro por componentes (Etapa 11)
+exposeGlobalFunction('openAnularCobro',            typeof openAnularCobro            !== 'undefined' ? openAnularCobro            : null);
+exposeGlobalFunction('closeAnularCobro',           typeof closeAnularCobro           !== 'undefined' ? closeAnularCobro           : null);
+exposeGlobalFunction('onAnularCobroMotivoChange',  typeof onAnularCobroMotivoChange  !== 'undefined' ? onAnularCobroMotivoChange  : null);
+exposeGlobalFunction('confirmarAnularCobro',       typeof confirmarAnularCobro       !== 'undefined' ? confirmarAnularCobro       : null);
 // Editar servicio del mes (Etapa 9)
 exposeGlobalFunction('openEditarServicio',         typeof openEditarServicio         !== 'undefined' ? openEditarServicio         : null);
 exposeGlobalFunction('closeEditarServicio',        typeof closeEditarServicio        !== 'undefined' ? closeEditarServicio        : null);
