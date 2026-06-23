@@ -4750,7 +4750,7 @@ td:last-child{
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
-                    <th class="right" id="detalleThImpuesto" title="Impuesto pendiente (componentes) o aplicado según recibos (legacy)">Imp. pend.</th>
+                    <th class="right" id="detalleThImpuesto" title="Impuesto: pagado o pendiente si la cuota tiene componentes; aplicado según recibos en modo legacy">Impuesto</th>
                     <th id="detalleThServicio" class="right" title="Servicio pendiente (componentes) o total del mes (legacy)">Serv. pend.</th>
                     <th class="right">Saldo total</th>
                     <th class="center">Estado</th>
@@ -7731,9 +7731,24 @@ if (aplicacionesDirectas.length) {
           ? `<span style="color:var(--bad);font-weight:900;">${diasAtraso}d</span>`
           : `<span class="muted">—</span>`;
 
-        const impuestoCell = impuesto > 0
-          ? fmtARS.format(impuesto)
-          : `<span class="muted">—</span>`;
+        // Columna Impuesto: diferencia entre modo componentes y legacy.
+        // Componentes: muestra estado (pagado/pendiente) desde columnas nuevas.
+        // Legacy: muestra impuesto aplicado desde recibos (igual que antes).
+        let impuestoCell;
+        if (x._modo_componentes) {
+          const impTotal  = round2(toNumber(x.monto_impuesto_total));
+          const saldoImp  = round2(toNumber(x.db_saldo_impuesto ?? x.impuesto ?? 0));
+          const impPagado = round2(toNumber(x.monto_impuesto_pagado));
+          if (impTotal <= 0.009) {
+            impuestoCell = `<span class="muted">—</span>`;
+          } else if (saldoImp <= 0.009 && impPagado > 0.009) {
+            impuestoCell = `<span style="color:#15803d;font-size:11px;font-weight:700;" title="Impuesto ${fmtARS.format(impTotal)} pagado completamente">Pag. ${fmtARS.format(impTotal)}</span>`;
+          } else {
+            impuestoCell = `<span style="color:#dc2626;font-weight:700;" title="Impuesto pendiente de ${fmtARS.format(impTotal)} total">${fmtARS.format(saldoImp)}</span>`;
+          }
+        } else {
+          impuestoCell = impuesto > 0 ? fmtARS.format(impuesto) : `<span class="muted">—</span>`;
+        }
 
         // Para componentes muestra saldo_servicio (pendiente); para legacy muestra monto total.
         const servicio = toNumber(x.servicio_pendiente ?? x.servicio ?? x.monto_servicio);
@@ -17595,15 +17610,32 @@ setTimeout(() => {
       else if (servP > servT + 0.009)                        err = 'Servicio pagado supera el total.';
       else if (alqT <= 0)                                    err = 'Alquiler total debe ser mayor a 0.';
 
-      if ($('ecMsg')) $('ecMsg').textContent = err;
+      const motivo = ($('ecMotivo')?.value || '').trim();
 
-      const motivo    = ($('ecMotivo')?.value || '').trim();
+      // Mensaje de estado: prioridad → error de validación → sugerencia de motivo → vacío
+      const displayMsg = err
+        ? err
+        : (alqT > 0 && motivo.length === 0)
+          ? 'Ingresá un motivo para habilitar la vista previa.'
+          : '';
+      if ($('ecMsg')) $('ecMsg').textContent = displayMsg;
+
       const canPreview = !err && motivo.length > 0;
       if ($('ecBtnPreview')) $('ecBtnPreview').disabled = !canPreview;
     }
 
     async function vistaPreviewEditarCuota() {
       if (!_editarCuotaId || !_editarContratoId || !_editarCuotaData) return;
+
+      // Guardia: motivo obligatorio — mostrar error y enfocar textarea
+      const motivo = ($('ecMotivo')?.value || '').trim();
+      if (!motivo) {
+        if ($('ecMsg')) $('ecMsg').textContent = 'Ingresá un motivo para habilitar la vista previa.';
+        const mEl = $('ecMotivo');
+        if (mEl) { mEl.focus(); mEl.style.borderColor = '#f87171'; setTimeout(() => { mEl.style.borderColor = ''; }, 2000); }
+        return;
+      }
+
       _editarDryRunOk   = false;
       _editarDryRunData = null;
       if ($('ecBtnGuardar'))   $('ecBtnGuardar').disabled   = true;
