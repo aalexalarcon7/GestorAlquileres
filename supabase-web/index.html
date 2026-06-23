@@ -1256,6 +1256,8 @@ td:last-child{
     .imp-chip.ic-add:hover{background:#e0f2fe;}
     /* ── Modal editar impuesto del mes (Etapa 8) ── */
     #editarImpuestoBack .modal{width:min(540px,calc(100vw - 40px));max-height:88vh;overflow-y:auto;overflow-x:hidden;}
+    /* ── Modal editar servicio del mes (Etapa 9) ── */
+    #editarServicioBack .modal{width:min(540px,calc(100vw - 40px));max-height:88vh;overflow-y:auto;overflow-x:hidden;}
     .ei-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;}
     .ei-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;}
     .ei-label{color:#64748b;}
@@ -5450,6 +5452,83 @@ td:last-child{
     </div>
   </div>
 
+  <!-- MODAL EDITAR SERVICIO DEL MES (Etapa 9) -->
+  <div class="modalBack" id="editarServicioBack" style="display:none;">
+    <div class="modal">
+
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin:0 0 3px;font-size:15px;">Editar servicio del mes</h3>
+          <div style="font-size:12px;color:#64748b;">Solo modifica el monto de servicio total. Alquiler e impuesto no cambian.</div>
+        </div>
+        <button class="btn" style="flex-shrink:0;" onclick="closeEditarServicio()">Cerrar</button>
+      </div>
+
+      <div id="esMeta" style="margin:10px 0 4px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;"></div>
+
+      <!-- Bloqueo: contrato sin servicio habilitado -->
+      <div id="esBloqueoServ" style="display:none;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:8px 0;font-size:13px;">
+        <strong>Este contrato no tiene servicio habilitado.</strong><br>
+        El servicio solo aplica a contratos con <em>servicios_habilitados = true</em> (Dovis, Samir, Vera).
+      </div>
+
+      <!-- Bloqueo: cuota sin componentes -->
+      <div id="esBloqueoComp" style="display:none;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:8px 0;font-size:13px;">
+        <strong>Esta cuota no tiene componentes completos.</strong><br>
+        Primero normalizala desde <em>Editar cuota por componentes</em>.
+      </div>
+
+      <div id="esFormArea">
+
+        <div class="ei-card">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Estado actual del servicio</div>
+          <div class="ei-row"><span class="ei-label">Servicio total</span><span class="ei-value" id="esActualTotal">—</span></div>
+          <div class="ei-row"><span class="ei-label">Servicio pagado</span><span class="ei-value" id="esActualPagado">—</span></div>
+          <div class="ei-row"><span class="ei-label">Saldo servicio</span><span class="ei-value" id="esActualSaldo">—</span></div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Nuevo servicio total <span style="font-weight:400;">(0 o vacío para quitar el servicio del mes)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input id="esNuevoTotal" type="text" inputmode="decimal"
+              placeholder="Ej: 100.000 — 0 o vacío = sin servicio"
+              style="flex:1;min-width:0;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:700;text-align:right;box-sizing:border-box;"
+              oninput="recalcEditarServicio()">
+            <span style="white-space:nowrap;font-size:12px;color:#64748b;">
+              Nuevo saldo: <strong id="esNuevoSaldo" style="color:#1e293b;">—</strong>
+            </span>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Motivo <span style="color:#dc2626;">*</span>
+            <span style="font-weight:400;">(obligatorio para habilitar vista previa)</span>
+          </label>
+          <textarea id="esMotivo" rows="2"
+            placeholder="Ej: Carga manual de servicio de luz&#10;Ej: Corrección de servicio cargado por error"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;min-height:52px;"
+            oninput="recalcEditarServicio()"></textarea>
+        </div>
+
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn primary" id="esBtnPreview" type="button" onclick="vistaPreviewEditarServicio()" disabled>Vista previa</button>
+          <button class="btn primary" id="esBtnGuardar" type="button" onclick="confirmarEditarServicio()" disabled
+            style="background:#15803d;border-color:#15803d;">Guardar servicio</button>
+        </div>
+
+        <div class="toast" id="esMsg" style="margin-top:8px;"></div>
+
+        <div id="esPreviewPanel" class="cobro-comp-preview-box" style="display:none;margin-top:14px;">
+          <div id="esPreviewBody"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
     <div class="recibo-preview">
@@ -7862,11 +7941,42 @@ if (aplicacionesDirectas.length) {
             : `<span class="muted">—</span>`;
         }
 
-        // Para componentes muestra saldo_servicio (pendiente); para legacy muestra monto total.
-        const servicio = toNumber(x.servicio_pendiente ?? x.servicio ?? x.monto_servicio);
-        const servicioCell = servicio > 0
-          ? fmtARS.format(servicio)
-          : `<span class="muted">—</span>`;
+        // Columna Servicio: chips + botón de edición para cuotas con componentes.
+        // Solo visible cuando _detalleShowServicio=true (servicios_habilitados).
+        let servicioCell;
+        if (x._modo_componentes && x.id) {
+          const servTotal  = round2(toNumber(x.monto_servicio));
+          const saldoServ  = round2(toNumber(x.db_saldo_servicio ?? x.servicio_pendiente ?? 0));
+          const servPagado = round2(toNumber(x.monto_servicio_pagado));
+          const esA = `${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)}`;
+          const editBtn = `<button class="ec-btn-row" onclick="openEditarServicio(${esA})" title="Editar servicio de este mes" style="font-size:10px;margin-top:2px;">editar serv.</button>`;
+          if (servTotal <= 0.009) {
+            servicioCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="muted">—</span>` +
+              `<button class="ec-btn-row" onclick="openEditarServicio(${esA})" title="Cargar servicio para este mes" style="font-size:10px;">+ cargar serv.</button>` +
+              `</div>`;
+          } else if (saldoServ <= 0.009 && servPagado > 0.009) {
+            servicioCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="imp-chip ic-pag" title="Servicio ${fmtARS.format(servTotal)} pagado">Pagado ${fmtARS.format(servTotal)}</span>` +
+              editBtn + `</div>`;
+          } else {
+            servicioCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="imp-chip ic-pend" title="Servicio total ${fmtARS.format(servTotal)}">Pendiente ${fmtARS.format(saldoServ)}</span>` +
+              editBtn + `</div>`;
+          }
+        } else if (x._modo_componentes) {
+          const servTotal = round2(toNumber(x.monto_servicio));
+          const saldoServ = round2(toNumber(x.servicio_pendiente ?? 0));
+          const servPag   = round2(toNumber(x.monto_servicio_pagado));
+          if (servTotal <= 0.009) servicioCell = `<span class="muted">—</span>`;
+          else if (saldoServ <= 0.009 && servPag > 0.009) servicioCell = `<span class="imp-chip ic-pag">Pagado ${fmtARS.format(servTotal)}</span>`;
+          else servicioCell = `<span class="imp-chip ic-pend">Pendiente ${fmtARS.format(saldoServ)}</span>`;
+        } else {
+          const servicio = toNumber(x.servicio_pendiente ?? x.servicio ?? x.monto_servicio);
+          servicioCell = servicio > 0
+            ? `<span class="imp-chip ic-ap" title="Servicio según datos legacy">${fmtARS.format(servicio)}</span>`
+            : `<span class="muted">—</span>`;
+        }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -17950,6 +18060,352 @@ setTimeout(() => {
     }
 
     // ============================================================
+    // EDITAR SERVICIO DEL MES — Etapa 9
+    // Modal para cargar/editar/quitar monto_servicio por mes.
+    // Solo aplica a contratos con servicios_habilitados=true.
+    // Usa editar_cuota_componentes_manual; alquiler e impuesto
+    // se pasan sin cambios; solo varía p_monto_servicio_total.
+    // NO toca pagos, recibos, aplicaciones ni cobro.
+    // ============================================================
+
+    let _esCuotaId    = null;
+    let _esContratoId = null;
+    let _esData       = null;   // snapshot de BD
+    let _esDryRunOk   = false;
+    let _esDryRunData = null;
+
+    async function openEditarServicio(cuotaId, contratoId, anio, mes) {
+      if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
+      const back = $('editarServicioBack');
+      if (!back) return;
+
+      _esCuotaId    = Number(cuotaId);
+      _esContratoId = Number(contratoId);
+      _esDryRunOk   = false;
+      _esDryRunData = null;
+      _esData       = null;
+
+      back.style.display = 'flex';
+      $('esMeta').textContent            = 'Cargando…';
+      $('esBloqueoServ').style.display   = 'none';
+      $('esBloqueoComp').style.display   = 'none';
+      $('esFormArea').style.display      = 'block';
+      $('esMsg').textContent             = '';
+      $('esPreviewPanel').style.display  = 'none';
+      $('esBtnPreview').disabled         = true;
+      $('esBtnGuardar').disabled         = true;
+      $('esNuevoTotal').value            = '';
+      $('esMotivo').value                = '';
+      $('esNuevoSaldo').textContent      = '—';
+      $('esActualTotal').textContent     = '—';
+      $('esActualPagado').textContent    = '—';
+      $('esActualSaldo').textContent     = '—';
+
+      try {
+        // Verificar flag servicios_habilitados del contrato
+        const contrato = getContratoActivoRow(contratoId) || {};
+        if (!contrato.servicios_habilitados) {
+          $('esBloqueoServ').style.display = 'block';
+          $('esFormArea').style.display    = 'none';
+          $('esMeta').textContent          = 'Servicio no habilitado para este contrato.';
+          return;
+        }
+
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select('id,contrato_id,anio,mes,periodo,estado,monto_total,monto_pagado,saldo,monto_alquiler_total,monto_alquiler_pagado,saldo_alquiler,monto_impuesto_total,monto_impuesto_pagado,saldo_impuesto,monto_servicio,monto_servicio_pagado,saldo_servicio')
+          .eq('id', _esCuotaId)
+          .single();
+
+        if (error || !data) throw new Error(error?.message || 'Cuota no encontrada.');
+        _esData = data;
+
+        // Verificar componentes completos
+        const tieneComp = data.monto_alquiler_total != null && data.monto_alquiler_pagado != null && data.saldo_alquiler != null;
+        if (!tieneComp) {
+          $('esBloqueoComp').style.display = 'block';
+          $('esFormArea').style.display    = 'none';
+          $('esMeta').textContent          = 'Error: cuota sin componentes completos.';
+          return;
+        }
+
+        const nombre  = selected?.inquilino_nombre || selected?.nombre_inquilino || '—';
+        const local   = selected?.local_codigo     || selected?.codigo_local     || '—';
+        const periodo = data.periodo || `${String(data.mes).padStart(2,'0')}/${data.anio}`;
+        const estadoBg = (data.estado||'').includes('PARCIAL') ? '#854d0e;background:#fef9c3' : (data.estado||'').includes('PAGADO') ? '#15803d;background:#dcfce7' : '#dc2626;background:#fee2e2';
+        $('esMeta').innerHTML =
+          `<strong>${local}</strong> · ${nombre} · ` +
+          `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${periodo}</span> · ` +
+          `Estado: <span style="color:${estadoBg};padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${data.estado||'—'}</span>`;
+
+        const fmt = v => { const n = toNumber(v); return n > 0 ? fmtARS.format(n) : '$0'; };
+        $('esActualTotal').textContent  = fmt(data.monto_servicio);
+        $('esActualPagado').textContent = fmt(data.monto_servicio_pagado);
+        $('esActualSaldo').textContent  = fmt(data.saldo_servicio);
+
+        // Pre-llenar con valor actual
+        const servActual = toNumber(data.monto_servicio);
+        if (servActual > 0) $('esNuevoTotal').value = formatMoneyInputValue(servActual);
+
+        recalcEditarServicio();
+
+      } catch(e) {
+        $('esMeta').textContent = 'Error cargando cuota.';
+        $('esMsg').textContent  = 'Error: ' + (e?.message || String(e));
+        console.error('[EditarServicio] open:', e);
+      }
+    }
+
+    function closeEditarServicio() {
+      const back = $('editarServicioBack');
+      if (back) back.style.display = 'none';
+      _esCuotaId    = null;
+      _esContratoId = null;
+      _esData       = null;
+      _esDryRunOk   = false;
+      _esDryRunData = null;
+    }
+
+    function recalcEditarServicio() {
+      _esDryRunOk   = false;
+      _esDryRunData = null;
+      if ($('esBtnGuardar'))   $('esBtnGuardar').disabled   = true;
+      if ($('esPreviewPanel')) $('esPreviewPanel').style.display = 'none';
+
+      if (!_esData) return;
+
+      const pMN        = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+      const rawInput   = ($('esNuevoTotal')?.value || '').trim();
+      const nuevoTotal = rawInput === '' ? 0 : pMN(rawInput);
+      const servPagado = round2(toNumber(_esData.monto_servicio_pagado));
+
+      let err = '';
+      if (nuevoTotal < 0) {
+        err = 'El servicio no puede ser negativo.';
+      } else if (servPagado > 0.009 && nuevoTotal < servPagado - 0.009) {
+        err = `No podés bajar el servicio por debajo de lo ya pagado (${fmtARS.format(servPagado)}). Primero corregí el pago correspondiente.`;
+      }
+
+      const nuevoSaldo = round2(Math.max(0, nuevoTotal - servPagado));
+      if ($('esNuevoSaldo')) {
+        $('esNuevoSaldo').textContent = fmtARS.format(nuevoSaldo);
+        $('esNuevoSaldo').style.color = (nuevoTotal > 0 && nuevoSaldo <= 0.009) ? '#15803d' : '#1e293b';
+      }
+
+      const motivo     = ($('esMotivo')?.value || '').trim();
+      const displayMsg = err
+        ? err
+        : motivo.length === 0
+          ? 'Ingresá un motivo para habilitar la vista previa.'
+          : '';
+      if ($('esMsg')) $('esMsg').textContent = displayMsg;
+
+      if ($('esBtnPreview')) $('esBtnPreview').disabled = !(!err && motivo.length > 0);
+    }
+
+    async function vistaPreviewEditarServicio() {
+      if (!_esData || !_esCuotaId || !_esContratoId) return;
+
+      const motivo = ($('esMotivo')?.value || '').trim();
+      if (!motivo) {
+        if ($('esMsg')) $('esMsg').textContent = 'Ingresá un motivo para habilitar la vista previa.';
+        const mEl = $('esMotivo');
+        if (mEl) { mEl.focus(); mEl.style.borderColor = '#f87171'; setTimeout(() => { mEl.style.borderColor = ''; }, 2000); }
+        return;
+      }
+
+      _esDryRunOk   = false;
+      _esDryRunData = null;
+      if ($('esBtnGuardar'))   $('esBtnGuardar').disabled   = true;
+      if ($('esBtnPreview'))   $('esBtnPreview').disabled   = true;
+      if ($('esPreviewPanel')) $('esPreviewPanel').style.display = 'none';
+      if ($('esMsg'))          $('esMsg').textContent       = 'Validando con el servidor (dry run)…';
+
+      try {
+        const pMN        = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+        const rawInput   = ($('esNuevoTotal')?.value || '').trim();
+        const nuevoTotal = rawInput === '' ? 0 : pMN(rawInput);
+        const servPagado = round2(toNumber(_esData.monto_servicio_pagado));
+
+        // Si nuevo total = 0, pagado queda 0 también
+        const p_serv_total  = nuevoTotal;
+        const p_serv_pagado = nuevoTotal === 0 ? 0 : servPagado;
+
+        const params = {
+          p_cuota_id:              _esCuotaId,
+          p_contrato_id:           _esContratoId,
+          p_anio:                  Number(_esData.anio),
+          p_mes:                   Number(_esData.mes),
+          p_monto_alquiler_total:  round2(toNumber(_esData.monto_alquiler_total)),
+          p_monto_alquiler_pagado: round2(toNumber(_esData.monto_alquiler_pagado)),
+          p_monto_impuesto_total:  _esData.monto_impuesto_total != null
+                                     ? round2(toNumber(_esData.monto_impuesto_total))
+                                     : null,
+          p_monto_impuesto_pagado: round2(toNumber(_esData.monto_impuesto_pagado)),
+          p_monto_servicio_total:  p_serv_total,
+          p_monto_servicio_pagado: p_serv_pagado,
+          p_motivo:                motivo,
+          p_usuario:               'jefe',
+          p_dry_run:               true
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) {
+          if ($('esMsg')) $('esMsg').textContent = `Error: ${res?.error || 'Sin respuesta del servidor'}`;
+          return;
+        }
+
+        _esDryRunOk   = true;
+        _esDryRunData = res;
+        if ($('esMsg')) $('esMsg').textContent = '';
+        renderDryRunEditarServicio(res);
+        if ($('esBtnGuardar')) $('esBtnGuardar').disabled = false;
+
+      } catch(e) {
+        console.error('[EditarServicio] dry_run:', e);
+        if ($('esMsg')) $('esMsg').textContent = 'Error en validación: ' + (e?.message || String(e));
+      } finally {
+        const mot = ($('esMotivo')?.value || '').trim();
+        if ($('esBtnPreview')) $('esBtnPreview').disabled = !mot.length;
+      }
+    }
+
+    function renderDryRunEditarServicio(res) {
+      const panel = $('esPreviewPanel');
+      const body  = $('esPreviewBody');
+      if (!panel || !body) return;
+
+      const fmt   = v => fmtARS.format(Number(v) || 0);
+      const n     = v => Number(v) || 0;
+      const badge = e => {
+        const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
+        return `<span class="cobro-comp-badge ${cls}">${e||'—'}</span>`;
+      };
+      const dr = (label, value, extraCls='') =>
+        `<div class="dryrun-row"><span class="dr-label">${label}</span><span class="dr-value${extraCls?' '+extraCls:''}">${value}</span></div>`;
+
+      const a     = res.antes      || {};
+      const d     = res.despues    || {};
+      const diffs = res.diferencias || {};
+      const chgServT = !!diffs['monto_servicio_total'];
+      const chgEst   = !!diffs['estado'];
+      const totalCambia = n(a.monto_total) !== n(d.monto_total);
+
+      body.innerHTML = `
+        <div class="dryrun-summary">
+          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          ${chgServT
+            ? `<div style="font-size:12px;color:#475569;">Servicio: ${fmt(a.monto_servicio_total)} → ${fmt(d.monto_servicio_total)}</div>`
+            : `<div style="font-size:12px;color:#64748b;">Sin cambios en el servicio total.</div>`}
+          ${totalCambia
+            ? `<div style="font-size:11px;color:#64748b;margin-top:3px;">Total de la cuota se recalculará: ${fmt(a.monto_total)} → ${fmt(d.monto_total)}</div>`
+            : ''}
+        </div>
+        <div class="dryrun-card">
+          <div class="dryrun-card-header">Período ${String(res.mes).padStart(2,'0')}/${res.anio} — Servicio</div>
+          <div class="dryrun-section sec-antes">
+            <div class="dryrun-section-title">Antes</div>
+            ${dr('Serv. total',  fmt(a.monto_servicio_total))}
+            ${dr('Serv. pagado', fmt(a.monto_servicio_pagado))}
+            ${dr('Saldo serv.',  fmt(a.saldo_servicio))}
+            ${dr('Saldo cuota',  fmt(a.saldo))}
+            ${dr('Estado', badge(a.estado))}
+          </div>
+          <div class="dryrun-section sec-despues">
+            <div class="dryrun-section-title">Después</div>
+            ${dr('Serv. total',  fmt(d.monto_servicio_total), chgServT ? 'dr-blue' : '')}
+            ${dr('Serv. pagado', fmt(d.monto_servicio_pagado))}
+            ${dr('Saldo serv.',  fmt(d.saldo_servicio), n(d.saldo_servicio) <= 0.009 ? 'dr-green' : '')}
+            ${dr('Saldo cuota',  fmt(d.saldo), n(d.saldo) <= 0.009 ? 'dr-green' : '')}
+            ${dr('Estado', badge(d.estado), chgEst ? 'dr-blue' : '')}
+          </div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">Alquiler e impuesto no fueron modificados.</div>
+      `;
+      panel.style.display = 'block';
+    }
+
+    async function confirmarEditarServicio() {
+      if (!_esDryRunOk || !_esData) { alert('Primero ejecutá la vista previa.'); return; }
+
+      const periodo     = _esData.periodo || `${String(_esData.mes).padStart(2,'0')}/${_esData.anio}`;
+      const nombre      = selected?.inquilino_nombre || selected?.nombre_inquilino || '';
+      const estadoNuevo = _esDryRunData?.estado_nuevo || '?';
+      const motivo      = ($('esMotivo')?.value || '').trim();
+      const rawInput    = ($('esNuevoTotal')?.value || '').trim();
+      const pMN         = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+      const nuevoTotal  = rawInput === '' ? 0 : pMN(rawInput);
+
+      const resumen = nuevoTotal === 0
+        ? 'El servicio quedará en $0 para este mes.'
+        : `El servicio quedará en ${fmtARS.format(nuevoTotal)} para este período.`;
+
+      const ok = confirm(
+        `Esta acción modificará el servicio REAL de ${nombre} (${periodo}) y quedará registrada en auditoría.\n\n` +
+        `${resumen}\n` +
+        `Estado nuevo esperado: ${estadoNuevo}\n` +
+        `Motivo: "${motivo}"\n\n` +
+        `¿Confirmás el cambio?`
+      );
+      if (!ok) return;
+
+      const msg = $('esMsg');
+      if (msg) msg.textContent = 'Guardando cambio real…';
+      if ($('esBtnGuardar')) $('esBtnGuardar').disabled = true;
+      if ($('esBtnPreview')) $('esBtnPreview').disabled = true;
+
+      try {
+        const servPagado    = round2(toNumber(_esData.monto_servicio_pagado));
+        const p_serv_total  = nuevoTotal;
+        const p_serv_pagado = nuevoTotal === 0 ? 0 : servPagado;
+
+        const params = {
+          p_cuota_id:              _esCuotaId,
+          p_contrato_id:           _esContratoId,
+          p_anio:                  Number(_esData.anio),
+          p_mes:                   Number(_esData.mes),
+          p_monto_alquiler_total:  round2(toNumber(_esData.monto_alquiler_total)),
+          p_monto_alquiler_pagado: round2(toNumber(_esData.monto_alquiler_pagado)),
+          p_monto_impuesto_total:  _esData.monto_impuesto_total != null
+                                     ? round2(toNumber(_esData.monto_impuesto_total))
+                                     : null,
+          p_monto_impuesto_pagado: round2(toNumber(_esData.monto_impuesto_pagado)),
+          p_monto_servicio_total:  p_serv_total,
+          p_monto_servicio_pagado: p_serv_pagado,
+          p_motivo:                motivo,
+          p_usuario:               'jefe',
+          p_dry_run:               false
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo guardar el servicio.');
+
+        const contratoId = _esContratoId;
+        closeEditarServicio();
+        await refreshAll();
+
+        const cId = Number(contratoId);
+        if (selected?.contrato_id === cId || String(selected?.contrato_id) === String(cId)) {
+          const refreshed = unidades.find(x => Number(x.contrato_id) === cId);
+          if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
+        }
+        const label = nuevoTotal === 0
+          ? 'Servicio eliminado del mes.'
+          : `Servicio actualizado a ${fmtARS.format(nuevoTotal)}.`;
+        setTimeout(() => showPagoSuccessToast(label, 'Servicio guardado'), 120);
+
+      } catch(e) {
+        console.error('[EditarServicio] confirmar:', e);
+        if (msg) msg.textContent = 'Error: ' + (e?.message || String(e));
+        if ($('esBtnGuardar')) $('esBtnGuardar').disabled = false;
+      }
+    }
+
+    // ============================================================
     // EDITAR IMPUESTO DEL MES — Etapa 8
     // Modal liviano para cargar/editar/quitar monto_impuesto_total.
     // Usa la RPC editar_cuota_componentes_manual enviando los demás
@@ -18302,6 +18758,12 @@ exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? c
 exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
 // Cobro por componentes (Etapa 4)
 exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
+// Editar servicio del mes (Etapa 9)
+exposeGlobalFunction('openEditarServicio',         typeof openEditarServicio         !== 'undefined' ? openEditarServicio         : null);
+exposeGlobalFunction('closeEditarServicio',        typeof closeEditarServicio        !== 'undefined' ? closeEditarServicio        : null);
+exposeGlobalFunction('recalcEditarServicio',       typeof recalcEditarServicio       !== 'undefined' ? recalcEditarServicio       : null);
+exposeGlobalFunction('vistaPreviewEditarServicio', typeof vistaPreviewEditarServicio !== 'undefined' ? vistaPreviewEditarServicio : null);
+exposeGlobalFunction('confirmarEditarServicio',    typeof confirmarEditarServicio    !== 'undefined' ? confirmarEditarServicio    : null);
 // Editar impuesto del mes (Etapa 8)
 exposeGlobalFunction('openEditarImpuesto',          typeof openEditarImpuesto          !== 'undefined' ? openEditarImpuesto          : null);
 exposeGlobalFunction('closeEditarImpuesto',         typeof closeEditarImpuesto         !== 'undefined' ? closeEditarImpuesto         : null);
