@@ -1233,6 +1233,13 @@ td:last-child{
     .dryrun-row .dr-value.dr-blue{color:#1d4ed8;}
     .dryrun-row .dr-value.dr-green{color:#15803d;}
     .dryrun-row .dr-value.dr-sub{font-size:13px;font-weight:700;}
+    /* ── Editar cuota por componentes (Etapa 7B) ── */
+    #editarCuotaBack .modal{width:min(700px,calc(100vw - 20px));max-height:92vh;overflow-y:auto;}
+    .ec-input{width:100%;text-align:right;font-weight:700;padding:5px 8px;border-radius:6px;border:1px solid #cbd5e1;box-sizing:border-box;font-size:13px;}
+    .ec-input:focus{outline:2px solid #3b82f6;border-color:#3b82f6;outline-offset:0;}
+    .ec-btn-row{font-size:11px;padding:2px 7px;background:none;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;color:#475569;white-space:nowrap;}
+    .ec-btn-row:hover{background:#f1f5f9;}
+    .ec-changed{background:#fffbeb !important;}
 
     [data-theme="dark"] .modal{background:linear-gradient(180deg, var(--card-solid-dark), rgba(15,23,36,.94))}
 
@@ -4741,6 +4748,7 @@ td:last-child{
                     <th class="right">Saldo total</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
+                    <th class="center" id="detalleThEditar" style="min-width:68px;"></th>
                   </tr>
                 </thead>
                 <tbody id="detalleBody"></tbody>
@@ -5235,6 +5243,93 @@ td:last-child{
         <div id="cobroCompPreviewPanel" class="cobro-comp-preview-box" style="display:none;">
           <div id="cobroCompPreviewBody"></div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL EDITAR CUOTA POR COMPONENTES (Etapa 7B) -->
+  <div class="modalBack" id="editarCuotaBack" style="display:none;">
+    <div class="modal">
+      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
+        <div>
+          <h3 style="margin:0;">Editar cuota por componentes</h3>
+          <div class="muted" style="font-size:12px;margin-top:3px;">Corregí alquiler, impuesto y servicio de este período. Siempre con vista previa antes de guardar.</div>
+        </div>
+        <button class="btn" onclick="closeEditarCuota()">Cerrar</button>
+      </div>
+
+      <div id="editarCuotaMeta" style="font-weight:700;margin:8px 0;color:#475569;font-size:13px;"></div>
+
+      <div id="editarCuotaModoAviso" style="display:none;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;color:#92400e;margin:8px 0;font-size:13px;">
+        <strong>⚠ Esta cuota no tenía componentes completos.</strong> Al guardar se normalizará a modelo por componentes.
+      </div>
+
+      <div id="editarCuotaFormArea">
+
+        <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;">
+          <thead>
+            <tr style="background:#f8fafc;">
+              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;font-weight:700;">Componente</th>
+              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Total</th>
+              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Pagado</th>
+              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Saldo (calc.)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Alquiler</td>
+              <td style="padding:4px 6px;"><input id="ecAlqTotal" type="text" inputmode="decimal" class="ec-input" placeholder="Ej: 386.350" oninput="recalcEditarCuota()"></td>
+              <td style="padding:4px 6px;"><input id="ecAlqPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+              <td style="padding:8px;text-align:right;font-weight:700;" id="ecAlqSaldo">—</td>
+            </tr>
+            <tr id="ecRowImpuesto" style="border-bottom:1px solid #f1f5f9;">
+              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Impuesto</td>
+              <td style="padding:4px 6px;"><input id="ecImpTotal" type="text" inputmode="decimal" class="ec-input" placeholder="Vacío = sin impuesto este mes" oninput="recalcEditarCuota()"></td>
+              <td style="padding:4px 6px;"><input id="ecImpPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+              <td style="padding:8px;text-align:right;font-weight:700;" id="ecImpSaldo">—</td>
+            </tr>
+            <tr id="ecRowServicio" style="display:none;border-bottom:1px solid #f1f5f9;">
+              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Servicio</td>
+              <td style="padding:4px 6px;"><input id="ecServTotal" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+              <td style="padding:4px 6px;"><input id="ecServPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+              <td style="padding:8px;text-align:right;font-weight:700;" id="ecServSaldo">—</td>
+            </tr>
+            <tr style="border-top:2px solid #cbd5e1;background:#f8fafc;font-weight:700;">
+              <td style="padding:8px 10px;">TOTAL</td>
+              <td style="padding:8px;text-align:right;" id="ecTotalTotal">—</td>
+              <td style="padding:8px;text-align:right;" id="ecTotalPagado">—</td>
+              <td style="padding:8px;text-align:right;" id="ecTotalSaldo">—</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div style="margin-top:10px;padding:8px 12px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;gap:10px;font-size:13px;">
+          <span class="muted">Estado calculado:</span>
+          <span id="ecEstadoCalc" style="font-weight:700;">—</span>
+        </div>
+
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px;">
+            Motivo de la corrección <span style="color:#dc2626;">*</span> (obligatorio para habilitar vista previa)
+          </label>
+          <textarea id="ecMotivo" rows="2"
+            placeholder="Ej: Corrección manual de impuesto ya cobrado&#10;Ej: Ajuste de saldo por planilla"
+            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;"
+            oninput="recalcEditarCuota()"></textarea>
+        </div>
+
+        <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn primary" id="ecBtnPreview" type="button" onclick="vistaPreviewEditarCuota()" disabled>Vista previa</button>
+          <button class="btn primary" id="ecBtnGuardar" type="button" onclick="confirmarEditarCuota()" disabled
+            style="background:#15803d;border-color:#15803d;">Guardar corrección</button>
+        </div>
+
+        <div class="toast" id="ecMsg" style="margin-top:8px;"></div>
+
+        <div id="ecPreviewPanel" class="cobro-comp-preview-box" style="display:none;margin-top:14px;">
+          <div id="ecPreviewBody"></div>
+        </div>
+
       </div>
     </div>
   </div>
@@ -7575,7 +7670,7 @@ if (aplicacionesDirectas.length) {
       if (!tb) return;
       tb.innerHTML = '';
       if (!(rows || []).length){
-        tb.innerHTML = `<tr><td colspan="${_detalleShowServicio ? 9 : 8}" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
+        tb.innerHTML = `<tr><td colspan="${_detalleShowServicio ? 10 : 9}" class="center muted" style="padding:18px;">No hay cuotas registradas para este contrato. Si esperabas ver datos, verificá que el contrato esté activo y tenga cuotas en la tabla <em>cuotas_operativas</em>.</td></tr>`;
         return;
       }
 
@@ -7640,6 +7735,7 @@ if (aplicacionesDirectas.length) {
             }
           </td>
           <td class="center">${diasCell}</td>
+          <td class="center">${x.id ? `<button class="ec-btn-row" onclick="openEditarCuota(${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)})" title="Editar componentes de esta cuota">✎ Editar</button>` : ''}</td>
         `;
         tb.appendChild(tr);
       });
@@ -17335,6 +17431,351 @@ setTimeout(() => {
       }
     }
 
+    // ============================================================
+    // EDITAR CUOTA POR COMPONENTES — Etapa 7B
+    // Usa RPC editar_cuota_componentes_manual con p_dry_run.
+    // NO toca pagos, recibos, aplicaciones ni cobro viejo/nuevo.
+    // ============================================================
+
+    let _editarCuotaId    = null;  // id de la cuota en cuotas_operativas
+    let _editarContratoId = null;
+    let _editarCuotaData  = null;  // snapshot de BD al abrir el modal
+    let _editarDryRunOk   = false;
+    let _editarDryRunData = null;
+
+    async function openEditarCuota(cuotaId, contratoId, anio, mes) {
+      if (!cuotaId || !contratoId) { alert('No se puede abrir el editor: faltan datos de la cuota.'); return; }
+
+      const back = $('editarCuotaBack');
+      if (!back) return;
+
+      _editarCuotaId    = Number(cuotaId);
+      _editarContratoId = Number(contratoId);
+      _editarDryRunOk   = false;
+      _editarDryRunData = null;
+      _editarCuotaData  = null;
+
+      back.style.display = 'flex';
+      $('editarCuotaMeta').textContent        = 'Cargando…';
+      $('editarCuotaModoAviso').style.display = 'none';
+      $('ecMsg').textContent                  = '';
+      $('ecPreviewPanel').style.display       = 'none';
+      $('ecBtnPreview').disabled              = true;
+      $('ecBtnGuardar').disabled              = true;
+
+      try {
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select('id,contrato_id,anio,mes,periodo,estado,monto_total,monto_pagado,saldo,monto_alquiler_total,monto_alquiler_pagado,saldo_alquiler,monto_impuesto_total,monto_impuesto_pagado,saldo_impuesto,monto_servicio,monto_servicio_pagado,saldo_servicio')
+          .eq('id', _editarCuotaId)
+          .single();
+
+        if (error || !data) throw new Error(error?.message || 'Cuota no encontrada.');
+        _editarCuotaData = data;
+
+        const nombre  = selected?.inquilino_nombre || selected?.nombre_inquilino || '—';
+        const local   = selected?.local_codigo     || selected?.codigo_local     || '—';
+        const periodo = data.periodo || `${String(data.mes).padStart(2,'0')}/${data.anio}`;
+        $('editarCuotaMeta').textContent = `${local} — ${nombre}  ·  ${periodo}  ·  Estado actual: ${data.estado || '—'}`;
+
+        // Aviso si la cuota no tiene componentes completos
+        const tieneComp = data.monto_alquiler_total != null && data.monto_alquiler_pagado != null && data.saldo_alquiler != null;
+        $('editarCuotaModoAviso').style.display = tieneComp ? 'none' : '';
+
+        // Mostrar fila Servicio solo si el contrato tiene servicios habilitados o hay monto
+        const contrato     = getContratoActivoRow(contratoId) || {};
+        const tieneServicio = !!contrato.servicios_habilitados || toNumber(data.monto_servicio) > 0;
+        $('ecRowServicio').style.display = tieneServicio ? '' : 'none';
+
+        // Poblar inputs (solo muestra valor si > 0; vacío = 0 o null)
+        const fmtIn = v => { const n = toNumber(v); return n > 0 ? formatMoneyInputValue(n) : ''; };
+        $('ecAlqTotal').value   = fmtIn(data.monto_alquiler_total != null ? data.monto_alquiler_total : data.monto_total);
+        $('ecAlqPagado').value  = fmtIn(data.monto_alquiler_pagado != null ? data.monto_alquiler_pagado : data.monto_pagado);
+        $('ecImpTotal').value   = fmtIn(data.monto_impuesto_total);
+        $('ecImpPagado').value  = fmtIn(data.monto_impuesto_pagado);
+        $('ecServTotal').value  = fmtIn(data.monto_servicio);
+        $('ecServPagado').value = fmtIn(data.monto_servicio_pagado);
+        $('ecMotivo').value     = '';
+
+        recalcEditarCuota();
+
+      } catch(e) {
+        $('editarCuotaMeta').textContent = 'Error cargando cuota.';
+        $('ecMsg').textContent = 'Error: ' + (e?.message || String(e));
+        console.error('[EditarCuota] open:', e);
+      }
+    }
+
+    function closeEditarCuota() {
+      const back = $('editarCuotaBack');
+      if (back) back.style.display = 'none';
+      _editarCuotaId    = null;
+      _editarContratoId = null;
+      _editarCuotaData  = null;
+      _editarDryRunOk   = false;
+      _editarDryRunData = null;
+    }
+
+    function recalcEditarCuota() {
+      // Cualquier cambio de input invalida el dry_run anterior
+      _editarDryRunOk   = false;
+      _editarDryRunData = null;
+      if ($('ecBtnGuardar'))   $('ecBtnGuardar').disabled   = true;
+      if ($('ecPreviewPanel')) $('ecPreviewPanel').style.display = 'none';
+
+      const pMN = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+      const fmt = v => fmtARS.format(Number(v) || 0);
+
+      const alqT   = pMN($('ecAlqTotal')?.value);
+      const alqP   = pMN($('ecAlqPagado')?.value);
+      const impTRaw = ($('ecImpTotal')?.value || '').trim();
+      const impT   = impTRaw === '' ? null : pMN(impTRaw);
+      const impP   = pMN($('ecImpPagado')?.value);
+      const servT  = pMN($('ecServTotal')?.value);
+      const servP  = pMN($('ecServPagado')?.value);
+
+      const saldoAlq  = round2(Math.max(0, alqT - alqP));
+      const saldoImp  = round2(Math.max(0, (impT ?? 0) - impP));
+      const saldoServ = round2(Math.max(0, servT - servP));
+      const totalT    = round2(alqT + (impT ?? 0) + servT);
+      const totalP    = round2(alqP + impP + servP);
+      const totalS    = round2(saldoAlq + saldoImp + saldoServ);
+      const estado    = totalS <= 0.009 ? 'PAGADO' : totalP > 0.009 ? 'PARCIAL' : 'PENDIENTE';
+
+      if ($('ecAlqSaldo'))    $('ecAlqSaldo').textContent    = fmt(saldoAlq);
+      if ($('ecImpSaldo'))    $('ecImpSaldo').textContent    = impT == null ? '—' : fmt(saldoImp);
+      if ($('ecServSaldo'))   $('ecServSaldo').textContent   = fmt(saldoServ);
+      if ($('ecTotalTotal'))  $('ecTotalTotal').textContent  = fmt(totalT);
+      if ($('ecTotalPagado')) $('ecTotalPagado').textContent = fmt(totalP);
+      if ($('ecTotalSaldo'))  $('ecTotalSaldo').textContent  = fmt(totalS);
+
+      const estadoEl = $('ecEstadoCalc');
+      if (estadoEl) {
+        const col = estado === 'PAGADO' ? '#15803d' : estado === 'PARCIAL' ? '#92400e' : '#dc2626';
+        estadoEl.innerHTML = `<span style="color:${col};">${estado}</span>`;
+      }
+
+      // Validaciones frontend (bloquean habilitación de preview)
+      let err = '';
+      if (alqT < 0 || alqP < 0)                              err = 'Alquiler no puede ser negativo.';
+      else if (alqP > alqT + 0.009)                          err = 'Alquiler pagado supera el total.';
+      else if (impT !== null && impT < 0)                    err = 'Impuesto no puede ser negativo.';
+      else if ((impT === null || impT === 0) && impP > 0.009) err = 'Impuesto pagado debe ser 0 cuando no hay total.';
+      else if (impT !== null && impP > impT + 0.009)         err = 'Impuesto pagado supera el total.';
+      else if (servT < 0 || servP < 0)                       err = 'Servicio no puede ser negativo.';
+      else if (servP > servT + 0.009)                        err = 'Servicio pagado supera el total.';
+      else if (alqT <= 0)                                    err = 'Alquiler total debe ser mayor a 0.';
+
+      if ($('ecMsg')) $('ecMsg').textContent = err;
+
+      const motivo    = ($('ecMotivo')?.value || '').trim();
+      const canPreview = !err && motivo.length > 0;
+      if ($('ecBtnPreview')) $('ecBtnPreview').disabled = !canPreview;
+    }
+
+    async function vistaPreviewEditarCuota() {
+      if (!_editarCuotaId || !_editarContratoId || !_editarCuotaData) return;
+      _editarDryRunOk   = false;
+      _editarDryRunData = null;
+      if ($('ecBtnGuardar'))   $('ecBtnGuardar').disabled   = true;
+      if ($('ecBtnPreview'))   $('ecBtnPreview').disabled   = true;
+      if ($('ecPreviewPanel')) $('ecPreviewPanel').style.display = 'none';
+      if ($('ecMsg'))          $('ecMsg').textContent       = 'Validando con el servidor (dry run)…';
+
+      try {
+        const pMN     = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+        const impTRaw = ($('ecImpTotal')?.value || '').trim();
+        const servTRaw = ($('ecServTotal')?.value || '').trim();
+
+        const params = {
+          p_cuota_id:              _editarCuotaId,
+          p_contrato_id:           _editarContratoId,
+          p_anio:                  Number(_editarCuotaData.anio),
+          p_mes:                   Number(_editarCuotaData.mes),
+          p_monto_alquiler_total:  pMN($('ecAlqTotal')?.value),
+          p_monto_alquiler_pagado: pMN($('ecAlqPagado')?.value),
+          p_monto_impuesto_total:  impTRaw  === '' ? null : pMN(impTRaw),
+          p_monto_impuesto_pagado: pMN($('ecImpPagado')?.value),
+          p_monto_servicio_total:  servTRaw === '' ? 0    : pMN(servTRaw),
+          p_monto_servicio_pagado: pMN($('ecServPagado')?.value),
+          p_motivo:                ($('ecMotivo')?.value || '').trim(),
+          p_usuario:               'jefe',
+          p_dry_run:               true
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) {
+          if ($('ecMsg')) $('ecMsg').textContent = `Error: ${res?.error || 'Sin respuesta del servidor'}`;
+          return;
+        }
+
+        _editarDryRunOk   = true;
+        _editarDryRunData = res;
+        if ($('ecMsg')) $('ecMsg').textContent = '';
+        renderDryRunEditarCuota(res);
+        if ($('ecBtnGuardar')) $('ecBtnGuardar').disabled = false;
+
+      } catch(e) {
+        console.error('[EditarCuota] dry_run:', e);
+        if ($('ecMsg')) $('ecMsg').textContent = 'Error en validación: ' + (e?.message || String(e));
+      } finally {
+        // Re-habilitar preview si sigue habiendo motivo y sin errores de validación
+        const motivo = ($('ecMotivo')?.value || '').trim();
+        const alqT   = round2(parseMoneyToNumber($('ecAlqTotal')?.value || '') || 0);
+        if ($('ecBtnPreview')) $('ecBtnPreview').disabled = !(motivo.length > 0 && alqT > 0);
+      }
+    }
+
+    function renderDryRunEditarCuota(res) {
+      const panel = $('ecPreviewPanel');
+      const body  = $('ecPreviewBody');
+      if (!panel || !body) return;
+
+      const fmt   = v => fmtARS.format(Number(v) || 0);
+      const n     = v => Number(v) || 0;
+      const badge = e => {
+        const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
+        return `<span class="cobro-comp-badge ${cls}">${e || '—'}</span>`;
+      };
+      const dr = (label, value, extraCls='', changed=false) => {
+        const rowCls = changed ? ' ec-changed' : '';
+        const mark   = changed ? ' <span style="font-size:10px;color:#f59e0b;font-weight:700;">✎</span>' : '';
+        return `<div class="dryrun-row${rowCls}"><span class="dr-label">${label}${mark}</span><span class="dr-value${extraCls?' '+extraCls:''}">${value}</span></div>`;
+      };
+
+      const a     = res.antes      || {};
+      const d     = res.despues    || {};
+      const diffs = res.diferencias || {};
+      const chg   = f => !!diffs[f];
+
+      const hayImp  = n(a.monto_impuesto_total) > 0 || n(d.monto_impuesto_total) > 0 || a.monto_impuesto_total != null || d.monto_impuesto_total != null;
+      const hayServ = n(a.monto_servicio_total) > 0  || n(d.monto_servicio_total) > 0;
+
+      const antesHtml = [
+        dr('Alquiler total',   fmt(a.monto_alquiler_total)),
+        dr('Alquiler pagado',  fmt(a.monto_alquiler_pagado)),
+        dr('Saldo alquiler',   fmt(a.saldo_alquiler)),
+        hayImp  && dr('Impuesto total',   a.monto_impuesto_total  != null ? fmt(a.monto_impuesto_total)  : '—'),
+        hayImp  && dr('Impuesto pagado',  fmt(a.monto_impuesto_pagado)),
+        hayImp  && dr('Saldo impuesto',   fmt(a.saldo_impuesto)),
+        hayServ && dr('Servicio total',   fmt(a.monto_servicio_total)),
+        hayServ && dr('Servicio pagado',  fmt(a.monto_servicio_pagado)),
+        hayServ && dr('Saldo servicio',   fmt(a.saldo_servicio)),
+        dr('Total legacy',    fmt(a.monto_total)),
+        dr('Pagado legacy',   fmt(a.monto_pagado)),
+        dr('Saldo legacy',    fmt(a.saldo)),
+        dr('Estado',          badge(a.estado)),
+      ].filter(Boolean).join('');
+
+      const despuesHtml = [
+        dr('Alquiler total',  fmt(d.monto_alquiler_total),  chg('monto_alquiler_total')  ? 'dr-blue' : '', chg('monto_alquiler_total')),
+        dr('Alquiler pagado', fmt(d.monto_alquiler_pagado), chg('monto_alquiler_pagado') ? 'dr-blue' : '', chg('monto_alquiler_pagado')),
+        dr('Saldo alquiler',  fmt(d.saldo_alquiler),        n(d.saldo_alquiler) <= 0.009 ? 'dr-green' : ''),
+        hayImp  && dr('Impuesto total',  d.monto_impuesto_total != null ? fmt(d.monto_impuesto_total) : '—', chg('monto_impuesto_total') ? 'dr-blue' : '', chg('monto_impuesto_total')),
+        hayImp  && dr('Impuesto pagado', fmt(d.monto_impuesto_pagado), chg('monto_impuesto_pagado') ? 'dr-blue' : '', chg('monto_impuesto_pagado')),
+        hayImp  && dr('Saldo impuesto',  fmt(d.saldo_impuesto), n(d.saldo_impuesto) <= 0.009 ? 'dr-green' : ''),
+        hayServ && dr('Servicio total',  fmt(d.monto_servicio_total),  chg('monto_servicio_total')  ? 'dr-blue' : '', chg('monto_servicio_total')),
+        hayServ && dr('Servicio pagado', fmt(d.monto_servicio_pagado), chg('monto_servicio_pagado') ? 'dr-blue' : '', chg('monto_servicio_pagado')),
+        hayServ && dr('Saldo servicio',  fmt(d.saldo_servicio),  n(d.saldo_servicio) <= 0.009  ? 'dr-green' : ''),
+        dr('Total legacy',  fmt(d.monto_total)),
+        dr('Pagado legacy', fmt(d.monto_pagado)),
+        dr('Saldo legacy',  fmt(d.saldo), n(d.saldo) <= 0.009 ? 'dr-green' : ''),
+        dr('Estado', badge(d.estado), '', chg('estado')),
+      ].filter(Boolean).join('');
+
+      const nDiffs = Object.keys(diffs).length;
+      const diffMsg = nDiffs === 0
+        ? '<div style="color:#64748b;font-size:13px;">Sin cambios en componentes (los totales legacy se recalcularán igual).</div>'
+        : `<div style="color:#475569;font-size:13px;">${nDiffs} campo(s) modificado(s): <strong>${Object.keys(diffs).join(', ')}</strong></div>`;
+
+      body.innerHTML = `
+        <div class="dryrun-summary">
+          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          ${diffMsg}
+        </div>
+        <div class="dryrun-card">
+          <div class="dryrun-card-header">Período ${String(res.mes).padStart(2,'0')}/${res.anio}</div>
+          <div class="dryrun-section sec-antes">
+            <div class="dryrun-section-title">Antes</div>
+            ${antesHtml}
+          </div>
+          <div class="dryrun-section sec-despues">
+            <div class="dryrun-section-title">Después</div>
+            ${despuesHtml}
+          </div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">✎ = campo modificado respecto al estado actual en BD.</div>
+      `;
+      panel.style.display = 'block';
+    }
+
+    async function confirmarEditarCuota() {
+      if (!_editarDryRunOk) { alert('Primero ejecutá la vista previa y asegurate de que sea exitosa.'); return; }
+
+      const periodo = _editarCuotaData?.periodo || `${String(_editarCuotaData?.mes).padStart(2,'0')}/${_editarCuotaData?.anio}`;
+      const nombre  = selected?.inquilino_nombre || selected?.nombre_inquilino || '';
+      const estadoNuevo = _editarDryRunData?.estado_nuevo || '?';
+      const motivo  = ($('ecMotivo')?.value || '').trim();
+
+      const ok = confirm(
+        `Esta acción modificará la cuota REAL de ${nombre} (${periodo}) y quedará registrada en auditoría.\n\n` +
+        `Estado nuevo esperado: ${estadoNuevo}\n` +
+        `Motivo: "${motivo}"\n\n` +
+        `¿Confirmás la corrección?`
+      );
+      if (!ok) return;
+
+      const msg = $('ecMsg');
+      if (msg) msg.textContent = 'Guardando corrección real…';
+      if ($('ecBtnGuardar')) $('ecBtnGuardar').disabled = true;
+      if ($('ecBtnPreview')) $('ecBtnPreview').disabled = true;
+
+      try {
+        const pMN      = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+        const impTRaw  = ($('ecImpTotal')?.value  || '').trim();
+        const servTRaw = ($('ecServTotal')?.value || '').trim();
+
+        const params = {
+          p_cuota_id:              _editarCuotaId,
+          p_contrato_id:           _editarContratoId,
+          p_anio:                  Number(_editarCuotaData.anio),
+          p_mes:                   Number(_editarCuotaData.mes),
+          p_monto_alquiler_total:  pMN($('ecAlqTotal')?.value),
+          p_monto_alquiler_pagado: pMN($('ecAlqPagado')?.value),
+          p_monto_impuesto_total:  impTRaw  === '' ? null : pMN(impTRaw),
+          p_monto_impuesto_pagado: pMN($('ecImpPagado')?.value),
+          p_monto_servicio_total:  servTRaw === '' ? 0    : pMN(servTRaw),
+          p_monto_servicio_pagado: pMN($('ecServPagado')?.value),
+          p_motivo:                motivo,
+          p_usuario:               'jefe',
+          p_dry_run:               false
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo guardar la corrección.');
+
+        const contratoId = _editarContratoId;
+        closeEditarCuota();
+        await refreshAll();
+
+        const id = Number(contratoId);
+        if (selected?.contrato_id === id || String(selected?.contrato_id) === String(id)) {
+          const refreshed = unidades.find(x => Number(x.contrato_id) === id);
+          if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
+        }
+        setTimeout(() => showPagoSuccessToast(`Cuota corregida. Estado: ${res.estado_nuevo}.`, 'Cuota editada'), 120);
+
+      } catch(e) {
+        console.error('[EditarCuota] confirmar:', e);
+        if (msg) msg.textContent = 'Error: ' + (e?.message || String(e));
+        if ($('ecBtnGuardar')) $('ecBtnGuardar').disabled = false;
+      }
+    }
+
     // Exponer funciones operativas para los onclick inline del HTML.
 function exposeGlobalFunction(name, fn){
   if (typeof fn === 'function') {
@@ -17350,6 +17791,12 @@ exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? c
 exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
 // Cobro por componentes (Etapa 4)
 exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
+// Editar cuota por componentes (Etapa 7B)
+exposeGlobalFunction('openEditarCuota',                typeof openEditarCuota                !== 'undefined' ? openEditarCuota                : null);
+exposeGlobalFunction('closeEditarCuota',               typeof closeEditarCuota               !== 'undefined' ? closeEditarCuota               : null);
+exposeGlobalFunction('recalcEditarCuota',              typeof recalcEditarCuota              !== 'undefined' ? recalcEditarCuota              : null);
+exposeGlobalFunction('vistaPreviewEditarCuota',        typeof vistaPreviewEditarCuota        !== 'undefined' ? vistaPreviewEditarCuota        : null);
+exposeGlobalFunction('confirmarEditarCuota',           typeof confirmarEditarCuota           !== 'undefined' ? confirmarEditarCuota           : null);
 exposeGlobalFunction('closeCobroComp',                 typeof closeCobroComp                 !== 'undefined' ? closeCobroComp                 : null);
 exposeGlobalFunction('calcTotalesCobroComp',           typeof calcTotalesCobroComp           !== 'undefined' ? calcTotalesCobroComp           : null);
 exposeGlobalFunction('sugerirDistribucionCobroComp',   typeof sugerirDistribucionCobroComp   !== 'undefined' ? sugerirDistribucionCobroComp   : null);
