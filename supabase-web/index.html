@@ -4737,8 +4737,10 @@ td:last-child{
                   <h3 style="margin:0;">Datos del activo</h3>
                 </div>
                 <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
-                  <button class="btn primary" type="button" onclick="openPagoModal(selected)">Cobro</button>
-                  <button class="btn" type="button" onclick="openCobroComp(selected)" title="Cobro con desglose por alquiler, impuesto y servicio (nuevo)">Cobro ⚡</button>
+                  <!-- Etapa 12C: "Cobro" ahora enruta al nuevo flujo por componentes.
+                       Cobro viejo (openPagoModal) queda como fallback oculto para contratos sin componentes.
+                       No eliminar openPagoModal ni el modal viejo hasta validación completa. -->
+                  <button class="btn primary" type="button" onclick="openCobro(selected)" title="Cobro por componentes">Cobro</button>
                   <button class="btn" type="button" onclick="openActivoModal('full')">Editar activo</button>
                   <button class="btn" id="btnToggleOcultarActivo" data-toggle-ocultar-activo="1" type="button" onclick="toggleOcultarActivoActual()">Ocultar activo</button>
                   <button class="btn danger" type="button" onclick="deleteActivoActual()">Borrar activo</button>
@@ -18263,6 +18265,52 @@ setTimeout(() => {
     }
 
     // ============================================================
+    // COBRO PRINCIPAL — Etapa 12C
+    // openCobro(r) enruta al nuevo flujo si el contrato tiene cuotas
+    // con componentes, o al viejo con advertencia si es legacy.
+    // El botón "Cobro" ya no llama directamente a openPagoModal.
+    // Cobro viejo deshabilitado visualmente — mantener como fallback
+    // hasta que todos los contratos tengan componentes preparados.
+    // ============================================================
+
+    async function openCobro(r) {
+      if (!r || !r.contrato_id) { alert('Primero seleccioná un activo con contrato operativo.'); return; }
+
+      try {
+        // Verificar si el contrato tiene al menos una cuota con componentes preparados
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select('id')
+          .eq('contrato_id', Number(r.contrato_id))
+          .not('monto_alquiler_total', 'is', null)
+          .limit(1);
+
+        const tieneComponentes = !error && (data || []).length > 0;
+
+        if (tieneComponentes) {
+          openCobroComp(r);
+        } else {
+          _abrirCobroLegacyConAviso(r);
+        }
+      } catch(e) {
+        console.warn('[openCobro] error verificando componentes:', e?.message || e);
+        _abrirCobroLegacyConAviso(r);
+      }
+    }
+
+    function _abrirCobroLegacyConAviso(r) {
+      const nombre = r.inquilino_nombre || r.nombre_inquilino || '—';
+      const codigo = r.local_codigo || r.codigo_local || '—';
+      const ok = confirm(
+        `⚠ El contrato ${codigo} (${nombre}) todavía no tiene cuotas preparadas para el cobro por componentes.\n\n` +
+        `Para usar el nuevo cobro, preparar primero las cuotas desde "✎ Editar" en la grilla de cuotas.\n\n` +
+        `¿Querés continuar con el cobro anterior (método temporario)?`
+      );
+      // Cobro viejo solo accesible con aviso explícito durante período de transición.
+      if (ok) openPagoModal(r);
+    }
+
+    // ============================================================
     // ANULAR COBRO POR COMPONENTES — Etapa 11
     // Botón en Recibos internos solo para origen=COBRO_COMPONENTES.
     // Llama a RPC anular_cobro_por_componentes (ya existente).
@@ -19136,6 +19184,8 @@ exposeGlobalFunction('openCobroComp',                  typeof openCobroComp     
 exposeGlobalFunction('agregarMedioCobroComp',          typeof agregarMedioCobroComp          !== 'undefined' ? agregarMedioCobroComp          : null);
 exposeGlobalFunction('eliminarMedioCobroComp',         typeof eliminarMedioCobroComp         !== 'undefined' ? eliminarMedioCobroComp         : null);
 exposeGlobalFunction('onMedioCobroCompChange',         typeof onMedioCobroCompChange         !== 'undefined' ? onMedioCobroCompChange         : null);
+// Cobro principal — enrutador nuevo/legacy (Etapa 12C)
+exposeGlobalFunction('openCobro',                  typeof openCobro                  !== 'undefined' ? openCobro                  : null);
 // Anular cobro por componentes (Etapa 11)
 exposeGlobalFunction('openAnularCobro',            typeof openAnularCobro            !== 'undefined' ? openAnularCobro            : null);
 exposeGlobalFunction('closeAnularCobro',           typeof closeAnularCobro           !== 'undefined' ? closeAnularCobro           : null);
