@@ -1234,8 +1234,15 @@ td:last-child{
     .dryrun-row .dr-value.dr-green{color:#15803d;}
     .dryrun-row .dr-value.dr-sub{font-size:13px;font-weight:700;}
     /* ── Editar cuota por componentes (Etapa 7B) ── */
-    #editarCuotaBack .modal{width:min(700px,calc(100vw - 20px));max-height:92vh;overflow-y:auto;}
-    .ec-input{width:100%;text-align:right;font-weight:700;padding:5px 8px;border-radius:6px;border:1px solid #cbd5e1;box-sizing:border-box;font-size:13px;}
+    #editarCuotaBack .modal{width:min(700px,calc(100vw - 40px));max-height:92vh;overflow-y:auto;overflow-x:hidden;}
+    .ec-comp-table{width:100%;min-width:0;border-collapse:collapse;font-size:13px;table-layout:fixed;}
+    .ec-th-l{padding:7px 10px;text-align:left;font-size:11px;color:#64748b;background:#f8fafc;border-bottom:2px solid #e2e8f0;font-weight:700;white-space:nowrap;}
+    .ec-th-r{padding:7px 8px;text-align:right;font-size:11px;color:#64748b;background:#f8fafc;border-bottom:2px solid #e2e8f0;white-space:nowrap;}
+    .ec-td-l{padding:8px 10px;font-weight:700;color:#1e293b;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    .ec-td-i{padding:4px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+    .ec-td-s{padding:8px 10px;text-align:right;font-weight:700;border-bottom:1px solid #f1f5f9;vertical-align:middle;white-space:nowrap;font-size:13px;color:#1e293b;}
+    .ec-row-total .ec-td-l,.ec-row-total .ec-td-s{font-weight:800;color:#1e293b;background:#f8fafc;border-top:2px solid #cbd5e1;border-bottom:none;}
+    .ec-input{display:block;width:100%;min-width:0;text-align:right;font-weight:700;padding:5px 8px;border-radius:6px;border:1px solid #cbd5e1;box-sizing:border-box;font-size:12px;background:#fff;}
     .ec-input:focus{outline:2px solid #3b82f6;border-color:#3b82f6;outline-offset:0;}
     .ec-btn-row{font-size:11px;padding:2px 7px;background:none;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;color:#475569;white-space:nowrap;}
     .ec-btn-row:hover{background:#f1f5f9;}
@@ -5250,75 +5257,92 @@ td:last-child{
   <!-- MODAL EDITAR CUOTA POR COMPONENTES (Etapa 7B) -->
   <div class="modalBack" id="editarCuotaBack" style="display:none;">
     <div class="modal">
-      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
-        <div>
-          <h3 style="margin:0;">Editar cuota por componentes</h3>
-          <div class="muted" style="font-size:12px;margin-top:3px;">Corregí alquiler, impuesto y servicio de este período. Siempre con vista previa antes de guardar.</div>
+
+      <!-- ── Encabezado ── -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin:0 0 3px;font-size:15px;line-height:1.3;">Editar cuota por componentes</h3>
+          <div style="font-size:12px;color:#64748b;">Corregí alquiler, impuesto y servicio de este período. Siempre con vista previa antes de guardar.</div>
         </div>
-        <button class="btn" onclick="closeEditarCuota()">Cerrar</button>
+        <button class="btn" style="flex-shrink:0;" onclick="closeEditarCuota()">Cerrar</button>
       </div>
 
-      <div id="editarCuotaMeta" style="font-weight:700;margin:8px 0;color:#475569;font-size:13px;"></div>
+      <!-- ── Meta del contrato / período ── -->
+      <div id="editarCuotaMeta" style="margin:10px 0 4px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;"></div>
 
-      <div id="editarCuotaModoAviso" style="display:none;padding:10px 14px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;color:#92400e;margin:8px 0;font-size:13px;">
-        <strong>⚠ Esta cuota no tenía componentes completos.</strong> Al guardar se normalizará a modelo por componentes.
+      <!-- ── Aviso legacy ── -->
+      <div id="editarCuotaModoAviso" style="display:none;padding:9px 13px;background:#fefce8;border:1px solid #fde68a;border-radius:8px;color:#92400e;margin:8px 0;font-size:12px;">
+        <strong>Esta cuota no tenía componentes completos.</strong> Al guardar se normalizará a modelo por componentes.
       </div>
 
       <div id="editarCuotaFormArea">
 
-        <table style="width:100%;border-collapse:collapse;margin-top:14px;font-size:13px;">
-          <thead>
-            <tr style="background:#f8fafc;">
-              <th style="padding:8px 10px;text-align:left;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;font-weight:700;">Componente</th>
-              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Total</th>
-              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Pagado</th>
-              <th style="padding:8px;text-align:right;font-size:11px;color:#64748b;border-bottom:1px solid #e2e8f0;">Saldo (calc.)</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Alquiler</td>
-              <td style="padding:4px 6px;"><input id="ecAlqTotal" type="text" inputmode="decimal" class="ec-input" placeholder="Ej: 386.350" oninput="recalcEditarCuota()"></td>
-              <td style="padding:4px 6px;"><input id="ecAlqPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
-              <td style="padding:8px;text-align:right;font-weight:700;" id="ecAlqSaldo">—</td>
-            </tr>
-            <tr id="ecRowImpuesto" style="border-bottom:1px solid #f1f5f9;">
-              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Impuesto</td>
-              <td style="padding:4px 6px;"><input id="ecImpTotal" type="text" inputmode="decimal" class="ec-input" placeholder="Vacío = sin impuesto este mes" oninput="recalcEditarCuota()"></td>
-              <td style="padding:4px 6px;"><input id="ecImpPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
-              <td style="padding:8px;text-align:right;font-weight:700;" id="ecImpSaldo">—</td>
-            </tr>
-            <tr id="ecRowServicio" style="display:none;border-bottom:1px solid #f1f5f9;">
-              <td style="padding:8px 10px;font-weight:700;color:#1e293b;">Servicio</td>
-              <td style="padding:4px 6px;"><input id="ecServTotal" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
-              <td style="padding:4px 6px;"><input id="ecServPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
-              <td style="padding:8px;text-align:right;font-weight:700;" id="ecServSaldo">—</td>
-            </tr>
-            <tr style="border-top:2px solid #cbd5e1;background:#f8fafc;font-weight:700;">
-              <td style="padding:8px 10px;">TOTAL</td>
-              <td style="padding:8px;text-align:right;" id="ecTotalTotal">—</td>
-              <td style="padding:8px;text-align:right;" id="ecTotalPagado">—</td>
-              <td style="padding:8px;text-align:right;" id="ecTotalSaldo">—</td>
-            </tr>
-          </tbody>
-        </table>
+        <!-- ── Grilla de componentes ── -->
+        <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:12px;border:1px solid #e2e8f0;border-radius:8px;">
+          <table class="ec-comp-table">
+            <colgroup>
+              <col style="width:100px;">
+              <col>
+              <col>
+              <col style="width:108px;">
+            </colgroup>
+            <thead>
+              <tr>
+                <th class="ec-th-l">Componente</th>
+                <th class="ec-th-r">Total</th>
+                <th class="ec-th-r">Pagado</th>
+                <th class="ec-th-r">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="ec-td-l">Alquiler</td>
+                <td class="ec-td-i"><input id="ecAlqTotal" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-i"><input id="ecAlqPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-s" id="ecAlqSaldo">—</td>
+              </tr>
+              <tr id="ecRowImpuesto">
+                <td class="ec-td-l">Impuesto</td>
+                <td class="ec-td-i"><input id="ecImpTotal" type="text" inputmode="decimal" class="ec-input" placeholder="Vacío = sin imp." oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-i"><input id="ecImpPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-s" id="ecImpSaldo">—</td>
+              </tr>
+              <tr id="ecRowServicio" style="display:none;">
+                <td class="ec-td-l">Servicio</td>
+                <td class="ec-td-i"><input id="ecServTotal" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-i"><input id="ecServPagado" type="text" inputmode="decimal" class="ec-input" placeholder="0" oninput="recalcEditarCuota()"></td>
+                <td class="ec-td-s" id="ecServSaldo">—</td>
+              </tr>
+              <tr class="ec-row-total">
+                <td class="ec-td-l">TOTAL</td>
+                <td class="ec-td-s" id="ecTotalTotal">—</td>
+                <td class="ec-td-s" id="ecTotalPagado">—</td>
+                <td class="ec-td-s" id="ecTotalSaldo">—</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <div style="margin-top:10px;padding:8px 12px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;gap:10px;font-size:13px;">
-          <span class="muted">Estado calculado:</span>
+        <!-- ── Estado calculado ── -->
+        <div style="margin-top:10px;padding:7px 12px;background:#f1f5f9;border-radius:6px;display:flex;align-items:center;gap:8px;font-size:13px;">
+          <span style="color:#64748b;font-size:12px;">Estado calculado:</span>
           <span id="ecEstadoCalc" style="font-weight:700;">—</span>
         </div>
 
+        <!-- ── Motivo ── -->
         <div style="margin-top:14px;">
-          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px;">
-            Motivo de la corrección <span style="color:#dc2626;">*</span> (obligatorio para habilitar vista previa)
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Motivo de la corrección <span style="color:#dc2626;">*</span>
+            <span style="font-weight:400;">(obligatorio para habilitar vista previa)</span>
           </label>
           <textarea id="ecMotivo" rows="2"
-            placeholder="Ej: Corrección manual de impuesto ya cobrado&#10;Ej: Ajuste de saldo por planilla"
-            style="width:100%;box-sizing:border-box;padding:8px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;"
+            placeholder="Ej: Corrección manual de impuesto ya cobrado"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;min-height:52px;line-height:1.4;"
             oninput="recalcEditarCuota()"></textarea>
         </div>
 
-        <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center;">
+        <!-- ── Botones ── -->
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
           <button class="btn primary" id="ecBtnPreview" type="button" onclick="vistaPreviewEditarCuota()" disabled>Vista previa</button>
           <button class="btn primary" id="ecBtnGuardar" type="button" onclick="confirmarEditarCuota()" disabled
             style="background:#15803d;border-color:#15803d;">Guardar corrección</button>
@@ -5326,6 +5350,7 @@ td:last-child{
 
         <div class="toast" id="ecMsg" style="margin-top:8px;"></div>
 
+        <!-- ── Panel vista previa dry_run ── -->
         <div id="ecPreviewPanel" class="cobro-comp-preview-box" style="display:none;margin-top:14px;">
           <div id="ecPreviewBody"></div>
         </div>
@@ -17456,7 +17481,7 @@ setTimeout(() => {
       _editarCuotaData  = null;
 
       back.style.display = 'flex';
-      $('editarCuotaMeta').textContent        = 'Cargando…';
+      $('editarCuotaMeta').textContent = 'Cargando…';
       $('editarCuotaModoAviso').style.display = 'none';
       $('ecMsg').textContent                  = '';
       $('ecPreviewPanel').style.display       = 'none';
@@ -17476,7 +17501,11 @@ setTimeout(() => {
         const nombre  = selected?.inquilino_nombre || selected?.nombre_inquilino || '—';
         const local   = selected?.local_codigo     || selected?.codigo_local     || '—';
         const periodo = data.periodo || `${String(data.mes).padStart(2,'0')}/${data.anio}`;
-        $('editarCuotaMeta').textContent = `${local} — ${nombre}  ·  ${periodo}  ·  Estado actual: ${data.estado || '—'}`;
+        const estadoBadgeCls = (data.estado||'').includes('PARCIAL') ? '#854d0e;background:#fef9c3' : (data.estado||'').includes('PAGADO') ? '#15803d;background:#dcfce7' : '#dc2626;background:#fee2e2';
+        $('editarCuotaMeta').innerHTML =
+          `<strong>${local}</strong> · ${nombre} · ` +
+          `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${periodo}</span> · ` +
+          `Estado: <span style="color:${estadoBadgeCls};padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${data.estado||'—'}</span>`;
 
         // Aviso si la cuota no tiene componentes completos
         const tieneComp = data.monto_alquiler_total != null && data.monto_alquiler_pagado != null && data.saldo_alquiler != null;
