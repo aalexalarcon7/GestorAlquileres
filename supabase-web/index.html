@@ -4736,9 +4736,9 @@ td:last-child{
                     <th>Vencimiento</th>
                     <th class="right">Total</th>
                     <th class="right">Pagado</th>
-                    <th class="right">Impuesto</th>
-                    <th id="detalleThServicio" class="right">Servicio</th>
-                    <th class="right">Saldo</th>
+                    <th class="right" id="detalleThImpuesto" title="Impuesto pendiente (componentes) o aplicado según recibos (legacy)">Imp. pend.</th>
+                    <th id="detalleThServicio" class="right" title="Servicio pendiente (componentes) o total del mes (legacy)">Serv. pend.</th>
+                    <th class="right">Saldo total</th>
                     <th class="center">Estado</th>
                     <th class="center">Días atraso</th>
                   </tr>
@@ -7115,15 +7115,37 @@ if (aplicaciones.length) {
       return [...keys];
     }
 
+    // ── Etapa 6B: detecta si los componentes de una cuota están completos ────
+    // Reglas:
+    //   • Alquiler: monto_alquiler_total, monto_alquiler_pagado y db_saldo_alquiler deben ser no-null.
+    //   • Impuesto: si monto_impuesto_total != null → monto_impuesto_pagado y db_saldo_impuesto deben estar.
+    //   • Servicio: si monto_servicio > 0 → monto_servicio_pagado y db_saldo_servicio deben estar.
+    //     Contratos sin servicio (monto_servicio = 0/null) no requieren esos campos.
+    // Si alguna condición falla, la cuota cae a la rama legacy para evitar mostrar saldo 0 falso.
+    function hasComponentesCompletos(row) {
+      if (row.monto_alquiler_total  == null) return false;
+      if (row.monto_alquiler_pagado == null) return false;
+      if (row.db_saldo_alquiler     == null) return false;
+      if (row.monto_impuesto_total  != null) {
+        if (row.monto_impuesto_pagado == null) return false;
+        if (row.db_saldo_impuesto     == null) return false;
+      }
+      if (toNumber(row.monto_servicio) > 0) {
+        if (row.monto_servicio_pagado == null) return false;
+        if (row.db_saldo_servicio     == null) return false;
+      }
+      return true;
+    }
+
     function enrichDebtRowsWithImpuestoTotals(rows){
   const detalleRows = Array.isArray(rows) ? rows : [];
 
   detalleRows.forEach(row => {
-    // ── Etapa 6: rama de componentes ─────────────────────────────────────
-    // Si la cuota tiene datos de componentes (Etapa 2B), usarlos directamente.
-    // Los valores de DB (db_saldo_*) son la fuente de verdad; el sistema legacy
-    // solo se usa como fallback cuando monto_alquiler_total es null.
-    if (row.monto_alquiler_total != null) {
+    // ── Etapa 6/6B: rama de componentes ──────────────────────────────────
+    // Solo entra si TODOS los campos mínimos están completos (hasComponentesCompletos).
+    // Si los componentes están parcialmente poblados, cae a legacy de forma segura.
+    if (hasComponentesCompletos(row)) {
+      row._modo_componentes = true;
       const saldoAlq  = round2(toNumber(row.db_saldo_alquiler  ?? 0));
       const saldoImp  = round2(toNumber(row.db_saldo_impuesto  ?? 0));
       const saldoServ = round2(toNumber(row.db_saldo_servicio  ?? 0));
@@ -7137,7 +7159,7 @@ if (aplicaciones.length) {
       const pagadoComp = round2(pagAlq + pagImp + pagServ);
       const saldoComp  = round2(saldoAlq + saldoImp + saldoServ);
 
-      // impuesto = saldo pendiente de impuesto (para mostrar en columna Impuesto)
+      // impuesto = saldo pendiente de impuesto (para columna "Imp. pend.")
       row.impuesto           = saldoImp;
       row.servicio_pendiente = saldoServ;
       row.saldo_alquiler     = saldoAlq;
@@ -7157,7 +7179,16 @@ if (aplicaciones.length) {
       return; // saltar rama legacy
     }
 
-    // ── Rama legacy (cuotas sin componentes poblados) ─────────────────────
+    // Componentes presentes pero incompletos: marcar para badge visual de advertencia.
+    if (row.monto_alquiler_total != null) {
+      row._modo_componentes       = false;
+      row._componentes_incompletos = true;
+    } else {
+      row._modo_componentes        = false;
+      row._componentes_incompletos = false;
+    }
+
+    // ── Rama legacy (cuotas sin componentes o con componentes incompletos) ─
     const impuesto = round2(toNumber(row.impuesto));
     const totalBase = round2(toNumber(row.total ?? row.monto_total));
     const pagadoBase = round2(toNumber(row.pagado ?? row.monto_pagado));
@@ -7599,7 +7630,15 @@ if (aplicacionesDirectas.length) {
           <td class="right">${impuestoCell}</td>
           ${_detalleShowServicio ? `<td class="right">${servicioCell}</td>` : ''}
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
-          <td class="center"><span class="badge ${cls}">${estado}</span></td>
+          <td class="center">
+            <span class="badge ${cls}">${estado}</span>${
+              x._modo_componentes
+                ? ' <span title="Saldos calculados desde columnas de componentes (Etapa 2B)" style="font-size:10px;color:#2563eb;cursor:default;">⚡</span>'
+                : x._componentes_incompletos
+                  ? ' <span title="Componentes incompletos — usando datos legacy de respaldo" style="font-size:10px;color:var(--warn);cursor:default;">⚠</span>'
+                  : ''
+            }
+          </td>
           <td class="center">${diasCell}</td>
         `;
         tb.appendChild(tr);
