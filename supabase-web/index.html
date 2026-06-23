@@ -1252,6 +1252,14 @@ td:last-child{
     .imp-chip.ic-pag{background:#dcfce7;color:#15803d;}
     .imp-chip.ic-pend{background:#fef9c3;color:#854d0e;}
     .imp-chip.ic-ap{background:#f1f5f9;color:#475569;font-weight:600;}
+    .imp-chip.ic-add{background:#f0f9ff;color:#0369a1;border:1px dashed #93c5fd;cursor:pointer;font-weight:600;}
+    .imp-chip.ic-add:hover{background:#e0f2fe;}
+    /* ── Modal editar impuesto del mes (Etapa 8) ── */
+    #editarImpuestoBack .modal{width:min(540px,calc(100vw - 40px));max-height:88vh;overflow-y:auto;overflow-x:hidden;}
+    .ei-card{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-top:10px;font-size:13px;}
+    .ei-row{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:13px;}
+    .ei-label{color:#64748b;}
+    .ei-value{font-weight:700;text-align:right;}
 
     [data-theme="dark"] .modal{background:linear-gradient(180deg, var(--card-solid-dark), rgba(15,23,36,.94))}
 
@@ -5364,6 +5372,84 @@ td:last-child{
     </div>
   </div>
 
+  <!-- MODAL EDITAR IMPUESTO DEL MES (Etapa 8) -->
+  <div class="modalBack" id="editarImpuestoBack" style="display:none;">
+    <div class="modal">
+
+      <!-- Encabezado -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding-bottom:12px;border-bottom:1px solid #f1f5f9;">
+        <div style="flex:1;min-width:0;">
+          <h3 style="margin:0 0 3px;font-size:15px;">Editar impuesto del mes</h3>
+          <div style="font-size:12px;color:#64748b;">Solo modifica el monto de impuesto total. Alquiler y servicio no cambian.</div>
+        </div>
+        <button class="btn" style="flex-shrink:0;" onclick="closeEditarImpuesto()">Cerrar</button>
+      </div>
+
+      <!-- Meta -->
+      <div id="eiMeta" style="margin:10px 0 4px;padding:8px 12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;color:#475569;line-height:1.8;"></div>
+
+      <!-- Bloqueo: cuota sin componentes -->
+      <div id="eiBloqueoComp" style="display:none;padding:10px 14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:8px 0;font-size:13px;">
+        <strong>Esta cuota no tiene componentes completos.</strong><br>
+        Primero normalizala desde <em>Editar cuota por componentes</em>.
+      </div>
+
+      <div id="eiFormArea">
+
+        <!-- Estado actual (solo lectura) -->
+        <div class="ei-card">
+          <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;">Estado actual del impuesto</div>
+          <div class="ei-row"><span class="ei-label">Impuesto total</span><span class="ei-value" id="eiActualTotal">—</span></div>
+          <div class="ei-row"><span class="ei-label">Impuesto pagado</span><span class="ei-value" id="eiActualPagado">—</span></div>
+          <div class="ei-row"><span class="ei-label">Saldo impuesto</span><span class="ei-value" id="eiActualSaldo">—</span></div>
+        </div>
+
+        <!-- Campo editable -->
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Nuevo impuesto total <span style="font-weight:400;">(dejar vacío o 0 para quitar el impuesto)</span>
+          </label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input id="eiNuevoTotal" type="text" inputmode="decimal"
+              placeholder="Ej: 13.500 — vacío = sin impuesto"
+              style="flex:1;min-width:0;padding:7px 10px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:700;text-align:right;box-sizing:border-box;"
+              oninput="recalcEditarImpuesto()">
+            <span style="white-space:nowrap;font-size:12px;color:#64748b;">
+              Nuevo saldo: <strong id="eiNuevoSaldo" style="color:#1e293b;">—</strong>
+            </span>
+          </div>
+        </div>
+
+        <!-- Motivo -->
+        <div style="margin-top:14px;">
+          <label style="font-size:12px;color:#64748b;font-weight:600;display:block;margin-bottom:5px;">
+            Motivo <span style="color:#dc2626;">*</span>
+            <span style="font-weight:400;">(obligatorio para habilitar vista previa)</span>
+          </label>
+          <textarea id="eiMotivo" rows="2"
+            placeholder="Ej: Carga manual de impuesto por planilla&#10;Ej: Corrección de impuesto cargado por error"
+            style="width:100%;box-sizing:border-box;padding:8px 10px;border:1px solid #e2e8f0;border-radius:6px;font-size:13px;resize:vertical;font-family:inherit;min-height:52px;"
+            oninput="recalcEditarImpuesto()"></textarea>
+        </div>
+
+        <!-- Botones -->
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn primary" id="eiBtnPreview" type="button" onclick="vistaPreviewEditarImpuesto()" disabled>Vista previa</button>
+          <button class="btn primary" id="eiBtnGuardar" type="button" onclick="confirmarEditarImpuesto()" disabled
+            style="background:#15803d;border-color:#15803d;">Guardar impuesto</button>
+        </div>
+
+        <div class="toast" id="eiMsg" style="margin-top:8px;"></div>
+
+        <!-- Panel dry_run -->
+        <div id="eiPreviewPanel" class="cobro-comp-preview-box" style="display:none;margin-top:14px;">
+          <div id="eiPreviewBody"></div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL RECIBO INTERNO -->
   <div class="modalBack" id="modalReciboBack">
     <div class="recibo-preview">
@@ -7739,19 +7825,38 @@ if (aplicacionesDirectas.length) {
         // Columna Impuesto: chips suaves según estado.
         // Componentes: usa monto_impuesto_total/pagado/saldo de cuotas_operativas.
         // Legacy: muestra el impuesto aplicado desde recibos como chip neutro.
+        // Columna Impuesto: chips + botón de edición para cuotas con componentes.
         let impuestoCell;
-        if (x._modo_componentes) {
+        if (x._modo_componentes && x.id) {
           const impTotal  = round2(toNumber(x.monto_impuesto_total));
           const saldoImp  = round2(toNumber(x.db_saldo_impuesto ?? x.impuesto ?? 0));
           const impPagado = round2(toNumber(x.monto_impuesto_pagado));
+          const eiA = `${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)}`;
+          const editBtn = `<button class="ec-btn-row" onclick="openEditarImpuesto(${eiA})" title="Editar impuesto de este mes" style="font-size:10px;margin-top:2px;">editar imp.</button>`;
           if (impTotal <= 0.009) {
-            impuestoCell = `<span class="muted">—</span>`;
+            impuestoCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="muted">—</span>` +
+              `<button class="ec-btn-row" onclick="openEditarImpuesto(${eiA})" title="Cargar impuesto para este mes" style="font-size:10px;">+ cargar imp.</button>` +
+              `</div>`;
           } else if (saldoImp <= 0.009 && impPagado > 0.009) {
-            impuestoCell = `<span class="imp-chip ic-pag" title="Impuesto de ${fmtARS.format(impTotal)} pagado completamente">Pagado ${fmtARS.format(impTotal)}</span>`;
+            impuestoCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="imp-chip ic-pag" title="Pagado ${fmtARS.format(impTotal)}">Pagado ${fmtARS.format(impTotal)}</span>` +
+              editBtn + `</div>`;
           } else {
-            impuestoCell = `<span class="imp-chip ic-pend" title="${fmtARS.format(impTotal)} total, saldo pendiente">Pendiente ${fmtARS.format(saldoImp)}</span>`;
+            impuestoCell = `<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;">` +
+              `<span class="imp-chip ic-pend" title="Pendiente ${fmtARS.format(saldoImp)} de ${fmtARS.format(impTotal)}">Pendiente ${fmtARS.format(saldoImp)}</span>` +
+              editBtn + `</div>`;
           }
+        } else if (x._modo_componentes) {
+          // componentes sin id (raro): solo chip sin botón
+          const impTotal = round2(toNumber(x.monto_impuesto_total));
+          const saldoImp = round2(toNumber(x.db_saldo_impuesto ?? x.impuesto ?? 0));
+          const impPag   = round2(toNumber(x.monto_impuesto_pagado));
+          if (impTotal <= 0.009) impuestoCell = `<span class="muted">—</span>`;
+          else if (saldoImp <= 0.009 && impPag > 0.009) impuestoCell = `<span class="imp-chip ic-pag">Pagado ${fmtARS.format(impTotal)}</span>`;
+          else impuestoCell = `<span class="imp-chip ic-pend">Pendiente ${fmtARS.format(saldoImp)}</span>`;
         } else {
+          // Legacy: chip neutro, sin botón de edición
           impuestoCell = impuesto > 0
             ? `<span class="imp-chip ic-ap" title="Impuesto aplicado según recibos">${fmtARS.format(impuesto)}</span>`
             : `<span class="muted">—</span>`;
@@ -17844,6 +17949,344 @@ setTimeout(() => {
       }
     }
 
+    // ============================================================
+    // EDITAR IMPUESTO DEL MES — Etapa 8
+    // Modal liviano para cargar/editar/quitar monto_impuesto_total.
+    // Usa la RPC editar_cuota_componentes_manual enviando los demás
+    // componentes sin cambios; solo modifica p_monto_impuesto_total.
+    // NO toca pagos, recibos, aplicaciones ni cobro.
+    // ============================================================
+
+    let _eiCuotaId    = null;
+    let _eiContratoId = null;
+    let _eiData       = null;   // snapshot de BD
+    let _eiDryRunOk   = false;
+    let _eiDryRunData = null;
+
+    async function openEditarImpuesto(cuotaId, contratoId, anio, mes) {
+      if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
+      const back = $('editarImpuestoBack');
+      if (!back) return;
+
+      _eiCuotaId    = Number(cuotaId);
+      _eiContratoId = Number(contratoId);
+      _eiDryRunOk   = false;
+      _eiDryRunData = null;
+      _eiData       = null;
+
+      back.style.display = 'flex';
+      $('eiMeta').textContent                 = 'Cargando…';
+      $('eiBloqueoComp').style.display        = 'none';
+      $('eiFormArea').style.display           = 'block';
+      $('eiMsg').textContent                  = '';
+      $('eiPreviewPanel').style.display       = 'none';
+      $('eiBtnPreview').disabled              = true;
+      $('eiBtnGuardar').disabled              = true;
+      $('eiNuevoTotal').value                 = '';
+      $('eiMotivo').value                     = '';
+      $('eiNuevoSaldo').textContent           = '—';
+      $('eiActualTotal').textContent          = '—';
+      $('eiActualPagado').textContent         = '—';
+      $('eiActualSaldo').textContent          = '—';
+
+      try {
+        const { data, error } = await sb
+          .from('cuotas_operativas')
+          .select('id,contrato_id,anio,mes,periodo,estado,monto_total,monto_pagado,saldo,monto_alquiler_total,monto_alquiler_pagado,saldo_alquiler,monto_impuesto_total,monto_impuesto_pagado,saldo_impuesto,monto_servicio,monto_servicio_pagado,saldo_servicio')
+          .eq('id', _eiCuotaId)
+          .single();
+
+        if (error || !data) throw new Error(error?.message || 'Cuota no encontrada.');
+        _eiData = data;
+
+        // Verificar componentes completos
+        const tieneComp = data.monto_alquiler_total != null && data.monto_alquiler_pagado != null && data.saldo_alquiler != null;
+        if (!tieneComp) {
+          $('eiBloqueoComp').style.display = 'block';
+          $('eiFormArea').style.display    = 'none';
+          $('eiMeta').textContent          = 'Error: cuota sin componentes completos.';
+          return;
+        }
+
+        const nombre  = selected?.inquilino_nombre || selected?.nombre_inquilino || '—';
+        const local   = selected?.local_codigo     || selected?.codigo_local     || '—';
+        const periodo = data.periodo || `${String(data.mes).padStart(2,'0')}/${data.anio}`;
+        const estadoBg = (data.estado||'').includes('PARCIAL') ? '#854d0e;background:#fef9c3' : (data.estado||'').includes('PAGADO') ? '#15803d;background:#dcfce7' : '#dc2626;background:#fee2e2';
+        $('eiMeta').innerHTML =
+          `<strong>${local}</strong> · ${nombre} · ` +
+          `<span style="background:#dbeafe;color:#1d4ed8;padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${periodo}</span> · ` +
+          `Estado: <span style="color:${estadoBg};padding:1px 8px;border-radius:10px;font-size:11px;font-weight:700;">${data.estado||'—'}</span>`;
+
+        // Mostrar estado actual del impuesto
+        const fmt = v => { const n = toNumber(v); return n > 0 ? fmtARS.format(n) : '$0'; };
+        $('eiActualTotal').textContent  = data.monto_impuesto_total != null ? fmt(data.monto_impuesto_total) : '—';
+        $('eiActualPagado').textContent = fmt(data.monto_impuesto_pagado);
+        $('eiActualSaldo').textContent  = fmt(data.saldo_impuesto);
+
+        // Pre-llenar campo con valor actual
+        const impTotalActual = toNumber(data.monto_impuesto_total);
+        if (impTotalActual > 0) {
+          $('eiNuevoTotal').value = formatMoneyInputValue(impTotalActual);
+        }
+
+        recalcEditarImpuesto();
+
+      } catch(e) {
+        $('eiMeta').textContent = 'Error cargando cuota.';
+        $('eiMsg').textContent  = 'Error: ' + (e?.message || String(e));
+        console.error('[EditarImpuesto] open:', e);
+      }
+    }
+
+    function closeEditarImpuesto() {
+      const back = $('editarImpuestoBack');
+      if (back) back.style.display = 'none';
+      _eiCuotaId    = null;
+      _eiContratoId = null;
+      _eiData       = null;
+      _eiDryRunOk   = false;
+      _eiDryRunData = null;
+    }
+
+    function recalcEditarImpuesto() {
+      _eiDryRunOk   = false;
+      _eiDryRunData = null;
+      if ($('eiBtnGuardar'))   $('eiBtnGuardar').disabled   = true;
+      if ($('eiPreviewPanel')) $('eiPreviewPanel').style.display = 'none';
+
+      if (!_eiData) return;
+
+      const pMN        = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+      const rawInput   = ($('eiNuevoTotal')?.value || '').trim();
+      const nuevoTotal = rawInput === '' ? 0 : pMN(rawInput);
+      const impPagado  = round2(toNumber(_eiData.monto_impuesto_pagado));
+
+      let err = '';
+      if (nuevoTotal < 0) {
+        err = 'El impuesto no puede ser negativo.';
+      } else if (impPagado > 0.009 && nuevoTotal < impPagado - 0.009) {
+        err = `No podés bajar el impuesto por debajo de lo ya pagado (${fmtARS.format(impPagado)}). Primero corregí el pago correspondiente.`;
+      }
+
+      const nuevoSaldo = round2(Math.max(0, nuevoTotal - impPagado));
+      if ($('eiNuevoSaldo')) {
+        $('eiNuevoSaldo').textContent  = nuevoTotal === 0 ? '$0' : fmtARS.format(nuevoSaldo);
+        $('eiNuevoSaldo').style.color  = (nuevoTotal > 0 && nuevoSaldo <= 0.009) ? '#15803d' : '#1e293b';
+      }
+
+      const motivo     = ($('eiMotivo')?.value || '').trim();
+      const displayMsg = err
+        ? err
+        : motivo.length === 0
+          ? 'Ingresá un motivo para habilitar la vista previa.'
+          : '';
+      if ($('eiMsg')) $('eiMsg').textContent = displayMsg;
+
+      if ($('eiBtnPreview')) $('eiBtnPreview').disabled = !(!err && motivo.length > 0);
+    }
+
+    async function vistaPreviewEditarImpuesto() {
+      if (!_eiData || !_eiCuotaId || !_eiContratoId) return;
+
+      const motivo = ($('eiMotivo')?.value || '').trim();
+      if (!motivo) {
+        if ($('eiMsg')) $('eiMsg').textContent = 'Ingresá un motivo para habilitar la vista previa.';
+        const mEl = $('eiMotivo');
+        if (mEl) { mEl.focus(); mEl.style.borderColor = '#f87171'; setTimeout(() => { mEl.style.borderColor = ''; }, 2000); }
+        return;
+      }
+
+      _eiDryRunOk   = false;
+      _eiDryRunData = null;
+      if ($('eiBtnGuardar'))   $('eiBtnGuardar').disabled   = true;
+      if ($('eiBtnPreview'))   $('eiBtnPreview').disabled   = true;
+      if ($('eiPreviewPanel')) $('eiPreviewPanel').style.display = 'none';
+      if ($('eiMsg'))          $('eiMsg').textContent       = 'Validando con el servidor (dry run)…';
+
+      try {
+        const pMN        = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+        const rawInput   = ($('eiNuevoTotal')?.value || '').trim();
+        const nuevoTotal = rawInput === '' ? 0 : pMN(rawInput);
+        const impPagado  = round2(toNumber(_eiData.monto_impuesto_pagado));
+
+        // Si nuevo total = 0, también pagado debe quedar 0
+        const p_imp_pagado  = nuevoTotal === 0 ? 0 : impPagado;
+        // monto_impuesto_total: null significa "este mes no lleva impuesto"
+        const p_imp_total   = nuevoTotal === 0 ? null : nuevoTotal;
+
+        const params = {
+          p_cuota_id:              _eiCuotaId,
+          p_contrato_id:           _eiContratoId,
+          p_anio:                  Number(_eiData.anio),
+          p_mes:                   Number(_eiData.mes),
+          p_monto_alquiler_total:  round2(toNumber(_eiData.monto_alquiler_total)),
+          p_monto_alquiler_pagado: round2(toNumber(_eiData.monto_alquiler_pagado)),
+          p_monto_impuesto_total:  p_imp_total,
+          p_monto_impuesto_pagado: p_imp_pagado,
+          p_monto_servicio_total:  round2(toNumber(_eiData.monto_servicio)) || 0,
+          p_monto_servicio_pagado: round2(toNumber(_eiData.monto_servicio_pagado)),
+          p_motivo:                motivo,
+          p_usuario:               'jefe',
+          p_dry_run:               true
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) {
+          if ($('eiMsg')) $('eiMsg').textContent = `Error: ${res?.error || 'Sin respuesta del servidor'}`;
+          return;
+        }
+
+        _eiDryRunOk   = true;
+        _eiDryRunData = res;
+        if ($('eiMsg')) $('eiMsg').textContent = '';
+        renderDryRunEditarImpuesto(res);
+        if ($('eiBtnGuardar')) $('eiBtnGuardar').disabled = false;
+
+      } catch(e) {
+        console.error('[EditarImpuesto] dry_run:', e);
+        if ($('eiMsg')) $('eiMsg').textContent = 'Error en validación: ' + (e?.message || String(e));
+      } finally {
+        const mot = ($('eiMotivo')?.value || '').trim();
+        if ($('eiBtnPreview')) $('eiBtnPreview').disabled = !mot.length;
+      }
+    }
+
+    function renderDryRunEditarImpuesto(res) {
+      const panel = $('eiPreviewPanel');
+      const body  = $('eiPreviewBody');
+      if (!panel || !body) return;
+
+      const fmt   = v => fmtARS.format(Number(v) || 0);
+      const n     = v => Number(v) || 0;
+      const badge = e => {
+        const cls = e==='PAGADO'?'pagado':e==='PARCIAL'?'parcial':'pendiente';
+        return `<span class="cobro-comp-badge ${cls}">${e||'—'}</span>`;
+      };
+      const dr = (label, value, extraCls='') =>
+        `<div class="dryrun-row"><span class="dr-label">${label}</span><span class="dr-value${extraCls?' '+extraCls:''}">${value}</span></div>`;
+
+      const a     = res.antes      || {};
+      const d     = res.despues    || {};
+      const diffs = res.diferencias || {};
+      const chgImpT = !!diffs['monto_impuesto_total'];
+      const chgEst  = !!diffs['estado'];
+
+      const impTotalAntes   = a.monto_impuesto_total;
+      const impTotalDespues = d.monto_impuesto_total;
+      const totalCambia     = n(a.monto_total) !== n(d.monto_total);
+
+      body.innerHTML = `
+        <div class="dryrun-summary">
+          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          ${chgImpT
+            ? `<div style="font-size:12px;color:#475569;">Impuesto: ${impTotalAntes != null ? fmt(impTotalAntes) : '—'} → ${impTotalDespues != null ? fmt(impTotalDespues) : '—'}</div>`
+            : `<div style="font-size:12px;color:#64748b;">Sin cambios en el impuesto total.</div>`}
+          ${totalCambia
+            ? `<div style="font-size:11px;color:#64748b;margin-top:3px;">Total de la cuota se recalculará: ${fmt(a.monto_total)} → ${fmt(d.monto_total)}</div>`
+            : ''}
+        </div>
+        <div class="dryrun-card">
+          <div class="dryrun-card-header">Período ${String(res.mes).padStart(2,'0')}/${res.anio} — Impuesto</div>
+          <div class="dryrun-section sec-antes">
+            <div class="dryrun-section-title">Antes</div>
+            ${dr('Imp. total',  impTotalAntes  != null ? fmt(impTotalAntes)  : '—')}
+            ${dr('Imp. pagado', fmt(a.monto_impuesto_pagado))}
+            ${dr('Saldo imp.',  fmt(a.saldo_impuesto))}
+            ${dr('Saldo cuota', fmt(a.saldo))}
+            ${dr('Estado', badge(a.estado))}
+          </div>
+          <div class="dryrun-section sec-despues">
+            <div class="dryrun-section-title">Después</div>
+            ${dr('Imp. total',  impTotalDespues != null ? fmt(impTotalDespues) : '—', chgImpT ? 'dr-blue' : '')}
+            ${dr('Imp. pagado', fmt(d.monto_impuesto_pagado))}
+            ${dr('Saldo imp.',  fmt(d.saldo_impuesto), n(d.saldo_impuesto) <= 0.009 ? 'dr-green' : '')}
+            ${dr('Saldo cuota', fmt(d.saldo), n(d.saldo) <= 0.009 ? 'dr-green' : '')}
+            ${dr('Estado', badge(d.estado), chgEst ? 'dr-blue' : '')}
+          </div>
+        </div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">Alquiler y servicio no fueron modificados.</div>
+      `;
+      panel.style.display = 'block';
+    }
+
+    async function confirmarEditarImpuesto() {
+      if (!_eiDryRunOk || !_eiData) { alert('Primero ejecutá la vista previa.'); return; }
+
+      const periodo     = _eiData.periodo || `${String(_eiData.mes).padStart(2,'0')}/${_eiData.anio}`;
+      const nombre      = selected?.inquilino_nombre || selected?.nombre_inquilino || '';
+      const estadoNuevo = _eiDryRunData?.estado_nuevo || '?';
+      const motivo      = ($('eiMotivo')?.value || '').trim();
+      const rawInput    = ($('eiNuevoTotal')?.value || '').trim();
+      const pMN         = v => round2(parseMoneyToNumber(String(v || '')) || 0);
+      const nuevoTotal  = rawInput === '' ? 0 : pMN(rawInput);
+
+      const resumen = nuevoTotal === 0
+        ? 'El impuesto quedará eliminado para este mes.'
+        : `El impuesto quedará en ${fmtARS.format(nuevoTotal)} para este período.`;
+
+      const ok = confirm(
+        `Esta acción modificará el impuesto REAL de ${nombre} (${periodo}) y quedará registrada en auditoría.\n\n` +
+        `${resumen}\n` +
+        `Estado nuevo esperado: ${estadoNuevo}\n` +
+        `Motivo: "${motivo}"\n\n` +
+        `¿Confirmás el cambio?`
+      );
+      if (!ok) return;
+
+      const msg = $('eiMsg');
+      if (msg) msg.textContent = 'Guardando cambio real…';
+      if ($('eiBtnGuardar')) $('eiBtnGuardar').disabled = true;
+      if ($('eiBtnPreview')) $('eiBtnPreview').disabled = true;
+
+      try {
+        const impPagado  = round2(toNumber(_eiData.monto_impuesto_pagado));
+        const p_imp_total   = nuevoTotal === 0 ? null : nuevoTotal;
+        const p_imp_pagado  = nuevoTotal === 0 ? 0 : impPagado;
+
+        const params = {
+          p_cuota_id:              _eiCuotaId,
+          p_contrato_id:           _eiContratoId,
+          p_anio:                  Number(_eiData.anio),
+          p_mes:                   Number(_eiData.mes),
+          p_monto_alquiler_total:  round2(toNumber(_eiData.monto_alquiler_total)),
+          p_monto_alquiler_pagado: round2(toNumber(_eiData.monto_alquiler_pagado)),
+          p_monto_impuesto_total:  p_imp_total,
+          p_monto_impuesto_pagado: p_imp_pagado,
+          p_monto_servicio_total:  round2(toNumber(_eiData.monto_servicio)) || 0,
+          p_monto_servicio_pagado: round2(toNumber(_eiData.monto_servicio_pagado)),
+          p_motivo:                motivo,
+          p_usuario:               'jefe',
+          p_dry_run:               false
+        };
+
+        const { data, error } = await sb.rpc('editar_cuota_componentes_manual', params);
+        if (error) throw error;
+        const res = Array.isArray(data) ? data[0] : data;
+        if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo guardar el impuesto.');
+
+        const contratoId = _eiContratoId;
+        closeEditarImpuesto();
+        await refreshAll();
+
+        const cId = Number(contratoId);
+        if (selected?.contrato_id === cId || String(selected?.contrato_id) === String(cId)) {
+          const refreshed = unidades.find(x => Number(x.contrato_id) === cId);
+          if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
+        }
+        const label = nuevoTotal === 0
+          ? 'Impuesto eliminado del mes.'
+          : `Impuesto actualizado a ${fmtARS.format(nuevoTotal)}.`;
+        setTimeout(() => showPagoSuccessToast(label, 'Impuesto guardado'), 120);
+
+      } catch(e) {
+        console.error('[EditarImpuesto] confirmar:', e);
+        if (msg) msg.textContent = 'Error: ' + (e?.message || String(e));
+        if ($('eiBtnGuardar')) $('eiBtnGuardar').disabled = false;
+      }
+    }
+
     // Exponer funciones operativas para los onclick inline del HTML.
 function exposeGlobalFunction(name, fn){
   if (typeof fn === 'function') {
@@ -17859,6 +18302,12 @@ exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? c
 exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
 // Cobro por componentes (Etapa 4)
 exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
+// Editar impuesto del mes (Etapa 8)
+exposeGlobalFunction('openEditarImpuesto',          typeof openEditarImpuesto          !== 'undefined' ? openEditarImpuesto          : null);
+exposeGlobalFunction('closeEditarImpuesto',         typeof closeEditarImpuesto         !== 'undefined' ? closeEditarImpuesto         : null);
+exposeGlobalFunction('recalcEditarImpuesto',        typeof recalcEditarImpuesto        !== 'undefined' ? recalcEditarImpuesto        : null);
+exposeGlobalFunction('vistaPreviewEditarImpuesto',  typeof vistaPreviewEditarImpuesto  !== 'undefined' ? vistaPreviewEditarImpuesto  : null);
+exposeGlobalFunction('confirmarEditarImpuesto',     typeof confirmarEditarImpuesto     !== 'undefined' ? confirmarEditarImpuesto     : null);
 // Editar cuota por componentes (Etapa 7B)
 exposeGlobalFunction('openEditarCuota',                typeof openEditarCuota                !== 'undefined' ? openEditarCuota                : null);
 exposeGlobalFunction('closeEditarCuota',               typeof closeEditarCuota               !== 'undefined' ? closeEditarCuota               : null);
