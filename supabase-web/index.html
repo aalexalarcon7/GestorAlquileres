@@ -1247,6 +1247,11 @@ td:last-child{
     .ec-btn-row{font-size:11px;padding:2px 7px;background:none;border:1px solid #cbd5e1;border-radius:5px;cursor:pointer;color:#475569;white-space:nowrap;}
     .ec-btn-row:hover{background:#f1f5f9;}
     .ec-changed{background:#fffbeb !important;}
+    /* ── Chips de impuesto en grilla de cuotas ── */
+    .imp-chip{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;line-height:1.5;}
+    .imp-chip.ic-pag{background:#dcfce7;color:#15803d;}
+    .imp-chip.ic-pend{background:#fef9c3;color:#854d0e;}
+    .imp-chip.ic-ap{background:#f1f5f9;color:#475569;font-weight:600;}
 
     [data-theme="dark"] .modal{background:linear-gradient(180deg, var(--card-solid-dark), rgba(15,23,36,.94))}
 
@@ -7731,9 +7736,9 @@ if (aplicacionesDirectas.length) {
           ? `<span style="color:var(--bad);font-weight:900;">${diasAtraso}d</span>`
           : `<span class="muted">—</span>`;
 
-        // Columna Impuesto: diferencia entre modo componentes y legacy.
-        // Componentes: muestra estado (pagado/pendiente) desde columnas nuevas.
-        // Legacy: muestra impuesto aplicado desde recibos (igual que antes).
+        // Columna Impuesto: chips suaves según estado.
+        // Componentes: usa monto_impuesto_total/pagado/saldo de cuotas_operativas.
+        // Legacy: muestra el impuesto aplicado desde recibos como chip neutro.
         let impuestoCell;
         if (x._modo_componentes) {
           const impTotal  = round2(toNumber(x.monto_impuesto_total));
@@ -7742,12 +7747,14 @@ if (aplicacionesDirectas.length) {
           if (impTotal <= 0.009) {
             impuestoCell = `<span class="muted">—</span>`;
           } else if (saldoImp <= 0.009 && impPagado > 0.009) {
-            impuestoCell = `<span style="color:#15803d;font-size:11px;font-weight:700;" title="Impuesto ${fmtARS.format(impTotal)} pagado completamente">Pag. ${fmtARS.format(impTotal)}</span>`;
+            impuestoCell = `<span class="imp-chip ic-pag" title="Impuesto de ${fmtARS.format(impTotal)} pagado completamente">Pagado ${fmtARS.format(impTotal)}</span>`;
           } else {
-            impuestoCell = `<span style="color:#dc2626;font-weight:700;" title="Impuesto pendiente de ${fmtARS.format(impTotal)} total">${fmtARS.format(saldoImp)}</span>`;
+            impuestoCell = `<span class="imp-chip ic-pend" title="${fmtARS.format(impTotal)} total, saldo pendiente">Pendiente ${fmtARS.format(saldoImp)}</span>`;
           }
         } else {
-          impuestoCell = impuesto > 0 ? fmtARS.format(impuesto) : `<span class="muted">—</span>`;
+          impuestoCell = impuesto > 0
+            ? `<span class="imp-chip ic-ap" title="Impuesto aplicado según recibos">${fmtARS.format(impuesto)}</span>`
+            : `<span class="muted">—</span>`;
         }
 
         // Para componentes muestra saldo_servicio (pendiente); para legacy muestra monto total.
