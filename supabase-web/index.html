@@ -6752,7 +6752,7 @@ prioridad_total: recon.prioridad_total || null,
 
       let res = await sb
         .from('cuotas_operativas')
-        .select('id,contrato_id,anio,mes,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle')
+        .select('id,contrato_id,anio,mes,periodo,vencimiento,monto_total,monto_pagado,saldo,estado,created_at,monto_servicio,servicio_detalle,monto_alquiler_total,monto_alquiler_pagado,saldo_alquiler,monto_impuesto_total,monto_impuesto_pagado,saldo_impuesto,monto_servicio_pagado,saldo_servicio')
         .eq('contrato_id', id)
         .order('anio', { ascending:true })
         .order('mes', { ascending:true });
@@ -6801,7 +6801,16 @@ prioridad_total: recon.prioridad_total || null,
           dias_atraso: getDetalleDiasAtraso(anio, mes, toNumber(item.saldo), estado),
           sort_key: sortKey,
           origen: 'cuotas_operativas',
-          fuente_hoja: 'cuotas_operativas'
+          fuente_hoja: 'cuotas_operativas',
+          // Columnas de componentes (Etapa 2B) — null si no fueron pobladas
+          monto_alquiler_total:  item.monto_alquiler_total  ?? null,
+          monto_alquiler_pagado: item.monto_alquiler_pagado ?? null,
+          db_saldo_alquiler:     item.saldo_alquiler        != null ? toNumber(item.saldo_alquiler)  : null,
+          monto_impuesto_total:  item.monto_impuesto_total  ?? null,
+          monto_impuesto_pagado: item.monto_impuesto_pagado ?? null,
+          db_saldo_impuesto:     item.saldo_impuesto        != null ? toNumber(item.saldo_impuesto)  : null,
+          monto_servicio_pagado: item.monto_servicio_pagado != null ? toNumber(item.monto_servicio_pagado) : null,
+          db_saldo_servicio:     item.saldo_servicio        != null ? toNumber(item.saldo_servicio)   : null,
         };
       });
     }
@@ -7110,6 +7119,45 @@ if (aplicaciones.length) {
   const detalleRows = Array.isArray(rows) ? rows : [];
 
   detalleRows.forEach(row => {
+    // ── Etapa 6: rama de componentes ─────────────────────────────────────
+    // Si la cuota tiene datos de componentes (Etapa 2B), usarlos directamente.
+    // Los valores de DB (db_saldo_*) son la fuente de verdad; el sistema legacy
+    // solo se usa como fallback cuando monto_alquiler_total es null.
+    if (row.monto_alquiler_total != null) {
+      const saldoAlq  = round2(toNumber(row.db_saldo_alquiler  ?? 0));
+      const saldoImp  = round2(toNumber(row.db_saldo_impuesto  ?? 0));
+      const saldoServ = round2(toNumber(row.db_saldo_servicio  ?? 0));
+      const pagAlq    = round2(toNumber(row.monto_alquiler_pagado  ?? 0));
+      const pagImp    = round2(toNumber(row.monto_impuesto_pagado  ?? 0));
+      const pagServ   = round2(toNumber(row.monto_servicio_pagado  ?? 0));
+      const impTotal  = round2(toNumber(row.monto_impuesto_total   ?? 0));
+      const servTotal = round2(toNumber(row.monto_servicio         ?? 0));
+
+      const totalComp  = round2(toNumber(row.monto_alquiler_total) + impTotal + servTotal);
+      const pagadoComp = round2(pagAlq + pagImp + pagServ);
+      const saldoComp  = round2(saldoAlq + saldoImp + saldoServ);
+
+      // impuesto = saldo pendiente de impuesto (para mostrar en columna Impuesto)
+      row.impuesto           = saldoImp;
+      row.servicio_pendiente = saldoServ;
+      row.saldo_alquiler     = saldoAlq;
+      row.total_con_impuesto  = totalComp;
+      row.pagado_con_impuesto = pagadoComp;
+      row.saldo_con_impuesto  = saldoComp;
+
+      if (saldoComp <= 0.009) {
+        row.estado_detalle      = 'PAGADO';
+        row.saldo_con_impuesto  = 0;
+        row.dias_atraso         = 0;
+      } else if (pagadoComp > 0.009) {
+        row.estado_detalle = 'PARCIAL';
+      } else {
+        row.estado_detalle = (row.dias_atraso > 0) ? 'ATRASADO' : 'PENDIENTE';
+      }
+      return; // saltar rama legacy
+    }
+
+    // ── Rama legacy (cuotas sin componentes poblados) ─────────────────────
     const impuesto = round2(toNumber(row.impuesto));
     const totalBase = round2(toNumber(row.total ?? row.monto_total));
     const pagadoBase = round2(toNumber(row.pagado ?? row.monto_pagado));
@@ -7516,13 +7564,16 @@ if (aplicacionesDirectas.length) {
         const pagadoDisplay = Number.isFinite(Number(x.pagado_con_impuesto))
           ? toNumber(x.pagado_con_impuesto)
           : round2(toNumber(x.pagado) + impuesto);
-        const saldoDisplay = Number.isFinite(Number(x.saldo_alquiler))
-  ? toNumber(x.saldo_alquiler)
-  : Number.isFinite(Number(x.saldo))
-    ? toNumber(x.saldo)
-    : Number.isFinite(Number(x.saldo_con_impuesto))
-      ? toNumber(x.saldo_con_impuesto)
-      : round2(Math.max(0, totalDisplay - pagadoDisplay));
+        // Etapa 6: priorizar saldo_con_impuesto (cubre tanto legacy como componentes).
+        // Para componentes: saldo_alq + saldo_imp + saldo_serv.
+        // Para legacy: igual que antes (saldoBase).
+        const saldoDisplay = Number.isFinite(Number(x.saldo_con_impuesto)) && x.saldo_con_impuesto > 0
+          ? toNumber(x.saldo_con_impuesto)
+          : Number.isFinite(Number(x.saldo_alquiler))
+            ? toNumber(x.saldo_alquiler)
+            : Number.isFinite(Number(x.saldo))
+              ? toNumber(x.saldo)
+              : round2(Math.max(0, totalDisplay - pagadoDisplay));
 
         const diasAtraso = Number(x.dias_atraso || 0);
         const diasCell = diasAtraso > 0
@@ -7533,7 +7584,8 @@ if (aplicacionesDirectas.length) {
           ? fmtARS.format(impuesto)
           : `<span class="muted">—</span>`;
 
-        const servicio = toNumber(x.servicio ?? x.monto_servicio);
+        // Para componentes muestra saldo_servicio (pendiente); para legacy muestra monto total.
+        const servicio = toNumber(x.servicio_pendiente ?? x.servicio ?? x.monto_servicio);
         const servicioCell = servicio > 0
           ? fmtARS.format(servicio)
           : `<span class="muted">—</span>`;
