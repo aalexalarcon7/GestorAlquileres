@@ -1214,6 +1214,10 @@ td:last-child{
     .cobro-comp-badge.parcial{background:#fef9c3;color:#854d0e;}
     .cobro-comp-badge.pendiente,.cobro-comp-badge.atrasado{background:#fee2e2;color:#dc2626;}
     .cobro-comp-preview-box{background:#f0fdf4;border:1px solid #86efac;border-radius:8px;padding:14px;margin-top:14px;}
+    /* ── Multi-medio de pago (Etapa 10) ── */
+    .cc-medio-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+    .cc-medio-select{flex:0 0 150px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;background:#fff;}
+    .cc-medio-monto{flex:1;min-width:0;max-width:160px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:700;text-align:right;}
     /* Tarjetas de vista previa dry_run */
     .dryrun-summary{background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:12px 16px;margin-bottom:12px;}
     .dryrun-summary-title{font-weight:700;color:#15803d;margin-bottom:8px;font-size:14px;}
@@ -5196,25 +5200,11 @@ td:last-child{
       </div>
 
       <div id="cobroCompFormArea">
-        <!-- Datos del cobro -->
+        <!-- Datos básicos -->
         <div class="row" style="margin-top:14px;align-items:flex-end;flex-wrap:wrap;gap:12px;">
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="muted" style="font-size:12px;">Fecha de pago</label>
             <input id="cobroCompFecha" type="date" style="width:160px;">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="muted" style="font-size:12px;">Total recibido</label>
-            <input id="cobroCompTotal" type="text" inputmode="decimal" placeholder="Ej: 50.000"
-              style="width:170px;font-weight:900;" oninput="calcTotalesCobroComp()">
-          </div>
-          <div style="display:flex;flex-direction:column;gap:4px;">
-            <label class="muted" style="font-size:12px;">Medio de pago</label>
-            <select id="cobroCompMedio" style="width:160px;">
-              <option>EFECTIVO</option>
-              <option>TRANSFERENCIA</option>
-              <option>CHEQUE</option>
-              <option>OTRO</option>
-            </select>
           </div>
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="muted" style="font-size:12px;">N° recibo (opcional)</label>
@@ -5223,6 +5213,19 @@ td:last-child{
           <div style="display:flex;flex-direction:column;gap:4px;">
             <label class="muted" style="font-size:12px;">Observación</label>
             <input id="cobroCompObs" type="text" placeholder="Opcional" style="width:200px;">
+          </div>
+        </div>
+
+        <!-- Medios de pago (multi-medio, Etapa 10) -->
+        <div style="margin-top:14px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <span style="font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Medios de pago</span>
+            <button class="btn" type="button" onclick="agregarMedioCobroComp()" style="font-size:12px;padding:3px 10px;">+ Agregar medio</button>
+          </div>
+          <div id="cobroCompMediosWrap"></div>
+          <div style="margin-top:6px;padding:6px 12px;background:#f8fafc;border-radius:6px;font-size:13px;display:flex;align-items:center;gap:14px;">
+            <span class="muted" style="font-size:12px;">Total por medios:</span>
+            <strong id="cobroCompTotalMediosDisplay" style="font-size:14px;">$0</strong>
           </div>
         </div>
 
@@ -17293,6 +17296,7 @@ setTimeout(() => {
     let _cobroCompCuotas    = [];    // cuotas pendientes con columnas nuevas
     let _cobroCompDryRunOk  = false; // flag: última vista previa fue exitosa
     let _cobroCompDryRunData= null;  // resultado del último dry_run
+    let _cobroCompMedios    = [];    // array de medios de pago {id, metodo, monto}
 
     async function openCobroComp(r) {
       if (!r || !r.contrato_id) { alert('Primero seleccioná un activo con contrato operativo.'); return; }
@@ -17309,7 +17313,6 @@ setTimeout(() => {
       const local  = r.local_codigo || r.codigo_local || '—';
       $('cobroCompMeta').textContent   = `${local} — ${nombre}`;
       $('cobroCompFecha').value        = today();
-      $('cobroCompTotal').value        = '';
       $('cobroCompNumRecibo').value    = '';
       $('cobroCompObs').value          = '';
       $('cobroCompMsg').textContent    = '';
@@ -17321,6 +17324,7 @@ setTimeout(() => {
       $('cobroCompTotalDisplay').textContent    = '$0';
       $('cobroCompImputadoDisplay').textContent = '$0';
       $('cobroCompDifDisplay').textContent      = '$0';
+      initMediosCobroComp();
       $('cobroCompGridWrap').innerHTML = '<div class="muted" style="padding:12px;">Cargando cuotas…</div>';
 
       const cuotas = await fetchCuotasParaCobroComp(r.contrato_id);
@@ -17347,6 +17351,73 @@ setTimeout(() => {
       _cobroCompCuotas    = [];
       _cobroCompDryRunOk  = false;
       _cobroCompDryRunData= null;
+      _cobroCompMedios    = [];
+    }
+
+    // ── Funciones de multi-medio (Etapa 10) ────────────────────────────────
+
+    function getCobroCompTotalMedios() {
+      return round2(_cobroCompMedios.reduce(
+        (s, m) => s + round2(parseMoneyToNumber(String(m.monto || '')) || 0), 0));
+    }
+
+    function getCobroCompMediosArray() {
+      return _cobroCompMedios
+        .map(m => ({
+          metodo: m.metodo || 'EFECTIVO',
+          monto:  round2(parseMoneyToNumber(String(m.monto || '')) || 0)
+        }))
+        .filter(m => m.monto > 0.009);
+    }
+
+    function initMediosCobroComp() {
+      _cobroCompMedios = [{ id: Date.now(), metodo: 'EFECTIVO', monto: '' }];
+      renderMediosCobroComp();
+    }
+
+    function renderMediosCobroComp() {
+      const wrap = $('cobroCompMediosWrap');
+      if (!wrap) return;
+      const soloUno = _cobroCompMedios.length <= 1;
+      wrap.innerHTML = _cobroCompMedios.map(m => {
+        const opts = ['EFECTIVO','TRANSFERENCIA','MERCADOPAGO','CHEQUE','OTRO']
+          .map(v => `<option value="${v}"${m.metodo===v?' selected':''}>${v}</option>`).join('');
+        const delBtn = soloUno ? '' :
+          `<button class="btn" type="button" onclick="eliminarMedioCobroComp(${m.id})" style="padding:3px 8px;font-size:12px;color:#dc2626;border-color:#fca5a5;" title="Eliminar este medio">✕</button>`;
+        return `<div class="cc-medio-row">
+          <select class="cc-medio-select" data-id="${m.id}" onchange="onMedioCobroCompChange(${m.id},'metodo',this.value)">${opts}</select>
+          <input class="cc-medio-monto" type="text" inputmode="decimal" placeholder="0"
+            value="${m.monto||''}" data-id="${m.id}"
+            oninput="onMedioCobroCompChange(${m.id},'monto',this.value)">
+          ${delBtn}
+        </div>`;
+      }).join('');
+      // Actualizar total display
+      const totalM = getCobroCompTotalMedios();
+      if ($('cobroCompTotalMediosDisplay'))
+        $('cobroCompTotalMediosDisplay').textContent = fmtARS.format(totalM);
+    }
+
+    function agregarMedioCobroComp() {
+      _cobroCompMedios.push({ id: Date.now(), metodo: 'EFECTIVO', monto: '' });
+      renderMediosCobroComp();
+      calcTotalesCobroComp();
+    }
+
+    function eliminarMedioCobroComp(id) {
+      if (_cobroCompMedios.length <= 1) return;
+      _cobroCompMedios = _cobroCompMedios.filter(m => m.id !== Number(id));
+      renderMediosCobroComp();
+      calcTotalesCobroComp();
+    }
+
+    function onMedioCobroCompChange(id, field, value) {
+      const m = _cobroCompMedios.find(m => m.id === Number(id));
+      if (m) m[field] = value;
+      const totalM = getCobroCompTotalMedios();
+      if ($('cobroCompTotalMediosDisplay'))
+        $('cobroCompTotalMediosDisplay').textContent = fmtARS.format(totalM);
+      calcTotalesCobroComp();
     }
 
     async function fetchCuotasParaCobroComp(contratoId) {
@@ -17426,7 +17497,7 @@ setTimeout(() => {
       if ($('cobroCompBtnConfirmar')) $('cobroCompBtnConfirmar').disabled = true;
       if ($('cobroCompPreviewPanel')) $('cobroCompPreviewPanel').style.display = 'none';
 
-      const totalRec = round2(parseMoneyToNumber($('cobroCompTotal')?.value || '') || 0);
+      const totalRec = getCobroCompTotalMedios();
       let totalImp   = 0;
 
       for (const c of _cobroCompCuotas) {
@@ -17454,8 +17525,8 @@ setTimeout(() => {
     }
 
     function sugerirDistribucionCobroComp() {
-      const totalRec = round2(parseMoneyToNumber($('cobroCompTotal')?.value || '') || 0);
-      if (totalRec <= 0) { $('cobroCompMsg').textContent = 'Ingresá primero el total recibido.'; return; }
+      const totalRec = getCobroCompTotalMedios();
+      if (totalRec <= 0) { $('cobroCompMsg').textContent = 'Ingresá primero los medios de pago con sus montos.'; return; }
       $('cobroCompMsg').textContent = '';
       let restante = totalRec;
 
@@ -17505,14 +17576,19 @@ setTimeout(() => {
       $('cobroCompMsg').textContent       = 'Validando con el servidor (dry run)…';
 
       try {
-        const total   = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+        const total  = getCobroCompTotalMedios();
+        const medios = getCobroCompMediosArray();
+        if (!medios.length) {
+          $('cobroCompMsg').textContent = 'Ingresá al menos un medio de pago con monto mayor a 0.';
+          return;
+        }
         const { data, error } = await sb.rpc('registrar_cobro_por_componentes', {
           p_contrato_id:    Number(_cobroCompContrato.contrato_id),
           p_fecha_pago:     $('cobroCompFecha')?.value || today(),
           p_total_recibido: total,
           p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
           p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
-          p_medios_pago:    [{ metodo: $('cobroCompMedio')?.value||'EFECTIVO', monto: total }],
+          p_medios_pago:    medios,
           p_aplicaciones:   getAplicacionesCobroComp(),
           p_usuario:        'jefe',
           p_dry_run:        true
@@ -17536,7 +17612,7 @@ setTimeout(() => {
         // NO llamar calcTotalesCobroComp() porque resetea _cobroCompDryRunOk=false
         // y deshabilita el botón Confirmar justo después de haberlo habilitado.
         if ($('cobroCompBtnPreview')) {
-          const _tR = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+          const _tR = getCobroCompTotalMedios();
           let _tI = 0;
           for (const _c of _cobroCompCuotas) {
             _tI = round2(_tI
@@ -17640,7 +17716,8 @@ setTimeout(() => {
 
     async function confirmarCobroComp() {
       if (!_cobroCompDryRunOk) { alert('Primero ejecutá la vista previa y asegurate de que sea exitosa.'); return; }
-      const total   = round2(parseMoneyToNumber($('cobroCompTotal')?.value||'')||0);
+      const total   = getCobroCompTotalMedios();
+      const medios  = getCobroCompMediosArray();
       const nombre  = _cobroCompContrato?.inquilino_nombre || _cobroCompContrato?.nombre_inquilino || '';
       const apps    = getAplicacionesCobroComp();
       const resumen = (res=>res.cuotas_afectadas||[])(_cobroCompDryRunData||{})
@@ -17665,7 +17742,7 @@ setTimeout(() => {
           p_total_recibido: total,
           p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
           p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
-          p_medios_pago:    [{ metodo: $('cobroCompMedio')?.value||'EFECTIVO', monto: total }],
+          p_medios_pago:    medios,
           p_aplicaciones:   apps,
           p_usuario:        'jefe',
           p_dry_run:        false
@@ -18758,6 +18835,10 @@ exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? c
 exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
 // Cobro por componentes (Etapa 4)
 exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
+// Medios de pago multi (Etapa 10)
+exposeGlobalFunction('agregarMedioCobroComp',          typeof agregarMedioCobroComp          !== 'undefined' ? agregarMedioCobroComp          : null);
+exposeGlobalFunction('eliminarMedioCobroComp',         typeof eliminarMedioCobroComp         !== 'undefined' ? eliminarMedioCobroComp         : null);
+exposeGlobalFunction('onMedioCobroCompChange',         typeof onMedioCobroCompChange         !== 'undefined' ? onMedioCobroCompChange         : null);
 // Editar servicio del mes (Etapa 9)
 exposeGlobalFunction('openEditarServicio',         typeof openEditarServicio         !== 'undefined' ? openEditarServicio         : null);
 exposeGlobalFunction('closeEditarServicio',        typeof closeEditarServicio        !== 'undefined' ? closeEditarServicio        : null);
