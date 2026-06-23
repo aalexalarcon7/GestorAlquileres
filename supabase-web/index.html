@@ -1218,6 +1218,7 @@ td:last-child{
     .cc-medio-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
     .cc-medio-select{flex:0 0 150px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;background:#fff;}
     .cc-medio-monto{flex:1;min-width:0;max-width:160px;padding:5px 8px;border:1px solid #cbd5e1;border-radius:6px;font-size:13px;font-weight:700;text-align:right;}
+    .cc-medio-monto.cc-error{border-color:#f87171 !important;background:#fff1f2;}
     /* Tarjetas de vista previa dry_run */
     .dryrun-summary{background:#fff;border:1px solid #d1fae5;border-radius:8px;padding:12px 16px;margin-bottom:12px;}
     .dryrun-summary-title{font-weight:700;color:#15803d;margin-bottom:8px;font-size:14px;}
@@ -17414,10 +17415,50 @@ setTimeout(() => {
     function onMedioCobroCompChange(id, field, value) {
       const m = _cobroCompMedios.find(m => m.id === Number(id));
       if (m) m[field] = value;
+      // Limpiar error visual en el input que se está editando
+      if (field === 'monto') {
+        const wrap = $('cobroCompMediosWrap');
+        if (wrap) {
+          const inp = wrap.querySelector(`.cc-medio-monto[data-id="${id}"]`);
+          if (inp) inp.classList.remove('cc-error');
+        }
+      }
       const totalM = getCobroCompTotalMedios();
       if ($('cobroCompTotalMediosDisplay'))
         $('cobroCompTotalMediosDisplay').textContent = fmtARS.format(totalM);
       calcTotalesCobroComp();
+    }
+
+    function validarMediosCobroComp() {
+      const wrap   = $('cobroCompMediosWrap');
+      const errores = [];
+
+      if (!_cobroCompMedios.length) {
+        errores.push('Agregá al menos un medio de pago.');
+        return { ok: false, errores };
+      }
+
+      for (const m of _cobroCompMedios) {
+        const rawMonto = String(m.monto || '').trim();
+        const montoNum = parseMoneyToNumber(rawMonto) || 0;
+        let errado = false;
+
+        if (!rawMonto) {
+          errado = true;
+          errores.push(`${m.metodo}: falta el monto.`);
+        } else if (montoNum <= 0) {
+          errado = true;
+          errores.push(`${m.metodo}: el monto debe ser mayor a $0 (recibido: "${rawMonto}").`);
+        }
+
+        // Aplicar/quitar borde rojo directamente sobre el input (sin re-render)
+        if (wrap) {
+          const inp = wrap.querySelector(`.cc-medio-monto[data-id="${m.id}"]`);
+          if (inp) inp.classList.toggle('cc-error', errado);
+        }
+      }
+
+      return { ok: errores.length === 0, errores };
     }
 
     async function fetchCuotasParaCobroComp(contratoId) {
@@ -17497,6 +17538,9 @@ setTimeout(() => {
       if ($('cobroCompBtnConfirmar')) $('cobroCompBtnConfirmar').disabled = true;
       if ($('cobroCompPreviewPanel')) $('cobroCompPreviewPanel').style.display = 'none';
 
+      // Validar medios de pago (aplica bordes rojos sin re-render)
+      const validMedios = validarMediosCobroComp();
+
       const totalRec = getCobroCompTotalMedios();
       let totalImp   = 0;
 
@@ -17521,7 +17565,15 @@ setTimeout(() => {
         $('cobroCompDifDisplay').style.color = difOk ? '#16a34a' : '#dc2626';
       }
       if ($('cobroCompDifMsg')) $('cobroCompDifMsg').style.display = difOk ? 'none' : 'block';
-      if ($('cobroCompBtnPreview')) $('cobroCompBtnPreview').disabled = !(difOk && totalImp > 0);
+
+      // Mensaje de error de medios (prioridad sobre mensaje de diferencia)
+      if (!validMedios.ok) {
+        if ($('cobroCompMsg')) $('cobroCompMsg').textContent = 'Revisá los medios de pago: ' + validMedios.errores[0];
+        if ($('cobroCompBtnPreview')) $('cobroCompBtnPreview').disabled = true;
+      } else {
+        if ($('cobroCompMsg')) $('cobroCompMsg').textContent = '';
+        if ($('cobroCompBtnPreview')) $('cobroCompBtnPreview').disabled = !(difOk && totalImp > 0);
+      }
     }
 
     function sugerirDistribucionCobroComp() {
