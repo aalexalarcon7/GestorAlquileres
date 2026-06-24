@@ -4836,10 +4836,15 @@ td:last-child{
   </div>
 
   <!-- MODAL COBRAR -->
-  <div class="modalBack" id="modalBack">
-    <div class="modal">
+  <!-- MODAL COBRO LEGACY ELIMINADO (Etapa 13C 2026-06-24).
+       Era id="modalBack" / "Registrar pago". Bloqueado desde Etapa 13B.
+       Funciones openPagoModal/registrarPagoModal siguen como stubs.
+       CSS legacy de #modalBack se mantiene inerte (no rompe nada).
+       DOM elements referenciados (mFecha, mAlquiler, etc.) ya no existen — stubs manejan esto.  -->
+  <div class="modalBack" id="modalBack" style="display:none!important;pointer-events:none!important;visibility:hidden!important;">
+    <div class="modal" aria-hidden="true">
       <div class="row" style="justify-content:space-between;">
-        <h3 style="margin:0;">Registrar pago</h3>
+        <h3 style="margin:0;">Registrar pago (LEGACY — ELIMINADO)</h3>
         <button class="btn" onclick="closePagoModal()">Cerrar</button>
       </div>
       <div class="muted" id="modalMeta">—</div>
@@ -8233,7 +8238,7 @@ const GA_TAB_HIDDEN_THRESHOLD_MS = 5_000; // ignorar pausas de pestaña menores 
 
 function isGaModalOpen(){
   const modalIds = [
-    'modalBack',
+    // 'modalBack' eliminado (Etapa 13C): modal cobro legacy removido
     'modalActivoBack',
     'reciboModalBack',
     'agregarMesModalBack',
@@ -10112,46 +10117,12 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     // Alias deprecated para compatibilidad — Etapa 13C lo eliminará
     const openPagoModalByContrato = openCobroByContrato;
 
+    // openPagoModal stub mínimo (Etapa 13C): código legacy eliminado.
+    // v2 activa (línea ~16540) también bloqueada. Ambas muestran alert y retornan.
     async function openPagoModal(r){
-      // LEGACY_DISABLED 2026-06-24: cobro viejo deshabilitado permanentemente.
-      // El botón "Cobro" ahora enruta siempre a openCobro → openCobroComp.
-      // Este bloqueo evita que un frontend cacheado ejecute el cobro viejo
-      // que no actualiza campos de componentes en cuotas_operativas.
-      const _nombre = r?.inquilino_nombre || r?.nombre_inquilino || '—';
-      const _codigo = r?.local_codigo || r?.codigo_local || '—';
-      alert(
-        `El cobro legacy está deshabilitado para ${_codigo} (${_nombre}).\n\n` +
-        `Cerrá esta ventana, recargá la página (Ctrl+F5 / Cmd+Shift+R) y usá el botón "Cobro" ` +
-        `que ahora abre el Cobro por componentes.\n\n` +
-        `Si el contrato no tiene componentes preparados, contactar al administrador.`
-      );
-      return; // NO continuar con el modal viejo — código siguiente es referencia hasta Etapa 13B
-
-      // -- Código legacy mantenido como referencia. No se ejecuta. --
-      modalContrato = r;
-      $('modalBack').style.display = 'flex';
-      $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
-      $('mFecha').value = today();
-      if ($('mAlquiler')) $('mAlquiler').value = formatMoneyInputValue(getDisplayedRent(r, {}));
-      if ($('mPeriodoAplicado')) $('mPeriodoAplicado').innerHTML = '<option value="AUTO">Automático: deuda más antigua</option>';
-      if ($('mImpPct')) $('mImpPct').value = '0';
-      if ($('mImpMonto')) {
-      $('mImpMonto').value = '';
-
-      const ultimoImpuesto = await obtenerUltimoImpuestoActivo(r.contrato_id);
-
-      if (ultimoImpuesto > 0) {
-      $('mImpMonto').value = formatMoneyInputValue(ultimoImpuesto);
-      }
-    }
-      if ($('mTotal')) $('mTotal').value = '';
-      if ($('mReferencia')) $('mReferencia').value = nextReciboPreview();
-      populatePaymentMethodSelect('mMedio');
-      $('modalMsg').textContent = '';
-      if ($('mDescripcion')) $('mDescripcion').value = '';
-      await refreshPaymentPeriodOptions(r, false);
-      const cobroInicial = recalcularCobroModal();
-      initPagoMediosRows(cobroInicial.total);
+      const _n = r?.inquilino_nombre || r?.nombre_inquilino || '—';
+      const _c = r?.local_codigo || r?.codigo_local || '—';
+      alert(`Cobro legacy deshabilitado para ${_c} (${_n}).\nRecargá la página (Ctrl+F5) y usá "Cobro" → Cobro por componentes.`);
     }
 
     function closePagoModal(){
@@ -16546,10 +16517,12 @@ function syncCobroAlquilerDesdePeriodo(){
         `Recargá la página (Ctrl+F5 / Cmd+Shift+R) y usá el botón "Cobro" ` +
         `que ahora abre el Cobro por componentes.`
       );
-      return; // NO abrir el modal viejo. Código siguiente es referencia hasta Etapa 13C.
-      // -- Código legacy original (Etapa 13C lo eliminará) --
-      if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
-      const contratoBase = getContratoActivoRow(r.contrato_id) || {};
+      // Código legacy eliminado (Etapa 13C).
+    }
+    // ── Cuerpo legacy de openPagoModal v2 + funciones fix (todas dead, nadie las llama) ──
+    // Envueltas en función unreachable para que el JS sea sintácticamente válido.
+    // Etapa 13D las eliminará completamente.
+    function _openPagoModalV2AndFixesLegacyBody_UNREACHABLE(r, contratoBase) {
       r = {
         ...r,
         local_codigo: r.local_codigo || contratoBase.codigo_local || contratoBase.codigo || '—',
@@ -16966,18 +16939,24 @@ const { error: updErr } = await sb
         console.warn('[GA] Error en fixCuotaSaldoSiErroneoPostCobro:', e?.message || e);
       }
     }
+    } // fin _openPagoModalV2AndFixesLegacyBody_UNREACHABLE
 
     async function registrarPagoModal(){
       // LEGACY_DISABLED (2026-06-24 Etapa 13B): registro de cobro viejo deshabilitado.
       // La RPC registrar_cobro_operativo_v4_multipago ya fue bloqueada en backend.
       alert('El cobro legacy está deshabilitado. Usá el botón "Cobro" → Cobro por componentes. Recargá con Ctrl+F5.');
-      return; // NO ejecutar. Código siguiente es referencia hasta Etapa 13C.
-      // -- Código legacy original (Etapa 13C lo eliminará) --
-      const msgEl = $('modalMsg');
-      const btn = $('btnGuardarPago');
-      if (!modalContrato?.contrato_id) return;
-      try{
-        if (btn) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+      // Código legacy eliminado (Etapa 13C).
+    }
+
+    // ── Resto del cobro legacy eliminado (Etapa 13C) ──
+    /* try{ ... } era el cuerpo de registrarPagoModal que llamaba a
+       registrar_cobro_operativo_v4_multipago (bloqueada en backend),
+       forceCobroReceiptMetadata, fixAplicacionesOperativasPostCobro
+       y fixCuotaSaldoSiErroneoPostCobro. Todas esas funciones siguen
+       existiendo como stubs hasta la próxima limpieza. */
+
+    // Cuerpo legacy de registrarPagoModal — dead, nadie lo llama. Etapa 13D lo elimina.
+    function _registrarPagoModalLegacyBody_UNREACHABLE(btn, msgEl) { if (false) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
         // Servicio del período (solo para inquilinos con servicio habilitado).
