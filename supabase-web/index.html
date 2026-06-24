@@ -8510,10 +8510,11 @@ window.addEventListener('online', () => {
     }
 
     function openPagoFromInicio(contratoId){
+      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
       const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!unidad) return alert('No hay datos para este activo.');
       if (!canUseOperationalContrato(unidad)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar desde acá.');
-      openPagoModal(unidad);
+      openCobro(unidad);  // → openCobroComp (cobro por componentes)
     }
 
     function openInquilinoDetalleByContrato(contratoId){
@@ -10099,13 +10100,15 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     }
 
     function openPagoModalByContrato(contratoId){
+      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
+      // Nombre mantenido por compatibilidad con botones en tabla de activos.
       const row = unidades.find(u => String(u.contrato_id) === String(contratoId))
         || (selected && String(selected.contrato_id) === String(contratoId) ? selected : null);
       if (!row) {
         alert('No se encontró el activo para cobrar. Actualizá la página y probá de nuevo.');
         return;
       }
-      return openPagoModal(row);
+      return openCobro(row);  // → openCobroComp (cobro por componentes)
     }
 
     async function openPagoModal(r){
@@ -11461,10 +11464,11 @@ setTimeout(() => {
     }
 
     function openPagoByContrato(contratoId){
+      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
       const u = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!u) return alert('No hay datos de deuda para este contrato.');
       if (!canUseOperationalContrato(u)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar.');
-      openPagoModal(u);
+      openCobro(u);  // → openCobroComp (cobro por componentes)
     }
 
     // ===== Modal inquilino (crear/editar) =====
