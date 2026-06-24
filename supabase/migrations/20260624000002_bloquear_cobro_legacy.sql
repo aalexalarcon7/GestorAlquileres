@@ -172,3 +172,9 @@ $$;
 
 COMMENT ON FUNCTION registrar_cobro_operativo(bigint,integer,integer,numeric,date,text,text,text) IS
   'DESHABILITADA 2026-06-24. Usar registrar_cobro_por_componentes.';
+
+-- ─── v1 firma corta (8 params) → RETURNS TABLE(ok, pago_id, mensaje) ─────
+-- Bloqueada en deploy separado 2026-06-24 (firma distinta requirió script aparte)
+-- Verificar con:
+-- SELECT prosrc ILIKE '%COBRO_LEGACY_DESHABILITADO%' FROM pg_proc WHERE proname='registrar_cobro_operativo';
+
