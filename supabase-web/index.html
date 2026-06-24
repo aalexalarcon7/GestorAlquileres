@@ -16452,7 +16452,7 @@ function syncCobroAlquilerDesdePeriodo(){
       // Código legacy eliminado (Etapa 13C).
     }
     // [Etapa 13D: dead code eliminado — ver commit c1567f3 para el cuerpo original]
-    function _legacyCobroDeadCode_ELIMINADO_13D(r, contratoBase) {
+    async function _legacyCobroDeadCode_ELIMINADO_13D(r, contratoBase) {
       r = {
         ...r,
         local_codigo: r.local_codigo || contratoBase.codigo_local || contratoBase.codigo || '—',
