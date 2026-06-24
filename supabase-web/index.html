@@ -13185,6 +13185,24 @@ function updateRecibosFiltersFromUI(){
         return;
       }
 
+      // Bloqueo Etapa 11: recibos de COBRO_COMPONENTES no pueden eliminarse desde aquí.
+      // Deben anularse con anular_cobro_por_componentes para revertir cuotas correctamente.
+      if (String(item.origen || '').toUpperCase() === 'COBRO_COMPONENTES') {
+        closeReciboModal();
+        const reciboIdNum = Number(item.recibo_id || item.id || 0);
+        const tieneModalAnular = reciboIdNum > 0 && window._recibosAnularCache?.[reciboIdNum];
+        alert(
+          `El recibo ${numero} fue registrado con el nuevo flujo de Cobro por componentes.\n\n` +
+          `Para anularlo correctamente (revirtiendo cuotas, pagos y aplicaciones), ` +
+          `usá el botón "Anular" en la lista de Recibos internos.\n\n` +
+          `La eliminación directa no revierte las cuotas automáticamente.`
+        );
+        if (tieneModalAnular) {
+          openAnularCobro(reciboIdNum);
+        }
+        return;
+      }
+
       if (deletingRecibosKeys.has(deleteKey)) return;
 
       const ok = confirm(
