@@ -4782,7 +4782,7 @@ td:last-child{
                   <tr>
                     <th>Periodo</th>
                     <th>Vencimiento</th>
-                    <th class="right">Total</th>
+                    <th class="right" title="Alquiler puro del mes (sin impuesto ni servicio) para cuotas con componentes; total completo para cuotas legacy">Alquiler</th>
                     <th class="right">Pagado</th>
                     <th class="right" id="detalleThImpuesto" title="Impuesto: pagado o pendiente si la cuota tiene componentes; aplicado según recibos en modo legacy">Impuesto</th>
                     <th id="detalleThServicio" class="right" title="Servicio pendiente (componentes) o total del mes (legacy)">Serv. pend.</th>
@@ -7893,9 +7893,13 @@ if (aplicacionesDirectas.length) {
         else if (String(estado).includes('VENCE')) cls = 'b-warn';
 
         const impuesto = toNumber(x.impuesto);
-        const totalDisplay = Number.isFinite(Number(x.total_con_impuesto))
-          ? toNumber(x.total_con_impuesto)
-          : round2(toNumber(x.total) + impuesto);
+        // Columna "Alquiler": en modo componentes muestra solo el alquiler puro (sin impuesto/servicio).
+        // En modo legacy sigue mostrando el total como antes.
+        const totalDisplay = x._modo_componentes && toNumber(x.monto_alquiler_total) > 0
+          ? toNumber(x.monto_alquiler_total)
+          : (Number.isFinite(Number(x.total_con_impuesto))
+            ? toNumber(x.total_con_impuesto)
+            : round2(toNumber(x.total) + impuesto));
         const pagadoDisplay = Number.isFinite(Number(x.pagado_con_impuesto))
           ? toNumber(x.pagado_con_impuesto)
           : round2(toNumber(x.pagado) + impuesto);
@@ -11504,13 +11508,14 @@ setTimeout(() => {
         if (error) { $('inqModalMsg').textContent = error.message; return; }
 
         $('inqModalMsg').textContent = 'Guardado ✅';
-        // refrescar cache desde DB
-        await refreshContratosActivos();
+        // refreshAll actualiza también `unidades` (lista de activos), no solo contratosActivos
+        await refreshAll();
         buildInqCache();
         renderInquilinosPage();
         selectedInqId = inq.inquilino_id;
         renderInquilinoDetail();
         closeInqModal();
+        showPagoSuccessToast(`Nombre actualizado: ${nombre}.`, 'Inquilino actualizado');
       } else {
         const codigoLocal = ($('inqLocalCodigo')?.value || '').trim();
         const montoRaw = ($('inqMontoMensual')?.value || '').trim();
