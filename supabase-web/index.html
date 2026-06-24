@@ -17943,6 +17943,12 @@ setTimeout(() => {
         const res = Array.isArray(data) ? data[0] : data;
         if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo registrar el cobro.');
 
+        // Verificar que la RPC efectivamente impactó cuotas (defensa extra)
+        const cuotasAfectadas = res.cuotas_afectadas || [];
+        if (!cuotasAfectadas.length) {
+          console.warn('[CobroComp] La RPC devolvió ok=true pero sin cuotas_afectadas. Verificar manualmente.');
+        }
+
         clearReceiptsCache('cobro-componentes');
         closeCobroComp();
         await refreshAll();
