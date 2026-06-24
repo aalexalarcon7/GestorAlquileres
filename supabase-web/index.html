@@ -4841,74 +4841,9 @@ td:last-child{
        Funciones openPagoModal/registrarPagoModal siguen como stubs.
        CSS legacy de #modalBack se mantiene inerte (no rompe nada).
        DOM elements referenciados (mFecha, mAlquiler, etc.) ya no existen — stubs manejan esto.  -->
-  <div class="modalBack" id="modalBack" style="display:none!important;pointer-events:none!important;visibility:hidden!important;">
-    <div class="modal" aria-hidden="true">
-      <div class="row" style="justify-content:space-between;">
-        <h3 style="margin:0;">Registrar pago (LEGACY — ELIMINADO)</h3>
-        <button class="btn" onclick="closePagoModal()">Cerrar</button>
-      </div>
-      <div class="muted" id="modalMeta">—</div>
-
-      <div class="row" style="margin-top:12px; align-items:flex-end; flex-wrap:wrap;">
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:180px;">
-          <label class="muted" style="font-size:12px;">Fecha</label>
-          <input id="mFecha" type="date" style="width:160px" onchange="refreshPaymentPeriodOptions(modalContrato, true).then(() => recalcularCobroModal())">
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:260px;">
-          <label class="muted" style="font-size:12px;">Mes / deuda a imputar</label>
-          <select id="mPeriodoAplicado" style="width:260px; font-weight:800;" onchange="recalcularCobroModal()">
-            <option value="AUTO">Automático: deuda más antigua</option>
-          </select>
-          <span class="muted" style="font-size:11px;line-height:1.25;max-width:300px;display:block;"></span>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
-          <label class="muted" style="font-size:12px;">Alquiler</label>
-          <input id="mAlquiler" placeholder="Monto alquiler" style="width:220px" oninput="recalcularCobroModal()">
-        </div>
-        <input id="mImpPct" type="hidden" value="0">
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:220px;">
-          <label class="muted" style="font-size:12px;">Impuesto a sumar</label>
-          <input id="mImpMonto" inputmode="decimal" placeholder="Ej: 50.000" style="width:220px; font-weight:800;" oninput="window.__editandoImpuestoMonto = true" onblur="window.__editandoImpuestoMonto = false; recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">          <span class="muted" style="font-size:11px;line-height:1.25;max-width:240px;display:block;"></span>
-        </div>
-        <div id="mServicioBox" style="display:none; flex-direction:column; gap:6px; min-width:220px;">
-          <label class="muted" style="font-size:12px;">Servicio</label>
-          <input id="mServMonto" inputmode="decimal" placeholder="—" style="width:220px; font-weight:800;" oninput="recalcularCobroModal(); this.value = this.value ? formatMoneyInputValue(parseMoneyToNumber(this.value)) : '';">
-        </div>
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:200px;">
-          <label class="muted" style="font-size:12px;">Total a cobrar</label>
-          <input id="mTotal" placeholder="Total" style="width:200px; font-weight:900;" readonly>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px; align-items:flex-end; flex-wrap:wrap;">
-        <div style="display:flex; flex-direction:column; gap:6px; min-width:190px;">
-          <label class="muted" style="font-size:12px;">N° recibo manual</label>
-          <input id="mReferencia" placeholder="Ej: 9873 o REC-001" style="width:180px; font-weight:800;">
-        </div>
-        <input id="mMedio" type="hidden" value="EFECTIVO">
-        <button class="btn primary" id="btnGuardarPago" type="button" onclick="registrarPagoModal()">Guardar</button>
-      </div>
-
-      <div class="multi-pay-box" id="mMediosPagoBox">
-        <div class="multi-pay-head">
-          <div>
-            <div class="multi-pay-title">Medios de pago</div>
-            <div class="multi-pay-sub">Podés dividir un mismo recibo en efectivo, transferencia u otros medios. La suma de estos medios es el total cobrado; el sistema imputa primero al impuesto, luego al servicio y después el resto al alquiler.</div>
-          </div>
-        </div>
-        <div class="multi-pay-list" id="mMediosPagoList"></div>
-        <div class="multi-pay-footer">
-          <button class="btn" type="button" onclick="addPagoMedioRow()">+ Agregar medio</button>
-          <div class="multi-pay-summary" id="mMediosPagoResumen">Medios: $ 0,00</div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:10px;">
-        <textarea id="mDescripcion" style="width:100%;min-height:90px;" placeholder="Descripción del pago (opcional)"></textarea>
-      </div>
-      <div class="toast" id="modalMsg"></div>
-    </div>
-  </div>
+  <!-- #modalBack: modal cobro legacy ELIMINADO (Etapa 13D 2026-06-24).
+       Contenedor vacío preservado para que las referencias de CSS (#modalBack) sean inócuas.
+       closePagoModal() lo apunta pero nunca se abre (display:none!important permanente). -->
 
 
   <!-- MODAL AGREGAR MES OPERATIVO -->
@@ -8514,13 +8449,14 @@ window.addEventListener('online', () => {
       openActiveDetailByContrato(contratoId);
     }
 
-    function openPagoFromInicio(contratoId){
-      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
+    // openPagoFromInicio → openCobroFromInicio (alias Etapa 13D)
+    function openCobroFromInicio(contratoId){
       const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (!unidad) return alert('No hay datos para este activo.');
       if (!canUseOperationalContrato(unidad)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar desde acá.');
-      openCobro(unidad);  // → openCobroComp (cobro por componentes)
+      openCobro(unidad);
     }
+    const openPagoFromInicio = openCobroFromInicio; // alias temporal
 
     function openInquilinoDetalleByContrato(contratoId){
       openActiveDetailByContrato(contratoId);
@@ -11419,7 +11355,7 @@ setTimeout(() => {
             <td class="right">${fmtARS.format(c.deuda_atrasada)}</td>
             <td class="center">${c.meses_adeudados}</td>
             <td class="center">
-              <button class="btn primary" onclick="openPagoByContrato('${c.contrato_id}')">Cobrar</button>
+              <button class="btn primary" onclick="openCobroByContrato('${c.contrato_id}')">Cobrar</button>
               <button class="btn" onclick="openDetalleByContrato('${c.contrato_id}')">Detalle</button>
             </td>
           </tr>
@@ -11435,13 +11371,8 @@ setTimeout(() => {
       openDetalle(u);
     }
 
-    function openPagoByContrato(contratoId){
-      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
-      const u = unidades.find(x => String(x.contrato_id) === String(contratoId));
-      if (!u) return alert('No hay datos de deuda para este contrato.');
-      if (!canUseOperationalContrato(u)) return alert('Este activo viene de auditoría y no tiene contrato operativo para cobrar.');
-      openCobro(u);  // → openCobroComp (cobro por componentes)
-    }
+    // openPagoByContrato → openCobroByContrato (Etapa 13D)
+    const openPagoByContrato = openCobroByContrato; // alias temporal
 
     // ===== Modal inquilino (crear/editar) =====
     let inqModalMode = 'create';
@@ -16519,10 +16450,8 @@ function syncCobroAlquilerDesdePeriodo(){
       );
       // Código legacy eliminado (Etapa 13C).
     }
-    // ── Cuerpo legacy de openPagoModal v2 + funciones fix (todas dead, nadie las llama) ──
-    // Envueltas en función unreachable para que el JS sea sintácticamente válido.
-    // Etapa 13D las eliminará completamente.
-    function _openPagoModalV2AndFixesLegacyBody_UNREACHABLE(r, contratoBase) {
+    // [Etapa 13D: dead code eliminado — ver commit c1567f3 para el cuerpo original]
+    function _legacyCobroDeadCode_ELIMINADO_13D(r, contratoBase) {
       r = {
         ...r,
         local_codigo: r.local_codigo || contratoBase.codigo_local || contratoBase.codigo || '—',
@@ -16939,24 +16868,15 @@ const { error: updErr } = await sb
         console.warn('[GA] Error en fixCuotaSaldoSiErroneoPostCobro:', e?.message || e);
       }
     }
-    } // fin _openPagoModalV2AndFixesLegacyBody_UNREACHABLE
+    } // fin _legacyCobroDeadCode_ELIMINADO_13D
 
     async function registrarPagoModal(){
-      // LEGACY_DISABLED (2026-06-24 Etapa 13B): registro de cobro viejo deshabilitado.
-      // La RPC registrar_cobro_operativo_v4_multipago ya fue bloqueada en backend.
+      // LEGACY_DISABLED: stub — cobro viejo deshabilitado. Usar Cobro por componentes.
       alert('El cobro legacy está deshabilitado. Usá el botón "Cobro" → Cobro por componentes. Recargá con Ctrl+F5.');
-      // Código legacy eliminado (Etapa 13C).
     }
 
-    // ── Resto del cobro legacy eliminado (Etapa 13C) ──
-    /* try{ ... } era el cuerpo de registrarPagoModal que llamaba a
-       registrar_cobro_operativo_v4_multipago (bloqueada en backend),
-       forceCobroReceiptMetadata, fixAplicacionesOperativasPostCobro
-       y fixCuotaSaldoSiErroneoPostCobro. Todas esas funciones siguen
-       existiendo como stubs hasta la próxima limpieza. */
-
-    // Cuerpo legacy de registrarPagoModal — dead, nadie lo llama. Etapa 13D lo elimina.
-    function _registrarPagoModalLegacyBody_UNREACHABLE(btn, msgEl) { if (false) { btn.disabled = true; btn.textContent = 'Guardando...'; }
+    // [Etapa 13D: cuerpo dead de registrarPagoModal — ver commit c1567f3]
+    function _legacyRegistrarPagoDeadCode_ELIMINADO_13D(btn, msgEl) { if (false) { btn.disabled = true; btn.textContent = 'Guardando...'; }
         if (msgEl) msgEl.textContent = 'Registrando cobro operativo...';
         const impuestoObjetivo = parseMoneyToNumber($('mImpMonto')?.value || '') || 0;
         // Servicio del período (solo para inquilinos con servicio habilitado).
