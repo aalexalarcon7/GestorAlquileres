@@ -4841,9 +4841,9 @@ td:last-child{
        Funciones openPagoModal/registrarPagoModal siguen como stubs.
        CSS legacy de #modalBack se mantiene inerte (no rompe nada).
        DOM elements referenciados (mFecha, mAlquiler, etc.) ya no existen — stubs manejan esto.  -->
-  <!-- #modalBack: modal cobro legacy ELIMINADO (Etapa 13D 2026-06-24).
-       Contenedor vacío preservado para que las referencias de CSS (#modalBack) sean inócuas.
-       closePagoModal() lo apunta pero nunca se abre (display:none!important permanente). -->
+  <!-- #modalBack: modal cobro legacy ELIMINADO (Etapa 13D). Div vacío requerido como anchor
+       para que closePagoModal() y referencias CSS no fallen. Nunca se hace visible. -->
+  <div id="modalBack" style="display:none!important;" aria-hidden="true"></div>
 
 
   <!-- MODAL AGREGAR MES OPERATIVO -->
@@ -10062,7 +10062,8 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     }
 
     function closePagoModal(){
-      $('modalBack').style.display = 'none';
+      const _mb = $('modalBack');
+      if (_mb) _mb.style.display = 'none';
       modalContrato = null;
     }
 
