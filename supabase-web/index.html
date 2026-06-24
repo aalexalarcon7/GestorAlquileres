@@ -5664,6 +5664,8 @@ td:last-child{
     const MANUAL_RECEIPTS_KEY = 'ga_manual_receipts_v1';
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
     const RECEIPTS_CACHE_TTL_MS = 60_000; // cache de recibos válido por 60 segundos
+    // Versión de la app — cambiar cada deploy para forzar limpieza de cache en navegadores viejos
+    const APP_VERSION = '20260624-cobro-componentes-final';
 
     // Recibos válidos de Mayo 2026 validados contra la planilla física.
     // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
@@ -10103,6 +10105,21 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     }
 
     async function openPagoModal(r){
+      // LEGACY_DISABLED 2026-06-24: cobro viejo deshabilitado permanentemente.
+      // El botón "Cobro" ahora enruta siempre a openCobro → openCobroComp.
+      // Este bloqueo evita que un frontend cacheado ejecute el cobro viejo
+      // que no actualiza campos de componentes en cuotas_operativas.
+      const _nombre = r?.inquilino_nombre || r?.nombre_inquilino || '—';
+      const _codigo = r?.local_codigo || r?.codigo_local || '—';
+      alert(
+        `El cobro legacy está deshabilitado para ${_codigo} (${_nombre}).\n\n` +
+        `Cerrá esta ventana, recargá la página (Ctrl+F5 / Cmd+Shift+R) y usá el botón "Cobro" ` +
+        `que ahora abre el Cobro por componentes.\n\n` +
+        `Si el contrato no tiene componentes preparados, contactar al administrador.`
+      );
+      return; // NO continuar con el modal viejo — código siguiente es referencia hasta Etapa 13B
+
+      // -- Código legacy mantenido como referencia. No se ejecuta. --
       modalContrato = r;
       $('modalBack').style.display = 'flex';
       $('modalMeta').textContent = `${r.local_codigo} — ${r.inquilino_nombre} | Deuda: ${fmtARS.format(getDisplayedDebtTotal(r))}`;
@@ -15865,6 +15882,19 @@ error = deleteResponse.error;
     });
 
     async function init(){
+      // Cache busting: al cambiar APP_VERSION se limpian caches del navegador.
+      // Esto evita que el jefe siga usando una versión vieja del sistema tras un deploy.
+      try {
+        const _storedVer = localStorage.getItem('ga_app_version');
+        if (_storedVer !== APP_VERSION) {
+          localStorage.removeItem(RECEIPTS_CACHE_KEY);
+          localStorage.removeItem(MANUAL_RECEIPTS_KEY);
+          localStorage.removeItem(COBRO_RECEIPT_OVERRIDES_KEY);
+          localStorage.setItem('ga_app_version', APP_VERSION);
+          console.info('%c[GestorAlquileres] Versión actualizada: ' + APP_VERSION + ' — caches limpiados', 'color:#15803d;font-weight:bold');
+        }
+      } catch(e) { console.warn('No se pudo limpiar cache de versión:', e); }
+
       loadNavState();
       loadAppSettings();
       loadReceiptNumberMap();
@@ -17943,10 +17973,18 @@ setTimeout(() => {
         const res = Array.isArray(data) ? data[0] : data;
         if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo registrar el cobro.');
 
-        // Verificar que la RPC efectivamente impactó cuotas (defensa extra)
+        // Defensa anti-cache-viejo: si la RPC dice ok=true pero no devolvió
+        // cuotas afectadas, el cobro puede haber sido ejecutado por el cobro legacy
+        // que no actualiza campos de componentes. NO mostrar éxito en ese caso.
         const cuotasAfectadas = res.cuotas_afectadas || [];
         if (!cuotasAfectadas.length) {
-          console.warn('[CobroComp] La RPC devolvió ok=true pero sin cuotas_afectadas. Verificar manualmente.');
+          console.error('[CobroComp] ERROR CRÍTICO: ok=true pero cuotas_afectadas vacío. Recibo:', res.numero_recibo);
+          if (msg) msg.textContent =
+            '⚠ El cobro fue registrado pero no se confirmó impacto en cuotas. ' +
+            'Recibo: ' + (res.numero_recibo || '?') + '. ' +
+            'Verificar con "✎ Editar cuota" y corregir manualmente si es necesario.';
+          $('cobroCompBtnConfirmar').disabled = false;
+          return; // NO cerrar modal ni mostrar toast de éxito
         }
 
         clearReceiptsCache('cobro-componentes');
