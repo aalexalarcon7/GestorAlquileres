@@ -5608,7 +5608,8 @@ td:last-child{
       </div>
       <div id="reciboPreviewBody" style="margin-top:14px;"></div>
 
-      <div class="recibo-danger-zone">
+      <div class="recibo-danger-zone" id="reciboModalDangerZone">
+        <!-- Contenido generado dinámicamente en openReciboModal según item.origen -->
         <div>
           <h4>Eliminar recibo</h4>
           <div class="muted">Elimina el recibo del historial y, si corresponde, también el pago asociado.</div>
@@ -9113,14 +9114,17 @@ function sortRecibosByNewestFirst(rows){
         const key = getReciboKey(item);
         const ref = item.periodo_aplicado || item.periodo || item.referencia || item.detalle_aplicacion || '—';
 
-        // Anulación solo para COBRO_COMPONENTES (Etapa 11)
+        // Botón de acción: "Anular cobro" para COBRO_COMPONENTES, "Eliminar" para legacy
         const reciboIdNum = Number(item.recibo_id || item.id || 0);
-        const esAnulable  = item.origen === 'COBRO_COMPONENTES' && reciboIdNum > 0;
-        if (esAnulable) window._recibosAnularCache[reciboIdNum] = item;
+        const esCobroComp = String(item.origen || '').toUpperCase() === 'COBRO_COMPONENTES';
+        if (esCobroComp && reciboIdNum > 0) {
+          if (!window._recibosAnularCache) window._recibosAnularCache = {};
+          window._recibosAnularCache[reciboIdNum] = item;
+        }
 
-        const anularBtn = esAnulable
-          ? `<button class="btn" type="button" onclick="openAnularCobro(${reciboIdNum})" style="color:#dc2626;border-color:#fca5a5;margin-left:5px;" title="Anular este cobro">Anular</button>`
-          : '';
+        const accionBtn = esCobroComp
+          ? `<button class="btn" type="button" onclick="openAnularCobro(${reciboIdNum})" style="color:#dc2626;border-color:#fca5a5;margin-left:5px;" title="Anular cobro (revierte cuotas, pago y aplicaciones)">Anular cobro</button>`
+          : `<button class="btn" type="button" onclick="deleteReciboById('${escapeAttr(key)}')" style="color:#64748b;border-color:#e2e8f0;margin-left:5px;font-size:12px;" title="Eliminar recibo histórico">Eliminar</button>`;
 
         return `
           <tr>
@@ -9132,7 +9136,7 @@ function sortRecibosByNewestFirst(rows){
             <td class="right"><b>${fmtARS.format(Number(item.monto_total ?? item.monto ?? 0))}</b></td>
             <td>${escapeHtml(item.medio || 'EFECTIVO')}</td>
             <td class="center">
-              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>${anularBtn}
+              <button class="btn" type="button" onclick="openReciboModal('${escapeAttr(key)}')">Ver recibo</button>${accionBtn}
             </td>
           </tr>
         `;
@@ -13308,6 +13312,23 @@ error = deleteResponse.error;
       deleteReciboById(getReciboKey(reciboActual));
     }
 
+    // Anular desde el modal del recibo (Etapa 11)
+    // Solo para recibos COBRO_COMPONENTES. Cierra el modal de recibo y abre el de anulación.
+    function _anularDesdeModal(reciboIdNum) {
+      const id = Number(reciboIdNum || 0);
+      closeReciboModal();
+      // Asegurar que el item esté en el cache
+      if (reciboActual && id > 0 && !window._recibosAnularCache?.[id]) {
+        if (!window._recibosAnularCache) window._recibosAnularCache = {};
+        window._recibosAnularCache[id] = reciboActual;
+      }
+      if (id > 0 && window._recibosAnularCache?.[id]) {
+        openAnularCobro(id);
+      } else {
+        alert('No se pudo abrir el modal de anulación.\nBuscá el recibo en la lista de Recibos internos y usá el botón "Anular cobro".');
+      }
+    }
+
 
     let pagoSuccessToastTimer = null;
     function showPagoSuccessToast(message = 'Operación realizada correctamente.', title = 'Pago registrado'){
@@ -13367,6 +13388,31 @@ error = deleteResponse.error;
       // Render inicial rápido con datos del cache (sin apps todavía)
       $('reciboPreviewBody').innerHTML = buildReceiptPrintHtml(item, null);
       if ($('reciboModalMsg')) $('reciboModalMsg').textContent = '';
+
+      // Danger zone dinámica según origen (Etapa 11)
+      const dz = $('reciboModalDangerZone');
+      if (dz) {
+        const reciboIdNum = Number(item.recibo_id || item.id || 0);
+        const esCobroComp = String(item.origen || '').toUpperCase() === 'COBRO_COMPONENTES';
+        if (esCobroComp) {
+          // Populamos el cache para que openAnularCobro encuentre el item
+          if (!window._recibosAnularCache) window._recibosAnularCache = {};
+          if (reciboIdNum > 0) window._recibosAnularCache[reciboIdNum] = item;
+          dz.innerHTML = `
+            <div>
+              <h4 style="color:#dc2626;">Anular cobro</h4>
+              <div class="muted">Este recibo fue generado por el nuevo cobro por componentes. La anulación revierte cuotas, pago y aplicaciones con auditoría completa.</div>
+            </div>
+            <button class="btn danger" onclick="_anularDesdeModal(${reciboIdNum})">Anular cobro</button>`;
+        } else {
+          dz.innerHTML = `
+            <div>
+              <h4>Eliminar recibo histórico</h4>
+              <div class="muted">Elimina el recibo del historial y, si corresponde, también el pago asociado. Solo para recibos legacy.</div>
+            </div>
+            <button class="btn danger" onclick="deleteReciboActual()">Eliminar recibo</button>`;
+        }
+      }
 
       // Fetch aplicaciones reales y re-render si existen (Etapa 5)
       try {
@@ -19205,7 +19251,8 @@ exposeGlobalFunction('eliminarMedioCobroComp',         typeof eliminarMedioCobro
 exposeGlobalFunction('onMedioCobroCompChange',         typeof onMedioCobroCompChange         !== 'undefined' ? onMedioCobroCompChange         : null);
 // Cobro principal — enrutador nuevo/legacy (Etapa 12C)
 exposeGlobalFunction('openCobro',                  typeof openCobro                  !== 'undefined' ? openCobro                  : null);
-// Anular cobro por componentes (Etapa 11)
+// Anular cobro por componentes (Etapa 11) + helper desde modal
+exposeGlobalFunction('_anularDesdeModal',          typeof _anularDesdeModal          !== 'undefined' ? _anularDesdeModal          : null);
 exposeGlobalFunction('openAnularCobro',            typeof openAnularCobro            !== 'undefined' ? openAnularCobro            : null);
 exposeGlobalFunction('closeAnularCobro',           typeof closeAnularCobro           !== 'undefined' ? closeAnularCobro           : null);
 exposeGlobalFunction('onAnularCobroMotivoChange',  typeof onAnularCobroMotivoChange  !== 'undefined' ? onAnularCobroMotivoChange  : null);
