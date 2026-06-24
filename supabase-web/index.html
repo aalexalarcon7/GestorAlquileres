@@ -8766,7 +8766,7 @@ function sortRecibosByNewestFirst(rows){
           <td class="center">${getDisplayedMonthsOwed(r)}</td>
           <td class="center">${badge}</td>
           <td class="center">
-            <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
+            <button class="btn primary" type="button" onclick="openCobroByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
             <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
           </td>
         `;
@@ -8788,7 +8788,7 @@ function sortRecibosByNewestFirst(rows){
               <div class="mobile-meta"><div class="label">Meses</div><div class="value">${getDisplayedMonthsOwed(r)}</div></div>
             </div>
             <div class="mobile-actions">
-              <button class="btn primary" type="button" onclick="openPagoModalByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
+              <button class="btn primary" type="button" onclick="openCobroByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Cobro</button>
               <button class="btn" onclick="openActiveDetailByContrato('${String(r.contrato_id).replace(/'/g, "\'")}')">Detalle</button>
             </div>
           `;
@@ -10099,9 +10099,8 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       return { alquiler, impPct, impuesto, total };
     }
 
-    function openPagoModalByContrato(contratoId){
-      // Redirige al nuevo cobro por componentes (Etapa 12C fix).
-      // Nombre mantenido por compatibilidad con botones en tabla de activos.
+    // openPagoModalByContrato renombrada a openCobroByContrato (Etapa 13B)
+    function openCobroByContrato(contratoId){
       const row = unidades.find(u => String(u.contrato_id) === String(contratoId))
         || (selected && String(selected.contrato_id) === String(contratoId) ? selected : null);
       if (!row) {
@@ -10110,6 +10109,8 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
       }
       return openCobro(row);  // → openCobroComp (cobro por componentes)
     }
+    // Alias deprecated para compatibilidad — Etapa 13C lo eliminará
+    const openPagoModalByContrato = openCobroByContrato;
 
     async function openPagoModal(r){
       // LEGACY_DISABLED 2026-06-24: cobro viejo deshabilitado permanentemente.
@@ -16536,6 +16537,17 @@ function syncCobroAlquilerDesdePeriodo(){
 
 
     async function openPagoModal(r){
+      // LEGACY_DISABLED v2 (2026-06-24 Etapa 13B): esta es la versión activa del cobro viejo.
+      // Bloqueada definitivamente. Todo cobro debe ir por openCobro → openCobroComp.
+      const _nb = r?.inquilino_nombre || r?.nombre_inquilino || '—';
+      const _cb = r?.local_codigo || r?.codigo_local || '—';
+      alert(
+        `El cobro legacy está deshabilitado para ${_cb} (${_nb}).\n\n` +
+        `Recargá la página (Ctrl+F5 / Cmd+Shift+R) y usá el botón "Cobro" ` +
+        `que ahora abre el Cobro por componentes.`
+      );
+      return; // NO abrir el modal viejo. Código siguiente es referencia hasta Etapa 13C.
+      // -- Código legacy original (Etapa 13C lo eliminará) --
       if (!r || !r.contrato_id) return alert('Primero seleccioná un activo con contrato operativo.');
       const contratoBase = getContratoActivoRow(r.contrato_id) || {};
       r = {
@@ -16956,6 +16968,11 @@ const { error: updErr } = await sb
     }
 
     async function registrarPagoModal(){
+      // LEGACY_DISABLED (2026-06-24 Etapa 13B): registro de cobro viejo deshabilitado.
+      // La RPC registrar_cobro_operativo_v4_multipago ya fue bloqueada en backend.
+      alert('El cobro legacy está deshabilitado. Usá el botón "Cobro" → Cobro por componentes. Recargá con Ctrl+F5.');
+      return; // NO ejecutar. Código siguiente es referencia hasta Etapa 13C.
+      // -- Código legacy original (Etapa 13C lo eliminará) --
       const msgEl = $('modalMsg');
       const btn = $('btnGuardarPago');
       if (!modalContrato?.contrato_id) return;
@@ -19291,10 +19308,13 @@ function exposeGlobalFunction(name, fn){
   }
 }
 
-exposeGlobalFunction('openPagoModal', typeof openPagoModal !== 'undefined' ? openPagoModal : null);
+// LEGACY_DISABLED (Etapa 13B): openPagoModal/registrarPagoModal bloqueadas.
+// Se exponen para que llamadas desde consola/cache viejo reciban el alert de bloqueo.
+exposeGlobalFunction('openPagoModal',          typeof openPagoModal          !== 'undefined' ? openPagoModal          : null);
 exposeGlobalFunction('openPagoModalByContrato', typeof openPagoModalByContrato !== 'undefined' ? openPagoModalByContrato : null);
-exposeGlobalFunction('closePagoModal', typeof closePagoModal !== 'undefined' ? closePagoModal : null);
-exposeGlobalFunction('registrarPagoModal', typeof registrarPagoModal !== 'undefined' ? registrarPagoModal : null);
+exposeGlobalFunction('openCobroByContrato',    typeof openCobroByContrato    !== 'undefined' ? openCobroByContrato    : null);
+exposeGlobalFunction('closePagoModal',         typeof closePagoModal         !== 'undefined' ? closePagoModal         : null);
+exposeGlobalFunction('registrarPagoModal',     typeof registrarPagoModal     !== 'undefined' ? registrarPagoModal     : null);
 // Cobro por componentes (Etapa 4)
 exposeGlobalFunction('openCobroComp',                  typeof openCobroComp                  !== 'undefined' ? openCobroComp                  : null);
 // Medios de pago multi (Etapa 10)
