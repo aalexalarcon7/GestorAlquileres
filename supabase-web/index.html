@@ -11309,7 +11309,7 @@ setTimeout(() => {
       if (!tb) return;
 
       tb.innerHTML = rows.slice(0, 400).map(x => `
-        <tr onclick="selectInquilino('${x.inquilino_id}')">
+        <tr onclick="selectInquilino(${Number(x.inquilino_id)})">
           <td><b>${x.nombre}</b></td>
           <td class="center">${x.contratos_activos}</td>
           <td class="right">${fmtARS.format(x.deuda_total)}</td>
@@ -11321,7 +11321,7 @@ setTimeout(() => {
       const msg = $('inqMsg');
       if (msg) msg.textContent = rows.length ? '' : 'Sin resultados.';
       // Si no hay seleccionado o el seleccionado ya no está, ocultamos detalle
-      if (selectedInqId && !rows.some(r => r.inquilino_id === selectedInqId)){
+      if (selectedInqId && !rows.some(r => String(r.inquilino_id) === String(selectedInqId))){
         selectedInqId = null;
         const dc = $('inqDetailCard'); if (dc) dc.style.display = 'none';
       }
@@ -11333,7 +11333,7 @@ setTimeout(() => {
     }
 
     function renderInquilinoDetail(){
-      const inq = inqCache.find(x => x.inquilino_id === selectedInqId);
+      const inq = inqCache.find(x => String(x.inquilino_id) === String(selectedInqId));
       const card = $('inqDetailCard');
       if (!inq || !card) return;
 
@@ -11387,7 +11387,7 @@ setTimeout(() => {
       $('modalInqBack').style.display = 'flex';
 
       if (mode === 'edit'){
-        const inq = inqCache.find(x => x.inquilino_id === selectedInqId);
+        const inq = inqCache.find(x => String(x.inquilino_id) === String(selectedInqId));
         if (!inq) { $('inqModalMsg').textContent = 'Seleccioná un inquilino primero.'; return; }
         $('inqModalTitle').textContent = 'Editar inquilino';
         $('inqNombre').value = inq.nombre || '';
@@ -11501,10 +11501,10 @@ setTimeout(() => {
       };
 
       if (inqModalMode === 'edit'){
-        const inq = inqCache.find(x => x.inquilino_id === selectedInqId);
+        const inq = inqCache.find(x => String(x.inquilino_id) === String(selectedInqId));
         if (!inq) { $('inqModalMsg').textContent = 'Seleccioná un inquilino.'; return; }
 
-        const { error } = await sb.from('inquilinos').update(payload).eq('id', inq.inquilino_id);
+        const { error } = await sb.from('inquilinos').update(payload).eq('id', Number(inq.inquilino_id));
         if (error) { $('inqModalMsg').textContent = error.message; return; }
 
         $('inqModalMsg').textContent = 'Guardado ✅';
