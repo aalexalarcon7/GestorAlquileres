@@ -10808,10 +10808,11 @@ const cambioImpuesto = Math.abs(toNumber(newImpuesto) - toNumber(oldImpuesto)) >
   }
 
   const cuotaRpc = await sb.rpc('modificar_cuota_operativa_alquiler', {
-    p_contrato_id: Number(selected.contrato_id),
-    p_anio: Number(targetAnio),
-    p_mes: Number(targetMes),
-    p_monto_total: Number(newMonthly)
+    p_contrato_id:     Number(selected.contrato_id),
+    p_anio:            Number(targetAnio),
+    p_mes:             Number(targetMes),
+    p_monto_total:     Number(newMonthly),
+    p_impuesto_total:  Number(newImpuesto) > 0 ? Number(newImpuesto) : null
   });
 
   if (cuotaRpc?.error) throw cuotaRpc.error;
