@@ -6987,7 +6987,9 @@ manual_override: true
       return {
         ...baseRow,
         local_code_normalized: key,
-        inquilino_nombre: recon.nombre_raw || baseRow.inquilino_nombre,
+        // Priorizar nombre de baseRow (JOIN en vivo con inquilinos.nombre)
+        // sobre nombre_raw de la tabla denormalizada que no se actualiza al editar.
+        inquilino_nombre: baseRow.inquilino_nombre || recon.nombre_raw,
         deuda_total: total,
         deuda_atrasada: total,
         meses_adeudados: months,
