@@ -6873,7 +6873,12 @@ manual_override: true
         return nextMap.get(key);
       }
 
-      (estado2025Rows || []).forEach(row => {
+      // Solo usar filas de contratos ACTIVOS para evitar que contratos inactivos
+      // contaminen la deuda visible de un puesto reutilizado por otro inquilino.
+      const _activeContractIds = new Set((contratosActivos || []).map(c => String(c.id)));
+      const _inActiveSet = row => !row.contrato_id || _activeContractIds.has(String(row.contrato_id));
+
+      (estado2025Rows || []).filter(_inActiveSet).forEach(row => {
         const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
         if (entry.nombre_raw === '—' && row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
@@ -6883,7 +6888,7 @@ manual_override: true
         entry.tipo_deuda_2025 = row.estado_2025 || null;
       });
 
-      (estado2026Rows || []).forEach(row => {
+      (estado2026Rows || []).filter(_inActiveSet).forEach(row => {
         const entry = ensureEntry(row.codigo_local, row.nombre_inquilino);
         if (!entry) return;
         if (row.nombre_inquilino) entry.nombre_raw = row.nombre_inquilino;
@@ -6898,6 +6903,8 @@ manual_override: true
 
 (detalleMesActualRows || [])
   // Desde mayo 2026 en adelante, las cuotas operativas reales también forman parte de la deuda visible.
+  // Solo incluir filas de contratos activos (evita contaminación de contratos inactivos del mismo puesto).
+  .filter(_inActiveSet)
   .filter(row => Number(row.anio) === 2026 && Number(row.mes) >= 5)
   .forEach(row => {
     const anio = Number(row.anio);
