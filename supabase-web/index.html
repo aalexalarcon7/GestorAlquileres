@@ -12089,6 +12089,21 @@ setTimeout(() => {
       const total = fmtARS.format(Number(item?.monto_total || item?.monto || 0));
       const periodoAplicado = item?.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : `Referencia: ${item?.referencia || '—'}`;
 
+      // Descripción adicional escrita en el cobro.
+      // Solo se usa para mostrarla en el PDF, no afecta cálculos ni distribución.
+      const obsPdfRaw = String(item?.observacion || '').trim();
+      const detallePdfRaw = String(item?.detalle_aplicacion || item?.descripcion_pago || '').trim();
+      const obsPdfEsTecnica = !obsPdfRaw
+        || /^Cobro operativo registrado desde la página\.?$/i.test(obsPdfRaw)
+        || obsPdfRaw === detallePdfRaw;
+      const notaAdicionalPdf = String(
+        item?.nota_adicional
+        || item?.descripcion_adicional
+        || item?.observacion_adicional
+        || (!obsPdfEsTecnica ? obsPdfRaw : '')
+        || ''
+      ).trim();
+
       const centerText = (value, xCenter, y, size = 12, weight = 'normal', color = [15,23,42]) => {
         doc.setFont('helvetica', weight);
         doc.setFontSize(size);
@@ -12146,6 +12161,32 @@ setTimeout(() => {
         }
       };
 
+      const drawObservationBox = (x, y, w, text) => {
+        const cleanText = String(text || '').trim();
+        if (!cleanText) return 0;
+
+        const maxTextWidth = w - 48;
+        const lines = doc.splitTextToSize(cleanText, maxTextWidth);
+        const lineHeight = 14;
+        const boxH = Math.max(68, 44 + (lines.length * lineHeight));
+
+        doc.setFillColor(248,250,252);
+        doc.setDrawColor(203,213,225);
+        doc.roundedRect(x, y, w, boxH, 14, 14, 'FD');
+
+        centerText('Observación', x + (w / 2), y + 22, 10, 'bold', [100,116,139]);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10.5);
+        doc.setTextColor(71,85,105);
+        lines.forEach((line, idx) => {
+          const textWidth = doc.getTextWidth(String(line));
+          doc.text(String(line), x + (w / 2) - (textWidth / 2), y + 44 + (idx * lineHeight));
+        });
+
+        return boxH;
+      };
+
       const headerY = 38;
       const headerH = 178;
       const centerX = pageWidth / 2;
@@ -12186,7 +12227,14 @@ setTimeout(() => {
       drawAmountCard(startX + amountW + amountGap, amountY, amountW, 104, 'Impuesto', impuesto, impuestoPct > 0 ? `${impuestoPct.toFixed(2)}%` : 'Monto fijo');
       drawAmountCard(startX + (amountW + amountGap) * 2, amountY, amountW, 104, 'Total recibido', total, '', true);
 
-      const footerY = amountY + 128;
+      let footerY = amountY + 128;
+
+      if (notaAdicionalPdf) {
+        const observationY = amountY + 124;
+        const observationH = drawObservationBox(startX, observationY, contentWidth, notaAdicionalPdf);
+        footerY = observationY + observationH + 24;
+      }
+
       doc.setDrawColor(148,163,184);
       doc.setLineDashPattern([4, 4], 0);
       doc.line(startX + 12, footerY, startX + contentWidth - 12, footerY);
