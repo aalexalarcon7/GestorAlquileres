@@ -5743,7 +5743,7 @@ td:last-child{
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
     const RECEIPTS_CACHE_TTL_MS = 60_000; // cache de recibos válido por 60 segundos
     // Versión de la app — cambiar cada deploy para forzar limpieza de cache en navegadores viejos
-    const APP_VERSION = '20260702-roles-nota-recibos';
+    const APP_VERSION = '20260702-fix-anulacion-recibos-vinculados';
 
     // Recibos válidos de Mayo 2026 validados contra la planilla física.
     // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
@@ -6920,13 +6920,13 @@ td:last-child{
       try{
         const { data, error } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,nota_adicional,origen')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,nota_adicional,origen,deleted_at,estado,motivo_anulacion')
           .eq('contrato_id', id);
         if (error){
           console.warn('No se pudieron leer impuestos del contrato:', error.message || error);
           return [];
         }
-        return data || [];
+        return (data || []).filter(row => !isReciboAnulado(row));
       } catch(e){
         console.warn('No se pudieron leer impuestos del contrato:', e?.message || e);
         return [];
@@ -9176,6 +9176,9 @@ function sortRecibosByNewestFirst(rows){
         observacion: item.observacion || '',
         nota_adicional: item.nota_adicional || '',
         origen: item.origen || 'HISTORICO_MANUAL_1X1',
+        deleted_at: item.deleted_at || null,
+        estado: item.estado || '',
+        motivo_anulacion: item.motivo_anulacion || '',
         __source_table: 'recibos_historicos_operativos',
         __cache_key: `hist-${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
       };
@@ -9194,6 +9197,7 @@ function sortRecibosByNewestFirst(rows){
       const name = normalizeDetalleName(row?.inquilino_nombre || row?.nombre_inquilino || '');
 
       return (recibosRows || []).filter(item => {
+        if (isReciboAnulado(item)) return false;
         if (contratoId && item?.contrato_id && String(item.contrato_id) === contratoId) return true;
         const itemCode = normLocalCode(item?.local_codigo || item?.codigo_local || '');
         const itemName = normalizeDetalleName(item?.inquilino_nombre || item?.nombre_inquilino || '');
@@ -12562,6 +12566,9 @@ setTimeout(() => {
             observacion: item.observacion || '',
             nota_adicional: item.nota_adicional || '',
             origen: item.origen || item.fuente_hoja || '',
+            deleted_at: item.deleted_at || null,
+            estado: item.estado || '',
+            motivo_anulacion: item.motivo_anulacion || '',
             __source_table: item.fuente_hoja || 'pagos_operativos_rpc',
             __cache_key: `${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
           };
@@ -12574,7 +12581,7 @@ setTimeout(() => {
       try {
         const { data: histData } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,nota_adicional,origen')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,nota_adicional,origen,deleted_at,estado,motivo_anulacion')
           .limit(10000);
         // Etapa 4C: excluir recibos anulados (soft-delete o estado=ANULADO)
         historicosRaw = (histData || []).filter(r => !r.deleted_at && String(r.estado||'').toUpperCase() !== 'ANULADO');
@@ -17976,14 +17983,50 @@ function syncCobroAlquilerDesdePeriodo(){
         const res = Array.isArray(data) ? data[0] : data;
         if (!res || res.ok === false) throw new Error(res?.error || 'No se pudo anular el cobro.');
 
+        const itemAnulado = _anularCobroItem;
+
+        // Limpieza optimista: el recibo anulado no debe seguir visible hasta que vuelva Supabase.
+        if (itemAnulado) {
+          removeReciboFromLocalCaches(itemAnulado);
+          recibosInternosCache = (Array.isArray(recibosInternosCache) ? recibosInternosCache : [])
+            .filter(row => !sameReciboIdentity(row, itemAnulado)
+              && String(row.pago_id || '') !== String(itemAnulado.pago_id || '')
+              && String(row.recibo_id || row.id || '') !== String(itemAnulado.recibo_id || itemAnulado.id || ''));
+          removeCobroReceiptOverrideForItem(itemAnulado);
+          if (window._recibosAnularCache) {
+            delete window._recibosAnularCache[Number(itemAnulado.recibo_id || itemAnulado.id || 0)];
+          }
+          if (reciboActual && sameReciboIdentity(reciboActual, itemAnulado)) {
+            reciboActual = null;
+            closeReciboModal();
+          }
+        }
+
         clearReceiptsCache('anulacion-cobro-componentes');
+        try { localStorage.removeItem(MANUAL_RECEIPTS_KEY); } catch(e){}
         closeAnularCobro();
+
         await refreshAll();
 
         if (contratoId && (selected?.contrato_id === contratoId || String(selected?.contrato_id) === String(contratoId))) {
           const refreshed = unidades.find(x => Number(x.contrato_id) === contratoId);
           if (refreshed) { selected = refreshed; await loadDetalle(refreshed); }
         }
+
+        if (route === 'recibos') await renderRecibosPage({ forceRefresh: true });
+
+        // Segundo refresco corto para evitar que un cache local o el query directo a históricos lo vuelva a mostrar.
+        setTimeout(async () => {
+          try {
+            clearReceiptsCache('anulacion-cobro-componentes-recheck');
+            try { localStorage.removeItem(MANUAL_RECEIPTS_KEY); } catch(e){}
+            if (route === 'recibos') await renderRecibosPage({ forceRefresh: true });
+            if (contratoId && selected && String(selected.contrato_id) === String(contratoId)) {
+              await loadDetalle(selected);
+            }
+          } catch(e) { console.warn('No se pudo hacer el refresco final de anulación', e); }
+        }, 500);
+
         setTimeout(() => showPagoSuccessToast(`Cobro N° ${numero} anulado correctamente.`, 'Cobro anulado'), 120);
 
       } catch(e) {
