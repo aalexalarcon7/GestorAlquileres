@@ -5620,11 +5620,17 @@ td:last-child{
     function canCobrar(){ return isJefe() || isTrabajador(); }
     function canSeeRecibos(){ return isJefe() || isTrabajador(); }
     function canEditFinancialConfig(){ return isJefe(); }
-    function canAnularCobros(){ return isJefe(); }
+    function canAnularCobros(){ return isJefe() || isTrabajador(); }
 
     function requireJefe(actionName = 'Esta acción'){
       if (isJefe()) return true;
       alert(`${actionName} solo puede realizarla el jefe.`);
+      return false;
+    }
+
+    function requireAnularCobros(actionName = 'Anular cobros'){
+      if (canAnularCobros()) return true;
+      alert(`No tenés permiso para ${String(actionName || 'realizar esta acción').toLowerCase()}.`);
       return false;
     }
 
@@ -5688,8 +5694,8 @@ td:last-child{
     }
 
     function hideAdminControlsForTrabajador(){
-      const adminFn = /openAlquilerModal|openEditarCuota|openEditarImpuesto|openEditarServicio|openAgregarMesModal|openInqModal|deleteActivoActual|toggleOcultarActivoActual|openAnularCobro|deleteRecibo|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
-      const adminText = /Modificar alquiler|Editar componentes|Editar cuota|editar imp\.|cargar imp\.|editar serv\.|cargar serv\.|Agregar mes|Borrar activo|Ocultar activo|Restaurar activo|Nuevo|Editar|Eliminar|Anular cobro|Configuración|Auditoría/i;
+      const adminFn = /openAlquilerModal|openEditarCuota|openEditarImpuesto|openEditarServicio|openAgregarMesModal|openInqModal|deleteActivoActual|toggleOcultarActivoActual|deleteRecibo|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
+      const adminText = /Modificar alquiler|Editar componentes|Editar cuota|editar imp\.|cargar imp\.|editar serv\.|cargar serv\.|Agregar mes|Borrar activo|Ocultar activo|Restaurar activo|Nuevo|Editar|Eliminar|Configuración|Auditoría/i;
       document.querySelectorAll('button, .btn, .linkBtn, .ec-btn-row').forEach(el => {
         const onclick = el.getAttribute?.('onclick') || '';
         const txt = (el.textContent || '').trim();
@@ -6081,6 +6087,7 @@ td:last-child{
         monto_total: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
         monto: Number.isFinite(total) ? total : Number(row.monto_total || row.monto || 0),
         periodo_aplicado: override.periodo_aplicado || row.periodo_aplicado || '',
+        nota_adicional: override.nota_adicional || row.nota_adicional || '',
         __manual_override: true
       };
     }
@@ -9110,7 +9117,18 @@ function sortRecibosByNewestFirst(rows){
       groups.flat().filter(Boolean).forEach(item => {
         const key = reciboDedupeKey(item);
         const current = byKey.get(key) || {};
-        byKey.set(key, { ...current, ...item });
+        const merged = { ...current, ...item };
+
+        // Defensa: algunas fuentes/RPC no devuelven nota_adicional y pisan con vacío
+        // la nota guardada en recibos_historicos_operativos. Siempre conservar el
+        // primer texto no vacío disponible para que el recibo impreso lo muestre.
+        ['nota_adicional','observacion','descripcion_pago','detalle_aplicacion'].forEach(field => {
+          const cur = String(current?.[field] ?? '').trim();
+          const nxt = String(item?.[field] ?? '').trim();
+          if (cur && !nxt) merged[field] = current[field];
+        });
+
+        byKey.set(key, merged);
       });
       return [...byKey.values()];
     }
@@ -12279,6 +12297,7 @@ setTimeout(() => {
         `Medio de pago: ${item.medio || '—'}`,
         item.periodo_aplicado ? `Aplicado a: ${item.periodo_aplicado}` : null,
         item.descripcion_pago ? `Descripción: ${item.descripcion_pago}` : null,
+        (item.nota_adicional || item.observacion) ? `Observación: ${item.nota_adicional || item.observacion}` : null,
         item.referencia ? `N° recibo / referencia: ${item.referencia}` : null
       ].filter(Boolean);
       return lines.join('\n');
@@ -12355,9 +12374,12 @@ setTimeout(() => {
       const descripcionRecibo = String(detalleParaDisplay || item.descripcion_pago || item.observacion || '')
         .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
         .trim();
-      const notaAdicionalRecibo = String(item.nota_adicional || '')
-        .replace(/\s+/g, ' ')
-        .trim();
+      const obsExtraRaw = String(item.observacion || '').trim();
+      const detalleNormalizado = String(detalleParaDisplay || descripcionRecibo || '').trim();
+      const obsEsTecnica = !obsExtraRaw
+        || /^Cobro operativo registrado desde la página\.?$/i.test(obsExtraRaw)
+        || obsExtraRaw === detalleNormalizado;
+      const notaAdicionalRecibo = String(item.nota_adicional || (!obsEsTecnica ? obsExtraRaw : '') || '').trim();
       const notaAdicionalHtml = notaAdicionalRecibo
         ? `<div style="margin-top:8px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;"><strong>Observación:</strong><div style="margin-top:4px;white-space:pre-wrap;line-height:1.45;">${escapeHtml(notaAdicionalRecibo)}</div></div>`
         : '';
@@ -17190,7 +17212,7 @@ function syncCobroAlquilerDesdePeriodo(){
           p_nota_adicional: String($('cobroCompNotaAdicional')?.value||'').trim() || null,
           p_medios_pago:    medios,
           p_aplicaciones:   getAplicacionesCobroComp(),
-          p_usuario:        'jefe',
+          p_usuario:        user?.email || currentUserProfile?.email || currentUserRole || 'sistema',
           p_dry_run:        true
         });
         if (error) throw error;
@@ -17345,7 +17367,7 @@ function syncCobroAlquilerDesdePeriodo(){
           p_nota_adicional: String($('cobroCompNotaAdicional')?.value||'').trim() || null,
           p_medios_pago:    medios,
           p_aplicaciones:   apps,
-          p_usuario:        'jefe',
+          p_usuario:        user?.email || currentUserProfile?.email || currentUserRole || 'sistema',
           p_dry_run:        false
         });
         if (error) throw error;
@@ -17809,7 +17831,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _anularCobroItem = null;
 
     async function openAnularCobro(reciboId) {
-      if (!requireJefe('Anular cobros')) return;
+      if (!requireAnularCobros('Anular cobros')) return;
       const item = window._recibosAnularCache?.[Number(reciboId)];
       if (!item) { alert('No se encontraron los datos del recibo. Recargá la sección de recibos.'); return; }
       if (item.origen !== 'COBRO_COMPONENTES') {
@@ -17946,7 +17968,7 @@ function syncCobroAlquilerDesdePeriodo(){
           p_pago_id:   _anularCobroItem.pago_id   ? Number(_anularCobroItem.pago_id)   : null,
           p_recibo_id: _anularCobroItem.recibo_id  ? Number(_anularCobroItem.recibo_id) : null,
           p_motivo:    motivo,
-          p_usuario:   'jefe'
+          p_usuario:   user?.email || currentUserProfile?.email || currentUserRole || 'sistema'
         };
 
         const { data, error } = await sb.rpc('anular_cobro_por_componentes', params);
