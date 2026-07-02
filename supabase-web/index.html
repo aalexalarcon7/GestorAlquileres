@@ -761,7 +761,24 @@ td:last-child{
   }
 }
 
-  </style>
+  
+
+    /* ===== Roles Jefe / Trabajador ===== */
+    body.role-trabajador .sb-item[data-route="inicio"],
+    body.role-trabajador .sb-item[data-route="documentos"],
+    body.role-trabajador .sb-item[data-route="informes"],
+    body.role-trabajador .sb-item[data-route="balance"],
+    body.role-trabajador .mobile-nav-item[data-route="documentos"],
+    body.role-trabajador .mobile-nav-item[data-route="informes"],
+    body.role-trabajador .mobile-nav-item[data-route="balance"]{
+      display:none !important;
+    }
+
+    body.role-trabajador [data-admin-only="1"],
+    body.role-trabajador .admin-only{
+      display:none !important;
+    }
+</style>
   <style id="premiumUxOverride">
     :root{
       --sidebar-w:290px;
@@ -4568,7 +4585,7 @@ td:last-child{
         <button class="sb-item active" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon">🏠</span><span class="sb-item-label">Inicio</span></button>
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
-        <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos</span></button>
+        <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos internos</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
         
@@ -4590,7 +4607,7 @@ td:last-child{
       </button>
       <button class="mobile-nav-item" type="button" data-route="recibos" onclick="setRoute('recibos')">
         <span class="mobile-nav-icon">🧾</span>
-        <span class="mobile-nav-label">Recibos</span>
+        <span class="mobile-nav-label">Recibos internos</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="informes" onclick="setRoute('informes')">
         <span class="mobile-nav-icon">📊</span>
@@ -5171,6 +5188,12 @@ td:last-child{
           </div>
         </div>
 
+        <div style="margin-top:12px;display:flex;flex-direction:column;gap:5px;">
+          <label class="muted" style="font-size:12px;font-weight:700;">Descripción adicional para el recibo</label>
+          <textarea id="cobroCompNotaAdicional" rows="3" placeholder="Ej: Se cobra junio completo: alquiler + impuesto. Queda pendiente el saldo anterior..." style="width:100%;resize:vertical;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.45;"></textarea>
+          <div class="muted" style="font-size:11px;">Opcional. Aparece en el recibo como observación para el inquilino y no afecta los cálculos.</div>
+        </div>
+
         <!-- Medios de pago (multi-medio, Etapa 10) -->
         <div style="margin-top:14px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -5581,6 +5604,111 @@ td:last-child{
 
     let route = "inicio";
     let user = null;
+
+    const USER_ROLES = { JEFE:'JEFE', TRABAJADOR:'TRABAJADOR' };
+    let currentUserRole = USER_ROLES.JEFE;
+    let currentUserProfile = null;
+    const TRABAJADOR_ROUTES = new Set(['activos','recibos']);
+
+    function normalizeUserRole(value){
+      const rol = String(value || '').trim().toUpperCase();
+      return rol === USER_ROLES.TRABAJADOR ? USER_ROLES.TRABAJADOR : USER_ROLES.JEFE;
+    }
+
+    function isJefe(){ return currentUserRole === USER_ROLES.JEFE; }
+    function isTrabajador(){ return currentUserRole === USER_ROLES.TRABAJADOR; }
+    function canCobrar(){ return isJefe() || isTrabajador(); }
+    function canSeeRecibos(){ return isJefe() || isTrabajador(); }
+    function canEditFinancialConfig(){ return isJefe(); }
+    function canAnularCobros(){ return isJefe(); }
+
+    function requireJefe(actionName = 'Esta acción'){
+      if (isJefe()) return true;
+      alert(`${actionName} solo puede realizarla el jefe.`);
+      return false;
+    }
+
+    function getDefaultRouteForRole(){
+      return isTrabajador() ? 'activos' : 'inicio';
+    }
+
+    function canAccessRouteByRole(r){
+      if (!isTrabajador()) return true;
+      return TRABAJADOR_ROUTES.has(String(r || ''));
+    }
+
+    async function loadCurrentUserRole(){
+      currentUserRole = USER_ROLES.JEFE;
+      currentUserProfile = null;
+      if (!user) { applyRoleUI(); return currentUserRole; }
+      try{
+        const { data, error } = await sb.rpc('obtener_rol_usuario');
+        if (error) throw error;
+        const row = Array.isArray(data) ? data[0] : data;
+        currentUserProfile = row || null;
+        currentUserRole = normalizeUserRole(row?.rol);
+      } catch(e){
+        // Fallback seguro para no bloquear al jefe si la migración de roles aún no fue aplicada.
+        console.warn('[Roles] No se pudo leer usuarios_operativos; se usa JEFE por defecto:', e?.message || e);
+        currentUserRole = USER_ROLES.JEFE;
+      }
+      applyRoleUI();
+      return currentUserRole;
+    }
+
+    function resetCurrentUserRole(){
+      currentUserRole = USER_ROLES.JEFE;
+      currentUserProfile = null;
+      applyRoleUI();
+    }
+
+    function applyRoleUI(){
+      const rol = currentUserRole || USER_ROLES.JEFE;
+      document.body.classList.toggle('role-trabajador', rol === USER_ROLES.TRABAJADOR);
+      document.body.classList.toggle('role-jefe', rol === USER_ROLES.JEFE);
+      document.body.dataset.role = rol;
+
+      const info = $('userInfo');
+      if (info && user) info.textContent = `Logueado: ${user.email || '—'} · ${rol === USER_ROLES.TRABAJADOR ? 'Trabajador' : 'Jefe'}`;
+
+      document.querySelectorAll('.sb-item, .mobile-nav-item').forEach(btn => {
+        const r = btn.dataset.route;
+        const visible = !isTrabajador() || TRABAJADOR_ROUTES.has(r);
+        btn.style.display = visible ? '' : 'none';
+      });
+
+      if (isTrabajador()) {
+        hideAdminControlsForTrabajador();
+      } else {
+        document.querySelectorAll('[data-admin-only="1"]').forEach(el => {
+          el.style.display = '';
+          el.removeAttribute('data-admin-only');
+        });
+      }
+    }
+
+    function hideAdminControlsForTrabajador(){
+      const adminFn = /openAlquilerModal|openEditarCuota|openEditarImpuesto|openEditarServicio|openAgregarMesModal|openInqModal|deleteActivoActual|toggleOcultarActivoActual|openAnularCobro|deleteRecibo|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
+      const adminText = /Modificar alquiler|Editar componentes|Editar cuota|editar imp\.|cargar imp\.|editar serv\.|cargar serv\.|Agregar mes|Borrar activo|Ocultar activo|Restaurar activo|Nuevo|Editar|Eliminar|Anular cobro|Configuración|Auditoría/i;
+      document.querySelectorAll('button, .btn, .linkBtn, .ec-btn-row').forEach(el => {
+        const onclick = el.getAttribute?.('onclick') || '';
+        const txt = (el.textContent || '').trim();
+        if (adminFn.test(onclick) || adminText.test(txt)) {
+          // No ocultar el botón Cobro normal ni Ver/Imprimir recibo.
+          if (/^Cobro$/i.test(txt) || /^Ver recibo$/i.test(txt) || /^Ver$/i.test(txt) || /Imprimir|Descargar/i.test(txt)) return;
+          el.setAttribute('data-admin-only','1');
+          el.style.display = 'none';
+        }
+      });
+    }
+
+    let _roleUiMutationTimer = null;
+    const roleUiObserver = new MutationObserver(() => {
+      if (!isTrabajador()) return;
+      clearTimeout(_roleUiMutationTimer);
+      _roleUiMutationTimer = setTimeout(applyRoleUI, 80);
+    });
+
     let unidades = [];      // v_deuda_por_contrato
     let selected = null;    // fila seleccionada
     let detalleLoadSeq = 0; // evita que una carga vieja pise el detalle actual
@@ -5609,7 +5737,7 @@ td:last-child{
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
     const RECEIPTS_CACHE_TTL_MS = 60_000; // cache de recibos válido por 60 segundos
     // Versión de la app — cambiar cada deploy para forzar limpieza de cache en navegadores viejos
-    const APP_VERSION = '20260624-cobro-componentes-final';
+    const APP_VERSION = '20260702-roles-nota-recibos';
 
     // Recibos válidos de Mayo 2026 validados contra la planilla física.
     // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
@@ -6306,6 +6434,10 @@ td:last-child{
     }
 
     function setRoute(r){
+      if (!canAccessRouteByRole(r)) {
+        if (user) console.warn('[Roles] Ruta bloqueada para trabajador:', r);
+        r = getDefaultRouteForRole();
+      }
       route = r;
       document.querySelectorAll('.sb-item, .mobile-nav-item').forEach(b => b.classList.toggle('active', b.dataset.route === r));
       const map = {
@@ -6316,12 +6448,13 @@ td:last-child{
         informes:'viewInformes',
         balance:'viewBalance'
       };
-      Object.values(map).forEach(id => $(id).style.display = 'none');
-      if (!map[r]) r = 'inicio';
+      Object.values(map).forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
+      if (!map[r]) r = getDefaultRouteForRole();
       route = r;
       saveCurrentRoute(route);
-      $(map[r]).style.display = 'block';
+      if ($(map[r])) $(map[r]).style.display = 'block';
       updateTopSearchUI();
+      applyRoleUI();
       closeSidebarIfMobile();
 
       if (r === 'documentos') renderDocumentosPage();
@@ -6693,7 +6826,7 @@ td:last-child{
       if (!targetKey) return maps;
 
       const periodoSlash = `${String(Number(mes)).padStart(2,'0')}/${Number(anio)}`;
-      const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen';
+      const cols = 'id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,nota_adicional,origen';
       const rowsByKey = new Map();
 
       const addRows = (rows=[]) => {
@@ -6780,7 +6913,7 @@ td:last-child{
       try{
         const { data, error } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,origen')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,periodo_aplicado,detalle_aplicacion,referencia,observacion,nota_adicional,origen')
           .eq('contrato_id', id);
         if (error){
           console.warn('No se pudieron leer impuestos del contrato:', error.message || error);
@@ -9023,6 +9156,7 @@ function sortRecibosByNewestFirst(rows){
         documento: inq.documento || '',
         local_codigo: item.codigo_local || local.codigo || '—',
         observacion: item.observacion || '',
+        nota_adicional: item.nota_adicional || '',
         origen: item.origen || 'HISTORICO_MANUAL_1X1',
         __source_table: 'recibos_historicos_operativos',
         __cache_key: `hist-${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
@@ -10090,6 +10224,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     }
 
     function openAlquilerModal(){
+      if (!requireJefe('Modificar alquiler')) return;
       if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
         return;
@@ -11036,6 +11171,7 @@ setTimeout(() => {
 
 
     async function deleteActivoActual(){
+      if (!requireJefe('Borrar activos')) return;
       const msg = $('activoModalMsg') || $('unitsMsg');
       const unidad = selected;
       if (!unidad?.contrato_id) {
@@ -11392,6 +11528,7 @@ setTimeout(() => {
     // ===== Modal inquilino (crear/editar) =====
     let inqModalMode = 'create';
     function openInqModal(mode){
+      if (!requireJefe(mode === 'create' ? 'Crear inquilinos' : 'Editar inquilinos')) return;
       inqModalMode = mode;
       $('inqModalMsg').textContent = '';
       $('modalInqBack').style.display = 'flex';
@@ -12218,6 +12355,12 @@ setTimeout(() => {
       const descripcionRecibo = String(detalleParaDisplay || item.descripcion_pago || item.observacion || '')
         .replace(/\s*·\s*Motor v\d+[^|·]*/gi, '')
         .trim();
+      const notaAdicionalRecibo = String(item.nota_adicional || '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      const notaAdicionalHtml = notaAdicionalRecibo
+        ? `<div style="margin-top:8px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:10px;background:#f8fafc;"><strong>Observación:</strong><div style="margin-top:4px;white-space:pre-wrap;line-height:1.45;">${escapeHtml(notaAdicionalRecibo)}</div></div>`
+        : '';
       return `
         <div class="recibo-sheet" id="reciboSheetPrintable">
           <div class="recibo-sheet-head">
@@ -12271,6 +12414,7 @@ setTimeout(() => {
       ? `<div style="margin-bottom:8px;"><strong>Distribución del pago:</strong> ${escapeHtml(descripcionRecibo)}</div>`
       : ''
       }
+        ${notaAdicionalHtml}
         Comprobante interno no fiscal. Generado para archivo administrativo y entrega al locatario.
       </div>
     </div>
@@ -12394,6 +12538,7 @@ setTimeout(() => {
             documento: item.documento || '',
             local_codigo: item.codigo_local || item.local_codigo || '—',
             observacion: item.observacion || '',
+            nota_adicional: item.nota_adicional || '',
             origen: item.origen || item.fuente_hoja || '',
             __source_table: item.fuente_hoja || 'pagos_operativos_rpc',
             __cache_key: `${item.contrato_id || ''}-${numero}-${ym.anio || ''}-${ym.mes || ''}-${montoTotal}`
@@ -12407,7 +12552,7 @@ setTimeout(() => {
       try {
         const { data: histData } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,origen')
+          .select('id,contrato_id,codigo_local,nombre_inquilino,numero_recibo,recibo_base,anio,mes,periodo,fecha_pago,created_at,monto,monto_alquiler,monto_impuesto,medio,referencia,observacion,nota_adicional,origen')
           .limit(10000);
         // Etapa 4C: excluir recibos anulados (soft-delete o estado=ANULADO)
         historicosRaw = (histData || []).filter(r => !r.deleted_at && String(r.estado||'').toUpperCase() !== 'ANULADO');
@@ -13115,6 +13260,7 @@ function updateRecibosFiltersFromUI(){
     }
 
     async function deleteReciboById(id){
+      if (!requireJefe('Eliminar recibos')) return;
       const item = getReciboById(id);
       if (!item){
         alert('No se encontró el recibo para eliminar.');
@@ -15829,6 +15975,7 @@ error = deleteResponse.error;
       loadReceiptsCache();
       applyAppSettings();
       updateTopSearchUI();
+      try { roleUiObserver.observe(document.body, { childList:true, subtree:true }); } catch(e) {}
       loadRememberedEmail();
       if ($('email')) $('email').addEventListener('input', () => {
         if ($('rememberMe')?.checked) persistRememberedEmail();
@@ -15838,7 +15985,9 @@ error = deleteResponse.error;
       if ($('pass')) $('pass').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
       const { data } = await sb.auth.getSession();
       user = data.session?.user || null;
+      if (user) await loadCurrentUserRole(); else resetCurrentUserRole();
       toggle(!!user, user);
+      applyRoleUI();
       if (user){
         setRoute(loadCurrentRoute());
         await refreshAll();
@@ -15852,7 +16001,9 @@ error = deleteResponse.error;
         }
         authRecoveryMode = false;
         user = session?.user || null;
+        if (user) await loadCurrentUserRole(); else resetCurrentUserRole();
         toggle(!!user, user);
+        applyRoleUI();
         if (user){
           setRememberedEmail(user.email || ($('email')?.value || ''), true);
           try{ localStorage.setItem(LOGIN_REMEMBER_KEY, user.email || ($('email')?.value || '')); } catch (e){}
@@ -16293,7 +16444,7 @@ error = deleteResponse.error;
       try{
         const { data, error } = await sb
           .from('recibos_historicos_operativos')
-          .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,created_at')
+          .select('id,contrato_id,numero_recibo,referencia,fecha_pago,monto,observacion,nota_adicional,created_at')
           .eq('contrato_id', contratoId)
           .order('created_at', { ascending:false })
           .limit(30);
@@ -16477,6 +16628,7 @@ function syncCobroAlquilerDesdePeriodo(){
 
 
     function openAgregarMesModal(){
+      if (!requireJefe('Agregar mes')) return;
       if (!selected?.contrato_id) return alert('Primero abrí el detalle de un activo.');
       $('modalMesBack').style.display = 'flex';
       $('modalMesMeta').textContent = `${selected.local_codigo || '—'} — ${selected.inquilino_nombre || '—'}`;
@@ -16542,6 +16694,7 @@ function syncCobroAlquilerDesdePeriodo(){
     }
 
     async function deleteActivoActual(){
+      if (!requireJefe('Borrar activos')) return;
       const msg = $('activoModalMsg') || $('unitsMsg');
       const unidad = selected;
       if (!unidad?.contrato_id) return alert('Primero abrí el detalle de un activo.');
@@ -16572,6 +16725,7 @@ function syncCobroAlquilerDesdePeriodo(){
   
 
     async function toggleOcultarActivoActual(){
+      if (!requireJefe('Ocultar o restaurar activos')) return;
       const unidad = selected;
       const msgUnits = $('unitsMsg');
       const msgModal = $('activoModalMsg');
@@ -17033,6 +17187,7 @@ function syncCobroAlquilerDesdePeriodo(){
           p_total_recibido: total,
           p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
           p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
+          p_nota_adicional: String($('cobroCompNotaAdicional')?.value||'').trim() || null,
           p_medios_pago:    medios,
           p_aplicaciones:   getAplicacionesCobroComp(),
           p_usuario:        'jefe',
@@ -17187,6 +17342,7 @@ function syncCobroAlquilerDesdePeriodo(){
           p_total_recibido: total,
           p_numero_recibo:  String($('cobroCompNumRecibo')?.value||'').trim() || null,
           p_observacion:    String($('cobroCompObs')?.value||'').trim() || null,
+          p_nota_adicional: String($('cobroCompNotaAdicional')?.value||'').trim() || null,
           p_medios_pago:    medios,
           p_aplicaciones:   apps,
           p_usuario:        'jefe',
@@ -17242,6 +17398,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _editarDryRunData = null;
 
     async function openEditarCuota(cuotaId, contratoId, anio, mes) {
+      if (!requireJefe('Editar cuotas')) return;
       if (!cuotaId || !contratoId) { alert('No se puede abrir el editor: faltan datos de la cuota.'); return; }
 
       const back = $('editarCuotaBack');
@@ -17652,6 +17809,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _anularCobroItem = null;
 
     async function openAnularCobro(reciboId) {
+      if (!requireJefe('Anular cobros')) return;
       const item = window._recibosAnularCache?.[Number(reciboId)];
       if (!item) { alert('No se encontraron los datos del recibo. Recargá la sección de recibos.'); return; }
       if (item.origen !== 'COBRO_COMPONENTES') {
@@ -17829,6 +17987,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _esDryRunData = null;
 
     async function openEditarServicio(cuotaId, contratoId, anio, mes) {
+      if (!requireJefe('Editar servicio')) return;
       if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
       const back = $('editarServicioBack');
       if (!back) return;
@@ -18174,6 +18333,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _eiDryRunData = null;
 
     async function openEditarImpuesto(cuotaId, contratoId, anio, mes) {
+      if (!requireJefe('Editar impuesto')) return;
       if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
       const back = $('editarImpuestoBack');
       if (!back) return;
