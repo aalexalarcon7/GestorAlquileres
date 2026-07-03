@@ -12,6 +12,73 @@
   <link rel="shortcut icon" href="./logosaladita_padded.png">
   <link rel="apple-touch-icon" href="./logosaladita_padded.png">
   <script>
+    // Limpieza fuerte por versión: evita que cada PC use datos/cache viejos del navegador.
+    (function () {
+      const APP_VERSION = '20260703-cache-roles-hard-reset-v1';
+      const VERSION_KEY = 'ga_app_version';
+      const KEEP_LOCAL_KEYS = new Set([
+        'ga_theme',
+        'ga_login_email_v2'
+      ]);
+
+      window.GA_APP_VERSION = APP_VERSION;
+
+      function deleteBrowserCaches() {
+        try {
+          if ('caches' in window) {
+            caches.keys().then(keys => Promise.all(keys.map(key => caches.delete(key)))).catch(() => {});
+          }
+        } catch (_) {}
+
+        try {
+          if (navigator.serviceWorker?.getRegistrations) {
+            navigator.serviceWorker.getRegistrations()
+              .then(regs => Promise.all(regs.map(reg => reg.unregister())))
+              .catch(() => {});
+          }
+        } catch (_) {}
+      }
+
+      function clearGestorLocalState(reason = 'manual') {
+        try {
+          const previousVersion = localStorage.getItem(VERSION_KEY);
+
+          // Guardamos solo preferencias inocuas. No tocamos claves de Supabase/auth para no cerrar sesión.
+          Object.keys(localStorage).forEach((key) => {
+            if (KEEP_LOCAL_KEYS.has(key)) return;
+            if (key.startsWith('sb-')) return;
+            if (key.toLowerCase().includes('supabase')) return;
+            if (key.startsWith('ga_')) localStorage.removeItem(key);
+          });
+
+          try { sessionStorage.clear(); } catch (_) {}
+          localStorage.setItem(VERSION_KEY, APP_VERSION);
+          window.__GA_CACHE_RESET_DONE__ = { reason, previousVersion, version: APP_VERSION, at: new Date().toISOString() };
+          console.info('%c[GestorAlquileres] Limpieza de cache/datos locales aplicada: ' + reason, 'color:#15803d;font-weight:bold', window.__GA_CACHE_RESET_DONE__);
+        } catch (e) {
+          console.warn('[GestorAlquileres] No se pudo limpiar cache local:', e?.message || e);
+        }
+
+        deleteBrowserCaches();
+      }
+
+      window.limpiarCacheGestor = function () {
+        clearGestorLocalState('manual_console');
+        setTimeout(() => location.reload(), 250);
+      };
+
+      try {
+        if (localStorage.getItem(VERSION_KEY) !== APP_VERSION) {
+          clearGestorLocalState('version_change');
+        } else {
+          deleteBrowserCaches();
+        }
+      } catch (_) {
+        deleteBrowserCaches();
+      }
+    })();
+  </script>
+  <script>
     (function () {
       try {
         const saved = localStorage.getItem('ga_theme');
@@ -5670,6 +5737,12 @@ td:last-child{
 
     function applyRoleUI(){
       const rol = currentUserRole || USER_ROLES.JEFE;
+      try {
+        window.currentUserRole = rol;
+        window.currentUserProfile = currentUserProfile;
+        window.currentUserEmail = user?.email || null;
+        window.GA_DEBUG = { version: APP_VERSION, role: rol, email: user?.email || null, profile: currentUserProfile, route };
+      } catch (_) {}
       document.body.classList.toggle('role-trabajador', rol === USER_ROLES.TRABAJADOR);
       document.body.classList.toggle('role-jefe', rol === USER_ROLES.JEFE);
       document.body.dataset.role = rol;
@@ -5743,7 +5816,7 @@ td:last-child{
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
     const RECEIPTS_CACHE_TTL_MS = 60_000; // cache de recibos válido por 60 segundos
     // Versión de la app — cambiar cada deploy para forzar limpieza de cache en navegadores viejos
-    const APP_VERSION = '20260702-fix-anulacion-recibos-vinculados';
+    const APP_VERSION = window.GA_APP_VERSION || '20260703-cache-roles-hard-reset-v1';
 
     // Recibos válidos de Mayo 2026 validados contra la planilla física.
     // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
@@ -16032,18 +16105,20 @@ error = deleteResponse.error;
     });
 
     async function init(){
-      // Cache busting: al cambiar APP_VERSION se limpian caches del navegador.
-      // Esto evita que el jefe siga usando una versión vieja del sistema tras un deploy.
+      // Cache busting reforzado: la limpieza fuerte se ejecuta al inicio del HTML.
+      // Acá solo dejamos trazabilidad y una segunda barrera para caches de datos.
       try {
-        const _storedVer = localStorage.getItem('ga_app_version');
-        if (_storedVer !== APP_VERSION) {
-          localStorage.removeItem(RECEIPTS_CACHE_KEY);
-          localStorage.removeItem(MANUAL_RECEIPTS_KEY);
-          localStorage.removeItem(COBRO_RECEIPT_OVERRIDES_KEY);
+        if (localStorage.getItem('ga_app_version') !== APP_VERSION) {
+          if (typeof window.limpiarCacheGestor === 'function') {
+            window.limpiarCacheGestor();
+            return;
+          }
           localStorage.setItem('ga_app_version', APP_VERSION);
-          console.info('%c[GestorAlquileres] Versión actualizada: ' + APP_VERSION + ' — caches limpiados', 'color:#15803d;font-weight:bold');
         }
-      } catch(e) { console.warn('No se pudo limpiar cache de versión:', e); }
+        localStorage.removeItem(RECEIPTS_CACHE_KEY);
+        localStorage.removeItem(MANUAL_RECEIPTS_KEY);
+        localStorage.removeItem(COBRO_RECEIPT_OVERRIDES_KEY);
+      } catch(e) { console.warn('No se pudo verificar cache de versión:', e); }
 
       loadNavState();
       loadAppSettings();
