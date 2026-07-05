@@ -420,8 +420,15 @@ EXCEPTION WHEN OTHERS THEN
 END;
 $func$;
 
-REVOKE ALL ON FUNCTION registrar_cobro_por_componentes FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION registrar_cobro_por_componentes TO authenticated;
+REVOKE ALL ON FUNCTION public.registrar_cobro_por_componentes(
+  bigint, date, numeric, text, text, jsonb, jsonb, text, boolean
+) FROM PUBLIC;
 
-COMMENT ON FUNCTION registrar_cobro_por_componentes IS
+GRANT EXECUTE ON FUNCTION public.registrar_cobro_por_componentes(
+  bigint, date, numeric, text, text, jsonb, jsonb, text, boolean
+) TO authenticated;
+
+COMMENT ON FUNCTION public.registrar_cobro_por_componentes(
+  bigint, date, numeric, text, text, jsonb, jsonb, text, boolean
+) IS
   'Etapa 3 - Cobro explicito por componentes (alquiler/impuesto/servicio). NO conectar al frontend hasta Etapa 4.';
