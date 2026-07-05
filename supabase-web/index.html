@@ -14,7 +14,7 @@
   <script>
     // Limpieza fuerte por versión: evita que cada PC use datos/cache viejos del navegador.
     (function () {
-      const APP_VERSION = '20260703-cache-roles-hard-reset-v1';
+      const APP_VERSION = '20260705-trabajador-edita-activos-v1';
       const VERSION_KEY = 'ga_app_version';
       const KEEP_LOCAL_KEYS = new Set([
         'ga_theme',
@@ -5688,10 +5688,19 @@ td:last-child{
     function canSeeRecibos(){ return isJefe() || isTrabajador(); }
     function canEditFinancialConfig(){ return isJefe(); }
     function canAnularCobros(){ return isJefe() || isTrabajador(); }
+    // Permiso operativo: el trabajador sigue con menú limitado, pero puede gestionar activos,
+    // inquilinos y cuotas dentro del apartado Activos.
+    function canManageActivos(){ return isJefe() || isTrabajador(); }
 
     function requireJefe(actionName = 'Esta acción'){
       if (isJefe()) return true;
       alert(`${actionName} solo puede realizarla el jefe.`);
+      return false;
+    }
+
+    function requireGestionActivos(actionName = 'Esta acción'){
+      if (canManageActivos()) return true;
+      alert(`No tenés permiso para ${String(actionName || 'realizar esta acción').toLowerCase()}.`);
       return false;
     }
 
@@ -5767,14 +5776,33 @@ td:last-child{
     }
 
     function hideAdminControlsForTrabajador(){
-      const adminFn = /openAlquilerModal|openEditarCuota|openEditarImpuesto|openEditarServicio|openAgregarMesModal|openInqModal|deleteActivoActual|toggleOcultarActivoActual|deleteRecibo|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
-      const adminText = /Modificar alquiler|Editar componentes|Editar cuota|editar imp\.|cargar imp\.|editar serv\.|cargar serv\.|Agregar mes|Borrar activo|Ocultar activo|Restaurar activo|Nuevo|Editar|Eliminar|Configuración|Auditoría/i;
+      /*
+        Trabajador operativo:
+        - Menú limitado a Activos + Recibos.
+        - Dentro de Activos puede editar inquilino/activo, modificar alquiler,
+          agregar mes y editar cuotas/impuestos/servicios.
+        - Se mantienen ocultas acciones destructivas o administrativas generales.
+      */
+      const blockedFn = /deleteActivoActual|toggleOcultarActivoActual|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
+      const blockedText = /Borrar activo|Ocultar activo|Restaurar activo|Eliminar gasto|Eliminar documento|Configuración|Auditoría|Reportes|Balance|Caja general/i;
+
       document.querySelectorAll('button, .btn, .linkBtn, .ec-btn-row').forEach(el => {
         const onclick = el.getAttribute?.('onclick') || '';
         const txt = (el.textContent || '').trim();
-        if (adminFn.test(onclick) || adminText.test(txt)) {
-          // No ocultar el botón Cobro normal ni Ver/Imprimir recibo.
-          if (/^Cobro$/i.test(txt) || /^Ver recibo$/i.test(txt) || /^Ver$/i.test(txt) || /Imprimir|Descargar/i.test(txt)) return;
+
+        // Si antes lo ocultamos por rol y ahora es una acción operativa permitida, restaurarlo.
+        if (el.getAttribute('data-admin-only') === '1') {
+          const allowedOperationalFn = /openAlquilerModal|openEditarCuota|openEditarImpuesto|openEditarServicio|openAgregarMesModal|openInqModal|openActivoModal/i.test(onclick);
+          const allowedOperationalText = /Modificar alquiler|Editar activo|Editar componentes|Editar cuota|editar imp\.|cargar imp\.|editar serv\.|cargar serv\.|Agregar mes|Agregar locatario|Nuevo locatario/i.test(txt);
+          if (allowedOperationalFn || allowedOperationalText) {
+            el.style.display = '';
+            el.removeAttribute('data-admin-only');
+          }
+        }
+
+        if (blockedFn.test(onclick) || blockedText.test(txt)) {
+          // No ocultar Cobro ni recibos.
+          if (/^Cobro$/i.test(txt) || /^Ver recibo$/i.test(txt) || /^Ver$/i.test(txt) || /Anular|Imprimir|Descargar/i.test(txt)) return;
           el.setAttribute('data-admin-only','1');
           el.style.display = 'none';
         }
@@ -5816,7 +5844,7 @@ td:last-child{
     const COBRO_RECEIPT_OVERRIDES_KEY = 'ga_cobro_receipt_overrides_v1';
     const RECEIPTS_CACHE_TTL_MS = 60_000; // cache de recibos válido por 60 segundos
     // Versión de la app — cambiar cada deploy para forzar limpieza de cache en navegadores viejos
-    const APP_VERSION = window.GA_APP_VERSION || '20260703-cache-roles-hard-reset-v1';
+    const APP_VERSION = window.GA_APP_VERSION || '20260705-trabajador-edita-activos-v1';
 
     // Recibos válidos de Mayo 2026 validados contra la planilla física.
     // Se usan para filtrar el mes exacto y excluir anulados + extras espurios.
@@ -10319,7 +10347,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
     }
 
     function openAlquilerModal(){
-      if (!requireJefe('Modificar alquiler')) return;
+      if (!requireGestionActivos('Modificar alquiler')) return;
       if (!selected?.contrato_id) {
         alert('Primero abrí el detalle de un activo.');
         return;
@@ -11623,7 +11651,7 @@ setTimeout(() => {
     // ===== Modal inquilino (crear/editar) =====
     let inqModalMode = 'create';
     function openInqModal(mode){
-      if (!requireJefe(mode === 'create' ? 'Crear inquilinos' : 'Editar inquilinos')) return;
+      if (!requireGestionActivos(mode === 'create' ? 'Crear inquilinos' : 'Editar inquilinos')) return;
       inqModalMode = mode;
       $('inqModalMsg').textContent = '';
       $('modalInqBack').style.display = 'flex';
@@ -16780,7 +16808,7 @@ function syncCobroAlquilerDesdePeriodo(){
 
 
     function openAgregarMesModal(){
-      if (!requireJefe('Agregar mes')) return;
+      if (!requireGestionActivos('Agregar mes')) return;
       if (!selected?.contrato_id) return alert('Primero abrí el detalle de un activo.');
       $('modalMesBack').style.display = 'flex';
       $('modalMesMeta').textContent = `${selected.local_codigo || '—'} — ${selected.inquilino_nombre || '—'}`;
@@ -17550,7 +17578,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _editarDryRunData = null;
 
     async function openEditarCuota(cuotaId, contratoId, anio, mes) {
-      if (!requireJefe('Editar cuotas')) return;
+      if (!requireGestionActivos('Editar cuotas')) return;
       if (!cuotaId || !contratoId) { alert('No se puede abrir el editor: faltan datos de la cuota.'); return; }
 
       const back = $('editarCuotaBack');
@@ -18175,7 +18203,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _esDryRunData = null;
 
     async function openEditarServicio(cuotaId, contratoId, anio, mes) {
-      if (!requireJefe('Editar servicio')) return;
+      if (!requireGestionActivos('Editar servicio')) return;
       if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
       const back = $('editarServicioBack');
       if (!back) return;
@@ -18521,7 +18549,7 @@ function syncCobroAlquilerDesdePeriodo(){
     let _eiDryRunData = null;
 
     async function openEditarImpuesto(cuotaId, contratoId, anio, mes) {
-      if (!requireJefe('Editar impuesto')) return;
+      if (!requireGestionActivos('Editar impuesto')) return;
       if (!cuotaId || !contratoId) { alert('Faltan datos de la cuota.'); return; }
       const back = $('editarImpuestoBack');
       if (!back) return;
