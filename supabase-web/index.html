@@ -19694,7 +19694,52 @@ async function cargarImpuestosPagos(){
     console.error('[Impuestos]', e);
   }
 }
+
+function abrirNuevoPago(){
+  const m=document.getElementById('modalNuevoPago');
+  if(m) m.style.display='flex';
+}
+function cerrarNuevoPago(){
+  const m=document.getElementById('modalNuevoPago');
+  if(m) m.style.display='none';
+}
+async function guardarNuevoPago(){
+  try{
+    const payload={
+      titulo: document.getElementById('npTitulo').value,
+      categoria: document.getElementById('npCategoria').value,
+      descripcion: document.getElementById('npDesc').value,
+      monto: Number(document.getElementById('npMonto').value||0),
+      fecha_vencimiento: document.getElementById('npFecha').value,
+      estado:'PENDIENTE',
+      periodicidad:'UNICO'
+    };
+    const {error}=await sb.from('recordatorios_pagos').insert(payload);
+    if(error) throw error;
+    cerrarNuevoPago();
+    await cargarImpuestosPagos();
+  }catch(e){
+    console.error('[Nuevo pago]',e);
+    alert('No se pudo guardar el pago');
+  }
+}
+
 </script>
+
+<div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:22px;padding:28px;width:min(520px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
+    <h2 style="margin-top:0;">Nuevo pago</h2>
+    <input id="npTitulo" placeholder="Concepto" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="npCategoria" placeholder="Categoría (IVA, Contadora, Autónomo...)" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="npMonto" type="number" placeholder="Monto" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="npFecha" type="date" style="width:100%;padding:12px;margin-bottom:10px;">
+    <textarea id="npDesc" placeholder="Descripción" style="width:100%;padding:12px;margin-bottom:10px;"></textarea>
+    <div style="display:flex;gap:10px;justify-content:flex-end;">
+      <button onclick="cerrarNuevoPago()" class="btn">Cancelar</button>
+      <button onclick="guardarNuevoPago()" class="btn primary">Guardar</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
