@@ -19712,7 +19712,8 @@ async function guardarNuevoPago(){
       monto: Number(document.getElementById('npMonto').value||0),
       fecha_vencimiento: document.getElementById('npFecha').value,
       estado:'PENDIENTE',
-      periodicidad:'UNICO'
+      periodicidad: document.getElementById('npPeriodicidad').value || 'UNICO',
+      recordatorio_dias: Number(document.getElementById('npAviso').value || 5)
     };
     const {error}=await sb.from('recordatorios_pagos').insert(payload);
     if(error) throw error;
@@ -19733,6 +19734,15 @@ async function guardarNuevoPago(){
     <input id="npCategoria" placeholder="Categoría (IVA, Contadora, Autónomo...)" style="width:100%;padding:12px;margin-bottom:10px;">
     <input id="npMonto" type="number" placeholder="Monto" style="width:100%;padding:12px;margin-bottom:10px;">
     <input id="npFecha" type="date" style="width:100%;padding:12px;margin-bottom:10px;">
+    <select id="npPeriodicidad" style="width:100%;padding:12px;margin-bottom:10px;">
+      <option value="UNICO">Único</option>
+      <option value="MENSUAL">Mensual</option>
+      <option value="BIMESTRAL">Bimestral</option>
+      <option value="TRIMESTRAL">Trimestral</option>
+      <option value="SEMESTRAL">Semestral</option>
+      <option value="ANUAL">Anual</option>
+    </select>
+    <input id="npAviso" type="number" value="5" placeholder="Avisar días antes" style="width:100%;padding:12px;margin-bottom:10px;">
     <textarea id="npDesc" placeholder="Descripción" style="width:100%;padding:12px;margin-bottom:10px;"></textarea>
     <div style="display:flex;gap:10px;justify-content:flex-end;">
       <button onclick="cerrarNuevoPago()" class="btn">Cancelar</button>
