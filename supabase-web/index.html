@@ -4917,23 +4917,71 @@ td:last-child{
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
         <section id="viewImpuestos" style="display:none;">
-          <div class="card">
-            <h2 style="margin-top:0;">Impuestos y Pagos</h2>
-            <p style="color:var(--muted);">Organizá vencimientos, impuestos y pagos administrativos.</p>
-          </div>
+  <div class="card">
+    <div class="row" style="justify-content:space-between; align-items:flex-start; gap:16px;">
+      <div>
+        <h2 style="margin:0;">Impuestos y Pagos</h2>
+        <p style="color:var(--muted); margin:8px 0 0;">
+          Organizá vencimientos, impuestos y obligaciones administrativas.
+        </p>
+      </div>
+      <button class="btn primary">+ Nuevo pago</button>
+    </div>
+  </div>
 
-          <div class="stats-grid" style="margin-top:14px;">
-            <div class="card"><div class="muted">Pendientes</div><h2>0</h2></div>
-            <div class="card"><div class="muted">Próximos vencimientos</div><h2>0</h2></div>
-            <div class="card"><div class="muted">Vencidos</div><h2>0</h2></div>
-          </div>
+  <div class="stats-grid" style="margin-top:14px;">
+    <div class="card">
+      <div class="muted">📄 Pendientes</div>
+      <h2 style="margin:8px 0;">0</h2>
+      <div class="muted">pagos por realizar</div>
+    </div>
+    <div class="card">
+      <div class="muted">⏰ Próximos vencimientos</div>
+      <h2 style="margin:8px 0;">$0</h2>
+      <div class="muted">próximos 30 días</div>
+    </div>
+    <div class="card">
+      <div class="muted">⚠️ Vencidos</div>
+      <h2 style="margin:8px 0;">0</h2>
+      <div class="muted">requieren atención</div>
+    </div>
+  </div>
 
-          <div class="card" style="margin-top:14px;">
-            <button class="btn primary">+ Nuevo pago</button>
-          </div>
-        </section>
-              </section>
-    </main>
+  <div class="card" style="margin-top:14px;">
+    <div class="row" style="justify-content:space-between;">
+      <h3 style="margin:0;">Próximos vencimientos</h3>
+      <span class="muted">Sin pagos cargados</span>
+    </div>
+    <div style="margin-top:16px; padding:24px; text-align:center; color:var(--muted);">
+      Todavía no hay obligaciones registradas.
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;">
+    <h3 style="margin-top:0;">Historial de pagos</h3>
+    <div style="overflow:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Concepto</th>
+            <th>Categoría</th>
+            <th>Vencimiento</th>
+            <th>Monto</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td colspan="5" style="text-align:center; color:var(--muted);">
+              Sin registros
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+</main>
   </div>
 
   <!-- MODAL COBRAR -->
