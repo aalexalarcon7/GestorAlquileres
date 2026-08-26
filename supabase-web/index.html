@@ -13880,49 +13880,7 @@ error = deleteResponse.error;
 </head>
 
           <body>${printable}
-<script>
-async function cargarImpuestosPagos(){
-  try{
-    const { data, error } = await sb
-      .from('recordatorios_pagos')
-      .select('*')
-      .order('fecha_vencimiento', { ascending:true });
 
-    if(error) throw error;
-
-    const items = data || [];
-    const hoy = new Date();
-    const limite = new Date();
-    limite.setDate(hoy.getDate()+30);
-
-    const pendientes = items.filter(x => x.estado === 'PENDIENTE').length;
-    const vencidos = items.filter(x => x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy)).length;
-    const proximos = items
-      .filter(x => new Date(x.fecha_vencimiento) >= hoy && new Date(x.fecha_vencimiento) <= limite)
-      .reduce((a,b)=>a+Number(b.monto||0),0);
-
-    const cards = document.querySelectorAll('#viewImpuestos .stats-grid .card h2');
-    if(cards[0]) cards[0].textContent = pendientes;
-    if(cards[1]) cards[1].textContent = fmtARS.format(proximos);
-    if(cards[2]) cards[2].textContent = vencidos;
-
-    const table = document.querySelector('#viewImpuestos .tableWrap tbody');
-    if(table){
-      table.innerHTML = items.map(x=>`
-        <tr>
-          <td>${escapeHtml(x.titulo || '')}</td>
-          <td>${escapeHtml(x.categoria || '')}</td>
-          <td>${x.fecha_vencimiento || ''}</td>
-          <td class="right">${fmtARS.format(Number(x.monto||0))}</td>
-          <td>${escapeHtml(x.estado || '')}</td>
-        </tr>
-      `).join('');
-    }
-  }catch(e){
-    console.error('[Impuestos]', e);
-  }
-}
-</script>
 
 </body>
         </html>
