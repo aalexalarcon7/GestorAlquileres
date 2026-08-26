@@ -4925,7 +4925,7 @@ td:last-child{
           Organizá vencimientos, impuestos y obligaciones administrativas.
         </p>
       </div>
-      <button class="btn primary">+ Nuevo pago</button>
+      <button class="btn primary" onclick="abrirNuevoPago()">+ Nuevo pago</button>
     </div>
   </div>
 
@@ -13882,6 +13882,55 @@ error = deleteResponse.error;
           <body>${printable}
 
 
+
+<div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9999;align-items:center;justify-content:center;">
+  <div class="card" style="width:min(520px,92vw);padding:22px;">
+    <h2>Nuevo pago</h2>
+    <div style="display:grid;gap:12px;margin-top:15px;">
+      <input id="npTitulo" placeholder="Concepto">
+      <input id="npCategoria" placeholder="Categoría (IVA, Autónomo, Contadora...)">
+      <input id="npMonto" type="number" placeholder="Monto">
+      <input id="npFecha" type="date">
+      <textarea id="npDescripcion" placeholder="Descripción"></textarea>
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:18px;">
+      <button class="btn" onclick="cerrarNuevoPago()">Cancelar</button>
+      <button class="btn primary" onclick="guardarNuevoPago()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function abrirNuevoPago(){
+ const m=document.getElementById('modalNuevoPago');
+ if(m)m.style.display='flex';
+}
+function cerrarNuevoPago(){
+ const m=document.getElementById('modalNuevoPago');
+ if(m)m.style.display='none';
+}
+async function guardarNuevoPago(){
+ try{
+  const payload={
+   titulo:document.getElementById('npTitulo').value.trim(),
+   categoria:document.getElementById('npCategoria').value.trim(),
+   monto:Number(document.getElementById('npMonto').value||0),
+   fecha_vencimiento:document.getElementById('npFecha').value,
+   descripcion:document.getElementById('npDescripcion').value.trim(),
+   estado:'PENDIENTE',
+   periodicidad:'UNICO'
+  };
+  if(!payload.titulo || !payload.fecha_vencimiento) return alert('Completá concepto y vencimiento');
+  const {error}=await sb.from('recordatorios_pagos').insert(payload);
+  if(error) throw error;
+  cerrarNuevoPago();
+  if(typeof cargarImpuestosPagos==='function') cargarImpuestosPagos();
+ }catch(e){
+  console.error('[Nuevo pago]',e);
+  alert('No se pudo guardar el pago');
+ }
+}
+</script>
 </body>
         </html>
       `);
