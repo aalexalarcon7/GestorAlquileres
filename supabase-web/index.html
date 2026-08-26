@@ -19705,19 +19705,39 @@ function cerrarNuevoPago(){
 }
 async function guardarNuevoPago(){
   try{
+    const titulo=document.getElementById('npTitulo').value.trim();
+    const categoria=document.getElementById('npCategoria').value.trim();
+    const fecha=document.getElementById('npFecha').value;
+    const monto=Number(document.getElementById('npMonto').value||0);
+
+    if(!titulo || !categoria || !fecha){
+      alert('Completá concepto, categoría y vencimiento');
+      return;
+    }
+
     const payload={
-      titulo: document.getElementById('npTitulo').value,
-      categoria: document.getElementById('npCategoria').value,
-      descripcion: document.getElementById('npDesc').value,
-      monto: Number(document.getElementById('npMonto').value||0),
-      fecha_vencimiento: document.getElementById('npFecha').value,
+      titulo,
+      categoria,
+      descripcion: document.getElementById('npDesc').value.trim(),
+      monto,
+      fecha_vencimiento: fecha,
       estado:'PENDIENTE',
       periodicidad: document.getElementById('npPeriodicidad').value || 'UNICO',
       recordatorio_dias: Number(document.getElementById('npAviso').value || 5)
     };
+
     const {error}=await sb.from('recordatorios_pagos').insert(payload);
     if(error) throw error;
+
     cerrarNuevoPago();
+
+    ['npTitulo','npCategoria','npMonto','npFecha','npDesc'].forEach(id=>{
+      const el=document.getElementById(id);
+      if(el) el.value='';
+    });
+    document.getElementById('npAviso').value=5;
+    document.getElementById('npPeriodicidad').value='UNICO';
+
     await cargarImpuestosPagos();
   }catch(e){
     console.error('[Nuevo pago]',e);
