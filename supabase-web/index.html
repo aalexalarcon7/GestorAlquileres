@@ -4653,6 +4653,7 @@ td:last-child{
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
         <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos internos</span></button>
+        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon">📅</span><span class="sb-item-label">Impuestos y Pagos</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
         
@@ -4915,6 +4916,22 @@ td:last-child{
         <section id="viewRecibos" style="display:none;"></section>
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
+        <section id="viewImpuestos" style="display:none;">
+          <div class="card">
+            <h2 style="margin-top:0;">Impuestos y Pagos</h2>
+            <p style="color:var(--muted);">Organizá vencimientos, impuestos y pagos administrativos.</p>
+          </div>
+
+          <div class="stats-grid" style="margin-top:14px;">
+            <div class="card"><div class="muted">Pendientes</div><h2>0</h2></div>
+            <div class="card"><div class="muted">Próximos vencimientos</div><h2>0</h2></div>
+            <div class="card"><div class="muted">Vencidos</div><h2>0</h2></div>
+          </div>
+
+          <div class="card" style="margin-top:14px;">
+            <button class="btn primary">+ Nuevo pago</button>
+          </div>
+        </section>
               </section>
     </main>
   </div>
@@ -6554,7 +6571,8 @@ td:last-child{
         documentos:'viewDocumentos',
         recibos:'viewRecibos',
         informes:'viewInformes',
-        balance:'viewBalance'
+        balance:'viewBalance',
+        impuestos:'viewImpuestos'
       };
       Object.values(map).forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
       if (!map[r]) r = getDefaultRouteForRole();
