@@ -4958,13 +4958,14 @@ td:last-child{
   </div>
 
   <div class="card" style="margin-top:14px;">
-    <h3 style="margin-top:0;">Historial de pagos</h3>
+    <h3 style="margin-top:0;">Obligaciones registradas</h3>
     <div style="overflow:auto;">
       <table>
         <thead>
           <tr>
             <th>Concepto</th>
             <th>Categoría</th>
+            <th>Frecuencia</th>
             <th>Vencimiento</th>
             <th>Monto</th>
             <th>Estado</th>
@@ -4972,8 +4973,8 @@ td:last-child{
         </thead>
         <tbody>
           <tr>
-            <td colspan="5" style="text-align:center; color:var(--muted);">
-              Sin registros
+            <td colspan="6" style="text-align:center; color:var(--muted);">
+              Sin obligaciones registradas
             </td>
           </tr>
         </tbody>
@@ -19680,15 +19681,26 @@ async function cargarImpuestosPagos(){
 
     const table = document.querySelector('#viewImpuestos .tableWrap tbody');
     if(table){
-      table.innerHTML = items.map(x=>`
+      table.innerHTML = items.length ? items.map(x=>{
+        const vencido = x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy);
+        const estado = x.estado === 'PAGADO'
+          ? '🟢 Pagado'
+          : vencido
+            ? '🔴 Vencido'
+            : '🟡 Pendiente';
+        return `
         <tr>
           <td>${escapeHtml(x.titulo || '')}</td>
           <td>${escapeHtml(x.categoria || '')}</td>
+          <td>${escapeHtml(x.periodicidad || 'Único')}</td>
           <td>${x.fecha_vencimiento || ''}</td>
           <td class="right">${fmtARS.format(Number(x.monto||0))}</td>
-          <td>${escapeHtml(x.estado || '')}</td>
-        </tr>
-      `).join('');
+          <td>${estado}</td>
+        </tr>`;
+      }).join('') : `
+        <tr>
+          <td colspan="6" style="text-align:center;color:var(--muted);">Sin obligaciones registradas</td>
+        </tr>`;
     }
   }catch(e){
     console.error('[Impuestos]', e);
