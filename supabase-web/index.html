@@ -19768,7 +19768,7 @@ async function guardarNuevoPago(){
 
 <script>
 async function marcarPagado(id){
-  if(!confirm('¿Marcar esta obligación como pagada?')) return;
+  if(!await mostrarConfirmacion('Confirmar pago','¿Marcar esta obligación como pagada?')) return;
   const {error}=await sb.from('recordatorios_pagos')
     .update({estado:'PAGADO',fecha_pago:new Date().toISOString().slice(0,10)})
     .eq('id',id);
@@ -19803,7 +19803,7 @@ async function guardarEditarPago(){
 }
 
 async function eliminarPago(id){
-  if(!window.confirm('¿Eliminar esta obligación?')) return;
+  if(!await mostrarConfirmacion('Eliminar obligación','¿Seguro que querés eliminar esta obligación?')) return;
   const {error}=await sb.from('recordatorios_pagos').delete().eq('id',id);
   if(error){console.error(error);alert('No se pudo eliminar');return;}
   cargarImpuestosPagos();
@@ -19811,6 +19811,33 @@ async function eliminarPago(id){
 
 async function editarPago(id){
   abrirEditarPago(id);
+}
+</script>
+
+
+<div id="modalConfirmacionPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:22px;padding:28px;width:min(420px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
+    <h2 id="confirmTitulo" style="margin-top:0;">Confirmar</h2>
+    <p id="confirmTexto"></p>
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="resolverConfirmacion(false)">Cancelar</button>
+      <button onclick="resolverConfirmacion(true)" style="background:#111827;color:white;">Confirmar</button>
+    </div>
+  </div>
+</div>
+<script>
+let confirmResolver=null;
+function mostrarConfirmacion(titulo,texto){
+  return new Promise(resolve=>{
+    confirmResolver=resolve;
+    document.getElementById('confirmTitulo').textContent=titulo;
+    document.getElementById('confirmTexto').textContent=texto;
+    document.getElementById('modalConfirmacionPago').style.display='flex';
+  });
+}
+function resolverConfirmacion(valor){
+  document.getElementById('modalConfirmacionPago').style.display='none';
+  if(confirmResolver){confirmResolver(valor);confirmResolver=null;}
 }
 </script>
 
