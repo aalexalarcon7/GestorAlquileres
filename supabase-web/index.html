@@ -19679,7 +19679,7 @@ async function cargarImpuestosPagos(){
     if(cards[1]) cards[1].textContent = fmtARS.format(proximos);
     if(cards[2]) cards[2].textContent = vencidos;
 
-    const table = document.querySelector('#viewImpuestos .tableWrap tbody');
+    const table = document.querySelector('#viewImpuestos table tbody');
     if(table){
       table.innerHTML = items.length ? items.map(x=>{
         const vencido = x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy);
