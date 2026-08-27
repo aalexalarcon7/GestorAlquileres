@@ -4969,6 +4969,7 @@ td:last-child{
             <th>Vencimiento</th>
             <th>Monto</th>
             <th>Estado</th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
@@ -19696,10 +19697,15 @@ async function cargarImpuestosPagos(){
           <td>${x.fecha_vencimiento || ''}</td>
           <td class="right">${fmtARS.format(Number(x.monto||0))}</td>
           <td>${estado}</td>
+          <td>
+            <button class="btn" onclick="editarPago('${x.id}')">✏️</button>
+            <button class="btn" onclick="marcarPagado('${x.id}')">✅</button>
+            <button class="btn" onclick="eliminarPago('${x.id}')">🗑️</button>
+          </td>
         </tr>`;
       }).join('') : `
         <tr>
-          <td colspan="6" style="text-align:center;color:var(--muted);">Sin obligaciones registradas</td>
+          <td colspan="7" style="text-align:center;color:var(--muted);">Sin obligaciones registradas</td>
         </tr>`;
     }
   }catch(e){
@@ -19757,6 +19763,37 @@ async function guardarNuevoPago(){
   }
 }
 
+</script>
+
+
+<script>
+async function marcarPagado(id){
+  if(!confirm('¿Marcar esta obligación como pagada?')) return;
+  const {error}=await sb.from('recordatorios_pagos')
+    .update({estado:'PAGADO',fecha_pago:new Date().toISOString().slice(0,10)})
+    .eq('id',id);
+  if(error){console.error(error);alert('No se pudo actualizar');return;}
+  cargarImpuestosPagos();
+}
+
+async function eliminarPago(id){
+  if(!confirm('¿Eliminar esta obligación?')) return;
+  const {error}=await sb.from('recordatorios_pagos').delete().eq('id',id);
+  if(error){console.error(error);alert('No se pudo eliminar');return;}
+  cargarImpuestosPagos();
+}
+
+async function editarPago(id){
+  const {data,error}=await sb.from('recordatorios_pagos').select('*').eq('id',id).single();
+  if(error){alert('No se pudo cargar');return;}
+  const titulo=prompt('Concepto',data.titulo);
+  if(titulo===null)return;
+  const monto=prompt('Monto',data.monto);
+  if(monto===null)return;
+  const {error:e}=await sb.from('recordatorios_pagos').update({titulo,monto:Number(monto)}).eq('id',id);
+  if(e){alert('No se pudo editar');return;}
+  cargarImpuestosPagos();
+}
 </script>
 
 <div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
