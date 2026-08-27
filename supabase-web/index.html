@@ -4947,13 +4947,15 @@ td:last-child{
     </div>
   </div>
 
-  <div class="card" style="margin-top:14px;">
+  <div class="card" style="margin-top:14px;" id="panelProximosVencimientos">
     <div class="row" style="justify-content:space-between;">
       <h3 style="margin:0;">Próximos vencimientos</h3>
-      <span class="muted">Sin pagos cargados</span>
+      <span class="muted" id="textoProximos">Sin pagos cargados</span>
     </div>
-    <div style="margin-top:16px; padding:24px; text-align:center; color:var(--muted);">
-      Todavía no hay obligaciones registradas.
+    <div id="listaProximos" style="margin-top:16px;">
+      <div style="padding:24px;text-align:center;color:var(--muted);">
+        Todavía no hay obligaciones registradas.
+      </div>
     </div>
   </div>
 
@@ -19680,7 +19682,29 @@ async function cargarImpuestosPagos(){
     if(cards[1]) cards[1].textContent = fmtARS.format(proximos);
     if(cards[2]) cards[2].textContent = vencidos;
 
-    const table = document.querySelector('#viewImpuestos table tbody');
+    
+    const proximosLista=document.getElementById('listaProximos');
+    const proximosTexto=document.getElementById('textoProximos');
+    const proximosItems=items.filter(x=>{
+      const f=new Date(x.fecha_vencimiento);
+      return x.estado!=='PAGADO' && f>=hoy && f<=limite;
+    }).sort((a,b)=>new Date(a.fecha_vencimiento)-new Date(b.fecha_vencimiento));
+
+    if(proximosTexto) proximosTexto.textContent=proximosItems.length ? `${proximosItems.length} obligaciones` : 'Sin pagos próximos';
+
+    if(proximosLista){
+      proximosLista.innerHTML=proximosItems.length ? proximosItems.map(x=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);">
+          <div>
+            <strong>${escapeHtml(x.titulo||'')}</strong>
+            <div class="muted">${escapeHtml(x.categoria||'')} · ${x.fecha_vencimiento||''}</div>
+          </div>
+          <strong>${fmtARS.format(Number(x.monto||0))}</strong>
+        </div>
+      `).join('') : `<div style="padding:24px;text-align:center;color:var(--muted);">No hay vencimientos próximos.</div>`;
+    }
+
+const table = document.querySelector('#viewImpuestos table tbody');
     if(table){
       table.innerHTML = items.length ? items.map(x=>{
         const vencido = x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy);
