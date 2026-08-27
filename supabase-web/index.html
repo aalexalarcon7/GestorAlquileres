@@ -19776,25 +19776,55 @@ async function marcarPagado(id){
   cargarImpuestosPagos();
 }
 
+let pagoEditandoId=null;
+
+function abrirEditarPago(id){
+  pagoEditandoId=id;
+  sb.from('recordatorios_pagos').select('*').eq('id',id).single().then(({data,error})=>{
+    if(error){alert('No se pudo cargar');return;}
+    document.getElementById('epTitulo').value=data.titulo||'';
+    document.getElementById('epMonto').value=data.monto||0;
+    document.getElementById('modalEditarPago').style.display='flex';
+  });
+}
+
+function cerrarEditarPago(){
+  document.getElementById('modalEditarPago').style.display='none';
+  pagoEditandoId=null;
+}
+
+async function guardarEditarPago(){
+  const titulo=document.getElementById('epTitulo').value.trim();
+  const monto=Number(document.getElementById('epMonto').value||0);
+  const {error}=await sb.from('recordatorios_pagos').update({titulo,monto}).eq('id',pagoEditandoId);
+  if(error){alert('No se pudo editar');return;}
+  cerrarEditarPago();
+  cargarImpuestosPagos();
+}
+
 async function eliminarPago(id){
-  if(!confirm('¿Eliminar esta obligación?')) return;
+  if(!window.confirm('¿Eliminar esta obligación?')) return;
   const {error}=await sb.from('recordatorios_pagos').delete().eq('id',id);
   if(error){console.error(error);alert('No se pudo eliminar');return;}
   cargarImpuestosPagos();
 }
 
 async function editarPago(id){
-  const {data,error}=await sb.from('recordatorios_pagos').select('*').eq('id',id).single();
-  if(error){alert('No se pudo cargar');return;}
-  const titulo=prompt('Concepto',data.titulo);
-  if(titulo===null)return;
-  const monto=prompt('Monto',data.monto);
-  if(monto===null)return;
-  const {error:e}=await sb.from('recordatorios_pagos').update({titulo,monto:Number(monto)}).eq('id',id);
-  if(e){alert('No se pudo editar');return;}
-  cargarImpuestosPagos();
+  abrirEditarPago(id);
 }
 </script>
+
+<div id="modalEditarPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:22px;padding:28px;width:min(520px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
+    <h2 style="margin-top:0;">Editar obligación</h2>
+    <input id="epTitulo" placeholder="Concepto" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="epMonto" type="number" placeholder="Monto" style="width:100%;padding:12px;margin-bottom:10px;">
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button onclick="cerrarEditarPago()">Cancelar</button>
+      <button onclick="guardarEditarPago()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
 
 <div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
   <div style="background:white;border-radius:22px;padding:28px;width:min(520px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
