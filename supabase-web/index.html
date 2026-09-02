@@ -5033,6 +5033,37 @@ td:last-child{
       <strong id="empPendientes" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
       <span style="color:var(--muted);">Pendientes de pago</span>
     </div>
+
+    <div class="card">
+      <h3 style="margin:0;color:var(--muted);">✅ Sueldos pagados</h3>
+      <strong id="empPagadosMes" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
+      <span style="color:var(--muted);">Pagados este mes</span>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0;color:var(--muted);">👥 Costo mensual</h3>
+      <strong id="empCostoMensual" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
+      <span style="color:var(--muted);">Personal activo</span>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:20px;">
+    <h3 style="margin-top:0;">Historial de sueldos</h3>
+    <div class="table-wrap">
+      <table class="desktop-table">
+        <thead>
+          <tr>
+            <th>Empleado</th>
+            <th>Periodo</th>
+            <th>Monto</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody id="historialSueldosBody">
+          <tr><td colspan="4" style="text-align:center;padding:25px;color:var(--muted)">Sin pagos registrados</td></tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -20147,6 +20178,34 @@ async function cargarEmpleados(){
   if(error){
     console.error('[Empleados]', error);
     return;
+  }
+
+  const costo = document.getElementById('empCostoMensual');
+  if(costo){
+    const totalCosto=(activos||[]).reduce((s,e)=>s+Number(e.salario_base||0),0);
+    costo.textContent='$ '+totalCosto.toLocaleString('es-AR');
+  }
+
+  const pagados = await sb.from('pagos_empleados').select('*').eq('estado','PAGADO');
+  const pagos = pagados.data || [];
+  const mesActual = new Date().getMonth()+1;
+  const anioActual = new Date().getFullYear();
+  const pagosMes = pagos.filter(p=>Number(p.mes)===mesActual && Number(p.anio)===anioActual);
+  const pagadosEl=document.getElementById('empPagadosMes');
+  if(pagadosEl){
+    pagadosEl.textContent='$ '+pagosMes.reduce((s,p)=>s+Number(p.monto||0),0).toLocaleString('es-AR');
+  }
+
+  const hist=document.getElementById('historialSueldosBody');
+  if(hist && pagos.length){
+    hist.innerHTML=pagos.slice(0,10).map(p=>`
+      <tr>
+        <td>${p.empleado_id}</td>
+        <td>${p.periodo||'-'}</td>
+        <td>$ ${Number(p.monto||0).toLocaleString('es-AR')}</td>
+        <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534;">🟢 ${p.estado}</span></td>
+      </tr>
+    `).join('');
   }
 
   const body = document.getElementById('empleadosBody');
