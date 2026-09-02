@@ -19925,5 +19925,48 @@ function resolverConfirmacion(valor){
   </div>
 </div>
 
+
+<script>
+async function cargarEmpleados(){
+  const { data, error } = await sb
+    .from('empleados')
+    .select('*')
+    .order('created_at', { ascending:false });
+
+  if(error){
+    console.error('[Empleados]', error);
+    return;
+  }
+
+  const body = document.getElementById('empleadosBody');
+  const total = document.getElementById('empTotal');
+
+  if(total) total.textContent = (data || []).filter(e=>e.activo).length;
+
+  if(!body) return;
+
+  if(!data || data.length === 0){
+    body.innerHTML = '<tr><td colspan="5">Sin empleados cargados</td></tr>';
+    return;
+  }
+
+  body.innerHTML = data.map(e => `
+    <tr>
+      <td>${e.nombre || ''} ${e.apellido || ''}</td>
+      <td>${e.cargo || '-'}</td>
+      <td>$ ${Number(e.salario_base || 0).toLocaleString('es-AR')}</td>
+      <td>${e.activo ? 'Activo' : 'Inactivo'}</td>
+      <td>
+        <button class="btn secondary">✏️ Editar</button>
+        <button class="btn secondary">🚫 Desactivar</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function abrirNuevoEmpleado(){
+  alert('Nuevo empleado funcionando');
+}
+</script>
 </body>
 </html>
