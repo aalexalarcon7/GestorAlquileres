@@ -124,10 +124,63 @@ async function guardarPagoEmpleado(){
  const obs=document.getElementById('pagoObs').value;
  if(!empleadoPagoActual||!monto)return;
  const mes=Number(periodo.split('/')[0]||9); const anio=Number(periodo.split('/')[1]||new Date().getFullYear());
- const {error}=await sb.from('pagos_empleados').insert({empleado_id:empleadoPagoActual,anio,mes,periodo,monto,estado:'PAGADO',fecha_pago:new Date().toISOString().slice(0,10),observacion:obs});
- if(error){console.error(error);alert('No se pudo registrar el pago');return;}
+ const empleado=window.__empleados?.find(e=>String(e.id)===String(empleadoPagoActual));
+ if(!empleado){ alert('No se encontró el empleado'); return; }
+
+ // Evitar pagos duplicados del mismo empleado en el mismo periodo
+ const existente=await sb.from('pagos_empleados')
+   .select('id')
+   .eq('empleado_id', empleadoPagoActual)
+   .eq('periodo', periodo)
+   .maybeSingle();
+
+ if(existente.data){
+   alert('Ya existe un pago registrado para este empleado en este periodo');
+   return;
+ }
+
+ // Registrar pago de sueldo
+ const pago=await sb.from('pagos_empleados').insert({
+   empleado_id:empleadoPagoActual,
+   anio,
+   mes,
+   periodo,
+   monto,
+   estado:'PAGADO',
+   fecha_pago:new Date().toISOString().slice(0,10),
+   observacion:obs
+ }).select('id').single();
+
+ if(pago.error){
+   console.error(pago.error);
+   alert('No se pudo registrar el pago');
+   return;
+ }
+
+ // Crear gasto asociado
+ const gasto=await sb.from('gastos').insert({
+   fecha:new Date().toISOString().slice(0,10),
+   categoria:'Sueldos',
+   concepto:`Sueldo ${empleado.nombre} - ${periodo}`,
+   beneficiario:empleado.nombre,
+   medio:'Transferencia',
+   monto,
+   observaciones:obs || null
+ }).select('id').single();
+
+ if(gasto.error){
+   console.error(gasto.error);
+   alert('Pago registrado pero no se pudo crear el gasto');
+   return;
+ }
+
+ await sb.from('pagos_empleados')
+   .update({gasto_id:gasto.data.id})
+   .eq('id',pago.data.id);
+
  cerrarPagoEmpleado();
- alert('Pago registrado');
+ alert('Pago registrado y gasto generado');
+ cargarEmpleados();
 }
 </script>
     <style>
@@ -5081,7 +5134,19 @@ td:last-child{
 </main>
   </div>
 
-  <!-- MODAL COBRAR -->
+  <!-- HISTORIAL SUELDOS -->
+<div class="card" style="margin-top:18px;">
+ <h3>Historial de sueldos</h3>
+ <table style="width:100%;margin-top:12px;">
+  <thead>
+   <tr><th>Empleado</th><th>Periodo</th><th>Monto</th><th>Estado</th></tr>
+  </thead>
+  <tbody id="historialSueldosBody">
+   <tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin pagos registrados</td></tr>
+  </tbody>
+ </table>
+</div>
+<!-- MODAL COBRAR -->
   <!-- MODAL COBRO LEGACY ELIMINADO (Etapa 13C 2026-06-24).
        Era id="modalBack" / "Registrar pago". Bloqueado desde Etapa 13B.
        Funciones openPagoModal/registrarPagoModal siguen como stubs.
@@ -20053,6 +20118,25 @@ function resolverConfirmacion(valor){
 
 <script>
 let empleadoEditando = null;
+
+async function cargarHistorialSueldos(){
+ const {data,error}=await sb.from('pagos_empleados')
+   .select('*, empleados(nombre)')
+   .order('created_at',{ascending:false});
+ const body=document.getElementById('historialSueldosBody');
+ if(!body) return;
+ if(error || !data || data.length===0){
+  body.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin pagos registrados</td></tr>';
+  return;
+ }
+ body.innerHTML=data.map(p=>`
+ <tr>
+  <td>${p.empleados?.nombre || '-'}</td>
+  <td>${p.periodo}</td>
+  <td><strong>$ ${Number(p.monto||0).toLocaleString('es-AR')}</strong></td>
+  <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534">🟢 ${p.estado}</span></td>
+ </tr>`).join('');
+}
 
 async function cargarEmpleados(){
   const { data, error } = await sb
