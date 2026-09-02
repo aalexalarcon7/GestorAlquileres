@@ -19957,6 +19957,21 @@ function resolverConfirmacion(valor){
 </div>
 
 
+
+<div id="modalNuevoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999;">
+  <div class="card" style="width:420px;max-width:90%;">
+    <h2 style="margin-top:0;">Nuevo empleado</h2>
+    <input id="empNombre" placeholder="Nombre completo" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="empCargo" placeholder="Cargo" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="empSalario" type="number" placeholder="Salario mensual" style="width:100%;padding:12px;margin-bottom:10px;">
+    <input id="empFecha" type="date" style="width:100%;padding:12px;margin-bottom:10px;">
+    <div style="display:flex;justify-content:flex-end;gap:10px;">
+      <button class="btn" onclick="cerrarNuevoEmpleado()">Cancelar</button>
+      <button class="btn primary" onclick="guardarNuevoEmpleado()">Guardar empleado</button>
+    </div>
+  </div>
+</div>
+
 <script>
 async function cargarEmpleados(){
   const { data, error } = await sb
@@ -19996,7 +20011,40 @@ async function cargarEmpleados(){
 }
 
 function abrirNuevoEmpleado(){
-  alert('Nuevo empleado funcionando');
+  document.getElementById('modalNuevoEmpleado').style.display='flex';
+}
+
+function cerrarNuevoEmpleado(){
+  document.getElementById('modalNuevoEmpleado').style.display='none';
+}
+
+async function guardarNuevoEmpleado(){
+  const nombre=document.getElementById('empNombre').value.trim();
+  const cargo=document.getElementById('empCargo').value.trim();
+  const salario=Number(document.getElementById('empSalario').value||0);
+  const fecha=document.getElementById('empFecha').value || new Date().toISOString().slice(0,10);
+
+  if(!nombre || !cargo || !salario){
+    alert('Completá nombre, cargo y salario');
+    return;
+  }
+
+  const {error}=await sb.from('empleados').insert({
+    nombre,
+    cargo,
+    salario_base: salario,
+    fecha_ingreso: fecha,
+    activo:true
+  });
+
+  if(error){
+    console.error('[Empleados]', error);
+    alert('No se pudo guardar el empleado');
+    return;
+  }
+
+  cerrarNuevoEmpleado();
+  cargarEmpleados();
 }
 </script>
 </body>
