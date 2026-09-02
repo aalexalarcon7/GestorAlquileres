@@ -89,7 +89,24 @@
         document.documentElement.setAttribute('data-theme', 'light');
       }
     })();
-  </script>
+  
+async function activarEmpleado(id){
+  const {error}=await sb.from('empleados').update({
+    activo:true,
+    updated_at:new Date().toISOString()
+  }).eq('id',id);
+  if(error){ alert("No se pudo activar"); return; }
+  cargarEmpleados();
+}
+
+async function eliminarEmpleado(id){
+  if(!confirm("¿Eliminar definitivamente este empleado?")) return;
+  const {error}=await sb.from('empleados').delete().eq('id',id);
+  if(error){ alert("No se pudo eliminar"); return; }
+  cargarEmpleados();
+}
+
+</script>
     <style>
     :root{
       --bg:#f5f7fb;
@@ -13943,6 +13960,19 @@ error = deleteResponse.error;
 
 
 
+
+<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999">
+ <div style="background:white;border-radius:22px;padding:25px;width:420px">
+  <h2>Editar empleado</h2>
+  <input id="editEmpNombre" class="input" placeholder="Nombre"><br>
+  <input id="editEmpCargo" class="input" placeholder="Cargo"><br>
+  <input id="editEmpSalario" class="input" type="number" placeholder="Salario"><br>
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px">
+   <button class="btn secondary" onclick="cerrarEditarEmpleado()">Cancelar</button>
+   <button class="btn primary" onclick="guardarEditarEmpleado()">Guardar cambios</button>
+  </div>
+ </div>
+</div>
 </body>
         </html>
       `);
@@ -20021,8 +20051,9 @@ async function cargarEmpleados(){
         ${
           e.activo
           ? `<button class="btn secondary" onclick="desactivarEmpleado('${e.id}')">⛔ Baja</button>`
-          : ''
+          : `<button class="btn secondary" onclick="activarEmpleado('${e.id}')">🟢 Activar</button>`
         }
+        <button class="btn secondary" onclick="eliminarEmpleado('${e.id}')">🗑️ Eliminar</button>
       </td>
     </tr>
   `).join('');
@@ -20065,19 +20096,28 @@ async function guardarNuevoEmpleado(){
   cargarEmpleados();
 }
 
+
 function editarEmpleado(e){
   empleadoEditando=e;
+  document.getElementById('editEmpNombre').value=e.nombre || '';
+  document.getElementById('editEmpCargo').value=e.cargo || '';
+  document.getElementById('editEmpSalario').value=e.salario_base || 0;
+  document.getElementById('modalEditarEmpleado').style.display='flex';
+}
 
-  const nombre=prompt("Nombre", e.nombre || "");
-  if(nombre===null) return;
+function cerrarEditarEmpleado(){
+  document.getElementById('modalEditarEmpleado').style.display='none';
+}
 
-  const cargo=prompt("Cargo", e.cargo || "");
-  if(cargo===null) return;
-
-  const salario=prompt("Salario mensual", e.salario_base || 0);
-  if(salario===null) return;
-
-  actualizarEmpleado(e.id,nombre,cargo,Number(salario));
+async function guardarEditarEmpleado(){
+  if(!empleadoEditando) return;
+  await actualizarEmpleado(
+    empleadoEditando.id,
+    document.getElementById('editEmpNombre').value.trim(),
+    document.getElementById('editEmpCargo').value.trim(),
+    Number(document.getElementById('editEmpSalario').value||0)
+  );
+  cerrarEditarEmpleado();
 }
 
 async function actualizarEmpleado(id,nombre,cargo,salario){
@@ -20121,5 +20161,18 @@ async function desactivarEmpleado(id){
 }
 </script>
 
+
+<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999">
+ <div style="background:white;border-radius:22px;padding:25px;width:420px">
+  <h2>Editar empleado</h2>
+  <input id="editEmpNombre" class="input" placeholder="Nombre"><br>
+  <input id="editEmpCargo" class="input" placeholder="Cargo"><br>
+  <input id="editEmpSalario" class="input" type="number" placeholder="Salario"><br>
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px">
+   <button class="btn secondary" onclick="cerrarEditarEmpleado()">Cancelar</button>
+   <button class="btn primary" onclick="guardarEditarEmpleado()">Guardar cambios</button>
+  </div>
+ </div>
+</div>
 </body>
 </html>
