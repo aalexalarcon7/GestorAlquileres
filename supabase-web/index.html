@@ -20186,9 +20186,11 @@ async function cargarEmpleados(){
     return;
   }
 
+  const activos = (data || []).filter(e=>e.activo);
+
   const costo = document.getElementById('empCostoMensual');
   if(costo){
-    const totalCosto=(activos||[]).reduce((s,e)=>s+Number(e.salario_base||0),0);
+    const totalCosto=activos.reduce((s,e)=>s+Number(e.salario_base||0),0);
     costo.textContent='$ '+totalCosto.toLocaleString('es-AR');
   }
 
@@ -20218,7 +20220,6 @@ async function cargarEmpleados(){
   const total = document.getElementById('empTotal');
 
   window.__empleados=data || [];
-  const activos = (data || []).filter(e=>e.activo);
   if(total) total.textContent = activos.length;
 
   if(!body) return;
