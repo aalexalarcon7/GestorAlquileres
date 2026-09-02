@@ -106,6 +106,29 @@ async function eliminarEmpleado(id){
   cargarEmpleados();
 }
 
+
+let empleadoPagoActual=null;
+function abrirPagoEmpleado(id){
+  empleadoPagoActual=id;
+  const fila=window.__empleados?.find(e=>String(e.id)===String(id));
+  if(fila){
+    document.getElementById('pagoEmpleadoNombre').textContent=fila.nombre+' - '+fila.cargo;
+    document.getElementById('pagoMonto').value=fila.salario_base||0;
+  }
+  document.getElementById('modalPagoEmpleado').style.display='flex';
+}
+function cerrarPagoEmpleado(){document.getElementById('modalPagoEmpleado').style.display='none';}
+async function guardarPagoEmpleado(){
+ const monto=Number(document.getElementById('pagoMonto').value||0);
+ const periodo=document.getElementById('pagoPeriodo').value;
+ const obs=document.getElementById('pagoObs').value;
+ if(!empleadoPagoActual||!monto)return;
+ const mes=Number(periodo.split('/')[0]||9); const anio=Number(periodo.split('/')[1]||new Date().getFullYear());
+ const {error}=await sb.from('pagos_empleados').insert({empleado_id:empleadoPagoActual,anio,mes,periodo,monto,estado:'PAGADO',fecha_pago:new Date().toISOString().slice(0,10),observacion:obs});
+ if(error){console.error(error);alert('No se pudo registrar el pago');return;}
+ cerrarPagoEmpleado();
+ alert('Pago registrado');
+}
 </script>
     <style>
     :root{
@@ -13961,6 +13984,21 @@ error = deleteResponse.error;
 
 
 
+
+<div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
+  <h2 style="margin:0 0 20px">💰 Registrar pago</h2>
+  <p id="pagoEmpleadoNombre" style="color:#64748b"></p>
+  <input id="pagoPeriodo" value="09/2026" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Periodo">
+  <input id="pagoMonto" type="number" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Monto">
+  <textarea id="pagoObs" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Observación"></textarea>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+   <button class="btn" onclick="cerrarPagoEmpleado()">Cancelar</button>
+   <button class="btn primary" onclick="guardarPagoEmpleado()">Registrar pago</button>
+  </div>
+ </div>
+</div>
+
 <div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
  <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
   <div style="margin-bottom:22px">
@@ -20030,6 +20068,7 @@ async function cargarEmpleados(){
   const body = document.getElementById('empleadosBody');
   const total = document.getElementById('empTotal');
 
+  window.__empleados=data || [];
   const activos = (data || []).filter(e=>e.activo);
   if(total) total.textContent = activos.length;
 
@@ -20058,6 +20097,7 @@ async function cargarEmpleados(){
       </td>
       <td>
         <button class="btn secondary" onclick='editarEmpleado(${JSON.stringify(e)})'>✏️ Editar</button>
+        <button class="btn secondary" onclick="abrirPagoEmpleado(${e.id})">💰 Registrar pago</button>
         ${
           e.activo
           ? `<button class="btn secondary" onclick="desactivarEmpleado('${e.id}')">⛔ Baja</button>`
@@ -20171,6 +20211,21 @@ async function desactivarEmpleado(id){
 }
 </script>
 
+
+
+<div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
+  <h2 style="margin:0 0 20px">💰 Registrar pago</h2>
+  <p id="pagoEmpleadoNombre" style="color:#64748b"></p>
+  <input id="pagoPeriodo" value="09/2026" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Periodo">
+  <input id="pagoMonto" type="number" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Monto">
+  <textarea id="pagoObs" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Observación"></textarea>
+  <div style="display:flex;justify-content:flex-end;gap:10px">
+   <button class="btn" onclick="cerrarPagoEmpleado()">Cancelar</button>
+   <button class="btn primary" onclick="guardarPagoEmpleado()">Registrar pago</button>
+  </div>
+ </div>
+</div>
 
 <div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
  <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
