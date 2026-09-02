@@ -19972,7 +19972,10 @@ function resolverConfirmacion(valor){
   </div>
 </div>
 
+
 <script>
+let empleadoEditando = null;
+
 async function cargarEmpleados(){
   const { data, error } = await sb
     .from('empleados')
@@ -19987,24 +19990,39 @@ async function cargarEmpleados(){
   const body = document.getElementById('empleadosBody');
   const total = document.getElementById('empTotal');
 
-  if(total) total.textContent = (data || []).filter(e=>e.activo).length;
+  const activos = (data || []).filter(e=>e.activo);
+  if(total) total.textContent = activos.length;
 
   if(!body) return;
 
   if(!data || data.length === 0){
-    body.innerHTML = '<tr><td colspan="5">Sin empleados cargados</td></tr>';
+    body.innerHTML = `
+      <tr>
+        <td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">
+          👥<br>
+          Todavía no hay empleados registrados
+        </td>
+      </tr>`;
     return;
   }
 
   body.innerHTML = data.map(e => `
     <tr>
-      <td>${e.nombre || ''} ${e.apellido || ''}</td>
+      <td><strong>${e.nombre || ''}</strong></td>
       <td>${e.cargo || '-'}</td>
-      <td>$ ${Number(e.salario_base || 0).toLocaleString('es-AR')}</td>
-      <td>${e.activo ? 'Activo' : 'Inactivo'}</td>
+      <td><strong>$ ${Number(e.salario_base || 0).toLocaleString('es-AR')}</strong></td>
       <td>
-        <button class="btn secondary">✏️ Editar</button>
-        <button class="btn secondary">🚫 Desactivar</button>
+        <span style="padding:5px 10px;border-radius:999px;background:${e.activo ? '#dcfce7':'#fee2e2'};color:${e.activo?'#166534':'#991b1b'};">
+          ${e.activo ? '🟢 Activo':'🔴 Inactivo'}
+        </span>
+      </td>
+      <td>
+        <button class="btn secondary" onclick='editarEmpleado(${JSON.stringify(e)})'>✏️ Editar</button>
+        ${
+          e.activo
+          ? `<button class="btn secondary" onclick="desactivarEmpleado('${e.id}')">⛔ Baja</button>`
+          : ''
+        }
       </td>
     </tr>
   `).join('');
@@ -20046,6 +20064,62 @@ async function guardarNuevoEmpleado(){
   cerrarNuevoEmpleado();
   cargarEmpleados();
 }
+
+function editarEmpleado(e){
+  empleadoEditando=e;
+
+  const nombre=prompt("Nombre", e.nombre || "");
+  if(nombre===null) return;
+
+  const cargo=prompt("Cargo", e.cargo || "");
+  if(cargo===null) return;
+
+  const salario=prompt("Salario mensual", e.salario_base || 0);
+  if(salario===null) return;
+
+  actualizarEmpleado(e.id,nombre,cargo,Number(salario));
+}
+
+async function actualizarEmpleado(id,nombre,cargo,salario){
+  const {error}=await sb
+    .from('empleados')
+    .update({
+      nombre,
+      cargo,
+      salario_base:salario,
+      updated_at:new Date().toISOString()
+    })
+    .eq('id',id);
+
+  if(error){
+    console.error(error);
+    alert("No se pudo actualizar");
+    return;
+  }
+
+  cargarEmpleados();
+}
+
+async function desactivarEmpleado(id){
+  if(!confirm("¿Desactivar este empleado?")) return;
+
+  const {error}=await sb
+    .from('empleados')
+    .update({
+      activo:false,
+      updated_at:new Date().toISOString()
+    })
+    .eq('id',id);
+
+  if(error){
+    console.error(error);
+    alert("No se pudo desactivar");
+    return;
+  }
+
+  cargarEmpleados();
+}
 </script>
+
 </body>
 </html>
