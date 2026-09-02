@@ -13961,13 +13961,23 @@ error = deleteResponse.error;
 
 
 
-<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999">
- <div style="background:white;border-radius:22px;padding:25px;width:420px">
-  <h2>Editar empleado</h2>
-  <input id="editEmpNombre" class="input" placeholder="Nombre"><br>
-  <input id="editEmpCargo" class="input" placeholder="Cargo"><br>
-  <input id="editEmpSalario" class="input" type="number" placeholder="Salario"><br>
-  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px">
+<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
+  <div style="margin-bottom:22px">
+   <h2 style="margin:0;font-size:22px;color:#111827">✏️ Editar empleado</h2>
+   <p style="margin:8px 0 0;color:#64748b;font-size:14px">Actualizá los datos del empleado seleccionado</p>
+  </div>
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Nombre completo</label>
+  <input id="editEmpNombre" class="input" placeholder="Ej: Juan Pérez" style="width:100%;margin-bottom:16px">
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Cargo</label>
+  <input id="editEmpCargo" class="input" placeholder="Ej: Administrativo" style="width:100%;margin-bottom:16px">
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Salario mensual</label>
+  <input id="editEmpSalario" class="input" type="number" placeholder="Ej: 500000" style="width:100%;margin-bottom:6px">
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px">
    <button class="btn secondary" onclick="cerrarEditarEmpleado()">Cancelar</button>
    <button class="btn primary" onclick="guardarEditarEmpleado()">Guardar cambios</button>
   </div>
@@ -20162,13 +20172,23 @@ async function desactivarEmpleado(id){
 </script>
 
 
-<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999">
- <div style="background:white;border-radius:22px;padding:25px;width:420px">
-  <h2>Editar empleado</h2>
-  <input id="editEmpNombre" class="input" placeholder="Nombre"><br>
-  <input id="editEmpCargo" class="input" placeholder="Cargo"><br>
-  <input id="editEmpSalario" class="input" type="number" placeholder="Salario"><br>
-  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:15px">
+<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
+  <div style="margin-bottom:22px">
+   <h2 style="margin:0;font-size:22px;color:#111827">✏️ Editar empleado</h2>
+   <p style="margin:8px 0 0;color:#64748b;font-size:14px">Actualizá los datos del empleado seleccionado</p>
+  </div>
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Nombre completo</label>
+  <input id="editEmpNombre" class="input" placeholder="Ej: Juan Pérez" style="width:100%;margin-bottom:16px">
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Cargo</label>
+  <input id="editEmpCargo" class="input" placeholder="Ej: Administrativo" style="width:100%;margin-bottom:16px">
+
+  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Salario mensual</label>
+  <input id="editEmpSalario" class="input" type="number" placeholder="Ej: 500000" style="width:100%;margin-bottom:6px">
+
+  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px">
    <button class="btn secondary" onclick="cerrarEditarEmpleado()">Cancelar</button>
    <button class="btn primary" onclick="guardarEditarEmpleado()">Guardar cambios</button>
   </div>
