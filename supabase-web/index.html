@@ -78,18 +78,7 @@
       }
     })();
   
-<script>
-async function cargarEmpleados(){
- const body=document.getElementById('empleadosBody');
- if(!body) return;
- const {data,error}=await supabase.from('empleados').select('*').order('id',{ascending:false});
- if(error){console.error(error);return;}
- document.getElementById('empTotal').textContent=(data||[]).filter(e=>e.activo).length;
- body.innerHTML=(data&&data.length)?data.map(e=>`<tr><td>${e.nombre} ${e.apellido||''}</td><td>${e.cargo}</td><td>$${Number(e.salario_base||0).toLocaleString()}</td><td>${e.activo?'Activo':'Inactivo'}</td><td><button class="btn" onclick="editarEmpleado(${e.id})">✏️ Editar</button> <button class="btn" onclick="desactivarEmpleado(${e.id})">🚫 Desactivar</button></td></tr>`).join(''):'<tr><td colspan="5">Sin empleados cargados</td></tr>';
-}
-function abrirNuevoEmpleado(){ alert('Formulario de empleado - siguiente etapa'); }
-</script>
-</script>
+
   <script>
     (function () {
       try {
