@@ -4918,22 +4918,54 @@ td:last-child{
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
         <section id="viewEmpleados" style="display:none;">
-  <div class="section-head">
-    <div>
-      <h2 style="margin:0;">Empleados</h2>
-      <p style="margin-top:6px;color:var(--muted);">Gestión de personal y salarios</p>
+  <div class="card">
+    <div class="row" style="justify-content:space-between;align-items:center;gap:16px;">
+      <div>
+        <h2 style="margin:0;">Empleados</h2>
+        <p style="margin:8px 0 0;color:var(--muted);">Gestión de personal y salarios</p>
+      </div>
+      <button class="btn primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
     </div>
-    <button class="btn primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
   </div>
+
   <div class="cards-grid" style="margin-top:20px;">
-    <div class="card"><h3>Empleados activos</h3><strong id="empTotal">0</strong></div>
-    <div class="card"><h3>Sueldos pendientes</h3><strong id="empPendientes">$0</strong></div>
+    <div class="card">
+      <h3 style="margin:0;color:var(--muted);">👥 Empleados activos</h3>
+      <strong id="empTotal" style="display:block;font-size:28px;margin-top:12px;">0</strong>
+      <span style="color:var(--muted);">Personas registradas</span>
+    </div>
+
+    <div class="card">
+      <h3 style="margin:0;color:var(--muted);">💰 Sueldos pendientes</h3>
+      <strong id="empPendientes" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
+      <span style="color:var(--muted);">Pendientes de pago</span>
+    </div>
   </div>
-  <div class="table-wrap" style="margin-top:20px;">
-    <table class="desktop-table">
-      <thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th><th>Estado</th><th>Acciones</th></tr></thead>
-      <tbody id="empleadosBody"><tr><td colspan="5">Sin empleados cargados</td></tr></tbody>
-    </table>
+
+  <div class="card" style="margin-top:20px;">
+    <h3 style="margin-top:0;">Listado de empleados</h3>
+    <div class="table-wrap">
+      <table class="desktop-table">
+        <thead>
+          <tr>
+            <th>Nombre</th>
+            <th>Cargo</th>
+            <th>Salario mensual</th>
+            <th>Estado</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="empleadosBody">
+          <tr>
+            <td colspan="5" style="text-align:center;padding:30px;color:var(--muted);">
+              👥<br>
+              Todavía no hay empleados registrados<br>
+              Agregá un empleado para comenzar
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
   </div>
 </section>
 
