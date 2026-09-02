@@ -4710,6 +4710,25 @@ td:last-child{
 </style>
 
 
+
+<style>
+.emp-dashboard-grid{
+ display:grid;
+ grid-template-columns:repeat(3,minmax(0,1fr));
+ gap:18px;
+ margin-top:18px;
+}
+.emp-history-table th,
+.emp-history-table td,
+.emp-list-table th,
+.emp-list-table td{
+ padding:14px 16px;
+ text-align:center;
+}
+@media(max-width:900px){
+ .emp-dashboard-grid{grid-template-columns:1fr;}
+}
+</style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -5164,19 +5183,6 @@ td:last-child{
 </section>
 </main>
   </div>
-
-  <!-- HISTORIAL SUELDOS -->
-<div class="card" style="margin-top:18px;">
- <h3>Historial de sueldos</h3>
- <table style="width:100%;margin-top:12px;">
-  <thead>
-   <tr><th>Empleado</th><th>Periodo</th><th>Monto</th><th>Estado</th></tr>
-  </thead>
-  <tbody id="historialSueldosBody">
-   <tr><td colspan="4" style="text-align:center;color:var(--muted)">Sin pagos registrados</td></tr>
-  </tbody>
- </table>
-</div>
 <!-- MODAL COBRAR -->
   <!-- MODAL COBRO LEGACY ELIMINADO (Etapa 13C 2026-06-24).
        Era id="modalBack" / "Registrar pago". Bloqueado desde Etapa 13B.
