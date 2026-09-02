@@ -77,7 +77,19 @@
         deleteBrowserCaches();
       }
     })();
-  </script>
+  
+<script>
+async function cargarEmpleados(){
+ const body=document.getElementById('empleadosBody');
+ if(!body) return;
+ const {data,error}=await supabase.from('empleados').select('*').order('id',{ascending:false});
+ if(error){console.error(error);return;}
+ document.getElementById('empTotal').textContent=(data||[]).filter(e=>e.activo).length;
+ body.innerHTML=(data&&data.length)?data.map(e=>`<tr><td>${e.nombre} ${e.apellido||''}</td><td>${e.cargo}</td><td>$${Number(e.salario_base||0).toLocaleString()}</td><td>${e.activo?'Activo':'Inactivo'}</td><td>-</td></tr>`).join(''):'<tr><td colspan="5">Sin empleados cargados</td></tr>';
+}
+function abrirNuevoEmpleado(){ alert('Formulario de empleado - siguiente etapa'); }
+</script>
+</script>
   <script>
     (function () {
       try {
@@ -4654,6 +4666,7 @@ td:last-child{
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
         <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos internos</span></button>
         <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon">📅</span><span class="sb-item-label">Impuestos y Pagos</span></button>
+        <button class="sb-item" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon">👥</span><span class="sb-item-label">Empleados</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
         
@@ -4916,7 +4929,27 @@ td:last-child{
         <section id="viewRecibos" style="display:none;"></section>
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
-        <section id="viewImpuestos" style="display:none;">
+        <section id="viewEmpleados" style="display:none;">
+  <div class="section-head">
+    <div>
+      <h2 style="margin:0;">Empleados</h2>
+      <p style="margin-top:6px;color:var(--muted);">Gestión de personal y salarios</p>
+    </div>
+    <button class="primary" onclick="abrirNuevoEmpleado()">+ Nuevo empleado</button>
+  </div>
+  <div class="cards-grid" style="margin-top:20px;">
+    <div class="card"><h3>Empleados activos</h3><strong id="empTotal">0</strong></div>
+    <div class="card"><h3>Sueldos pendientes</h3><strong id="empPendientes">$0</strong></div>
+  </div>
+  <div class="table-wrap" style="margin-top:20px;">
+    <table class="desktop-table">
+      <thead><tr><th>Nombre</th><th>Cargo</th><th>Salario</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody id="empleadosBody"><tr><td colspan="5">Sin empleados cargados</td></tr></tbody>
+    </table>
+  </div>
+</section>
+
+<section id="viewImpuestos" style="display:none;">
   <div class="card">
     <div class="row" style="justify-content:space-between; align-items:flex-start; gap:16px;">
       <div>
@@ -6624,7 +6657,8 @@ td:last-child{
         recibos:'viewRecibos',
         informes:'viewInformes',
         balance:'viewBalance',
-        impuestos:'viewImpuestos'
+        impuestos:'viewImpuestos',
+        empleados:'viewEmpleados'
       };
       Object.values(map).forEach(id => { const el = $(id); if (el) el.style.display = 'none'; });
       if (!map[r]) r = getDefaultRouteForRole();
@@ -6640,6 +6674,7 @@ td:last-child{
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
       if (r === 'impuestos') cargarImpuestosPagos();
+      if (r === 'empleados') cargarEmpleados();
     }
 
     function setLoginMessage(message = '', tone = 'default'){
