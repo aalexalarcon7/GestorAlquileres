@@ -87,7 +87,29 @@ async function cargarEmpleados(){
  document.getElementById('empTotal').textContent=(data||[]).filter(e=>e.activo).length;
  body.innerHTML=(data&&data.length)?data.map(e=>`<tr><td>${e.nombre} ${e.apellido||''}</td><td>${e.cargo}</td><td>$${Number(e.salario_base||0).toLocaleString()}</td><td>${e.activo?'Activo':'Inactivo'}</td><td>-</td></tr>`).join(''):'<tr><td colspan="5">Sin empleados cargados</td></tr>';
 }
-function abrirNuevoEmpleado(){ alert('Formulario de empleado - siguiente etapa'); }
+
+function abrirNuevoEmpleado(){
+ const modal=document.getElementById('empleadoModal');
+ if(modal) modal.style.display='flex';
+}
+function cerrarEmpleadoModal(){
+ const modal=document.getElementById('empleadoModal');
+ if(modal) modal.style.display='none';
+}
+async function guardarEmpleado(){
+ const nombre=document.getElementById('empNombre').value.trim();
+ const apellido=document.getElementById('empApellido').value.trim();
+ const cargo=document.getElementById('empCargo').value.trim();
+ const salario=Number(document.getElementById('empSalario').value||0);
+ if(!nombre || !cargo){ alert('Completa nombre y cargo'); return; }
+ const {error}=await supabase.from('empleados').insert({
+   nombre, apellido, cargo, salario_base: salario, activo:true
+ });
+ if(error){ console.error(error); alert('No se pudo guardar el empleado'); return; }
+ cerrarEmpleadoModal();
+ cargarEmpleados();
+}
+
 </script>
 </script>
   <script>
@@ -13923,6 +13945,40 @@ error = deleteResponse.error;
 
 
 
+
+<div id="empleadoModal" class="modal-overlay" style="display:none;">
+ <div class="modal-card">
+  <h2>Nuevo empleado</h2>
+  <input id="empNombre" placeholder="Nombre">
+  <input id="empApellido" placeholder="Apellido">
+  <input id="empCargo" placeholder="Cargo">
+  <input id="empSalario" type="number" placeholder="Salario mensual">
+  <div class="modal-actions">
+   <button onclick="cerrarEmpleadoModal()">Cancelar</button>
+   <button class="primary" onclick="guardarEmpleado()">Guardar</button>
+  </div>
+ </div>
+</div>
+<style>
+.modal-overlay{
+ position:fixed;inset:0;background:rgba(15,23,42,.45);
+ display:flex;align-items:center;justify-content:center;z-index:9999
+}
+.modal-card{
+ width:420px;background:var(--card);padding:24px;border-radius:20px;
+ box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px
+}
+.modal-card input{
+ padding:12px;border-radius:12px;border:1px solid var(--border);
+ background:var(--input-bg);color:var(--text)
+}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.modal-actions button{
+ padding:10px 16px;border-radius:12px;border:1px solid var(--border);
+ cursor:pointer;font-weight:700
+}
+.modal-actions .primary{background:#111827;color:white}
+</style>
 </body>
         </html>
       `);
@@ -19936,5 +19992,39 @@ function resolverConfirmacion(valor){
   </div>
 </div>
 
+
+<div id="empleadoModal" class="modal-overlay" style="display:none;">
+ <div class="modal-card">
+  <h2>Nuevo empleado</h2>
+  <input id="empNombre" placeholder="Nombre">
+  <input id="empApellido" placeholder="Apellido">
+  <input id="empCargo" placeholder="Cargo">
+  <input id="empSalario" type="number" placeholder="Salario mensual">
+  <div class="modal-actions">
+   <button onclick="cerrarEmpleadoModal()">Cancelar</button>
+   <button class="primary" onclick="guardarEmpleado()">Guardar</button>
+  </div>
+ </div>
+</div>
+<style>
+.modal-overlay{
+ position:fixed;inset:0;background:rgba(15,23,42,.45);
+ display:flex;align-items:center;justify-content:center;z-index:9999
+}
+.modal-card{
+ width:420px;background:var(--card);padding:24px;border-radius:20px;
+ box-shadow:var(--shadow);display:flex;flex-direction:column;gap:12px
+}
+.modal-card input{
+ padding:12px;border-radius:12px;border:1px solid var(--border);
+ background:var(--input-bg);color:var(--text)
+}
+.modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:10px}
+.modal-actions button{
+ padding:10px 16px;border-radius:12px;border:1px solid var(--border);
+ cursor:pointer;font-weight:700
+}
+.modal-actions .primary{background:#111827;color:white}
+</style>
 </body>
 </html>
