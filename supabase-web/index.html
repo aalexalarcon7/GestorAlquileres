@@ -14,7 +14,7 @@
   <script>
     // Limpieza fuerte por versión: evita que cada PC use datos/cache viejos del navegador.
     (function () {
-      const APP_VERSION = '20260705-trabajador-edita-activos-v1';
+      const APP_VERSION = '20260907-empleados-liquidacion-v1';
       const VERSION_KEY = 'ga_app_version';
       const KEEP_LOCAL_KEYS = new Set([
         'ga_theme',
@@ -108,79 +108,156 @@ async function eliminarEmpleado(id){
 
 
 let empleadoPagoActual=null;
-function abrirPagoEmpleado(id){
+let empleadoPagoLiquidacion={config:null,fechaProgramada:null,bruto:0,adelantos:0,descuentos:0,neto:0};
+
+function empPagoIsoHoy(){
+  const d=new Date();
+  const local=new Date(d.getTime()-d.getTimezoneOffset()*60000);
+  return local.toISOString().slice(0,10);
+}
+function empPagoFechaLocal(iso){
+  const m=String(iso||'').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m?new Date(Number(m[1]),Number(m[2])-1,Number(m[3])):new Date();
+}
+function empPagoPeriodoDesdeFecha(iso){
+  const d=empPagoFechaLocal(iso);
+  return `${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function empCalcularMontoPorPago(empleado,cfg){
+  const fijo=Number(cfg?.monto_por_pago||0);
+  if(fijo>0)return fijo;
+  const salario=Number(empleado?.salario_base||0);
+  const frecuencia=String(cfg?.frecuencia||'MENSUAL').toUpperCase();
+  if(frecuencia==='QUINCENAL')return salario/2;
+  if(frecuencia==='SEMANAL')return salario*12/52;
+  if(frecuencia==='PERSONALIZADO'){
+    const cantidad=[cfg?.dia_mes_1,cfg?.dia_mes_2].filter(Boolean).length||1;
+    return salario/cantidad;
+  }
+  return salario;
+}
+function empPagoSaldoPendiente(row){
+  return Math.max(0,Number(row?.monto||0)-Number(row?.monto_aplicado||0));
+}
+async function empPagoCargarLiquidacion(fechaProgramada){
+  const empleado=window.__empleados?.find(e=>String(e.id)===String(empleadoPagoActual));
+  if(!empleado)return null;
+  const [cfgRes,advRes,discRes]=await Promise.all([
+    sb.from('empleados_config_pago').select('*').eq('empleado_id',empleadoPagoActual).maybeSingle(),
+    sb.from('adelantos_empleados').select('id,fecha,monto,monto_aplicado,estado').eq('empleado_id',empleadoPagoActual).eq('estado','PENDIENTE').order('fecha',{ascending:true}),
+    sb.from('descuentos_empleados').select('id,fecha,monto,monto_aplicado,estado').eq('empleado_id',empleadoPagoActual).eq('estado','PENDIENTE').order('fecha',{ascending:true})
+  ]);
+  if(cfgRes.error)throw cfgRes.error;
+  if(advRes.error)throw advRes.error;
+  if(discRes.error)throw discRes.error;
+  const cfg=cfgRes.data||null;
+  const bruto=Math.max(0,empCalcularMontoPorPago(empleado,cfg));
+  const fecha=fechaProgramada||empPagoIsoHoy();
+  const advPend=(advRes.data||[]).filter(x=>!x.fecha||x.fecha<=fecha).reduce((sum,x)=>sum+empPagoSaldoPendiente(x),0);
+  const descPend=(discRes.data||[]).filter(x=>!x.fecha||x.fecha<=fecha).reduce((sum,x)=>sum+empPagoSaldoPendiente(x),0);
+  const adelantos=Math.min(bruto,advPend);
+  const restanteTrasAdelantos=Math.max(0,bruto-adelantos);
+  const descuentos=Math.min(restanteTrasAdelantos,descPend);
+  const neto=Math.max(0,bruto-adelantos-descuentos);
+  return {config:cfg,fechaProgramada:fecha,bruto,adelantos,descuentos,neto};
+}
+function empPagoRenderLiquidacion(){
+  const x=empleadoPagoLiquidacion||{};
+  const fmt=v=>'$ '+Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2});
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('pagoBrutoResumen',fmt(x.bruto));
+  set('pagoAdelantosResumen','- '+fmt(x.adelantos));
+  set('pagoDescuentosResumen','- '+fmt(x.descuentos));
+  set('pagoNetoResumen',fmt(x.neto));
+  const monto=document.getElementById('pagoMonto');if(monto)monto.value=Number(x.neto||0).toFixed(2);
+  const periodo=document.getElementById('pagoPeriodo');if(periodo)periodo.value=empPagoPeriodoDesdeFecha(x.fechaProgramada||empPagoIsoHoy());
+}
+async function recalcularPagoEmpleado(){
+  if(!empleadoPagoActual)return;
+  try{
+    const fecha=document.getElementById('pagoFechaProgramada')?.value||empPagoIsoHoy();
+    empleadoPagoLiquidacion=await empPagoCargarLiquidacion(fecha);
+    empPagoRenderLiquidacion();
+  }catch(err){
+    console.error('[Pago empleado] No se pudo recalcular',err);
+    alert('No se pudo calcular la liquidación del empleado');
+  }
+}
+async function abrirPagoEmpleado(id,fechaProgramada=null){
   empleadoPagoActual=id;
   const fila=window.__empleados?.find(e=>String(e.id)===String(id));
-  if(fila){
-    document.getElementById('pagoEmpleadoNombre').textContent=fila.nombre+' - '+fila.cargo;
-    document.getElementById('pagoMonto').value=fila.salario_base||0;
-  }
+  if(!fila){alert('No se encontró el empleado');return;}
+  document.getElementById('pagoEmpleadoNombre').textContent=(fila.nombre||'Empleado')+' · '+(fila.cargo||'Sin cargo');
+  document.getElementById('pagoObs').value='';
   document.getElementById('modalPagoEmpleado').style.display='flex';
+  try{
+    const [cfgRes,pagosRes]=await Promise.all([
+      sb.from('empleados_config_pago').select('*').eq('empleado_id',id).maybeSingle(),
+      sb.from('pagos_empleados').select('empleado_id,fecha_programada').eq('empleado_id',id).not('fecha_programada','is',null)
+    ]);
+    if(cfgRes.error)throw cfgRes.error;
+    if(pagosRes.error)throw pagosRes.error;
+    const cfg=cfgRes.data||null;
+    let fecha=fechaProgramada;
+    if(!fecha && typeof empProxNextUnpaidDate==='function'){
+      const prox=empProxNextUnpaidDate(cfg,id,pagosRes.data||[],new Date());
+      if(prox)fecha=empProxDateIso(prox);
+    }
+    fecha=fecha||empPagoIsoHoy();
+    document.getElementById('pagoFechaProgramada').value=fecha;
+    empleadoPagoLiquidacion=await empPagoCargarLiquidacion(fecha);
+    empPagoRenderLiquidacion();
+  }catch(err){
+    console.error('[Pago empleado] Error abriendo liquidación',err);
+    cerrarPagoEmpleado();
+    alert('No se pudo preparar el pago del empleado');
+  }
 }
-function cerrarPagoEmpleado(){document.getElementById('modalPagoEmpleado').style.display='none';}
+function cerrarPagoEmpleado(){
+  document.getElementById('modalPagoEmpleado').style.display='none';
+  empleadoPagoActual=null;
+  empleadoPagoLiquidacion={config:null,fechaProgramada:null,bruto:0,adelantos:0,descuentos:0,neto:0};
+}
 async function guardarPagoEmpleado(){
- const monto=Number(document.getElementById('pagoMonto').value||0);
- const periodo=document.getElementById('pagoPeriodo').value;
- const obs=document.getElementById('pagoObs').value;
- if(!empleadoPagoActual||!monto)return;
- const mes=Number(periodo.split('/')[0]||9); const anio=Number(periodo.split('/')[1]||new Date().getFullYear());
- const empleado=window.__empleados?.find(e=>String(e.id)===String(empleadoPagoActual));
- if(!empleado){ alert('No se encontró el empleado'); return; }
-
- // Evitar pagos duplicados del mismo empleado en el mismo periodo
- const existente=await sb.from('pagos_empleados')
-   .select('id')
-   .eq('empleado_id', empleadoPagoActual)
-   .eq('periodo', periodo)
-   .maybeSingle();
-
- if(existente.data){
-   alert('Ya existe un pago registrado para este empleado en este periodo');
-   return;
- }
-
- // Registrar pago de sueldo
- const pago=await sb.from('pagos_empleados').insert({
-   empleado_id:empleadoPagoActual,
-   anio,
-   mes,
-   periodo,
-   monto,
-   estado:'PAGADO',
-   fecha_pago:new Date().toISOString().slice(0,10),
-   observacion:obs
- }).select('id').single();
-
- if(pago.error){
-   console.error(pago.error);
-   alert('No se pudo registrar el pago');
-   return;
- }
-
- // Crear gasto asociado
- const gasto=await sb.from('gastos').insert({
-   fecha:new Date().toISOString().slice(0,10),
-   categoria:'Sueldos',
-   concepto:`Sueldo ${empleado.nombre} - ${periodo}`,
-   beneficiario:empleado.nombre,
-   medio:'Transferencia',
-   monto,
-   observaciones:obs || null
- }).select('id').single();
-
- if(gasto.error){
-   console.error(gasto.error);
-   alert('Pago registrado pero no se pudo crear el gasto');
-   return;
- }
-
- await sb.from('pagos_empleados')
-   .update({gasto_id:gasto.data.id})
-   .eq('id',pago.data.id);
-
- cerrarPagoEmpleado();
- alert('Pago registrado y gasto generado');
- cargarEmpleados();
+  if(!empleadoPagoActual)return;
+  const empleado=window.__empleados?.find(e=>String(e.id)===String(empleadoPagoActual));
+  if(!empleado){alert('No se encontró el empleado');return;}
+  const fechaProgramada=document.getElementById('pagoFechaProgramada')?.value||empPagoIsoHoy();
+  const obs=document.getElementById('pagoObs')?.value.trim()||null;
+  try{
+    empleadoPagoLiquidacion=await empPagoCargarLiquidacion(fechaProgramada);
+    empPagoRenderLiquidacion();
+    const bruto=Number(empleadoPagoLiquidacion.bruto||0);
+    if(bruto<=0){
+      alert('Configurá un monto por pago válido en la ficha del empleado');
+      return;
+    }
+    const {data,error}=await sb.rpc('registrar_pago_empleado_operativo',{
+      p_empleado_id:Number(empleadoPagoActual),
+      p_fecha_programada:fechaProgramada,
+      p_monto_bruto:bruto,
+      p_observacion:obs,
+      p_fecha_pago:empPagoIsoHoy(),
+      p_medio:'Transferencia'
+    });
+    if(error){
+      console.error('[Pago empleado]',error);
+      const msg=String(error.message||'');
+      if(/ya existe|duplicate|unique/i.test(msg))alert('Ya existe un pago para este empleado en esa fecha programada');
+      else if(/function registrar_pago_empleado_operativo/i.test(msg))alert('Falta ejecutar la actualización SQL de liquidación de empleados');
+      else alert('No se pudo registrar el pago: '+msg);
+      return;
+    }
+    const neto=Number(data?.monto_neto??empleadoPagoLiquidacion.neto??0);
+    const empleadoPagadoId=empleadoPagoActual;
+    cerrarPagoEmpleado();
+    alert('Pago registrado correctamente. Neto abonado: $ '+neto.toLocaleString('es-AR',{maximumFractionDigits:2}));
+    await cargarEmpleados();
+    if(empleadoFichaActual&&String(empleadoFichaActual.id)===String(empleadoPagadoId))await cargarFichaEmpleado();
+  }catch(err){
+    console.error('[Pago empleado] Error inesperado',err);
+    alert('Ocurrió un error al registrar el pago');
+  }
 }
 </script>
     <style>
@@ -5367,7 +5444,7 @@ td:last-child{
         </table>
       </div>
     </div>
-    <div class="emp-proximos-note">El neto es informativo: salario base menos adelantos y descuentos pendientes. La distribución especial por quincenas sigue pendiente de definición.</div>
+    <div class="emp-proximos-note">Cada fecha usa el monto por pago configurado. Adelantos y descuentos se aplican automáticamente al liquidar; los saldos que no entren en un pago continúan pendientes.</div>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -20461,7 +20538,7 @@ async function cargarEmpleados(){
   const anioActual = new Date().getFullYear();
   const pagosMes = pagos.filter(p=>Number(p.mes)===mesActual && Number(p.anio)===anioActual);
   const pagadosEl=document.getElementById('empPagadosMes');
-  const totalPagadoMes=pagosMes.reduce((s,p)=>s+Number(p.monto||0),0);
+  const totalPagadoMes=pagosMes.reduce((s,p)=>s+Number(p.monto_bruto??p.monto??0),0);
   if(pagadosEl){
     pagadosEl.textContent='$ '+totalPagadoMes.toLocaleString('es-AR');
   }
@@ -20638,15 +20715,27 @@ async function desactivarEmpleado(id){
 
 
 <div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
- <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
-  <h2 style="margin:0 0 20px">💰 Registrar pago</h2>
-  <p id="pagoEmpleadoNombre" style="color:#64748b"></p>
-  <input id="pagoPeriodo" value="09/2026" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Periodo">
-  <input id="pagoMonto" type="number" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Monto">
-  <textarea id="pagoObs" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Observación"></textarea>
+ <div style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:24px;padding:28px;width:100%;max-width:620px;box-shadow:0 20px 50px rgba(0,0,0,.18)">
+  <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:20px">
+   <div><h2 style="margin:0 0 6px">💰 Registrar pago</h2><p id="pagoEmpleadoNombre" style="color:var(--muted);margin:0"></p></div>
+   <button class="btn" onclick="cerrarPagoEmpleado()">Cerrar</button>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px">
+   <label style="display:grid;gap:6px;font-size:13px;font-weight:700;color:var(--muted)">Fecha programada<input id="pagoFechaProgramada" type="date" class="input" onchange="recalcularPagoEmpleado()"></label>
+   <label style="display:grid;gap:6px;font-size:13px;font-weight:700;color:var(--muted)">Periodo<input id="pagoPeriodo" class="input" readonly></label>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 16px">
+   <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Bruto</span><strong class="emp-ficha-stat-value" id="pagoBrutoResumen">$ 0</strong></div>
+   <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos</span><strong class="emp-ficha-stat-value" id="pagoAdelantosResumen">-$ 0</strong></div>
+   <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Descuentos</span><strong class="emp-ficha-stat-value" id="pagoDescuentosResumen">-$ 0</strong></div>
+   <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Neto a pagar</span><strong class="emp-ficha-stat-value" id="pagoNetoResumen">$ 0</strong></div>
+  </div>
+  <input id="pagoMonto" type="hidden" value="0">
+  <div class="emp-ficha-note" style="margin-bottom:14px">Al confirmar, los adelantos y descuentos pendientes hasta la fecha programada se aplican automáticamente. Si exceden este pago, el saldo restante continúa pendiente para el siguiente.</div>
+  <textarea id="pagoObs" class="input" style="width:100%;min-height:86px;margin-bottom:14px" placeholder="Observación opcional"></textarea>
   <div style="display:flex;justify-content:flex-end;gap:10px">
    <button class="btn" onclick="cerrarPagoEmpleado()">Cancelar</button>
-   <button class="btn primary" onclick="guardarPagoEmpleado()">Registrar pago</button>
+   <button class="btn primary" onclick="guardarPagoEmpleado()">Confirmar pago</button>
   </div>
  </div>
 </div>
@@ -20696,7 +20785,7 @@ async function desactivarEmpleado(id){
     <div class="emp-ficha-body">
       <div class="emp-ficha-pane active" data-emp-pane="resumen">
         <div class="emp-ficha-grid">
-          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Salario base</span><strong class="emp-ficha-stat-value" id="empFichaSalario">$ 0</strong></div>
+          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Salario mensual</span><strong class="emp-ficha-stat-value" id="empFichaSalario">$ 0</strong></div>
           <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Próximo pago</span><strong class="emp-ficha-stat-value" id="empFichaProximoPago">Sin configurar</strong></div>
           <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaAdelantosTotal">$ 0</strong></div>
           <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Descuentos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosTotal">$ 0</strong></div>
@@ -20709,7 +20798,7 @@ async function desactivarEmpleado(id){
             <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Otros descuentos</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosResumen">-$ 0</strong></div>
             <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Neto estimado</span><strong class="emp-ficha-stat-value" id="empFichaNeto">$ 0</strong></div>
           </div>
-          <div class="emp-ficha-note" style="margin-top:14px">Este neto es informativo: salario base menos adelantos y descuentos pendientes. La distribución especial en “5 quincenas” queda pendiente de definición y no se aplica todavía.</div>
+          <div class="emp-ficha-note" style="margin-top:14px">El bruto corresponde al monto configurado para el próximo pago. Los adelantos y descuentos pendientes se descuentan automáticamente al confirmar la liquidación. La regla especial de “5 quincenas” sigue pendiente de definición.</div>
         </div>
       </div>
 
@@ -20721,6 +20810,8 @@ async function desactivarEmpleado(id){
             <div class="emp-ficha-field" id="empFichaCampoSemana"><label>Día semanal</label><select id="empFichaDiaSemana"><option value="">Seleccionar</option><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="7">Domingo</option></select></div>
             <div class="emp-ficha-field" id="empFichaCampoDia1"><label>Día de pago 1</label><input id="empFichaDia1" type="number" min="1" max="31" placeholder="Ej: 8"></div>
             <div class="emp-ficha-field" id="empFichaCampoDia2"><label>Día de pago 2</label><input id="empFichaDia2" type="number" min="1" max="31" placeholder="Ej: 23"></div>
+            <div class="emp-ficha-field"><label>Monto por pago</label><input id="empFichaMontoPago" type="number" min="0" step="0.01" placeholder="Monto correspondiente a cada fecha"></div>
+            <div class="emp-ficha-field"><label>Referencia</label><div class="emp-ficha-note" id="empFichaMontoPagoAyuda" style="margin:0;min-height:46px;display:flex;align-items:center">Se usa para calcular cada vencimiento.</div></div>
             <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaConfigObs" placeholder="Ej: Seguridad cobra los días 8 y 23"></textarea></div>
           </div>
           <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarConfigPagoEmpleado()">Guardar configuración</button></div>
@@ -20817,56 +20908,61 @@ function renderFichaEmpleado(){
   document.getElementById('empFichaDia1').value=cfg.dia_mes_1||'';
   document.getElementById('empFichaDia2').value=cfg.dia_mes_2||'';
   document.getElementById('empFichaConfigObs').value=cfg.observacion||'';
-  actualizarCamposFrecuenciaEmpleado();
+  const montoPago=Number(cfg.monto_por_pago||0)>0?Number(cfg.monto_por_pago):empCalcularMontoPorPago(emp,cfg);
+  document.getElementById('empFichaMontoPago').value=montoPago>0?Number(montoPago.toFixed(2)):'';
+  actualizarCamposFrecuenciaEmpleado(false);
 
   const advPend=empleadoFichaEstado.adelantos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
   const discPend=empleadoFichaEstado.descuentos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
-  const advTotal=advPend.reduce((s,x)=>s+Number(x.monto||0),0);
-  const discTotal=discPend.reduce((s,x)=>s+Number(x.monto||0),0);
-  const bruto=Number(emp.salario_base||0);
-  const neto=Math.max(0,bruto-advTotal-discTotal);
-  document.getElementById('empFichaSalario').textContent=empFichaMoney(bruto);
+  const advTotal=advPend.reduce((s,x)=>s+Math.max(0,Number(x.monto||0)-Number(x.monto_aplicado||0)),0);
+  const discTotal=discPend.reduce((s,x)=>s+Math.max(0,Number(x.monto||0)-Number(x.monto_aplicado||0)),0);
+  const bruto=Math.max(0,empCalcularMontoPorPago(emp,cfg));
+  const advAplicable=Math.min(bruto,advTotal);
+  const discAplicable=Math.min(Math.max(0,bruto-advAplicable),discTotal);
+  const neto=Math.max(0,bruto-advAplicable-discAplicable);
+  document.getElementById('empFichaSalario').textContent=empFichaMoney(Number(emp.salario_base||0));
   document.getElementById('empFichaBruto').textContent=empFichaMoney(bruto);
   document.getElementById('empFichaAdelantosTotal').textContent=empFichaMoney(advTotal);
-  document.getElementById('empFichaAdelantosResumen').textContent='-'+empFichaMoney(advTotal);
+  document.getElementById('empFichaAdelantosResumen').textContent='-'+empFichaMoney(advAplicable);
   document.getElementById('empFichaDescuentosTotal').textContent=empFichaMoney(discTotal);
-  document.getElementById('empFichaDescuentosResumen').textContent='-'+empFichaMoney(discTotal);
+  document.getElementById('empFichaDescuentosResumen').textContent='-'+empFichaMoney(discAplicable);
   document.getElementById('empFichaNeto').textContent=empFichaMoney(neto);
   document.getElementById('empFichaProximoPago').textContent=calcularProximoPagoEmpleado(cfg);
 
   const ab=document.getElementById('empFichaAdelantosBody');
-  ab.innerHTML=empleadoFichaEstado.adelantos.length?empleadoFichaEstado.adelantos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${empFichaEsc(x.observacion||'-')}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularAdelantoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin adelantos registrados</td></tr>';
+  ab.innerHTML=empleadoFichaEstado.adelantos.length?empleadoFichaEstado.adelantos.map(x=>{const aplicado=Number(x.monto_aplicado||0),saldo=Math.max(0,Number(x.monto||0)-aplicado);return `<tr><td>${empFichaFechaAR(x.fecha)}</td><td><strong>${empFichaMoney(x.monto)}</strong>${aplicado>0&&saldo>0?`<div style="font-size:11px;color:var(--muted);margin-top:3px">Saldo: ${empFichaMoney(saldo)}</div>`:''}</td><td>${empFichaEstadoBadge(x.estado)}</td><td>${empFichaEsc(x.observacion||'-')}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularAdelantoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`;}).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin adelantos registrados</td></tr>';
 
   const db=document.getElementById('empFichaDescuentosBody');
-  db.innerHTML=empleadoFichaEstado.descuentos.length?empleadoFichaEstado.descuentos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td>${empFichaEsc(x.concepto||'-')}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularDescuentoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin descuentos registrados</td></tr>';
+  db.innerHTML=empleadoFichaEstado.descuentos.length?empleadoFichaEstado.descuentos.map(x=>{const aplicado=Number(x.monto_aplicado||0),saldo=Math.max(0,Number(x.monto||0)-aplicado);return `<tr><td>${empFichaFechaAR(x.fecha)}</td><td>${empFichaEsc(x.concepto||'-')}</td><td><strong>${empFichaMoney(x.monto)}</strong>${aplicado>0&&saldo>0?`<div style="font-size:11px;color:var(--muted);margin-top:3px">Saldo: ${empFichaMoney(saldo)}</div>`:''}</td><td>${empFichaEstadoBadge(x.estado)}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularDescuentoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`;}).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin descuentos registrados</td></tr>';
 
   const hb=document.getElementById('empFichaHistorialBody');
-  hb.innerHTML=empleadoFichaEstado.pagos.length?empleadoFichaEstado.pagos.map(p=>`<tr><td>${empFichaEsc(p.periodo||'-')}</td><td>${empFichaFechaAR(p.fecha_pago||p.fecha_programada)}</td><td>${empFichaMoney(p.monto_bruto??p.monto)}</td><td>${empFichaMoney(p.monto_adelantos||0)}</td><td>${empFichaMoney(p.monto_descuentos||0)}</td><td><strong>${empFichaMoney(p.monto_neto??p.monto)}</strong></td><td>${empFichaEstadoBadge(p.estado)}</td></tr>`).join(''):'<tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr>';
+  hb.innerHTML=empleadoFichaEstado.pagos.length?empleadoFichaEstado.pagos.map(p=>`<tr><td>${empFichaEsc(p.periodo||'-')}${p.fecha_programada?`<div style="font-size:11px;color:var(--muted);margin-top:3px">Programado: ${empFichaFechaAR(p.fecha_programada)}</div>`:''}</td><td>${empFichaFechaAR(p.fecha_pago||p.fecha_programada)}</td><td>${empFichaMoney(p.monto_bruto??p.monto)}</td><td>${empFichaMoney(p.monto_adelantos||0)}</td><td>${empFichaMoney(p.monto_descuentos||0)}</td><td><strong>${empFichaMoney(p.monto_neto??p.monto)}</strong></td><td>${empFichaEstadoBadge(p.estado)}</td></tr>`).join(''):'<tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr>';
 }
 
-function actualizarCamposFrecuenciaEmpleado(){
+function actualizarCamposFrecuenciaEmpleado(sugerir=true){
   const f=document.getElementById('empFichaFrecuencia')?.value||'MENSUAL';
   document.getElementById('empFichaCampoSemana').style.display=f==='SEMANAL'?'block':'none';
   document.getElementById('empFichaCampoDia1').style.display=f==='SEMANAL'?'none':'block';
   document.getElementById('empFichaCampoDia2').style.display=(f==='QUINCENAL'||f==='PERSONALIZADO')?'block':'none';
+  const ayuda=document.getElementById('empFichaMontoPagoAyuda');
+  const textos={MENSUAL:'Sugerencia: salario mensual completo.',QUINCENAL:'Sugerencia: 50% del salario mensual por fecha.',SEMANAL:'Sugerencia: salario mensual × 12 ÷ 52. Podés reemplazarlo por el monto semanal real.',PERSONALIZADO:'Definí el importe exacto que corresponde a cada fecha configurada.'};
+  if(ayuda)ayuda.textContent=textos[f]||'Definí el importe de cada pago.';
+  if(sugerir&&empleadoFichaActual){
+    const input=document.getElementById('empFichaMontoPago');
+    if(input){
+      const cfg={...(empleadoFichaEstado.config||{}),frecuencia:f,monto_por_pago:null};
+      const sugerido=empCalcularMontoPorPago(empleadoFichaActual,cfg);
+      input.value=sugerido>0?Number(sugerido.toFixed(2)):'';
+    }
+  }
 }
 
 function calcularProximoPagoEmpleado(cfg){
   if(!cfg||!cfg.frecuencia)return 'Sin configurar';
-  const hoy=new Date();hoy.setHours(0,0,0,0);
-  let prox=null;
-  if(cfg.frecuencia==='SEMANAL'&&cfg.dia_semana){
-    const objetivo=Number(cfg.dia_semana)%7;const actual=hoy.getDay();let delta=(objetivo-actual+7)%7;if(delta===0)delta=7;prox=new Date(hoy);prox.setDate(hoy.getDate()+delta);
-  }else{
-    const dias=[cfg.dia_mes_1,cfg.dia_mes_2].filter(Boolean).map(Number).filter(x=>x>=1&&x<=31);
-    if(!dias.length)return 'Sin día definido';
-    const candidatos=[];
-    for(let add=0;add<=1;add++){
-      const y=hoy.getFullYear(),m=hoy.getMonth()+add;
-      for(const d of dias){const max=new Date(y,m+1,0).getDate();const c=new Date(y,m,Math.min(d,max));c.setHours(0,0,0,0);if(c>=hoy)candidatos.push(c);}
-    }
-    candidatos.sort((a,b)=>a-b);prox=candidatos[0]||null;
-  }
+  const pagos=empleadoFichaEstado?.pagos||[];
+  const prox=typeof empProxNextUnpaidDate==='function'
+    ? empProxNextUnpaidDate(cfg,empleadoFichaActual?.id,pagos,new Date())
+    : (typeof empProxNextDate==='function'?empProxNextDate(cfg,new Date()):null);
   return prox?prox.toLocaleDateString('es-AR'):'Sin configurar';
 }
 
@@ -20887,11 +20983,17 @@ async function guardarConfigPagoEmpleado(){
     dia_mes_1:null,
     dia_mes_2:null,
     dia_semana:null,
+    monto_por_pago:Number(document.getElementById('empFichaMontoPago').value||0),
     observacion:document.getElementById('empFichaConfigObs').value.trim()||null,
     activo:true,
     updated_at:new Date().toISOString()
   };
 
+
+  if(!Number.isFinite(payload.monto_por_pago)||payload.monto_por_pago<=0){
+    alert('Indicá un monto por pago mayor a 0');
+    return;
+  }
   if(frecuencia==='SEMANAL'){
     payload.dia_semana=diaSemanaRaw ? Number(diaSemanaRaw) : null;
     if(!payload.dia_semana || payload.dia_semana<1 || payload.dia_semana>7){
@@ -21031,6 +21133,25 @@ function empProxNextDate(cfg,desde){
   candidatos.sort((a,b)=>a-b);
   return candidatos[0]||null;
 }
+function empProxDateIso(date){
+  if(!date)return '';
+  const d=new Date(date.getTime()-date.getTimezoneOffset()*60000);
+  return d.toISOString().slice(0,10);
+}
+function empProxNextUnpaidDate(cfg,empleadoId,pagos,desde){
+  if(!cfg)return null;
+  const ocupadas=new Set((pagos||[])
+    .filter(p=>String(p.empleado_id??empleadoId)===String(empleadoId)&&p.fecha_programada)
+    .map(p=>String(p.fecha_programada).slice(0,10)));
+  let cursor=empProxStartOfDay(desde||new Date());
+  for(let i=0;i<60;i++){
+    const prox=empProxNextDate(cfg,cursor);
+    if(!prox)return null;
+    if(!ocupadas.has(empProxDateIso(prox)))return prox;
+    cursor=new Date(prox);cursor.setDate(cursor.getDate()+1);cursor.setHours(0,0,0,0);
+  }
+  return null;
+}
 function empProxFrecuenciaDetalle(cfg){
   if(!cfg)return {titulo:'Sin configurar',detalle:'Definir días de pago'};
   const f=String(cfg.frecuencia||'').toUpperCase();
@@ -21065,25 +21186,23 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
   const ids=activos.map(e=>e.id);
   const [cfgRes,advRes,descRes]=await Promise.all([
     sb.from('empleados_config_pago').select('*').in('empleado_id',ids).eq('activo',true),
-    sb.from('adelantos_empleados').select('empleado_id,monto,estado').in('empleado_id',ids).eq('estado','PENDIENTE'),
-    sb.from('descuentos_empleados').select('empleado_id,monto,estado').in('empleado_id',ids).eq('estado','PENDIENTE')
+    sb.from('adelantos_empleados').select('empleado_id,fecha,monto,monto_aplicado,estado').in('empleado_id',ids).eq('estado','PENDIENTE'),
+    sb.from('descuentos_empleados').select('empleado_id,fecha,monto,monto_aplicado,estado').in('empleado_id',ids).eq('estado','PENDIENTE')
   ]);
   if(cfgRes.error)throw cfgRes.error;
   if(advRes.error)throw advRes.error;
   if(descRes.error)throw descRes.error;
   const cfgMap=new Map((cfgRes.data||[]).map(x=>[String(x.empleado_id),x]));
-  const sumarPorEmpleado=(rows)=>{
-    const m=new Map();
-    for(const r of rows||[]){const k=String(r.empleado_id);m.set(k,(m.get(k)||0)+Number(r.monto||0));}
-    return m;
-  };
-  const advMap=sumarPorEmpleado(advRes.data);
-  const descMap=sumarPorEmpleado(descRes.data);
   const filas=activos.map(emp=>{
     const key=String(emp.id),cfg=cfgMap.get(key)||null;
-    const adelantos=advMap.get(key)||0,descuentos=descMap.get(key)||0;
-    const bruto=Number(emp.salario_base||0),neto=Math.max(0,bruto-adelantos-descuentos);
-    const proxima=empProxNextDate(cfg,new Date());
+    const proxima=empProxNextUnpaidDate(cfg,emp.id,pagos,new Date());
+    const proximaIso=proxima?empProxDateIso(proxima):null;
+    const pendienteHasta=(rows)=>rows.filter(r=>String(r.empleado_id)===key&&(!proximaIso||!r.fecha||r.fecha<=proximaIso)).reduce((sum,r)=>sum+Math.max(0,Number(r.monto||0)-Number(r.monto_aplicado||0)),0);
+    const advPend=pendienteHasta(advRes.data||[]),descPend=pendienteHasta(descRes.data||[]);
+    const bruto=Math.max(0,empCalcularMontoPorPago(emp,cfg));
+    const adelantos=Math.min(bruto,advPend);
+    const descuentos=Math.min(Math.max(0,bruto-adelantos),descPend);
+    const neto=Math.max(0,bruto-adelantos-descuentos);
     return {emp,cfg,adelantos,descuentos,bruto,neto,proxima};
   }).sort((a,b)=>{
     if(a.proxima&&b.proxima)return a.proxima-b.proxima;
@@ -21112,7 +21231,7 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
         <div class="emp-liquidacion-item neto"><span>Neto estimado</span><strong>${empProxMoney(neto)}</strong></div>
       </div></td>
       <td>${empProxBadge(proxima,cfg)}</td>
-      <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')">👤 Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)})">💰 Pagar</button></div></td>
+      <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')">👤 Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)},'${proxima?empProxDateIso(proxima):''}')">💰 Pagar</button></div></td>
     </tr>`;
   }).join('');
 }
