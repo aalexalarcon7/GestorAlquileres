@@ -4856,6 +4856,146 @@ td:last-child{
   @media(max-width:650px){#viewEmpleados .emp-proximos-head{padding:18px}#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr;padding:14px 18px}#viewEmpleados .emp-proximos-stat:last-child{grid-column:auto}#viewEmpleados .emp-proximos-table-wrap{padding:0 18px 16px}#viewEmpleados .emp-proximos-note{margin:0 18px 18px}}
 </style>
 
+
+<style id="empleadosLayoutCompactFix">
+  /* Empleados: KPIs compactos 2x2 y tablas a ancho completo. */
+  #viewEmpleados .cards-grid{
+    display:grid !important;
+    grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    gap:12px !important;
+    width:100% !important;
+    margin-top:16px !important;
+  }
+
+  #viewEmpleados .cards-grid > .card{
+    margin:0 !important;
+    min-height:96px !important;
+    padding:14px 18px !important;
+    display:grid !important;
+    grid-template-columns:minmax(0,1fr) auto !important;
+    grid-template-rows:auto auto !important;
+    grid-template-areas:
+      "title value"
+      "subtitle value" !important;
+    column-gap:18px !important;
+    row-gap:5px !important;
+    align-items:center !important;
+    align-content:center !important;
+  }
+
+  #viewEmpleados .cards-grid > .card h3{
+    grid-area:title !important;
+    margin:0 !important;
+    font-size:15px !important;
+    line-height:1.25 !important;
+    min-width:0 !important;
+  }
+
+  #viewEmpleados .cards-grid > .card > strong{
+    grid-area:value !important;
+    margin:0 !important;
+    font-size:26px !important;
+    line-height:1 !important;
+    text-align:right !important;
+    white-space:nowrap !important;
+    align-self:center !important;
+  }
+
+  #viewEmpleados .cards-grid > .card > span{
+    grid-area:subtitle !important;
+    display:block !important;
+    margin:0 !important;
+    font-size:12px !important;
+    line-height:1.25 !important;
+    min-width:0 !important;
+  }
+
+  /* El bloque de próximos pagos ocupa todo el ancho útil del card. */
+  #viewEmpleados .emp-proximos-card,
+  #viewEmpleados .emp-proximos-table-wrap,
+  #viewEmpleados .emp-proximos-table-wrap > .table-wrap{
+    width:100% !important;
+    max-width:none !important;
+    box-sizing:border-box !important;
+  }
+
+  #viewEmpleados .emp-proximos-table-wrap > .table-wrap{
+    display:block !important;
+    overflow-x:auto !important;
+  }
+
+  @media (min-width:901px){
+    #viewEmpleados table.desktop-table{
+      display:table !important;
+      width:100% !important;
+      min-width:100% !important;
+      max-width:none !important;
+    }
+
+    #viewEmpleados .emp-proximos-table{
+      table-layout:fixed !important;
+    }
+
+    /* Aprovecha el ancho horizontal para reducir la altura de cada fila. */
+    #viewEmpleados .emp-liquidacion{
+      grid-template-columns:repeat(4,minmax(0,1fr)) !important;
+      gap:8px !important;
+      align-items:center !important;
+    }
+
+    #viewEmpleados .emp-liquidacion-item{
+      padding:0 7px !important;
+      border-left:1px solid var(--border) !important;
+    }
+
+    #viewEmpleados .emp-liquidacion-item:first-child{
+      padding-left:0 !important;
+      border-left:0 !important;
+    }
+
+    #viewEmpleados .emp-liquidacion-item.neto{
+      grid-column:auto !important;
+      border-top:0 !important;
+      border-left:1px solid var(--border) !important;
+      margin:0 !important;
+      padding-top:0 !important;
+    }
+
+    #viewEmpleados .emp-liquidacion-item.neto strong{
+      font-size:14px !important;
+    }
+
+    #viewEmpleados .emp-proximos-table td{
+      padding-top:11px !important;
+      padding-bottom:11px !important;
+    }
+  }
+
+  @media (max-width:1200px) and (min-width:901px){
+    #viewEmpleados .emp-liquidacion{
+      grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+    }
+    #viewEmpleados .emp-liquidacion-item.neto{
+      border-top:1px dashed var(--border) !important;
+      padding-top:6px !important;
+    }
+  }
+
+  @media (max-width:700px){
+    #viewEmpleados .cards-grid{
+      grid-template-columns:1fr !important;
+      gap:10px !important;
+    }
+    #viewEmpleados .cards-grid > .card{
+      min-height:88px !important;
+      padding:13px 15px !important;
+    }
+    #viewEmpleados .cards-grid > .card > strong{
+      font-size:22px !important;
+    }
+  }
+</style>
+
 </head>
 <body>
 <!-- SPLASH -->
