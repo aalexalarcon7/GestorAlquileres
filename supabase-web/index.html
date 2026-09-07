@@ -20631,16 +20631,97 @@ function calcularProximoPagoEmpleado(cfg){
 }
 
 async function guardarConfigPagoEmpleado(){
-  if(!empleadoFichaActual)return;
+  if(!empleadoFichaActual){
+    alert('No hay un empleado seleccionado');
+    return;
+  }
+
   const frecuencia=document.getElementById('empFichaFrecuencia').value;
-  const payload={empleado_id:empleadoFichaActual.id,frecuencia,dia_mes_1:null,dia_mes_2:null,dia_semana:null,observacion:document.getElementById('empFichaConfigObs').value.trim()||null,activo:true,updated_at:new Date().toISOString()};
-  if(frecuencia==='SEMANAL')payload.dia_semana=Number(document.getElementById('empFichaDiaSemana').value)||null;
-  else{payload.dia_mes_1=Number(document.getElementById('empFichaDia1').value)||null;if(frecuencia==='QUINCENAL'||frecuencia==='PERSONALIZADO')payload.dia_mes_2=Number(document.getElementById('empFichaDia2').value)||null;}
-  if(frecuencia==='SEMANAL'&&!payload.dia_semana){alert('Seleccioná el día semanal');return;}
-  if(frecuencia!=='SEMANAL'&&!payload.dia_mes_1){alert('Indicá al menos un día de pago');return;}
-  const r=await sb.from('empleados_config_pago').upsert(payload,{onConflict:'empleado_id'}).select().single();
-  if(r.error){console.error(r.error);alert('No se pudo guardar la configuración');return;}
-  empleadoFichaEstado.config=r.data;renderFichaEmpleado();
+  const dia1Raw=document.getElementById('empFichaDia1').value;
+  const dia2Raw=document.getElementById('empFichaDia2').value;
+  const diaSemanaRaw=document.getElementById('empFichaDiaSemana').value;
+
+  const payload={
+    empleado_id:empleadoFichaActual.id,
+    frecuencia,
+    dia_mes_1:null,
+    dia_mes_2:null,
+    dia_semana:null,
+    observacion:document.getElementById('empFichaConfigObs').value.trim()||null,
+    activo:true,
+    updated_at:new Date().toISOString()
+  };
+
+  if(frecuencia==='SEMANAL'){
+    payload.dia_semana=diaSemanaRaw ? Number(diaSemanaRaw) : null;
+    if(!payload.dia_semana || payload.dia_semana<1 || payload.dia_semana>7){
+      alert('Seleccioná un día semanal válido');
+      return;
+    }
+  }else{
+    payload.dia_mes_1=dia1Raw ? Number(dia1Raw) : null;
+    if(!payload.dia_mes_1 || payload.dia_mes_1<1 || payload.dia_mes_1>31){
+      alert('Indicá un día de pago válido entre 1 y 31');
+      return;
+    }
+
+    if(frecuencia==='QUINCENAL' || frecuencia==='PERSONALIZADO'){
+      payload.dia_mes_2=dia2Raw ? Number(dia2Raw) : null;
+      if(!payload.dia_mes_2 || payload.dia_mes_2<1 || payload.dia_mes_2>31){
+        alert('Indicá el segundo día de pago entre 1 y 31');
+        return;
+      }
+      if(payload.dia_mes_1===payload.dia_mes_2){
+        alert('Los dos días de pago deben ser diferentes');
+        return;
+      }
+    }
+  }
+
+  try{
+    // Evitamos depender del UPSERT/onConflict del schema cache de PostgREST.
+    // Primero buscamos si ya existe configuración para este empleado.
+    const existente=await sb
+      .from('empleados_config_pago')
+      .select('id')
+      .eq('empleado_id',empleadoFichaActual.id)
+      .maybeSingle();
+
+    if(existente.error){
+      console.error('[Días de pago] Error buscando configuración:',existente.error);
+      alert('No se pudo verificar la configuración actual');
+      return;
+    }
+
+    let resultado;
+    if(existente.data?.id){
+      resultado=await sb
+        .from('empleados_config_pago')
+        .update(payload)
+        .eq('id',existente.data.id)
+        .select('*')
+        .single();
+    }else{
+      resultado=await sb
+        .from('empleados_config_pago')
+        .insert(payload)
+        .select('*')
+        .single();
+    }
+
+    if(resultado.error){
+      console.error('[Días de pago] Error guardando configuración:',resultado.error);
+      alert('No se pudo guardar la configuración de días de pago');
+      return;
+    }
+
+    empleadoFichaEstado.config=resultado.data;
+    renderFichaEmpleado();
+    alert('Configuración de días de pago guardada correctamente');
+  }catch(err){
+    console.error('[Días de pago] Error inesperado:',err);
+    alert('Ocurrió un error al guardar la configuración');
+  }
 }
 
 async function guardarAdelantoEmpleado(){
