@@ -4807,32 +4807,53 @@ td:last-child{
 
 
 <style id="empleadosProximosPagosStyles">
-  #viewEmpleados .emp-proximos-card{overflow:hidden}
-  #viewEmpleados .emp-proximos-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:16px}
-  #viewEmpleados .emp-proximos-head h3{margin:0;font-size:18px;color:var(--text)}
-  #viewEmpleados .emp-proximos-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
-  #viewEmpleados .emp-proximos-stats{display:grid;grid-template-columns:repeat(3,minmax(135px,1fr));gap:10px;min-width:min(100%,510px)}
-  #viewEmpleados .emp-proximos-stat{border:1px solid var(--border);background:var(--card-2);border-radius:15px;padding:12px 14px;min-width:0}
-  #viewEmpleados .emp-proximos-stat span{display:block;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
-  #viewEmpleados .emp-proximos-stat strong{display:block;margin-top:5px;font-size:17px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  #viewEmpleados .emp-proximos-table{min-width:1180px!important}
+  #viewEmpleados .emp-proximos-card{overflow:hidden;padding:0}
+  #viewEmpleados .emp-proximos-head{padding:22px 24px 18px;border-bottom:1px solid var(--border);background:linear-gradient(180deg,var(--card),var(--card-2))}
+  #viewEmpleados .emp-proximos-head-copy{display:flex;align-items:flex-start;gap:12px}
+  #viewEmpleados .emp-proximos-head-icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:var(--surface-soft);border:1px solid var(--border);font-size:18px;flex:0 0 auto}
+  #viewEmpleados .emp-proximos-head h3{margin:0;font-size:19px;color:var(--text)}
+  #viewEmpleados .emp-proximos-head p{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.45;max-width:760px}
+  #viewEmpleados .emp-proximos-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;padding:16px 24px;background:var(--card)}
+  #viewEmpleados .emp-proximos-stat{border:1px solid var(--border);background:var(--card-2);border-radius:14px;padding:13px 15px;min-width:0;box-shadow:0 1px 2px rgba(15,23,42,.03)}
+  #viewEmpleados .emp-proximos-stat span{display:block;color:var(--muted);font-size:10px;font-weight:850;text-transform:uppercase;letter-spacing:.07em}
+  #viewEmpleados .emp-proximos-stat strong{display:block;margin-top:6px;font-size:18px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #viewEmpleados .emp-proximos-table-wrap{padding:0 24px 18px}
+  #viewEmpleados .emp-proximos-table{width:100%!important;min-width:900px!important;table-layout:fixed}
+  #viewEmpleados .emp-proximos-table th{font-size:11px;text-transform:uppercase;letter-spacing:.045em;color:var(--muted);padding:13px 12px;background:var(--surface-soft)}
+  #viewEmpleados .emp-proximos-table td{padding:14px 12px;vertical-align:middle;border-top:1px solid var(--border)}
+  #viewEmpleados .emp-proximos-table th:nth-child(1){width:18%}
+  #viewEmpleados .emp-proximos-table th:nth-child(2){width:15%}
+  #viewEmpleados .emp-proximos-table th:nth-child(3){width:14%}
+  #viewEmpleados .emp-proximos-table th:nth-child(4){width:28%}
+  #viewEmpleados .emp-proximos-table th:nth-child(5){width:12%}
+  #viewEmpleados .emp-proximos-table th:nth-child(6){width:13%}
   #viewEmpleados .emp-proximos-table td:first-child,#viewEmpleados .emp-proximos-table th:first-child{text-align:left}
-  #viewEmpleados .emp-proximos-person{display:flex;flex-direction:column;gap:3px}
-  #viewEmpleados .emp-proximos-person strong{font-size:14px}
+  #viewEmpleados .emp-proximos-person{display:flex;flex-direction:column;gap:4px}
+  #viewEmpleados .emp-proximos-person strong{font-size:14px;color:var(--text)}
   #viewEmpleados .emp-proximos-person small{color:var(--muted);font-size:12px}
-  #viewEmpleados .emp-proximos-freq{display:flex;flex-direction:column;gap:3px;align-items:center}
-  #viewEmpleados .emp-proximos-freq strong{font-size:12px}
+  #viewEmpleados .emp-proximos-freq{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+  #viewEmpleados .emp-proximos-freq strong{font-size:12px;color:var(--text)}
   #viewEmpleados .emp-proximos-freq small{color:var(--muted);font-size:11px}
-  #viewEmpleados .emp-proximos-badge{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:850;white-space:nowrap}
+  #viewEmpleados .emp-proximos-date{display:flex;flex-direction:column;gap:4px;align-items:center}
+  #viewEmpleados .emp-proximos-date strong{font-size:13px;color:var(--text)}
+  #viewEmpleados .emp-liquidacion{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px 12px;text-align:left}
+  #viewEmpleados .emp-liquidacion-item{min-width:0}
+  #viewEmpleados .emp-liquidacion-item span{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.045em;color:var(--muted);font-weight:800}
+  #viewEmpleados .emp-liquidacion-item strong{display:block;margin-top:2px;font-size:12px;color:var(--text);white-space:nowrap}
+  #viewEmpleados .emp-liquidacion-item.neto{grid-column:1/-1;border-top:1px dashed var(--border);padding-top:7px;margin-top:1px}
+  #viewEmpleados .emp-liquidacion-item.neto strong{font-size:15px;font-weight:900}
+  #viewEmpleados .emp-liquidacion-neg strong{color:var(--bad,#dc2626)}
+  #viewEmpleados .emp-proximos-badge{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:7px 10px;border-radius:999px;font-size:11px;font-weight:850;white-space:nowrap}
   #viewEmpleados .emp-proximos-badge.hoy{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad-border)}
   #viewEmpleados .emp-proximos-badge.cerca{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn-border)}
   #viewEmpleados .emp-proximos-badge.ok{background:var(--info-soft);color:var(--info);border:1px solid var(--info-border)}
   #viewEmpleados .emp-proximos-badge.none{background:var(--surface-soft);color:var(--muted);border:1px solid var(--border)}
-  #viewEmpleados .emp-proximos-actions{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}
-  #viewEmpleados .emp-proximos-empty{text-align:center!important;padding:34px!important;color:var(--muted)}
-  #viewEmpleados .emp-proximos-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--surface-soft);color:var(--muted);font-size:12px;line-height:1.45}
-  @media(max-width:900px){#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr 1fr;width:100%}}
-  @media(max-width:560px){#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr}}
+  #viewEmpleados .emp-proximos-actions{display:flex;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+  #viewEmpleados .emp-proximos-actions .btn{padding:7px 9px;font-size:11px;white-space:nowrap}
+  #viewEmpleados .emp-proximos-empty{text-align:center!important;padding:38px!important;color:var(--muted)}
+  #viewEmpleados .emp-proximos-note{margin:0 24px 20px;padding:11px 13px;border-radius:12px;background:var(--surface-soft);color:var(--muted);font-size:12px;line-height:1.45;border:1px solid var(--border)}
+  @media(max-width:1000px){#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr 1fr}#viewEmpleados .emp-proximos-stat:last-child{grid-column:1/-1}}
+  @media(max-width:650px){#viewEmpleados .emp-proximos-head{padding:18px}#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr;padding:14px 18px}#viewEmpleados .emp-proximos-stat:last-child{grid-column:auto}#viewEmpleados .emp-proximos-table-wrap{padding:0 18px 16px}#viewEmpleados .emp-proximos-note{margin:0 18px 18px}}
 </style>
 
 </head>
@@ -5174,37 +5195,39 @@ td:last-child{
 
   <div class="card emp-proximos-card" style="margin-top:20px;">
     <div class="emp-proximos-head">
-      <div>
-        <h3>📅 Próximos pagos</h3>
-        <p>Resumen de fechas configuradas, adelantos, descuentos y monto estimado a pagar por empleado.</p>
-      </div>
-      <div class="emp-proximos-stats">
-        <div class="emp-proximos-stat"><span>Con calendario</span><strong id="empProximosCantidad">0 empleados</strong></div>
-        <div class="emp-proximos-stat"><span>Total estimado</span><strong id="empProximosTotal">$ 0</strong></div>
-        <div class="emp-proximos-stat"><span>Próximo pago</span><strong id="empProximoFecha">Sin configurar</strong></div>
+      <div class="emp-proximos-head-copy">
+        <div class="emp-proximos-head-icon">📅</div>
+        <div>
+          <h3>Próximos pagos</h3>
+          <p>Calendario y estimación de liquidación de cada empleado activo.</p>
+        </div>
       </div>
     </div>
-    <div class="table-wrap">
-      <table class="desktop-table emp-proximos-table">
-        <thead>
-          <tr>
-            <th>Empleado</th>
-            <th>Frecuencia</th>
-            <th>Próximo pago</th>
-            <th>Salario base</th>
-            <th>Adelantos</th>
-            <th>Descuentos</th>
-            <th>Neto estimado</th>
-            <th>Situación</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody id="empProximosPagosBody">
-          <tr><td colspan="9" class="emp-proximos-empty">Cargando calendario de pagos...</td></tr>
-        </tbody>
-      </table>
+    <div class="emp-proximos-stats">
+      <div class="emp-proximos-stat"><span>Empleados con calendario</span><strong id="empProximosCantidad">0 empleados</strong></div>
+      <div class="emp-proximos-stat"><span>Total próximo a pagar</span><strong id="empProximosTotal">$ 0</strong></div>
+      <div class="emp-proximos-stat"><span>Fecha más próxima</span><strong id="empProximoFecha">Sin configurar</strong></div>
     </div>
-    <div class="emp-proximos-note">El neto es estimativo y usa el salario base registrado menos adelantos y descuentos pendientes. No se aplica todavía ninguna distribución especial por quincenas.</div>
+    <div class="emp-proximos-table-wrap">
+      <div class="table-wrap">
+        <table class="desktop-table emp-proximos-table">
+          <thead>
+            <tr>
+              <th>Empleado</th>
+              <th>Calendario</th>
+              <th>Próximo pago</th>
+              <th>Liquidación estimada</th>
+              <th>Situación</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="empProximosPagosBody">
+            <tr><td colspan="6" class="emp-proximos-empty">Cargando calendario de pagos...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="emp-proximos-note">El neto es informativo: salario base menos adelantos y descuentos pendientes. La distribución especial por quincenas sigue pendiente de definición.</div>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -20893,7 +20916,7 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
   if(!body)return;
   const activos=(empleados||[]).filter(e=>e.activo);
   if(!activos.length){
-    body.innerHTML='<tr><td colspan="9" class="emp-proximos-empty">No hay empleados activos para mostrar.</td></tr>';
+    body.innerHTML='<tr><td colspan="6" class="emp-proximos-empty">No hay empleados activos para mostrar.</td></tr>';
     const cant=document.getElementById('empProximosCantidad');if(cant)cant.textContent='0 empleados';
     const total=document.getElementById('empProximosTotal');if(total)total.textContent='$ 0';
     const fecha=document.getElementById('empProximoFecha');if(fecha)fecha.textContent='Sin configurar';
@@ -20941,11 +20964,13 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
     return `<tr>
       <td><div class="emp-proximos-person"><strong>${empProxEsc(emp.nombre||'Sin nombre')}</strong><small>${empProxEsc(emp.cargo||'-')}</small></div></td>
       <td><div class="emp-proximos-freq"><strong>${empProxEsc(fr.titulo)}</strong><small>${empProxEsc(fr.detalle)}</small></div></td>
-      <td><strong>${proxima?proxima.toLocaleDateString('es-AR'):'—'}</strong></td>
-      <td>${empProxMoney(bruto)}</td>
-      <td>${adelantos?('-'+empProxMoney(adelantos)):empProxMoney(0)}</td>
-      <td>${descuentos?('-'+empProxMoney(descuentos)):empProxMoney(0)}</td>
-      <td><strong>${empProxMoney(neto)}</strong></td>
+      <td><div class="emp-proximos-date"><strong>${proxima?proxima.toLocaleDateString('es-AR'):'—'}</strong></div></td>
+      <td><div class="emp-liquidacion">
+        <div class="emp-liquidacion-item"><span>Bruto</span><strong>${empProxMoney(bruto)}</strong></div>
+        <div class="emp-liquidacion-item emp-liquidacion-neg"><span>Adelantos</span><strong>${adelantos?('- '+empProxMoney(adelantos)):empProxMoney(0)}</strong></div>
+        <div class="emp-liquidacion-item emp-liquidacion-neg"><span>Descuentos</span><strong>${descuentos?('- '+empProxMoney(descuentos)):empProxMoney(0)}</strong></div>
+        <div class="emp-liquidacion-item neto"><span>Neto estimado</span><strong>${empProxMoney(neto)}</strong></div>
+      </div></td>
       <td>${empProxBadge(proxima,cfg)}</td>
       <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')">👤 Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)})">💰 Pagar</button></div></td>
     </tr>`;
