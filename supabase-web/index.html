@@ -14156,280 +14156,7 @@ error = deleteResponse.error;
   </style>
 </head>
 
-          <body>${printable}
-
-
-
-
-
-
-<div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
- <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
-  <h2 style="margin:0 0 20px">💰 Registrar pago</h2>
-  <p id="pagoEmpleadoNombre" style="color:#64748b"></p>
-  <input id="pagoPeriodo" value="09/2026" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Periodo">
-  <input id="pagoMonto" type="number" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Monto">
-  <textarea id="pagoObs" style="width:100%;padding:12px;margin-bottom:10px" placeholder="Observación"></textarea>
-  <div style="display:flex;justify-content:flex-end;gap:10px">
-   <button class="btn" onclick="cerrarPagoEmpleado()">Cancelar</button>
-   <button class="btn primary" onclick="guardarPagoEmpleado()">Registrar pago</button>
-  </div>
- </div>
-</div>
-
-<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
- <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
-  <div style="margin-bottom:22px">
-   <h2 style="margin:0;font-size:22px;color:#111827">✏️ Editar empleado</h2>
-   <p style="margin:8px 0 0;color:#64748b;font-size:14px">Actualizá los datos del empleado seleccionado</p>
-  </div>
-
-  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Nombre completo</label>
-  <input id="editEmpNombre" class="input" placeholder="Ej: Juan Pérez" style="width:100%;margin-bottom:16px">
-
-  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Cargo</label>
-  <input id="editEmpCargo" class="input" placeholder="Ej: Administrativo" style="width:100%;margin-bottom:16px">
-
-  <label style="display:block;font-size:13px;font-weight:700;color:#475569;margin-bottom:6px">Salario mensual</label>
-  <input id="editEmpSalario" class="input" type="number" placeholder="Ej: 500000" style="width:100%;margin-bottom:6px">
-
-  <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:24px">
-   <button class="btn secondary" onclick="cerrarEditarEmpleado()">Cancelar</button>
-   <button class="btn primary" onclick="guardarEditarEmpleado()">Guardar cambios</button>
-  </div>
- </div>
-</div>
-
-<div id="modalFichaEmpleado" role="dialog" aria-modal="true" aria-labelledby="empFichaTitulo">
-  <div class="emp-ficha-shell">
-    <div class="emp-ficha-head">
-      <div class="emp-ficha-head-row">
-        <div>
-          <h2 class="emp-ficha-title" id="empFichaTitulo">Ficha del empleado</h2>
-          <p class="emp-ficha-sub" id="empFichaSub">Administración de pagos, adelantos y descuentos</p>
-        </div>
-        <button class="btn" type="button" onclick="cerrarFichaEmpleado()">Cerrar</button>
-      </div>
-      <div class="emp-ficha-tabs">
-        <button class="emp-ficha-tab active" data-emp-tab="resumen" onclick="cambiarTabFichaEmpleado('resumen')">Resumen</button>
-        <button class="emp-ficha-tab" data-emp-tab="pago" onclick="cambiarTabFichaEmpleado('pago')">Días de pago</button>
-        <button class="emp-ficha-tab" data-emp-tab="adelantos" onclick="cambiarTabFichaEmpleado('adelantos')">Adelantos</button>
-        <button class="emp-ficha-tab" data-emp-tab="descuentos" onclick="cambiarTabFichaEmpleado('descuentos')">Descuentos</button>
-        <button class="emp-ficha-tab" data-emp-tab="historial" onclick="cambiarTabFichaEmpleado('historial')">Historial</button>
-      </div>
-    </div>
-    <div class="emp-ficha-body">
-      <div class="emp-ficha-pane active" data-emp-pane="resumen">
-        <div class="emp-ficha-grid">
-          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Salario base</span><strong class="emp-ficha-stat-value" id="empFichaSalario">$ 0</strong></div>
-          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Próximo pago</span><strong class="emp-ficha-stat-value" id="empFichaProximoPago">Sin configurar</strong></div>
-          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaAdelantosTotal">$ 0</strong></div>
-          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Descuentos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosTotal">$ 0</strong></div>
-        </div>
-        <div class="emp-ficha-section">
-          <h3>Resumen estimado de liquidación</h3>
-          <div class="emp-ficha-grid">
-            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Bruto</span><strong class="emp-ficha-stat-value" id="empFichaBruto">$ 0</strong></div>
-            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos a descontar</span><strong class="emp-ficha-stat-value" id="empFichaAdelantosResumen">-$ 0</strong></div>
-            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Otros descuentos</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosResumen">-$ 0</strong></div>
-            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Neto estimado</span><strong class="emp-ficha-stat-value" id="empFichaNeto">$ 0</strong></div>
-          </div>
-          <div class="emp-ficha-note" style="margin-top:14px">Este neto es informativo: salario base menos adelantos y descuentos pendientes. La distribución especial en “5 quincenas” queda pendiente de definición y no se aplica todavía.</div>
-        </div>
-      </div>
-
-      <div class="emp-ficha-pane" data-emp-pane="pago">
-        <div class="emp-ficha-section" style="margin-top:0">
-          <h3>Configuración de días de pago</h3>
-          <div class="emp-ficha-form-grid">
-            <div class="emp-ficha-field"><label>Frecuencia</label><select id="empFichaFrecuencia" onchange="actualizarCamposFrecuenciaEmpleado()"><option value="MENSUAL">Mensual</option><option value="QUINCENAL">Quincenal</option><option value="SEMANAL">Semanal</option><option value="PERSONALIZADO">Personalizado</option></select></div>
-            <div class="emp-ficha-field" id="empFichaCampoSemana"><label>Día semanal</label><select id="empFichaDiaSemana"><option value="">Seleccionar</option><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="7">Domingo</option></select></div>
-            <div class="emp-ficha-field" id="empFichaCampoDia1"><label>Día de pago 1</label><input id="empFichaDia1" type="number" min="1" max="31" placeholder="Ej: 8"></div>
-            <div class="emp-ficha-field" id="empFichaCampoDia2"><label>Día de pago 2</label><input id="empFichaDia2" type="number" min="1" max="31" placeholder="Ej: 23"></div>
-            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaConfigObs" placeholder="Ej: Seguridad cobra los días 8 y 23"></textarea></div>
-          </div>
-          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarConfigPagoEmpleado()">Guardar configuración</button></div>
-        </div>
-      </div>
-
-      <div class="emp-ficha-pane" data-emp-pane="adelantos">
-        <div class="emp-ficha-section" style="margin-top:0">
-          <h3>Registrar adelanto</h3>
-          <div class="emp-ficha-form-grid">
-            <div class="emp-ficha-field"><label>Fecha</label><input id="empFichaAdelantoFecha" type="date"></div>
-            <div class="emp-ficha-field"><label>Monto</label><input id="empFichaAdelantoMonto" type="number" min="0" step="0.01" placeholder="0"></div>
-            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaAdelantoObs" placeholder="Detalle opcional"></textarea></div>
-          </div>
-          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarAdelantoEmpleado()">+ Registrar adelanto</button></div>
-        </div>
-        <div class="emp-ficha-section"><h3>Adelantos registrados</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Fecha</th><th>Monto</th><th>Estado</th><th>Observación</th><th>Acción</th></tr></thead><tbody id="empFichaAdelantosBody"><tr><td colspan="5" class="emp-ficha-empty">Sin adelantos</td></tr></tbody></table></div></div>
-      </div>
-
-      <div class="emp-ficha-pane" data-emp-pane="descuentos">
-        <div class="emp-ficha-section" style="margin-top:0">
-          <h3>Registrar descuento</h3>
-          <div class="emp-ficha-form-grid">
-            <div class="emp-ficha-field"><label>Fecha</label><input id="empFichaDescuentoFecha" type="date"></div>
-            <div class="emp-ficha-field"><label>Monto</label><input id="empFichaDescuentoMonto" type="number" min="0" step="0.01" placeholder="0"></div>
-            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Concepto</label><input id="empFichaDescuentoConcepto" placeholder="Ej: Préstamo / faltante / descuento acordado"></div>
-            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaDescuentoObs" placeholder="Detalle opcional"></textarea></div>
-          </div>
-          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarDescuentoEmpleado()">+ Registrar descuento</button></div>
-        </div>
-        <div class="emp-ficha-section"><h3>Descuentos registrados</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="empFichaDescuentosBody"><tr><td colspan="5" class="emp-ficha-empty">Sin descuentos</td></tr></tbody></table></div></div>
-      </div>
-
-      <div class="emp-ficha-pane" data-emp-pane="historial">
-        <div class="emp-ficha-section" style="margin-top:0"><h3>Historial de pagos del empleado</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Periodo</th><th>Fecha</th><th>Bruto</th><th>Adelantos</th><th>Descuentos</th><th>Neto / pagado</th><th>Estado</th></tr></thead><tbody id="empFichaHistorialBody"><tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr></tbody></table></div></div>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<script id="empleadosFichaScript">
-let empleadoFichaActual = null;
-let empleadoFichaEstado = {config:null,adelantos:[],descuentos:[],pagos:[]};
-
-function empFichaEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function empFichaMoney(v){return '$ '+Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2});}
-function empFichaHoy(){return new Date().toISOString().slice(0,10);}
-function empFichaFechaAR(v){if(!v)return '-';const [y,m,d]=String(v).slice(0,10).split('-');return y&&m&&d?`${d}/${m}/${y}`:v;}
-function empFichaEstadoBadge(v){const x=String(v||'PENDIENTE').toUpperCase();const cls=x==='APLICADO'||x==='PAGADO'?'applied':x==='ANULADO'?'cancelled':'pending';return `<span class="emp-ficha-badge ${cls}">${x}</span>`;}
-
-function cambiarTabFichaEmpleado(tab){
-  document.querySelectorAll('#modalFichaEmpleado .emp-ficha-tab').forEach(b=>b.classList.toggle('active',b.dataset.empTab===tab));
-  document.querySelectorAll('#modalFichaEmpleado .emp-ficha-pane').forEach(p=>p.classList.toggle('active',p.dataset.empPane===tab));
-}
-
-async function abrirFichaEmpleado(id){
-  let emp=(window.__empleados||[]).find(e=>String(e.id)===String(id));
-  if(!emp){
-    const q=await sb.from('empleados').select('*').eq('id',id).maybeSingle();
-    if(q.error||!q.data){console.error(q.error);alert('No se pudo cargar el empleado');return;}
-    emp=q.data;
-  }
-  empleadoFichaActual=emp;
-  document.getElementById('empFichaTitulo').textContent=emp.nombre||'Ficha del empleado';
-  document.getElementById('empFichaSub').textContent=`${emp.cargo||'Sin cargo'} · ${emp.activo?'Activo':'Inactivo'}`;
-  document.getElementById('empFichaAdelantoFecha').value=empFichaHoy();
-  document.getElementById('empFichaDescuentoFecha').value=empFichaHoy();
-  cambiarTabFichaEmpleado('resumen');
-  document.getElementById('modalFichaEmpleado').style.display='flex';
-  await cargarFichaEmpleado();
-}
-function cerrarFichaEmpleado(){document.getElementById('modalFichaEmpleado').style.display='none';empleadoFichaActual=null;}
-
-async function cargarFichaEmpleado(){
-  if(!empleadoFichaActual)return;
-  const id=empleadoFichaActual.id;
-  const [cfg,adv,disc,pay]=await Promise.all([
-    sb.from('empleados_config_pago').select('*').eq('empleado_id',id).maybeSingle(),
-    sb.from('adelantos_empleados').select('*').eq('empleado_id',id).order('fecha',{ascending:false}).order('created_at',{ascending:false}),
-    sb.from('descuentos_empleados').select('*').eq('empleado_id',id).order('fecha',{ascending:false}).order('created_at',{ascending:false}),
-    sb.from('pagos_empleados').select('*').eq('empleado_id',id).order('created_at',{ascending:false})
-  ]);
-  for(const r of [cfg,adv,disc,pay]) if(r.error) console.error('[Ficha empleado]',r.error);
-  empleadoFichaEstado={config:cfg.data||null,adelantos:adv.data||[],descuentos:disc.data||[],pagos:pay.data||[]};
-  renderFichaEmpleado();
-}
-
-function renderFichaEmpleado(){
-  const emp=empleadoFichaActual;if(!emp)return;
-  const cfg=empleadoFichaEstado.config||{};
-  document.getElementById('empFichaFrecuencia').value=cfg.frecuencia||'MENSUAL';
-  document.getElementById('empFichaDiaSemana').value=cfg.dia_semana||'';
-  document.getElementById('empFichaDia1').value=cfg.dia_mes_1||'';
-  document.getElementById('empFichaDia2').value=cfg.dia_mes_2||'';
-  document.getElementById('empFichaConfigObs').value=cfg.observacion||'';
-  actualizarCamposFrecuenciaEmpleado();
-
-  const advPend=empleadoFichaEstado.adelantos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
-  const discPend=empleadoFichaEstado.descuentos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
-  const advTotal=advPend.reduce((s,x)=>s+Number(x.monto||0),0);
-  const discTotal=discPend.reduce((s,x)=>s+Number(x.monto||0),0);
-  const bruto=Number(emp.salario_base||0);
-  const neto=Math.max(0,bruto-advTotal-discTotal);
-  document.getElementById('empFichaSalario').textContent=empFichaMoney(bruto);
-  document.getElementById('empFichaBruto').textContent=empFichaMoney(bruto);
-  document.getElementById('empFichaAdelantosTotal').textContent=empFichaMoney(advTotal);
-  document.getElementById('empFichaAdelantosResumen').textContent='-'+empFichaMoney(advTotal);
-  document.getElementById('empFichaDescuentosTotal').textContent=empFichaMoney(discTotal);
-  document.getElementById('empFichaDescuentosResumen').textContent='-'+empFichaMoney(discTotal);
-  document.getElementById('empFichaNeto').textContent=empFichaMoney(neto);
-  document.getElementById('empFichaProximoPago').textContent=calcularProximoPagoEmpleado(cfg);
-
-  const ab=document.getElementById('empFichaAdelantosBody');
-  ab.innerHTML=empleadoFichaEstado.adelantos.length?empleadoFichaEstado.adelantos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${empFichaEsc(x.observacion||'-')}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularAdelantoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin adelantos registrados</td></tr>';
-
-  const db=document.getElementById('empFichaDescuentosBody');
-  db.innerHTML=empleadoFichaEstado.descuentos.length?empleadoFichaEstado.descuentos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td>${empFichaEsc(x.concepto||'-')}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularDescuentoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin descuentos registrados</td></tr>';
-
-  const hb=document.getElementById('empFichaHistorialBody');
-  hb.innerHTML=empleadoFichaEstado.pagos.length?empleadoFichaEstado.pagos.map(p=>`<tr><td>${empFichaEsc(p.periodo||'-')}</td><td>${empFichaFechaAR(p.fecha_pago||p.fecha_programada)}</td><td>${empFichaMoney(p.monto_bruto??p.monto)}</td><td>${empFichaMoney(p.monto_adelantos||0)}</td><td>${empFichaMoney(p.monto_descuentos||0)}</td><td><strong>${empFichaMoney(p.monto_neto??p.monto)}</strong></td><td>${empFichaEstadoBadge(p.estado)}</td></tr>`).join(''):'<tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr>';
-}
-
-function actualizarCamposFrecuenciaEmpleado(){
-  const f=document.getElementById('empFichaFrecuencia')?.value||'MENSUAL';
-  document.getElementById('empFichaCampoSemana').style.display=f==='SEMANAL'?'block':'none';
-  document.getElementById('empFichaCampoDia1').style.display=f==='SEMANAL'?'none':'block';
-  document.getElementById('empFichaCampoDia2').style.display=(f==='QUINCENAL'||f==='PERSONALIZADO')?'block':'none';
-}
-
-function calcularProximoPagoEmpleado(cfg){
-  if(!cfg||!cfg.frecuencia)return 'Sin configurar';
-  const hoy=new Date();hoy.setHours(0,0,0,0);
-  let prox=null;
-  if(cfg.frecuencia==='SEMANAL'&&cfg.dia_semana){
-    const objetivo=Number(cfg.dia_semana)%7;const actual=hoy.getDay();let delta=(objetivo-actual+7)%7;if(delta===0)delta=7;prox=new Date(hoy);prox.setDate(hoy.getDate()+delta);
-  }else{
-    const dias=[cfg.dia_mes_1,cfg.dia_mes_2].filter(Boolean).map(Number).filter(x=>x>=1&&x<=31);
-    if(!dias.length)return 'Sin día definido';
-    const candidatos=[];
-    for(let add=0;add<=1;add++){
-      const y=hoy.getFullYear(),m=hoy.getMonth()+add;
-      for(const d of dias){const max=new Date(y,m+1,0).getDate();const c=new Date(y,m,Math.min(d,max));c.setHours(0,0,0,0);if(c>=hoy)candidatos.push(c);}
-    }
-    candidatos.sort((a,b)=>a-b);prox=candidatos[0]||null;
-  }
-  return prox?prox.toLocaleDateString('es-AR'):'Sin configurar';
-}
-
-async function guardarConfigPagoEmpleado(){
-  if(!empleadoFichaActual)return;
-  const frecuencia=document.getElementById('empFichaFrecuencia').value;
-  const payload={empleado_id:empleadoFichaActual.id,frecuencia,dia_mes_1:null,dia_mes_2:null,dia_semana:null,observacion:document.getElementById('empFichaConfigObs').value.trim()||null,activo:true,updated_at:new Date().toISOString()};
-  if(frecuencia==='SEMANAL')payload.dia_semana=Number(document.getElementById('empFichaDiaSemana').value)||null;
-  else{payload.dia_mes_1=Number(document.getElementById('empFichaDia1').value)||null;if(frecuencia==='QUINCENAL'||frecuencia==='PERSONALIZADO')payload.dia_mes_2=Number(document.getElementById('empFichaDia2').value)||null;}
-  if(frecuencia==='SEMANAL'&&!payload.dia_semana){alert('Seleccioná el día semanal');return;}
-  if(frecuencia!=='SEMANAL'&&!payload.dia_mes_1){alert('Indicá al menos un día de pago');return;}
-  const r=await sb.from('empleados_config_pago').upsert(payload,{onConflict:'empleado_id'}).select().single();
-  if(r.error){console.error(r.error);alert('No se pudo guardar la configuración');return;}
-  empleadoFichaEstado.config=r.data;renderFichaEmpleado();
-}
-
-async function guardarAdelantoEmpleado(){
-  if(!empleadoFichaActual)return;
-  const monto=Number(document.getElementById('empFichaAdelantoMonto').value||0),fecha=document.getElementById('empFichaAdelantoFecha').value||empFichaHoy(),observacion=document.getElementById('empFichaAdelantoObs').value.trim()||null;
-  if(monto<=0){alert('Ingresá un monto de adelanto válido');return;}
-  const r=await sb.from('adelantos_empleados').insert({empleado_id:empleadoFichaActual.id,fecha,monto,observacion,estado:'PENDIENTE'});
-  if(r.error){console.error(r.error);alert('No se pudo registrar el adelanto');return;}
-  document.getElementById('empFichaAdelantoMonto').value='';document.getElementById('empFichaAdelantoObs').value='';await cargarFichaEmpleado();
-}
-async function anularAdelantoEmpleado(id){if(!confirm('¿Anular este adelanto?'))return;const r=await sb.from('adelantos_empleados').update({estado:'ANULADO',updated_at:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);alert('No se pudo anular');return;}await cargarFichaEmpleado();}
-
-async function guardarDescuentoEmpleado(){
-  if(!empleadoFichaActual)return;
-  const monto=Number(document.getElementById('empFichaDescuentoMonto').value||0),fecha=document.getElementById('empFichaDescuentoFecha').value||empFichaHoy(),concepto=document.getElementById('empFichaDescuentoConcepto').value.trim(),observacion=document.getElementById('empFichaDescuentoObs').value.trim()||null;
-  if(!concepto||monto<=0){alert('Completá concepto y monto del descuento');return;}
-  const r=await sb.from('descuentos_empleados').insert({empleado_id:empleadoFichaActual.id,fecha,concepto,monto,observacion,estado:'PENDIENTE'});
-  if(r.error){console.error(r.error);alert('No se pudo registrar el descuento');return;}
-  document.getElementById('empFichaDescuentoMonto').value='';document.getElementById('empFichaDescuentoConcepto').value='';document.getElementById('empFichaDescuentoObs').value='';await cargarFichaEmpleado();
-}
-async function anularDescuentoEmpleado(id){if(!confirm('¿Anular este descuento?'))return;const r=await sb.from('descuentos_empleados').update({estado:'ANULADO',updated_at:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);alert('No se pudo anular');return;}await cargarFichaEmpleado();}
-</script>
-
-</body>
+          <body>${printable}</body>
         </html>
       `);
       w.document.close();
@@ -20706,5 +20433,236 @@ async function desactivarEmpleado(id){
   </div>
  </div>
 </div>
+
+
+<div id="modalFichaEmpleado" role="dialog" aria-modal="true" aria-labelledby="empFichaTitulo">
+  <div class="emp-ficha-shell">
+    <div class="emp-ficha-head">
+      <div class="emp-ficha-head-row">
+        <div>
+          <h2 class="emp-ficha-title" id="empFichaTitulo">Ficha del empleado</h2>
+          <p class="emp-ficha-sub" id="empFichaSub">Administración de pagos, adelantos y descuentos</p>
+        </div>
+        <button class="btn" type="button" onclick="cerrarFichaEmpleado()">Cerrar</button>
+      </div>
+      <div class="emp-ficha-tabs">
+        <button class="emp-ficha-tab active" data-emp-tab="resumen" onclick="cambiarTabFichaEmpleado('resumen')">Resumen</button>
+        <button class="emp-ficha-tab" data-emp-tab="pago" onclick="cambiarTabFichaEmpleado('pago')">Días de pago</button>
+        <button class="emp-ficha-tab" data-emp-tab="adelantos" onclick="cambiarTabFichaEmpleado('adelantos')">Adelantos</button>
+        <button class="emp-ficha-tab" data-emp-tab="descuentos" onclick="cambiarTabFichaEmpleado('descuentos')">Descuentos</button>
+        <button class="emp-ficha-tab" data-emp-tab="historial" onclick="cambiarTabFichaEmpleado('historial')">Historial</button>
+      </div>
+    </div>
+    <div class="emp-ficha-body">
+      <div class="emp-ficha-pane active" data-emp-pane="resumen">
+        <div class="emp-ficha-grid">
+          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Salario base</span><strong class="emp-ficha-stat-value" id="empFichaSalario">$ 0</strong></div>
+          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Próximo pago</span><strong class="emp-ficha-stat-value" id="empFichaProximoPago">Sin configurar</strong></div>
+          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaAdelantosTotal">$ 0</strong></div>
+          <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Descuentos pendientes</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosTotal">$ 0</strong></div>
+        </div>
+        <div class="emp-ficha-section">
+          <h3>Resumen estimado de liquidación</h3>
+          <div class="emp-ficha-grid">
+            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Bruto</span><strong class="emp-ficha-stat-value" id="empFichaBruto">$ 0</strong></div>
+            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Adelantos a descontar</span><strong class="emp-ficha-stat-value" id="empFichaAdelantosResumen">-$ 0</strong></div>
+            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Otros descuentos</span><strong class="emp-ficha-stat-value" id="empFichaDescuentosResumen">-$ 0</strong></div>
+            <div class="emp-ficha-stat"><span class="emp-ficha-stat-label">Neto estimado</span><strong class="emp-ficha-stat-value" id="empFichaNeto">$ 0</strong></div>
+          </div>
+          <div class="emp-ficha-note" style="margin-top:14px">Este neto es informativo: salario base menos adelantos y descuentos pendientes. La distribución especial en “5 quincenas” queda pendiente de definición y no se aplica todavía.</div>
+        </div>
+      </div>
+
+      <div class="emp-ficha-pane" data-emp-pane="pago">
+        <div class="emp-ficha-section" style="margin-top:0">
+          <h3>Configuración de días de pago</h3>
+          <div class="emp-ficha-form-grid">
+            <div class="emp-ficha-field"><label>Frecuencia</label><select id="empFichaFrecuencia" onchange="actualizarCamposFrecuenciaEmpleado()"><option value="MENSUAL">Mensual</option><option value="QUINCENAL">Quincenal</option><option value="SEMANAL">Semanal</option><option value="PERSONALIZADO">Personalizado</option></select></div>
+            <div class="emp-ficha-field" id="empFichaCampoSemana"><label>Día semanal</label><select id="empFichaDiaSemana"><option value="">Seleccionar</option><option value="1">Lunes</option><option value="2">Martes</option><option value="3">Miércoles</option><option value="4">Jueves</option><option value="5">Viernes</option><option value="6">Sábado</option><option value="7">Domingo</option></select></div>
+            <div class="emp-ficha-field" id="empFichaCampoDia1"><label>Día de pago 1</label><input id="empFichaDia1" type="number" min="1" max="31" placeholder="Ej: 8"></div>
+            <div class="emp-ficha-field" id="empFichaCampoDia2"><label>Día de pago 2</label><input id="empFichaDia2" type="number" min="1" max="31" placeholder="Ej: 23"></div>
+            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaConfigObs" placeholder="Ej: Seguridad cobra los días 8 y 23"></textarea></div>
+          </div>
+          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarConfigPagoEmpleado()">Guardar configuración</button></div>
+        </div>
+      </div>
+
+      <div class="emp-ficha-pane" data-emp-pane="adelantos">
+        <div class="emp-ficha-section" style="margin-top:0">
+          <h3>Registrar adelanto</h3>
+          <div class="emp-ficha-form-grid">
+            <div class="emp-ficha-field"><label>Fecha</label><input id="empFichaAdelantoFecha" type="date"></div>
+            <div class="emp-ficha-field"><label>Monto</label><input id="empFichaAdelantoMonto" type="number" min="0" step="0.01" placeholder="0"></div>
+            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaAdelantoObs" placeholder="Detalle opcional"></textarea></div>
+          </div>
+          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarAdelantoEmpleado()">+ Registrar adelanto</button></div>
+        </div>
+        <div class="emp-ficha-section"><h3>Adelantos registrados</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Fecha</th><th>Monto</th><th>Estado</th><th>Observación</th><th>Acción</th></tr></thead><tbody id="empFichaAdelantosBody"><tr><td colspan="5" class="emp-ficha-empty">Sin adelantos</td></tr></tbody></table></div></div>
+      </div>
+
+      <div class="emp-ficha-pane" data-emp-pane="descuentos">
+        <div class="emp-ficha-section" style="margin-top:0">
+          <h3>Registrar descuento</h3>
+          <div class="emp-ficha-form-grid">
+            <div class="emp-ficha-field"><label>Fecha</label><input id="empFichaDescuentoFecha" type="date"></div>
+            <div class="emp-ficha-field"><label>Monto</label><input id="empFichaDescuentoMonto" type="number" min="0" step="0.01" placeholder="0"></div>
+            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Concepto</label><input id="empFichaDescuentoConcepto" placeholder="Ej: Préstamo / faltante / descuento acordado"></div>
+            <div class="emp-ficha-field" style="grid-column:1/-1"><label>Observación</label><textarea id="empFichaDescuentoObs" placeholder="Detalle opcional"></textarea></div>
+          </div>
+          <div class="emp-ficha-actions"><button class="btn primary" type="button" onclick="guardarDescuentoEmpleado()">+ Registrar descuento</button></div>
+        </div>
+        <div class="emp-ficha-section"><h3>Descuentos registrados</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Fecha</th><th>Concepto</th><th>Monto</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="empFichaDescuentosBody"><tr><td colspan="5" class="emp-ficha-empty">Sin descuentos</td></tr></tbody></table></div></div>
+      </div>
+
+      <div class="emp-ficha-pane" data-emp-pane="historial">
+        <div class="emp-ficha-section" style="margin-top:0"><h3>Historial de pagos del empleado</h3><div class="emp-ficha-table-wrap"><table class="emp-ficha-table"><thead><tr><th>Periodo</th><th>Fecha</th><th>Bruto</th><th>Adelantos</th><th>Descuentos</th><th>Neto / pagado</th><th>Estado</th></tr></thead><tbody id="empFichaHistorialBody"><tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr></tbody></table></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script id="empleadosFichaScript">
+let empleadoFichaActual = null;
+let empleadoFichaEstado = {config:null,adelantos:[],descuentos:[],pagos:[]};
+
+function empFichaEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function empFichaMoney(v){return '$ '+Number(v||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2});}
+function empFichaHoy(){return new Date().toISOString().slice(0,10);}
+function empFichaFechaAR(v){if(!v)return '-';const [y,m,d]=String(v).slice(0,10).split('-');return y&&m&&d?`${d}/${m}/${y}`:v;}
+function empFichaEstadoBadge(v){const x=String(v||'PENDIENTE').toUpperCase();const cls=x==='APLICADO'||x==='PAGADO'?'applied':x==='ANULADO'?'cancelled':'pending';return `<span class="emp-ficha-badge ${cls}">${x}</span>`;}
+
+function cambiarTabFichaEmpleado(tab){
+  document.querySelectorAll('#modalFichaEmpleado .emp-ficha-tab').forEach(b=>b.classList.toggle('active',b.dataset.empTab===tab));
+  document.querySelectorAll('#modalFichaEmpleado .emp-ficha-pane').forEach(p=>p.classList.toggle('active',p.dataset.empPane===tab));
+}
+
+async function abrirFichaEmpleado(id){
+  let emp=(window.__empleados||[]).find(e=>String(e.id)===String(id));
+  if(!emp){
+    const q=await sb.from('empleados').select('*').eq('id',id).maybeSingle();
+    if(q.error||!q.data){console.error(q.error);alert('No se pudo cargar el empleado');return;}
+    emp=q.data;
+  }
+  empleadoFichaActual=emp;
+  document.getElementById('empFichaTitulo').textContent=emp.nombre||'Ficha del empleado';
+  document.getElementById('empFichaSub').textContent=`${emp.cargo||'Sin cargo'} · ${emp.activo?'Activo':'Inactivo'}`;
+  document.getElementById('empFichaAdelantoFecha').value=empFichaHoy();
+  document.getElementById('empFichaDescuentoFecha').value=empFichaHoy();
+  cambiarTabFichaEmpleado('resumen');
+  document.getElementById('modalFichaEmpleado').style.display='flex';
+  await cargarFichaEmpleado();
+}
+function cerrarFichaEmpleado(){document.getElementById('modalFichaEmpleado').style.display='none';empleadoFichaActual=null;}
+
+async function cargarFichaEmpleado(){
+  if(!empleadoFichaActual)return;
+  const id=empleadoFichaActual.id;
+  const [cfg,adv,disc,pay]=await Promise.all([
+    sb.from('empleados_config_pago').select('*').eq('empleado_id',id).maybeSingle(),
+    sb.from('adelantos_empleados').select('*').eq('empleado_id',id).order('fecha',{ascending:false}).order('created_at',{ascending:false}),
+    sb.from('descuentos_empleados').select('*').eq('empleado_id',id).order('fecha',{ascending:false}).order('created_at',{ascending:false}),
+    sb.from('pagos_empleados').select('*').eq('empleado_id',id).order('created_at',{ascending:false})
+  ]);
+  for(const r of [cfg,adv,disc,pay]) if(r.error) console.error('[Ficha empleado]',r.error);
+  empleadoFichaEstado={config:cfg.data||null,adelantos:adv.data||[],descuentos:disc.data||[],pagos:pay.data||[]};
+  renderFichaEmpleado();
+}
+
+function renderFichaEmpleado(){
+  const emp=empleadoFichaActual;if(!emp)return;
+  const cfg=empleadoFichaEstado.config||{};
+  document.getElementById('empFichaFrecuencia').value=cfg.frecuencia||'MENSUAL';
+  document.getElementById('empFichaDiaSemana').value=cfg.dia_semana||'';
+  document.getElementById('empFichaDia1').value=cfg.dia_mes_1||'';
+  document.getElementById('empFichaDia2').value=cfg.dia_mes_2||'';
+  document.getElementById('empFichaConfigObs').value=cfg.observacion||'';
+  actualizarCamposFrecuenciaEmpleado();
+
+  const advPend=empleadoFichaEstado.adelantos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
+  const discPend=empleadoFichaEstado.descuentos.filter(x=>String(x.estado).toUpperCase()==='PENDIENTE');
+  const advTotal=advPend.reduce((s,x)=>s+Number(x.monto||0),0);
+  const discTotal=discPend.reduce((s,x)=>s+Number(x.monto||0),0);
+  const bruto=Number(emp.salario_base||0);
+  const neto=Math.max(0,bruto-advTotal-discTotal);
+  document.getElementById('empFichaSalario').textContent=empFichaMoney(bruto);
+  document.getElementById('empFichaBruto').textContent=empFichaMoney(bruto);
+  document.getElementById('empFichaAdelantosTotal').textContent=empFichaMoney(advTotal);
+  document.getElementById('empFichaAdelantosResumen').textContent='-'+empFichaMoney(advTotal);
+  document.getElementById('empFichaDescuentosTotal').textContent=empFichaMoney(discTotal);
+  document.getElementById('empFichaDescuentosResumen').textContent='-'+empFichaMoney(discTotal);
+  document.getElementById('empFichaNeto').textContent=empFichaMoney(neto);
+  document.getElementById('empFichaProximoPago').textContent=calcularProximoPagoEmpleado(cfg);
+
+  const ab=document.getElementById('empFichaAdelantosBody');
+  ab.innerHTML=empleadoFichaEstado.adelantos.length?empleadoFichaEstado.adelantos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${empFichaEsc(x.observacion||'-')}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularAdelantoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin adelantos registrados</td></tr>';
+
+  const db=document.getElementById('empFichaDescuentosBody');
+  db.innerHTML=empleadoFichaEstado.descuentos.length?empleadoFichaEstado.descuentos.map(x=>`<tr><td>${empFichaFechaAR(x.fecha)}</td><td>${empFichaEsc(x.concepto||'-')}</td><td><strong>${empFichaMoney(x.monto)}</strong></td><td>${empFichaEstadoBadge(x.estado)}</td><td>${String(x.estado).toUpperCase()==='PENDIENTE'?`<button class="btn secondary" onclick="anularDescuentoEmpleado('${x.id}')">Anular</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5" class="emp-ficha-empty">Sin descuentos registrados</td></tr>';
+
+  const hb=document.getElementById('empFichaHistorialBody');
+  hb.innerHTML=empleadoFichaEstado.pagos.length?empleadoFichaEstado.pagos.map(p=>`<tr><td>${empFichaEsc(p.periodo||'-')}</td><td>${empFichaFechaAR(p.fecha_pago||p.fecha_programada)}</td><td>${empFichaMoney(p.monto_bruto??p.monto)}</td><td>${empFichaMoney(p.monto_adelantos||0)}</td><td>${empFichaMoney(p.monto_descuentos||0)}</td><td><strong>${empFichaMoney(p.monto_neto??p.monto)}</strong></td><td>${empFichaEstadoBadge(p.estado)}</td></tr>`).join(''):'<tr><td colspan="7" class="emp-ficha-empty">Sin pagos registrados</td></tr>';
+}
+
+function actualizarCamposFrecuenciaEmpleado(){
+  const f=document.getElementById('empFichaFrecuencia')?.value||'MENSUAL';
+  document.getElementById('empFichaCampoSemana').style.display=f==='SEMANAL'?'block':'none';
+  document.getElementById('empFichaCampoDia1').style.display=f==='SEMANAL'?'none':'block';
+  document.getElementById('empFichaCampoDia2').style.display=(f==='QUINCENAL'||f==='PERSONALIZADO')?'block':'none';
+}
+
+function calcularProximoPagoEmpleado(cfg){
+  if(!cfg||!cfg.frecuencia)return 'Sin configurar';
+  const hoy=new Date();hoy.setHours(0,0,0,0);
+  let prox=null;
+  if(cfg.frecuencia==='SEMANAL'&&cfg.dia_semana){
+    const objetivo=Number(cfg.dia_semana)%7;const actual=hoy.getDay();let delta=(objetivo-actual+7)%7;if(delta===0)delta=7;prox=new Date(hoy);prox.setDate(hoy.getDate()+delta);
+  }else{
+    const dias=[cfg.dia_mes_1,cfg.dia_mes_2].filter(Boolean).map(Number).filter(x=>x>=1&&x<=31);
+    if(!dias.length)return 'Sin día definido';
+    const candidatos=[];
+    for(let add=0;add<=1;add++){
+      const y=hoy.getFullYear(),m=hoy.getMonth()+add;
+      for(const d of dias){const max=new Date(y,m+1,0).getDate();const c=new Date(y,m,Math.min(d,max));c.setHours(0,0,0,0);if(c>=hoy)candidatos.push(c);}
+    }
+    candidatos.sort((a,b)=>a-b);prox=candidatos[0]||null;
+  }
+  return prox?prox.toLocaleDateString('es-AR'):'Sin configurar';
+}
+
+async function guardarConfigPagoEmpleado(){
+  if(!empleadoFichaActual)return;
+  const frecuencia=document.getElementById('empFichaFrecuencia').value;
+  const payload={empleado_id:empleadoFichaActual.id,frecuencia,dia_mes_1:null,dia_mes_2:null,dia_semana:null,observacion:document.getElementById('empFichaConfigObs').value.trim()||null,activo:true,updated_at:new Date().toISOString()};
+  if(frecuencia==='SEMANAL')payload.dia_semana=Number(document.getElementById('empFichaDiaSemana').value)||null;
+  else{payload.dia_mes_1=Number(document.getElementById('empFichaDia1').value)||null;if(frecuencia==='QUINCENAL'||frecuencia==='PERSONALIZADO')payload.dia_mes_2=Number(document.getElementById('empFichaDia2').value)||null;}
+  if(frecuencia==='SEMANAL'&&!payload.dia_semana){alert('Seleccioná el día semanal');return;}
+  if(frecuencia!=='SEMANAL'&&!payload.dia_mes_1){alert('Indicá al menos un día de pago');return;}
+  const r=await sb.from('empleados_config_pago').upsert(payload,{onConflict:'empleado_id'}).select().single();
+  if(r.error){console.error(r.error);alert('No se pudo guardar la configuración');return;}
+  empleadoFichaEstado.config=r.data;renderFichaEmpleado();
+}
+
+async function guardarAdelantoEmpleado(){
+  if(!empleadoFichaActual)return;
+  const monto=Number(document.getElementById('empFichaAdelantoMonto').value||0),fecha=document.getElementById('empFichaAdelantoFecha').value||empFichaHoy(),observacion=document.getElementById('empFichaAdelantoObs').value.trim()||null;
+  if(monto<=0){alert('Ingresá un monto de adelanto válido');return;}
+  const r=await sb.from('adelantos_empleados').insert({empleado_id:empleadoFichaActual.id,fecha,monto,observacion,estado:'PENDIENTE'});
+  if(r.error){console.error(r.error);alert('No se pudo registrar el adelanto');return;}
+  document.getElementById('empFichaAdelantoMonto').value='';document.getElementById('empFichaAdelantoObs').value='';await cargarFichaEmpleado();
+}
+async function anularAdelantoEmpleado(id){if(!confirm('¿Anular este adelanto?'))return;const r=await sb.from('adelantos_empleados').update({estado:'ANULADO',updated_at:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);alert('No se pudo anular');return;}await cargarFichaEmpleado();}
+
+async function guardarDescuentoEmpleado(){
+  if(!empleadoFichaActual)return;
+  const monto=Number(document.getElementById('empFichaDescuentoMonto').value||0),fecha=document.getElementById('empFichaDescuentoFecha').value||empFichaHoy(),concepto=document.getElementById('empFichaDescuentoConcepto').value.trim(),observacion=document.getElementById('empFichaDescuentoObs').value.trim()||null;
+  if(!concepto||monto<=0){alert('Completá concepto y monto del descuento');return;}
+  const r=await sb.from('descuentos_empleados').insert({empleado_id:empleadoFichaActual.id,fecha,concepto,monto,observacion,estado:'PENDIENTE'});
+  if(r.error){console.error(r.error);alert('No se pudo registrar el descuento');return;}
+  document.getElementById('empFichaDescuentoMonto').value='';document.getElementById('empFichaDescuentoConcepto').value='';document.getElementById('empFichaDescuentoObs').value='';await cargarFichaEmpleado();
+}
+async function anularDescuentoEmpleado(id){if(!confirm('¿Anular este descuento?'))return;const r=await sb.from('descuentos_empleados').update({estado:'ANULADO',updated_at:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);alert('No se pudo anular');return;}await cargarFichaEmpleado();}
+</script>
+
 </body>
 </html>
