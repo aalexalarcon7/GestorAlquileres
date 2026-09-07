@@ -4805,6 +4805,36 @@ td:last-child{
   @media(max-width:560px){#modalFichaEmpleado{padding:0}.emp-ficha-shell{width:100%!important;max-height:100vh!important;border-radius:0!important}.emp-ficha-head{border-radius:0}.emp-ficha-grid{grid-template-columns:1fr}.emp-ficha-head-row{align-items:center}.emp-ficha-body{padding:16px}.emp-ficha-head{padding:18px 16px 14px}}
 </style>
 
+
+<style id="empleadosProximosPagosStyles">
+  #viewEmpleados .emp-proximos-card{overflow:hidden}
+  #viewEmpleados .emp-proximos-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;flex-wrap:wrap;margin-bottom:16px}
+  #viewEmpleados .emp-proximos-head h3{margin:0;font-size:18px;color:var(--text)}
+  #viewEmpleados .emp-proximos-head p{margin:6px 0 0;color:var(--muted);font-size:13px;line-height:1.45}
+  #viewEmpleados .emp-proximos-stats{display:grid;grid-template-columns:repeat(3,minmax(135px,1fr));gap:10px;min-width:min(100%,510px)}
+  #viewEmpleados .emp-proximos-stat{border:1px solid var(--border);background:var(--card-2);border-radius:15px;padding:12px 14px;min-width:0}
+  #viewEmpleados .emp-proximos-stat span{display:block;color:var(--muted);font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em}
+  #viewEmpleados .emp-proximos-stat strong{display:block;margin-top:5px;font-size:17px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #viewEmpleados .emp-proximos-table{min-width:1180px!important}
+  #viewEmpleados .emp-proximos-table td:first-child,#viewEmpleados .emp-proximos-table th:first-child{text-align:left}
+  #viewEmpleados .emp-proximos-person{display:flex;flex-direction:column;gap:3px}
+  #viewEmpleados .emp-proximos-person strong{font-size:14px}
+  #viewEmpleados .emp-proximos-person small{color:var(--muted);font-size:12px}
+  #viewEmpleados .emp-proximos-freq{display:flex;flex-direction:column;gap:3px;align-items:center}
+  #viewEmpleados .emp-proximos-freq strong{font-size:12px}
+  #viewEmpleados .emp-proximos-freq small{color:var(--muted);font-size:11px}
+  #viewEmpleados .emp-proximos-badge{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:6px 9px;border-radius:999px;font-size:11px;font-weight:850;white-space:nowrap}
+  #viewEmpleados .emp-proximos-badge.hoy{background:var(--bad-soft);color:var(--bad);border:1px solid var(--bad-border)}
+  #viewEmpleados .emp-proximos-badge.cerca{background:var(--warn-soft);color:var(--warn);border:1px solid var(--warn-border)}
+  #viewEmpleados .emp-proximos-badge.ok{background:var(--info-soft);color:var(--info);border:1px solid var(--info-border)}
+  #viewEmpleados .emp-proximos-badge.none{background:var(--surface-soft);color:var(--muted);border:1px solid var(--border)}
+  #viewEmpleados .emp-proximos-actions{display:flex;justify-content:center;gap:7px;flex-wrap:wrap}
+  #viewEmpleados .emp-proximos-empty{text-align:center!important;padding:34px!important;color:var(--muted)}
+  #viewEmpleados .emp-proximos-note{margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--surface-soft);color:var(--muted);font-size:12px;line-height:1.45}
+  @media(max-width:900px){#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr 1fr;width:100%}}
+  @media(max-width:560px){#viewEmpleados .emp-proximos-stats{grid-template-columns:1fr}}
+</style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -5140,6 +5170,41 @@ td:last-child{
       <strong id="empCostoMensual" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
       <span style="color:var(--muted);">Personal activo</span>
     </div>
+  </div>
+
+  <div class="card emp-proximos-card" style="margin-top:20px;">
+    <div class="emp-proximos-head">
+      <div>
+        <h3>📅 Próximos pagos</h3>
+        <p>Resumen de fechas configuradas, adelantos, descuentos y monto estimado a pagar por empleado.</p>
+      </div>
+      <div class="emp-proximos-stats">
+        <div class="emp-proximos-stat"><span>Con calendario</span><strong id="empProximosCantidad">0 empleados</strong></div>
+        <div class="emp-proximos-stat"><span>Total estimado</span><strong id="empProximosTotal">$ 0</strong></div>
+        <div class="emp-proximos-stat"><span>Próximo pago</span><strong id="empProximoFecha">Sin configurar</strong></div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="desktop-table emp-proximos-table">
+        <thead>
+          <tr>
+            <th>Empleado</th>
+            <th>Frecuencia</th>
+            <th>Próximo pago</th>
+            <th>Salario base</th>
+            <th>Adelantos</th>
+            <th>Descuentos</th>
+            <th>Neto estimado</th>
+            <th>Situación</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="empProximosPagosBody">
+          <tr><td colspan="9" class="emp-proximos-empty">Cargando calendario de pagos...</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="emp-proximos-note">El neto es estimativo y usa el salario base registrado menos adelantos y descuentos pendientes. No se aplica todavía ninguna distribución especial por quincenas.</div>
   </div>
 
   <div class="card" style="margin-top:20px;">
@@ -20221,10 +20286,10 @@ async function cargarEmpleados(){
 
   const activos = (data || []).filter(e=>e.activo);
 
+  const totalCostoMensual=activos.reduce((s,e)=>s+Number(e.salario_base||0),0);
   const costo = document.getElementById('empCostoMensual');
   if(costo){
-    const totalCosto=activos.reduce((s,e)=>s+Number(e.salario_base||0),0);
-    costo.textContent='$ '+totalCosto.toLocaleString('es-AR');
+    costo.textContent='$ '+totalCostoMensual.toLocaleString('es-AR');
   }
 
   const pagados = await sb.from('pagos_empleados').select('*').eq('estado','PAGADO');
@@ -20233,15 +20298,27 @@ async function cargarEmpleados(){
   const anioActual = new Date().getFullYear();
   const pagosMes = pagos.filter(p=>Number(p.mes)===mesActual && Number(p.anio)===anioActual);
   const pagadosEl=document.getElementById('empPagadosMes');
+  const totalPagadoMes=pagosMes.reduce((s,p)=>s+Number(p.monto||0),0);
   if(pagadosEl){
-    pagadosEl.textContent='$ '+pagosMes.reduce((s,p)=>s+Number(p.monto||0),0).toLocaleString('es-AR');
+    pagadosEl.textContent='$ '+totalPagadoMes.toLocaleString('es-AR');
+  }
+  const pendientesEl=document.getElementById('empPendientes');
+  if(pendientesEl){
+    pendientesEl.textContent='$ '+Math.max(0,totalCostoMensual-totalPagadoMes).toLocaleString('es-AR');
+  }
+
+  try{
+    await cargarProximosPagosEmpleados(data || [], pagos);
+  }catch(err){
+    console.error('[Empleados próximos pagos]',err);
   }
 
   const hist=document.getElementById('historialSueldosBody');
+  const empleadosPorId=new Map((data||[]).map(e=>[String(e.id),e]));
   if(hist && pagos.length){
     hist.innerHTML=pagos.slice(0,10).map(p=>`
       <tr>
-        <td>${p.empleado_id}</td>
+        <td>${empProxEsc(empleadosPorId.get(String(p.empleado_id))?.nombre || ('Empleado #'+p.empleado_id))}</td>
         <td>${p.periodo||'-'}</td>
         <td>$ ${Number(p.monto||0).toLocaleString('es-AR')}</td>
         <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534;">🟢 ${p.estado}</span></td>
@@ -20743,6 +20820,137 @@ async function guardarDescuentoEmpleado(){
   document.getElementById('empFichaDescuentoMonto').value='';document.getElementById('empFichaDescuentoConcepto').value='';document.getElementById('empFichaDescuentoObs').value='';await cargarFichaEmpleado();
 }
 async function anularDescuentoEmpleado(id){if(!confirm('¿Anular este descuento?'))return;const r=await sb.from('descuentos_empleados').update({estado:'ANULADO',updated_at:new Date().toISOString()}).eq('id',id);if(r.error){console.error(r.error);alert('No se pudo anular');return;}await cargarFichaEmpleado();}
+</script>
+
+
+<script id="empleadosProximosPagosScript">
+function empProxEsc(value){
+  return String(value ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+function empProxMoney(value){
+  return '$ '+Number(value||0).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:2});
+}
+function empProxStartOfDay(date){
+  const d=new Date(date);d.setHours(0,0,0,0);return d;
+}
+function empProxLocalDate(y,m,d){
+  const max=new Date(y,m+1,0).getDate();
+  return new Date(y,m,Math.min(Number(d),max));
+}
+function empProxNextDate(cfg,desde){
+  if(!cfg || !cfg.frecuencia) return null;
+  const hoy=empProxStartOfDay(desde||new Date());
+  const frecuencia=String(cfg.frecuencia).toUpperCase();
+  if(frecuencia==='SEMANAL'){
+    const dia=Number(cfg.dia_semana||0);
+    if(dia<1||dia>7)return null;
+    const objetivo=dia%7;
+    const delta=(objetivo-hoy.getDay()+7)%7;
+    const prox=new Date(hoy);prox.setDate(prox.getDate()+delta);return prox;
+  }
+  const dias=[cfg.dia_mes_1,cfg.dia_mes_2]
+    .map(Number).filter(d=>d>=1&&d<=31);
+  if(!dias.length)return null;
+  const candidatos=[];
+  for(let add=0;add<3;add++){
+    const base=new Date(hoy.getFullYear(),hoy.getMonth()+add,1);
+    for(const dia of dias){
+      const f=empProxLocalDate(base.getFullYear(),base.getMonth(),dia);
+      f.setHours(0,0,0,0);
+      if(f>=hoy)candidatos.push(f);
+    }
+  }
+  candidatos.sort((a,b)=>a-b);
+  return candidatos[0]||null;
+}
+function empProxFrecuenciaDetalle(cfg){
+  if(!cfg)return {titulo:'Sin configurar',detalle:'Definir días de pago'};
+  const f=String(cfg.frecuencia||'').toUpperCase();
+  if(f==='SEMANAL'){
+    const dias=['','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+    return {titulo:'Semanal',detalle:dias[Number(cfg.dia_semana)]||'Sin día'};
+  }
+  const nombres={MENSUAL:'Mensual',QUINCENAL:'Quincenal',PERSONALIZADO:'Personalizado'};
+  const ds=[cfg.dia_mes_1,cfg.dia_mes_2].filter(Boolean);
+  return {titulo:nombres[f]||f||'Sin configurar',detalle:ds.length?('Día'+(ds.length>1?'s ':' ')+ds.join(' y ')):'Sin día'};
+}
+function empProxBadge(fecha,cfg){
+  if(!cfg||!fecha)return '<span class="emp-proximos-badge none">⚪ Sin configurar</span>';
+  const hoy=empProxStartOfDay(new Date());
+  const dias=Math.round((fecha-hoy)/86400000);
+  if(dias===0)return '<span class="emp-proximos-badge hoy">🔴 Hoy</span>';
+  if(dias<=3)return `<span class="emp-proximos-badge cerca">🟠 En ${dias} día${dias===1?'':'s'}</span>`;
+  if(dias<=7)return `<span class="emp-proximos-badge cerca">🟡 En ${dias} días</span>`;
+  return '<span class="emp-proximos-badge ok">🔵 Programado</span>';
+}
+async function cargarProximosPagosEmpleados(empleados,pagos){
+  const body=document.getElementById('empProximosPagosBody');
+  if(!body)return;
+  const activos=(empleados||[]).filter(e=>e.activo);
+  if(!activos.length){
+    body.innerHTML='<tr><td colspan="9" class="emp-proximos-empty">No hay empleados activos para mostrar.</td></tr>';
+    const cant=document.getElementById('empProximosCantidad');if(cant)cant.textContent='0 empleados';
+    const total=document.getElementById('empProximosTotal');if(total)total.textContent='$ 0';
+    const fecha=document.getElementById('empProximoFecha');if(fecha)fecha.textContent='Sin configurar';
+    return;
+  }
+  const ids=activos.map(e=>e.id);
+  const [cfgRes,advRes,descRes]=await Promise.all([
+    sb.from('empleados_config_pago').select('*').in('empleado_id',ids).eq('activo',true),
+    sb.from('adelantos_empleados').select('empleado_id,monto,estado').in('empleado_id',ids).eq('estado','PENDIENTE'),
+    sb.from('descuentos_empleados').select('empleado_id,monto,estado').in('empleado_id',ids).eq('estado','PENDIENTE')
+  ]);
+  if(cfgRes.error)throw cfgRes.error;
+  if(advRes.error)throw advRes.error;
+  if(descRes.error)throw descRes.error;
+  const cfgMap=new Map((cfgRes.data||[]).map(x=>[String(x.empleado_id),x]));
+  const sumarPorEmpleado=(rows)=>{
+    const m=new Map();
+    for(const r of rows||[]){const k=String(r.empleado_id);m.set(k,(m.get(k)||0)+Number(r.monto||0));}
+    return m;
+  };
+  const advMap=sumarPorEmpleado(advRes.data);
+  const descMap=sumarPorEmpleado(descRes.data);
+  const filas=activos.map(emp=>{
+    const key=String(emp.id),cfg=cfgMap.get(key)||null;
+    const adelantos=advMap.get(key)||0,descuentos=descMap.get(key)||0;
+    const bruto=Number(emp.salario_base||0),neto=Math.max(0,bruto-adelantos-descuentos);
+    const proxima=empProxNextDate(cfg,new Date());
+    return {emp,cfg,adelantos,descuentos,bruto,neto,proxima};
+  }).sort((a,b)=>{
+    if(a.proxima&&b.proxima)return a.proxima-b.proxima;
+    if(a.proxima)return -1;if(b.proxima)return 1;
+    return String(a.emp.nombre||'').localeCompare(String(b.emp.nombre||''),'es');
+  });
+  const configurados=filas.filter(x=>x.proxima);
+  const totalEstimado=configurados.reduce((s,x)=>s+x.neto,0);
+  const proximaGlobal=configurados[0]?.proxima||null;
+  const cant=document.getElementById('empProximosCantidad');
+  if(cant)cant.textContent=`${configurados.length} de ${activos.length}`;
+  const total=document.getElementById('empProximosTotal');
+  if(total)total.textContent=empProxMoney(totalEstimado);
+  const fecha=document.getElementById('empProximoFecha');
+  if(fecha)fecha.textContent=proximaGlobal?proximaGlobal.toLocaleDateString('es-AR'):'Sin configurar';
+  body.innerHTML=filas.map(({emp,cfg,adelantos,descuentos,bruto,neto,proxima})=>{
+    const fr=empProxFrecuenciaDetalle(cfg);
+    return `<tr>
+      <td><div class="emp-proximos-person"><strong>${empProxEsc(emp.nombre||'Sin nombre')}</strong><small>${empProxEsc(emp.cargo||'-')}</small></div></td>
+      <td><div class="emp-proximos-freq"><strong>${empProxEsc(fr.titulo)}</strong><small>${empProxEsc(fr.detalle)}</small></div></td>
+      <td><strong>${proxima?proxima.toLocaleDateString('es-AR'):'—'}</strong></td>
+      <td>${empProxMoney(bruto)}</td>
+      <td>${adelantos?('-'+empProxMoney(adelantos)):empProxMoney(0)}</td>
+      <td>${descuentos?('-'+empProxMoney(descuentos)):empProxMoney(0)}</td>
+      <td><strong>${empProxMoney(neto)}</strong></td>
+      <td>${empProxBadge(proxima,cfg)}</td>
+      <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')">👤 Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)})">💰 Pagar</button></div></td>
+    </tr>`;
+  }).join('');
+}
 </script>
 
 </body>
