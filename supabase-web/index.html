@@ -5575,6 +5575,268 @@ td:last-child{
     #modalPagarObligacion > .ui-modal-panel > div:last-child{bottom:-18px;margin:16px -18px -18px!important;padding:12px 18px 16px!important}
   }
 </style>
+
+<style id="uiSafePolishV4">
+  /* =========================================================
+     UI SAFE POLISH V4
+     Capa exclusivamente visual. No modifica lógica ni eventos.
+     ========================================================= */
+
+  /* Interacciones y accesibilidad */
+  .btn,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  .sb-item,
+  .mobile-nav-item,
+  .emp-ficha-tab,
+  .config-tab,
+  .card,
+  .badge{
+    transition:
+      background-color .16s ease,
+      border-color .16s ease,
+      color .16s ease,
+      box-shadow .16s ease,
+      opacity .16s ease,
+      transform .16s ease;
+  }
+
+  :where(button,.btn,[role="button"],input,select,textarea,a):focus-visible{
+    outline:3px solid color-mix(in srgb, var(--info) 28%, transparent);
+    outline-offset:2px;
+  }
+
+  :where(button,.btn,[role="button"],input,select,textarea):disabled,
+  :where(button,.btn,[role="button"])[aria-disabled="true"]{
+    opacity:.52 !important;
+    cursor:not-allowed !important;
+    transform:none !important;
+    box-shadow:none !important;
+  }
+
+  /* Cards: terminación más sobria y consistente */
+  .card{
+    border-color:var(--border);
+  }
+
+  /* Tablas: lectura, hover y estados vacíos */
+  .tableWrap,
+  .table-wrap,
+  .recibos-table-wrap,
+  .docs-table-wrap{
+    scrollbar-width:thin;
+    scrollbar-color:var(--border-strong) transparent;
+  }
+
+  .tableWrap::-webkit-scrollbar,
+  .table-wrap::-webkit-scrollbar,
+  .recibos-table-wrap::-webkit-scrollbar,
+  .docs-table-wrap::-webkit-scrollbar{
+    height:8px;
+    width:8px;
+  }
+  .tableWrap::-webkit-scrollbar-thumb,
+  .table-wrap::-webkit-scrollbar-thumb,
+  .recibos-table-wrap::-webkit-scrollbar-thumb,
+  .docs-table-wrap::-webkit-scrollbar-thumb{
+    background:var(--border-strong);
+    border-radius:999px;
+  }
+
+  table th{
+    white-space:nowrap;
+    line-height:1.25;
+  }
+  table td{
+    line-height:1.35;
+  }
+  @media (hover:hover) and (pointer:fine){
+    tbody tr:hover > td{
+      background:var(--hover);
+    }
+  }
+
+  /* Los renglones de placeholder/carga que ya existen quedan más compactos. */
+  tbody > tr:only-child > td[colspan],
+  .emp-proximos-empty,
+  .emp-ficha-empty{
+    padding-top:24px !important;
+    padding-bottom:24px !important;
+    color:var(--muted) !important;
+  }
+
+  /* Badges / estados: misma métrica en toda la aplicación */
+  .badge,
+  .emp-ficha-badge,
+  .emp-proximos-badge{
+    min-height:24px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:6px;
+    padding:3px 9px;
+    border-radius:999px;
+    font-size:11.5px;
+    font-weight:800;
+    line-height:1;
+    letter-spacing:.01em;
+    white-space:nowrap;
+  }
+
+  /* Ficha de empleado: tabs con patrón de navegación, no de botón. */
+  .emp-ficha-tabs{
+    gap:2px;
+    align-items:flex-end;
+    border-bottom:1px solid var(--border);
+    margin-top:18px;
+  }
+  .emp-ficha-tab{
+    position:relative;
+    min-height:38px;
+    padding:9px 12px 10px;
+    border:0 !important;
+    border-radius:8px 8px 0 0 !important;
+    background:transparent !important;
+    color:var(--muted) !important;
+    box-shadow:none !important;
+    font-size:13px;
+    font-weight:750;
+  }
+  .emp-ficha-tab::after{
+    content:"";
+    position:absolute;
+    left:10px;
+    right:10px;
+    bottom:-1px;
+    height:2px;
+    border-radius:2px 2px 0 0;
+    background:transparent;
+    transition:background-color .16s ease;
+  }
+  .emp-ficha-tab:hover{
+    color:var(--text) !important;
+    background:var(--surface-soft) !important;
+  }
+  .emp-ficha-tab.active{
+    color:var(--text) !important;
+    background:var(--surface-soft) !important;
+  }
+  .emp-ficha-tab.active::after{
+    background:var(--text);
+  }
+
+  /* Formularios: estados claros sin cambiar estructura ni valores */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea{
+    border-color:var(--border);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):hover:not(:disabled),
+  select:hover:not(:disabled),
+  textarea:hover:not(:disabled){
+    border-color:var(--border-strong);
+  }
+  input:not([type="checkbox"]):not([type="radio"]):focus,
+  select:focus,
+  textarea:focus{
+    border-color:color-mix(in srgb, var(--info) 58%, var(--border));
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--info) 10%, transparent);
+  }
+
+  /* Modales: animación mínima y profundidad consistente. Solo visual. */
+  .modalBack{
+    backdrop-filter:blur(2px);
+    -webkit-backdrop-filter:blur(2px);
+  }
+  .modalBack .modal,
+  .modalBack .activo-modal,
+  .modalBack .emp-ficha-modal,
+  .modalBack > div[class*="modal"]{
+    animation:uiModalEnter .16s cubic-bezier(.2,.75,.3,1) both;
+  }
+  @keyframes uiModalEnter{
+    from{opacity:0;transform:translateY(6px) scale(.992)}
+    to{opacity:1;transform:translateY(0) scale(1)}
+  }
+
+  /* Sidebar y navegación: feedback sutil sin cambiar rutas/onclick */
+  .sb-item,
+  .mobile-nav-item{
+    -webkit-tap-highlight-color:transparent;
+  }
+  @media (hover:hover) and (pointer:fine){
+    .sb-item:not(.active):hover{
+      transform:translateX(1px);
+    }
+  }
+
+  /* Tooltips nativos existentes: el cursor deja claro qué es accionable. */
+  button[title],
+  .btn[title],
+  [role="button"][title]{
+    cursor:pointer;
+  }
+
+  /* Dark mode: evita contrastes demasiado fuertes en capas secundarias. */
+  [data-theme="dark"] .emp-ficha-tab:hover,
+  [data-theme="dark"] .emp-ficha-tab.active{
+    background:rgba(255,255,255,.045) !important;
+  }
+  [data-theme="dark"] input:not([type="checkbox"]):not([type="radio"]):focus,
+  [data-theme="dark"] select:focus,
+  [data-theme="dark"] textarea:focus{
+    box-shadow:0 0 0 3px rgba(96,165,250,.12);
+  }
+
+  /* Responsive: preservar funcionalidad y reducir fricción en pantallas chicas. */
+  @media (max-width:900px){
+    .emp-ficha-tabs{
+      overflow-x:auto;
+      flex-wrap:nowrap;
+      scrollbar-width:none;
+      -webkit-overflow-scrolling:touch;
+    }
+    .emp-ficha-tabs::-webkit-scrollbar{display:none}
+    .emp-ficha-tab{flex:0 0 auto}
+  }
+
+  @media (max-width:720px){
+    .modalBack{
+      padding:9px !important;
+      align-items:flex-end;
+    }
+    .modalBack .modal,
+    .modalBack .activo-modal,
+    .modalBack .emp-ficha-modal{
+      max-height:calc(100dvh - 18px);
+      border-radius:14px 14px 10px 10px !important;
+    }
+    table th,
+    table td{
+      font-size:12.5px;
+    }
+    .badge,
+    .emp-ficha-badge,
+    .emp-proximos-badge{
+      min-height:23px;
+      font-size:11px;
+    }
+  }
+
+  /* Respeta usuarios que prefieren menos movimiento. */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{
+      scroll-behavior:auto !important;
+      animation-duration:.01ms !important;
+      animation-iteration-count:1 !important;
+      transition-duration:.01ms !important;
+    }
+  }
+</style>
+
 </head>
 <body>
 <!-- SPLASH -->
