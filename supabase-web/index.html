@@ -5563,7 +5563,7 @@ td:last-child{
                 <div>
                   <h3 style="margin:0;">Condiciones del alquiler</h3>
                 </div>
-                <button class="btn primary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
+                <button class="btn secondary" id="detalleCondicionesBtn" onclick="openAlquilerModal()">Modificar alquiler</button>
               </div>
               <div class="detail-info-grid" id="detalleCondicionesGrid"></div>
 
@@ -5578,9 +5578,9 @@ td:last-child{
               </div>
             </div>
 
-            <div class="detalle-section-title-action detalle-section-title-action--cuotas" style="display:grid!important;grid-template-columns:1fr!important;justify-items:center!important;align-items:center!important;text-align:center!important;gap:12px!important;margin:30px auto 18px!important;width:100%!important;clear:both!important;">
-              <h3 style="margin:0!important;text-align:center!important;width:100%!important;">Cuotas y deuda</h3>
-              <button class="btn primary" style="margin:0 auto!important;width:auto!important;min-width:150px!important;justify-self:center!important;" onclick="openAgregarMesModal()">Agregar mes</button>
+            <div class="detalle-section-title-action detalle-section-title-action--cuotas">
+              <h3>Cuotas y deuda</h3>
+              <button class="btn secondary" onclick="openAgregarMesModal()">Agregar mes</button>
             </div>
 
             <div class="tableWrap detalle-cuotas-table-wrap">
@@ -5605,9 +5605,9 @@ td:last-child{
             <div class="toast" id="detalleMsg"></div>
             <div class="hr"></div>
 
-            <div class="detalle-section-title-action detalle-section-title-action--recibos" style="display:grid!important;grid-template-columns:1fr!important;justify-items:center!important;align-items:center!important;text-align:center!important;gap:12px!important;margin:30px auto 18px!important;width:100%!important;clear:both!important;">
-              <h3 style="margin:0!important;text-align:center!important;width:100%!important;">Recibos vinculados</h3>
-              <button class="btn" style="margin:0 auto!important;width:auto!important;min-width:190px!important;justify-self:center!important;" onclick="openDocumentosFromDetalle()">Ver todos en Recibos</button>
+            <div class="detalle-section-title-action detalle-section-title-action--recibos">
+              <h3>Recibos vinculados</h3>
+              <button class="btn secondary" onclick="openDocumentosFromDetalle()">Ver todos en Recibos</button>
             </div>
 
 
@@ -6180,7 +6180,7 @@ td:last-child{
   <!-- MODAL COBRO POR COMPONENTES (Etapa 4 — Beta) -->
   <div class="modalBack" id="cobroCompBack" style="display:none;">
     <div class="modal">
-      <div class="row" style="justify-content:space-between;align-items:flex-start;gap:12px;">
+      <div class="row cobro-comp-header" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;">Cobro por componentes <span style="font-size:13px;font-weight:500;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;margin-left:6px;">Beta</span></h3>
           <div class="muted" style="font-size:12px;margin-top:3px;">Imputá alquiler, impuesto y servicio por separado. Siempre con vista previa antes de guardar.</div>
@@ -6188,7 +6188,7 @@ td:last-child{
         <button class="btn" onclick="closeCobroComp()">Cerrar</button>
       </div>
 
-      <div id="cobroCompMeta" style="font-weight:700;margin:8px 0;color:#475569;"></div>
+      <div id="cobroCompMeta" class="cobro-comp-meta" style="font-weight:700;color:#475569;"></div>
 
       <!-- Bloqueo: cuotas sin componentes o sin saldo pendiente -->
       <div id="cobroCompNoComp" style="display:none;padding:14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:10px 0;">
@@ -6196,7 +6196,7 @@ td:last-child{
         Si hay cuotas con saldo pendiente que no aparecen, usá <em>Editar</em> en la grilla para preparar sus componentes manualmente.
       </div>
 
-      <div id="cobroCompFormArea">
+      <div id="cobroCompFormArea" class="cobro-comp-scroll">
         <!-- Datos básicos -->
         <div class="row" style="margin-top:14px;align-items:flex-end;flex-wrap:wrap;gap:12px;">
           <div style="display:flex;flex-direction:column;gap:4px;">
@@ -6238,7 +6238,7 @@ td:last-child{
         </div>
 
         <!-- Totales en tiempo real -->
-        <div class="row" style="margin-top:12px;align-items:center;flex-wrap:wrap;gap:18px;padding:10px 0;border-top:1px solid #f1f5f9;">
+        <div class="row cobro-comp-totals" style="margin-top:12px;align-items:center;flex-wrap:wrap;gap:18px;padding:10px 0;border-top:1px solid #f1f5f9;">
           <div>
             <span class="muted" style="font-size:12px;">Total recibido:</span>
             <strong id="cobroCompTotalDisplay" style="margin-left:4px;">$0</strong>
@@ -6255,16 +6255,6 @@ td:last-child{
             El total imputado no coincide con el total recibido.
           </div>
         </div>
-
-        <!-- Acciones -->
-        <div class="row" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center;">
-          <button class="btn" type="button" onclick="sugerirDistribucionCobroComp()">Sugerir distribución</button>
-          <button class="btn" type="button" onclick="limpiarDistribucionCobroComp()">Limpiar</button>
-          <button class="btn primary" id="cobroCompBtnPreview" type="button" onclick="vistaPreviewCobroComp()" disabled>Vista previa</button>
-          <button class="btn primary" id="cobroCompBtnConfirmar" type="button" onclick="confirmarCobroComp()" disabled
-            style="background:#15803d;border-color:#15803d;">Confirmar cobro</button>
-        </div>
-
         <div class="toast" id="cobroCompMsg" style="margin-top:8px;"></div>
 
         <!-- Panel vista previa dry_run (contenido generado por renderDryRunCobroComp) -->
@@ -6272,6 +6262,13 @@ td:last-child{
           <div id="cobroCompPreviewBody"></div>
         </div>
       </div>
+      <div class="row cobro-comp-actions-bar" style="margin-top:12px;gap:8px;flex-wrap:wrap;align-items:center;">
+          <button class="btn" type="button" onclick="sugerirDistribucionCobroComp()">Sugerir distribución</button>
+          <button class="btn" type="button" onclick="limpiarDistribucionCobroComp()">Limpiar</button>
+          <button class="btn primary" id="cobroCompBtnPreview" type="button" onclick="vistaPreviewCobroComp()" disabled>Vista previa</button>
+          <button class="btn primary" id="cobroCompBtnConfirmar" type="button" onclick="confirmarCobroComp()" disabled
+            style="background:#15803d;border-color:#15803d;">Confirmar cobro</button>
+        </div>
     </div>
   </div>
 
@@ -21667,6 +21664,245 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
   }).join('');
 }
 </script>
+
+
+<style id="uiRefinementPhase20260917">
+  /* ===== Refinamiento visual global: densidad, jerarquia y consistencia ===== */
+  main .card{
+    border-radius:16px !important;
+    box-shadow:0 5px 18px rgba(15,23,42,.055) !important;
+  }
+  [data-theme="dark"] main .card{box-shadow:0 8px 22px rgba(0,0,0,.18) !important;}
+
+  main .tableWrap,
+  main .table-wrap{
+    border-radius:12px !important;
+    box-shadow:none !important;
+    background:var(--card);
+  }
+  main table th{
+    padding:10px 12px !important;
+    font-size:10px !important;
+    letter-spacing:.075em !important;
+    font-weight:850 !important;
+  }
+  main table td{padding:11px 12px !important;}
+  main tbody tr{transition:background-color .14s ease;}
+  main tbody tr:last-child td{border-bottom:0;}
+
+  input,select,textarea{
+    border-radius:9px !important;
+    box-shadow:none;
+  }
+  input:focus,select:focus,textarea:focus{
+    outline:none;
+    border-color:#94a3b8 !important;
+    box-shadow:0 0 0 3px rgba(148,163,184,.16) !important;
+  }
+
+  /* ===== Detalle del activo ===== */
+  #detalleCard{padding:18px !important;border-radius:16px !important;}
+  #detalleCard > .row:first-child h2{font-size:22px !important;}
+  #detalleCard > .hr{margin:12px 0 14px !important;}
+
+  #detalleCard .detalle-section-head{
+    display:flex !important;
+    justify-content:space-between !important;
+    align-items:center !important;
+    text-align:left !important;
+    gap:12px !important;
+    margin:18px 0 8px !important;
+    padding:0 0 9px !important;
+    border-bottom:1px solid var(--border);
+  }
+  #detalleCard .detalle-section-head:first-child{margin-top:0 !important;}
+  #detalleCard .detalle-section-head > div:first-child{
+    flex:0 1 auto !important;
+    text-align:left !important;
+  }
+  #detalleCard .detalle-section-head > .row{
+    margin-left:auto !important;
+    flex:0 0 auto !important;
+    justify-content:flex-end !important;
+  }
+  #detalleCard .detalle-section-head h3{
+    margin:0 !important;
+    text-align:left !important;
+    font-size:16px !important;
+    letter-spacing:-.01em;
+  }
+  #detalleCard .detalle-section-head > .btn{margin:0 !important;}
+
+  #detalleCard .detail-info-grid{
+    gap:8px !important;
+    margin-top:10px !important;
+  }
+  #detalleCard .detail-info-item{
+    min-height:70px !important;
+    padding:11px 13px !important;
+    border-radius:11px !important;
+    background:var(--card-2) !important;
+    box-shadow:none !important;
+  }
+  #detalleCard .detail-info-label{
+    margin-bottom:5px !important;
+    font-size:10px !important;
+    letter-spacing:.07em !important;
+  }
+  #detalleCard .detail-info-value{
+    font-size:14px !important;
+    line-height:1.25 !important;
+  }
+  #detalleCard .detail-info-value.small{font-size:13px !important;}
+
+  #detalleCard .detalle-resumen-wrap{margin-top:16px !important;}
+  #detalleCard .detalle-resumen-card{
+    width:100% !important;
+    border-radius:14px !important;
+    padding:14px !important;
+    box-shadow:none !important;
+  }
+  #detalleCard .detalle-resumen-head{text-align:left !important;margin-bottom:10px !important;}
+  #detalleCard .detalle-resumen-title{font-size:16px !important;}
+  #detalleCard .detalle-resumen-grid{gap:8px !important;}
+  #detalleCard .detalle-resumen-item{
+    min-height:86px !important;
+    padding:12px !important;
+    border-radius:11px !important;
+    box-shadow:none !important;
+  }
+
+  #detalleCard .detalle-section-title-action{
+    display:flex !important;
+    align-items:center !important;
+    justify-content:space-between !important;
+    gap:12px !important;
+    width:100% !important;
+    margin:24px 0 10px !important;
+    padding:0 0 9px !important;
+    border-bottom:1px solid var(--border);
+    text-align:left !important;
+  }
+  #detalleCard .detalle-section-title-action h3{
+    margin:0 !important;
+    width:auto !important;
+    text-align:left !important;
+    font-size:16px !important;
+  }
+  #detalleCard .detalle-section-title-action .btn{
+    width:auto !important;
+    min-width:0 !important;
+    margin:0 !important;
+  }
+
+  /* ===== Empleados: destacar lo importante sin ruido ===== */
+  #viewEmpleados .emp-proximos-table td:nth-child(3) strong{
+    font-size:14px !important;
+    font-weight:900 !important;
+  }
+  #viewEmpleados .emp-liquidacion-item:not(.neto){opacity:.72;}
+  #viewEmpleados .emp-liquidacion-item.neto{
+    opacity:1;
+    border-left:2px solid var(--text) !important;
+    border-top:0 !important;
+    padding:5px 8px !important;
+    margin:0 !important;
+    border-radius:7px;
+    background:var(--surface-soft);
+  }
+  #viewEmpleados .emp-liquidacion-item.neto span{font-weight:900 !important;}
+  #viewEmpleados .emp-liquidacion-item.neto strong{font-size:14px !important;}
+  #viewEmpleados .emp-proximos-empty{padding:20px !important;}
+
+  /* ===== Impuestos: estados vacios mas compactos ===== */
+  #panelAlertasPagos,
+  #panelProximosVencimientos{padding:15px 17px !important;}
+  #panelAlertasPagos #impAlertasLista,
+  #panelProximosVencimientos #listaProximos{margin-top:8px !important;}
+  #panelAlertasPagos #impAlertasLista > div,
+  #panelProximosVencimientos #listaProximos > div{
+    padding-top:10px !important;
+    padding-bottom:10px !important;
+  }
+
+  /* ===== Cobro por componentes: header/footer persistentes y cuerpo desplazable ===== */
+  #cobroCompBack .modal{
+    width:min(980px,calc(100vw - 24px)) !important;
+    height:min(90vh,820px);
+    max-height:92vh !important;
+    padding:0 !important;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden !important;
+    border-radius:18px !important;
+  }
+  #cobroCompBack .cobro-comp-header{
+    flex:0 0 auto;
+    margin:0 !important;
+    padding:15px 18px 12px;
+    border-bottom:1px solid var(--border);
+    background:var(--card);
+  }
+  #cobroCompBack .cobro-comp-header h3{font-size:16px !important;}
+  #cobroCompBack .cobro-comp-meta{
+    flex:0 0 auto;
+    margin:0 !important;
+    padding:9px 18px 0;
+    background:var(--card);
+    font-size:13px;
+  }
+  #cobroCompBack .cobro-comp-scroll{
+    flex:1 1 auto;
+    min-height:0;
+    overflow-y:auto;
+    overflow-x:hidden;
+    padding:0 18px 14px;
+    scrollbar-gutter:stable;
+  }
+  #cobroCompBack .cobro-comp-scroll::-webkit-scrollbar{width:9px;}
+  #cobroCompBack .cobro-comp-scroll::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:999px;border:2px solid transparent;background-clip:padding-box;}
+  #cobroCompBack .cobro-comp-actions-bar{
+    flex:0 0 auto;
+    margin:0 !important;
+    padding:11px 18px !important;
+    border-top:1px solid var(--border);
+    background:var(--card);
+    justify-content:flex-end;
+    gap:8px !important;
+    box-shadow:0 -8px 22px rgba(15,23,42,.055);
+  }
+  #cobroCompBack .cobro-comp-actions-bar .btn{min-height:36px;}
+  #cobroCompBack .cobro-comp-totals{
+    margin-top:10px !important;
+    padding:10px 12px !important;
+    border:1px solid var(--border) !important;
+    border-radius:10px;
+    background:var(--surface-soft);
+  }
+  #cobroCompBack .cobro-comp-table th{padding:8px 9px !important;font-size:10px !important;}
+  #cobroCompBack .cobro-comp-table td{padding:7px 8px !important;}
+  #cobroCompBack .cobro-comp-input{height:34px;border-radius:8px !important;}
+  #cobroCompBack .cc-medio-select,
+  #cobroCompBack .cc-medio-monto{height:36px;border-radius:8px !important;}
+  #cobroCompBack #cobroCompNotaAdicional{min-height:72px !important;}
+  #cobroCompBack .cobro-comp-preview-box{border-radius:12px !important;}
+
+  @media (max-width:760px){
+    #detalleCard .detalle-section-head,
+    #detalleCard .detalle-section-title-action{
+      align-items:stretch !important;
+      flex-direction:column !important;
+    }
+    #detalleCard .detalle-section-head > .row{margin-left:0 !important;justify-content:flex-start !important;}
+    #detalleCard .detalle-section-title-action .btn{width:100% !important;}
+    #cobroCompBack .modal{height:94vh;max-height:94vh !important;width:calc(100vw - 12px) !important;}
+    #cobroCompBack .cobro-comp-header{padding:12px 14px 10px;}
+    #cobroCompBack .cobro-comp-meta{padding:8px 14px 0;}
+    #cobroCompBack .cobro-comp-scroll{padding:0 14px 12px;}
+    #cobroCompBack .cobro-comp-actions-bar{padding:10px 14px !important;}
+    #cobroCompBack .cobro-comp-actions-bar .btn{flex:1 1 calc(50% - 8px);}
+  }
+</style>
 
 </body>
 </html>
