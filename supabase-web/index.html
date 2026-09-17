@@ -5073,6 +5073,65 @@ td:last-child{
   }
 </style>
 
+
+<style id="uiProfessionalIconsStyle">
+  .ui-icon{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;flex:0 0 18px;vertical-align:-3px;color:currentColor}
+  .ui-icon svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .ui-icon.sm{width:15px;height:15px;flex-basis:15px}.ui-icon.lg{width:22px;height:22px;flex-basis:22px}
+  .ui-icon.xl{width:26px;height:26px;flex-basis:26px}
+  .ui-inline-title{display:inline-flex;align-items:center;gap:8px}
+  .ui-status-dot{display:inline-block;width:8px;height:8px;border-radius:999px;margin-right:7px;vertical-align:1px;background:#94a3b8}
+  .ui-status-dot.ok{background:#22c55e}.ui-status-dot.bad{background:#ef4444}.ui-status-dot.warn{background:#f59e0b}.ui-status-dot.info{background:#3b82f6}.ui-status-dot.muted{background:#94a3b8}
+  button .ui-icon{margin-right:6px}
+  .icon-btn .ui-icon,.sb-item-icon.ui-icon,.mobile-nav-icon.ui-icon,.section-hero-icon .ui-icon,.emp-proximos-head-icon .ui-icon{margin-right:0}
+  .sb-item-icon.ui-icon{width:24px;height:24px;flex-basis:24px}
+  .mobile-nav-icon.ui-icon{width:22px;height:22px;flex-basis:22px}
+  .section-hero-icon .ui-icon{width:26px;height:26px;flex-basis:26px}
+  .emp-proximos-head-icon .ui-icon{width:19px;height:19px;flex-basis:19px}
+</style>
+<script id="uiProfessionalIconsScript">
+(function(){
+  const I={
+    moon:'<path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8Z"/>',
+    sun:'<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>',
+    home:'<path d="m3 11 9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/>',
+    building:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h2M14 7h2M8 11h2M14 11h2M8 15h2M14 15h2M10 21v-3h4v3"/>',
+    folder:'<path d="M3 6a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a3 3 0 0 1-3 3H6a3 3 0 0 1-3-3V6Z"/>',
+    receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z"/><path d="M9 8h6M9 12h6M9 16h4"/>',
+    calendar:'<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>',
+    users:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    chart:'<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    wallet:'<path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v1H7a2 2 0 0 0 0 4h13v5a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5v-9Z"/><path d="M20 8H7a2 2 0 1 0 0 4h13V8Z"/><circle cx="16" cy="10" r="1"/>',
+    menu:'<path d="M4 6h16M4 12h16M4 18h16"/>',
+    checkCircle:'<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
+    alertTriangle:'<path d="M10.3 3.6 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    zap:'<path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/>',
+    pencil:'<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+    user:'<path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/>',
+    userCheck:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m16 11 2 2 4-4"/>',
+    userX:'<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="m17 8 5 5M22 8l-5 5"/>',
+    trash:'<path d="M3 6h18M8 6V4h8v2M19 6l-1 15H6L5 6M10 11v6M14 11v6"/>',
+    x:'<path d="M18 6 6 18M6 6l12 12"/>',
+    arrowRight:'<path d="M5 12h14M13 6l6 6-6 6"/>',
+    info:'<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+    clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    banknote:'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9a2 2 0 0 1-2 2M17 15a2 2 0 0 1 2-2"/>'
+  };
+  window.uiIconSvg=function(name){return '<svg viewBox="0 0 24 24" aria-hidden="true">'+(I[name]||I.info)+'</svg>';};
+  window.hydrateUiIcons=function(root){
+    (root||document).querySelectorAll('[data-ui-icon]').forEach(function(el){
+      var name=el.getAttribute('data-ui-icon');
+      if(name && el.getAttribute('data-ui-hydrated')!==name){el.innerHTML=window.uiIconSvg(name);el.setAttribute('data-ui-hydrated',name);}
+    });
+  };
+  function boot(){
+    window.hydrateUiIcons(document);
+    new MutationObserver(function(ms){ms.forEach(function(m){m.addedNodes.forEach(function(n){if(n.nodeType===1){if(n.matches&&n.matches('[data-ui-icon]'))window.hydrateUiIcons(n.parentNode||n);else window.hydrateUiIcons(n);}});});}).observe(document.documentElement,{childList:true,subtree:true});
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot);else boot();
+})();
+</script>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -5097,7 +5156,7 @@ td:last-child{
         </div>
         <div class="sidebar-tools">
           <button class="icon-btn theme-toggle-sidebar" type="button" onclick="toggleTheme()" aria-label="Cambiar tema" title="Cambiar tema">
-            <span id="themeFabIcon">🌙</span>
+            <span id="themeFabIcon" class="ui-icon" data-ui-icon="moon"></span>
           </button>
           <button class="icon-btn sidebar-toggle" id="sidebarToggle" type="button" onclick="toggleSidebarNav()" aria-label="Replegar menú">
             <span id="sidebarToggleIcon">⟨</span>
@@ -5105,14 +5164,14 @@ td:last-child{
         </div>
       </div>
       <nav class="sb-nav">
-        <button class="sb-item active" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon">🏠</span><span class="sb-item-label">Inicio</span></button>
-        <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
-        <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
-        <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos internos</span></button>
-        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon">📅</span><span class="sb-item-label">Impuestos y Pagos</span><span id="impuestosAlertBadge" style="display:none;margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#dc2626;color:white;font-size:12px;font-weight:800;align-items:center;justify-content:center;">0</span></button>
-        <button class="sb-item" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon">👥</span><span class="sb-item-label">Empleados</span></button>
-        <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
-        <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
+        <button class="sb-item active" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon ui-icon" data-ui-icon="home"></span><span class="sb-item-label">Inicio</span></button>
+        <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon ui-icon" data-ui-icon="building"></span><span class="sb-item-label">Activos</span></button>
+        <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon ui-icon" data-ui-icon="folder"></span><span class="sb-item-label">Legajos</span></button>
+        <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon ui-icon" data-ui-icon="receipt"></span><span class="sb-item-label">Recibos internos</span></button>
+        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon ui-icon" data-ui-icon="calendar"></span><span class="sb-item-label">Impuestos y Pagos</span><span id="impuestosAlertBadge" style="display:none;margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#dc2626;color:white;font-size:12px;font-weight:800;align-items:center;justify-content:center;">0</span></button>
+        <button class="sb-item" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon ui-icon" data-ui-icon="users"></span><span class="sb-item-label">Empleados</span></button>
+        <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon ui-icon" data-ui-icon="chart"></span><span class="sb-item-label">Informes</span></button>
+        <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon ui-icon" data-ui-icon="wallet"></span><span class="sb-item-label">Balance</span></button>
         
       </nav>
 
@@ -5123,23 +5182,23 @@ td:last-child{
 
     <nav class="mobile-bottom-nav" aria-label="Navegación móvil">
       <button class="mobile-nav-item" type="button" data-route="activos" onclick="setRoute('activos')">
-        <span class="mobile-nav-icon">🏢</span>
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="building"></span>
         <span class="mobile-nav-label">Activos</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="documentos" onclick="setRoute('documentos')">
-        <span class="mobile-nav-icon">📂</span>
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="folder"></span>
         <span class="mobile-nav-label">Legajos</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="recibos" onclick="setRoute('recibos')">
-        <span class="mobile-nav-icon">🧾</span>
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="receipt"></span>
         <span class="mobile-nav-label">Recibos internos</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="informes" onclick="setRoute('informes')">
-        <span class="mobile-nav-icon">📊</span>
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="chart"></span>
         <span class="mobile-nav-label">Informes</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="balance" onclick="setRoute('balance')">
-        <span class="mobile-nav-icon">💰</span>
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="wallet"></span>
         <span class="mobile-nav-label">Balance</span>
       </button>
     </nav>
@@ -5147,7 +5206,7 @@ td:last-child{
     <main class="main">
       <header class="top" id="topHeader">
         <div class="top-left">
-          <button class="icon-btn nav-trigger" type="button" onclick="toggleSidebarNav()" aria-label="Abrir menú">☰</button>
+          <button class="icon-btn nav-trigger" type="button" onclick="toggleSidebarNav()" aria-label="Abrir menú"><span class="ui-icon" data-ui-icon="menu"></span></button>
           <div class="search">
             <input id="globalSearch" placeholder="Buscar unidad, código o inquilino..." oninput="globalSearch()" />
           </div>
@@ -5386,25 +5445,25 @@ td:last-child{
 
   <div class="cards-grid" style="margin-top:20px;">
     <div class="card">
-      <h3 style="margin:0;color:var(--muted);">👥 Empleados activos</h3>
+      <h3 class="ui-inline-title" style="margin:0;color:var(--muted);"><span class="ui-icon" data-ui-icon="users"></span>Empleados activos</h3>
       <strong id="empTotal" style="display:block;font-size:28px;margin-top:12px;">0</strong>
       <span style="color:var(--muted);">Personas registradas</span>
     </div>
 
     <div class="card">
-      <h3 style="margin:0;color:var(--muted);">💰 Sueldos pendientes</h3>
+      <h3 class="ui-inline-title" style="margin:0;color:var(--muted);"><span class="ui-icon" data-ui-icon="wallet"></span>Sueldos pendientes</h3>
       <strong id="empPendientes" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
       <span style="color:var(--muted);">Pendientes de pago</span>
     </div>
 
     <div class="card">
-      <h3 style="margin:0;color:var(--muted);">✅ Sueldos pagados</h3>
+      <h3 class="ui-inline-title" style="margin:0;color:var(--muted);"><span class="ui-icon" data-ui-icon="checkCircle"></span>Sueldos pagados</h3>
       <strong id="empPagadosMes" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
       <span style="color:var(--muted);">Pagados este mes</span>
     </div>
 
     <div class="card">
-      <h3 style="margin:0;color:var(--muted);">👥 Costo mensual</h3>
+      <h3 class="ui-inline-title" style="margin:0;color:var(--muted);"><span class="ui-icon" data-ui-icon="users"></span>Costo mensual</h3>
       <strong id="empCostoMensual" style="display:block;font-size:28px;margin-top:12px;">$0</strong>
       <span style="color:var(--muted);">Personal activo</span>
     </div>
@@ -5413,7 +5472,7 @@ td:last-child{
   <div class="card emp-proximos-card" style="margin-top:20px;">
     <div class="emp-proximos-head">
       <div class="emp-proximos-head-copy">
-        <div class="emp-proximos-head-icon">📅</div>
+        <div class="emp-proximos-head-icon"><span class="ui-icon" data-ui-icon="calendar"></span></div>
         <div>
           <h3>Próximos pagos</h3>
           <p>Calendario y estimación de liquidación de cada empleado activo.</p>
@@ -5482,7 +5541,7 @@ td:last-child{
         <tbody id="empleadosBody">
           <tr>
             <td colspan="5" style="text-align:center;padding:30px;color:var(--muted);">
-              👥<br>
+              <span class="ui-icon xl" data-ui-icon="users"></span><br>
               Todavía no hay empleados registrados<br>
               Agregá un empleado para comenzar
             </td>
@@ -5729,7 +5788,7 @@ td:last-child{
             </label>
           </div>
           <div id="aumentoPctModoAviso" style="display:none;margin-top:10px;padding:8px 10px;border-radius:7px;background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.18);font-size:11px;line-height:1.55;color:#dc2626;">
-            ⚠ Modo global: modificará cuotas pendientes/parciales de múltiples contratos. No tocará cuotas pagadas, pagos ni recibos históricos. Revisá la vista previa antes de aplicar.
+            <span class="ui-icon sm" data-ui-icon="alertTriangle"></span> Modo global: modificará cuotas pendientes/parciales de múltiples contratos. No tocará cuotas pagadas, pagos ni recibos históricos. Revisá la vista previa antes de aplicar.
           </div>
         </div>
         <!-- Criterio de inclusión (solo en modo global) -->
@@ -5901,7 +5960,7 @@ td:last-child{
 
   <div id="pagoSuccessToast" style="display:none;position:fixed;top:96px;right:24px;z-index:100000;max-width:min(420px,calc(100vw - 32px));">
     <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:18px;background:linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,250,252,.96));border:1px solid rgba(22,163,74,.22);box-shadow:0 18px 40px rgba(15,23,42,.14);color:#0f172a;min-height:68px;" id="pagoSuccessToastCard">
-      <div style="width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:14px;background:rgba(22,163,74,.12);border:1px solid rgba(22,163,74,.24);color:#16a34a;font-size:22px;font-weight:900;">✓</div>
+      <div style="width:42px;height:42px;flex:0 0 42px;display:grid;place-items:center;border-radius:14px;background:rgba(22,163,74,.12);border:1px solid rgba(22,163,74,.24);color:#16a34a;"><span class="ui-icon lg" data-ui-icon="checkCircle"></span></div>
       <div style="min-width:0;flex:1;display:grid;gap:2px;">
         <div id="pagoSuccessToastTitle" style="font-size:15px;font-weight:900;line-height:1.15;">Pago registrado</div>
         <div id="pagoSuccessToastText" style="font-size:12px;color:#64748b;line-height:1.35;overflow-wrap:anywhere;">El pago se guardó correctamente.</div>
@@ -5928,7 +5987,7 @@ td:last-child{
       <!-- Bloqueo: cuotas sin componentes o sin saldo pendiente -->
       <div id="cobroCompNoComp" style="display:none;padding:14px;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;color:#dc2626;margin:10px 0;">
         <strong>No hay cuotas pendientes con componentes disponibles.</strong><br>
-        Si hay cuotas con saldo pendiente que no aparecen, usá <em>✎ Editar</em> en la grilla para preparar sus componentes manualmente.
+        Si hay cuotas con saldo pendiente que no aparecen, usá <em>Editar</em> en la grilla para preparar sus componentes manualmente.
       </div>
 
       <div id="cobroCompFormArea">
@@ -7092,7 +7151,7 @@ td:last-child{
       const label = $('themeFabLabel');
       const icon = $('themeFabIcon');
       if (label) label.textContent = theme === 'dark' ? 'Modo claro' : 'Modo oscuro';
-      if (icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+      if (icon) { icon.setAttribute('data-ui-icon', theme === 'dark' ? 'sun' : 'moon'); icon.removeAttribute('data-ui-hydrated'); window.hydrateUiIcons?.(icon.parentNode || document); }
     }
 
     function applyTheme(theme){
@@ -8955,14 +9014,14 @@ if (aplicacionesDirectas.length) {
           <td class="center">
             <span class="badge ${cls}">${estado}</span>${
               x._modo_componentes
-                ? ' <span title="Saldos calculados desde columnas de componentes (Etapa 2B)" style="font-size:10px;color:#2563eb;cursor:default;">⚡</span>'
+                ? ' <span class="ui-icon sm" data-ui-icon="zap" title="Saldos calculados desde columnas de componentes (Etapa 2B)" style="color:#2563eb;cursor:default;"></span>'
                 : x._componentes_incompletos
-                  ? ' <span title="Componentes incompletos — usando datos legacy de respaldo" style="font-size:10px;color:var(--warn);cursor:default;">⚠</span>'
+                  ? ' <span class="ui-icon sm" data-ui-icon="alertTriangle" title="Componentes incompletos — usando datos legacy de respaldo" style="color:var(--warn);cursor:default;"></span>'
                   : ''
             }
           </td>
           <td class="center">${diasCell}</td>
-          <td class="center">${x.id ? `<button class="ec-btn-row" onclick="openEditarCuota(${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)})" title="Editar componentes de esta cuota">✎ Editar</button>` : ''}</td>
+          <td class="center">${x.id ? `<button class="ec-btn-row" onclick="openEditarCuota(${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)})" title="Editar componentes de esta cuota"><span class="ui-icon sm" data-ui-icon="pencil"></span>Editar</button>` : ''}</td>
         `;
         tb.appendChild(tr);
       });
@@ -9391,7 +9450,7 @@ window.addEventListener('online', () => {
               </article>
             `).join('')}
           </div>
-          <div class="muted">${top.length ? '' : 'No hay atrasados 🎉'}</div>
+          <div class="muted">${top.length ? '' : 'No hay atrasados'}</div>
         </div>
       `;
     }
@@ -11385,7 +11444,7 @@ const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
         const servicioActual = toNumber(row.monto_servicio ?? row.servicio ?? 0);
         const dif = round2(nuevoServicio - servicioActual);
         const periodoLabel = getRentPeriodLabelFromKey(String(row.sort_key || ''));
-        const accion = isPagado ? '⏭ Saltear' : (Math.abs(dif) < 0.009 ? '— Sin cambio' : '✎ Actualizar');
+        const accion = isPagado ? 'Saltear' : (Math.abs(dif) < 0.009 ? '— Sin cambio' : 'Actualizar');
         const accionColor = isPagado ? '#94a3b8' : (Math.abs(dif) < 0.009 ? '#64748b' : '#16a34a');
         const difColor = dif > 0.009 ? '#dc2626' : (dif < -0.009 ? '#16a34a' : '#94a3b8');
         if (!isPagado && Math.abs(dif) > 0.009) hasChanges = true;
@@ -12474,7 +12533,7 @@ setTimeout(() => {
         const { error } = await sb.from('inquilinos').update(payload).eq('id', Number(inq.inquilino_id));
         if (error) { $('inqModalMsg').textContent = error.message; return; }
 
-        $('inqModalMsg').textContent = 'Guardado ✅';
+        $('inqModalMsg').textContent = 'Guardado correctamente';
         // refreshAll actualiza también `unidades` (lista de activos), no solo contratosActivos
         await refreshAll();
         buildInqCache();
@@ -12527,7 +12586,7 @@ setTimeout(() => {
           return;
         }
 
-        $('inqModalMsg').textContent = codigoLocal ? 'Locatario y activo creados ✅' : 'Locatario creado ✅';
+        $('inqModalMsg').textContent = codigoLocal ? 'Locatario y activo creados correctamente' : 'Locatario creado correctamente';
         closeInqModal();
         await refreshAll();
 
@@ -12581,7 +12640,7 @@ setTimeout(() => {
           <div class="section-hero-grid">
             <div>
               <div class="section-hero-main">
-                <div class="section-hero-icon">📂</div>
+                <div class="section-hero-icon"><span class="ui-icon" data-ui-icon="folder"></span></div>
                 <div>
                   <h2 class="section-hero-title">Legajos</h2>
                 </div>
@@ -13954,7 +14013,7 @@ function updateRecibosFiltersFromUI(){
           <div class="section-hero-grid recibos-hero-grid">
             <div>
               <div class="section-hero-main">
-                <div class="section-hero-icon">🧾</div>
+                <div class="section-hero-icon"><span class="ui-icon" data-ui-icon="receipt"></span></div>
                 <div>
                   <h2 class="section-hero-title">Recibos internos</h2>
                 </div>
@@ -14521,7 +14580,7 @@ error = deleteResponse.error;
       if (!reciboActual) return;
       const text = buildReceiptShareText(reciboActual);
       navigator.clipboard?.writeText(text)
-        .then(() => { $('reciboModalMsg').textContent = 'Texto copiado ✅'; })
+        .then(() => { $('reciboModalMsg').textContent = 'Texto copiado correctamente'; })
         .catch(() => { $('reciboModalMsg').textContent = 'No se pudo copiar el texto.'; });
     }
 
@@ -14824,7 +14883,7 @@ error = deleteResponse.error;
           <div class="section-hero-grid">
             <div>
               <div class="section-hero-main">
-                <div class="section-hero-icon">📊</div>
+                <div class="section-hero-icon"><span class="ui-icon" data-ui-icon="chart"></span></div>
                 <div>
                   <h2 class="section-hero-title">Informes</h2>
                 </div>
@@ -15064,7 +15123,7 @@ error = deleteResponse.error;
       if (idx >= 0) gastosCache[idx] = saved;
       else gastosCache.unshift(saved);
 
-      msg.textContent = editingId ? 'Gasto actualizado ✅' : 'Gasto guardado ✅';
+      msg.textContent = editingId ? 'Gasto actualizado correctamente' : 'Gasto guardado correctamente';
       clearGastoForm(true);
       renderInformesTable();
       setInformesConnectionState('ok', 'Supabase conectado');
@@ -15101,7 +15160,7 @@ error = deleteResponse.error;
       showInformesLoadError('');
       gastosCache = gastosCache.filter(x => x.id !== id);
       if (gastoEditId === id) clearGastoForm(true);
-      if ($('gastoMsg')) $('gastoMsg').textContent = 'Gasto eliminado ✅';
+      if ($('gastoMsg')) $('gastoMsg').textContent = 'Gasto eliminado correctamente';
       renderInformesTable();
       if (!gastosCache.length && $('infMsg')) $('infMsg').textContent = 'Todavía no hay gastos guardados en Supabase.';
       setInformesConnectionState('ok', 'Supabase conectado');
@@ -15137,7 +15196,7 @@ error = deleteResponse.error;
       }
 
       backupAndClearLegacyGastos();
-      if (msg) msg.textContent = 'Datos locales importados a Supabase ✅';
+      if (msg) msg.textContent = 'Datos locales importados a Supabase correctamente';
       await refreshInformesData({ keepSuccessMsg:true });
     }
 
@@ -15693,7 +15752,7 @@ error = deleteResponse.error;
           <div class="section-hero-grid">
             <div>
               <div class="section-hero-main">
-                <div class="section-hero-icon">💰</div>
+                <div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>
                 <div>
                   <h2 class="section-hero-title">Balance</h2>
                 </div>
@@ -16315,7 +16374,7 @@ error = deleteResponse.error;
         return false;
       }
 
-      setMsg('Documento subido ✅');
+      setMsg('Documento subido correctamente');
       return true;
     }
 
@@ -16446,7 +16505,7 @@ error = deleteResponse.error;
         return;
       }
 
-      if (msgEl) msgEl.textContent = 'Eliminado ✅';
+      if (msgEl) msgEl.textContent = 'Eliminado correctamente';
       // refrescar lista
       if (tbodyId === 'docsBody'){
         await loadDocsForSelected();
@@ -16764,7 +16823,7 @@ error = deleteResponse.error;
       persistAppSettings();
       applyAppSettings();
       renderConfigPage();
-      if ($('cfgMsg')) $('cfgMsg').textContent = 'Configuración guardada ✅';
+      if ($('cfgMsg')) $('cfgMsg').textContent = 'Configuración guardada correctamente';
     }
 
     function resetConfigSettings(){
@@ -17808,7 +17867,7 @@ function syncCobroAlquilerDesdePeriodo(){
         const opts = ['EFECTIVO','TRANSFERENCIA','MERCADOPAGO','CHEQUE','OTRO']
           .map(v => `<option value="${v}"${m.metodo===v?' selected':''}>${v}</option>`).join('');
         const delBtn = soloUno ? '' :
-          `<button class="btn" type="button" onclick="eliminarMedioCobroComp(${m.id})" style="padding:3px 8px;font-size:12px;color:#dc2626;border-color:#fca5a5;" title="Eliminar este medio">✕</button>`;
+          `<button class="btn" type="button" onclick="eliminarMedioCobroComp(${m.id})" style="padding:3px 8px;font-size:12px;color:#dc2626;border-color:#fca5a5;" title="Eliminar este medio"><span class="ui-icon sm" data-ui-icon="x"></span></button>`;
         return `<div class="cc-medio-row">
           <select class="cc-medio-select" data-id="${m.id}" onchange="onMedioCobroCompChange(${m.id},'metodo',this.value)">${opts}</select>
           <input class="cc-medio-monto" type="text" inputmode="decimal" placeholder="0"
@@ -17984,7 +18043,7 @@ function syncCobroAlquilerDesdePeriodo(){
       if ($('cobroCompTotalDisplay'))    $('cobroCompTotalDisplay').textContent    = fmtARS.format(totalRec);
       if ($('cobroCompImputadoDisplay')) $('cobroCompImputadoDisplay').textContent = fmtARS.format(totalImp);
       if ($('cobroCompDifDisplay')) {
-        $('cobroCompDifDisplay').textContent = difOk ? '✓ 0'
+        $('cobroCompDifDisplay').textContent = difOk ? '0'
           : (dif > 0 ? `faltan ${fmtARS.format(dif)}` : `sobran ${fmtARS.format(Math.abs(dif))}`);
         $('cobroCompDifDisplay').style.color = difOk ? '#16a34a' : '#dc2626';
       }
@@ -18120,11 +18179,11 @@ function syncCobroAlquilerDesdePeriodo(){
       const difOk  = Math.abs(n(res.diferencia)) <= 0.009;
       const sumHtml = `
         <div class="dryrun-summary">
-          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          <div class="dryrun-summary-title"><span class="ui-icon sm" data-ui-icon="checkCircle"></span> Vista previa validada — ningún dato fue modificado todavía</div>
           <div class="dryrun-summary-row"><span style="color:#64748b;">Total recibido</span><strong>${fmt(res.total_recibido)}</strong></div>
           <div class="dryrun-summary-row"><span style="color:#64748b;">Total imputado</span><strong>${fmt(res.total_imputado)}</strong></div>
           <div class="dryrun-summary-row"><span style="color:#64748b;">Diferencia</span>
-            <strong style="color:${difOk?'#15803d':'#dc2626'}">${difOk?'$0 ✓':fmt(res.diferencia)}</strong></div>
+            <strong style="color:${difOk?'#15803d':'#dc2626'}">${difOk?'$0':fmt(res.diferencia)}</strong></div>
         </div>`;
 
       // ── Tarjeta por período ───────────────────────────────────────────────
@@ -18236,9 +18295,9 @@ function syncCobroAlquilerDesdePeriodo(){
         if (!cuotasAfectadas.length) {
           console.error('[CobroComp] ERROR CRÍTICO: ok=true pero cuotas_afectadas vacío. Recibo:', res.numero_recibo);
           if (msg) msg.textContent =
-            '⚠ El cobro fue registrado pero no se confirmó impacto en cuotas. ' +
+            'Advertencia: el cobro fue registrado pero no se confirmó impacto en cuotas. ' +
             'Recibo: ' + (res.numero_recibo || '?') + '. ' +
-            'Verificar con "✎ Editar cuota" y corregir manualmente si es necesario.';
+            'Verificar con "Editar cuota" y corregir manualmente si es necesario.';
           $('cobroCompBtnConfirmar').disabled = false;
           return; // NO cerrar modal ni mostrar toast de éxito
         }
@@ -18494,7 +18553,7 @@ function syncCobroAlquilerDesdePeriodo(){
       };
       const dr = (label, value, extraCls='', changed=false) => {
         const rowCls = changed ? ' ec-changed' : '';
-        const mark   = changed ? ' <span style="font-size:10px;color:#f59e0b;font-weight:700;">✎</span>' : '';
+        const mark   = changed ? ' <span class="ui-icon sm" data-ui-icon="pencil" style="color:#f59e0b"></span>' : '';
         return `<div class="dryrun-row${rowCls}"><span class="dr-label">${label}${mark}</span><span class="dr-value${extraCls?' '+extraCls:''}">${value}</span></div>`;
       };
 
@@ -18545,7 +18604,7 @@ function syncCobroAlquilerDesdePeriodo(){
 
       body.innerHTML = `
         <div class="dryrun-summary">
-          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          <div class="dryrun-summary-title"><span class="ui-icon sm" data-ui-icon="checkCircle"></span> Vista previa validada — ningún dato fue modificado todavía</div>
           ${diffMsg}
         </div>
         <div class="dryrun-card">
@@ -18559,7 +18618,7 @@ function syncCobroAlquilerDesdePeriodo(){
             ${despuesHtml}
           </div>
         </div>
-        <div style="font-size:11px;color:#94a3b8;margin-top:6px;">✎ = campo modificado respecto al estado actual en BD.</div>
+        <div style="font-size:11px;color:#94a3b8;margin-top:6px;"><span class="ui-icon sm" data-ui-icon="pencil"></span> = campo modificado respecto al estado actual en BD.</div>
       `;
       panel.style.display = 'block';
     }
@@ -18671,7 +18730,7 @@ function syncCobroAlquilerDesdePeriodo(){
       const codigo = r.local_codigo || r.codigo_local || '—';
       alert(
         `El contrato ${codigo} (${nombre}) tiene cuotas que requieren preparación manual de componentes.\n\n` +
-        `Usá el botón "✎ Editar" en la grilla de cuotas para preparar los componentes de cada cuota pendiente y luego volvé a intentar el cobro.`
+        `Usá el botón "Editar" en la grilla de cuotas para preparar los componentes de cada cuota pendiente y luego volvé a intentar el cobro.`
       );
       // Cobro viejo deshabilitado visualmente. Código mantenido temporalmente como referencia.
     }
@@ -19121,7 +19180,7 @@ function syncCobroAlquilerDesdePeriodo(){
 
       body.innerHTML = `
         <div class="dryrun-summary">
-          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          <div class="dryrun-summary-title"><span class="ui-icon sm" data-ui-icon="checkCircle"></span> Vista previa validada — ningún dato fue modificado todavía</div>
           ${chgServT
             ? `<div style="font-size:12px;color:#475569;">Servicio: ${fmt(a.monto_servicio_total)} → ${fmt(d.monto_servicio_total)}</div>`
             : `<div style="font-size:12px;color:#64748b;">Sin cambios en el servicio total.</div>`}
@@ -19462,7 +19521,7 @@ function syncCobroAlquilerDesdePeriodo(){
 
       body.innerHTML = `
         <div class="dryrun-summary">
-          <div class="dryrun-summary-title">✓ Vista previa validada — ningún dato fue modificado todavía</div>
+          <div class="dryrun-summary-title"><span class="ui-icon sm" data-ui-icon="checkCircle"></span> Vista previa validada — ningún dato fue modificado todavía</div>
           ${chgImpT
             ? `<div style="font-size:12px;color:#475569;">Impuesto: ${impTotalAntes != null ? fmt(impTotalAntes) : '—'} → ${impTotalDespues != null ? fmt(impTotalDespues) : '—'}</div>`
             : `<div style="font-size:12px;color:#64748b;">Sin cambios en el impuesto total.</div>`}
@@ -19972,7 +20031,7 @@ function _renderAumentoPctPreview() {
     summaryExtra = `<br><span class="muted" style="font-size:12px;"><strong>${incluidos.length}</strong> incluido${incluidos.length !== 1 ? 's' : ''} · <strong>${excluidos.length}</strong> excluido${excluidos.length !== 1 ? 's' : ''}${cDesc}</span>`;
   }
 
-  const colChk    = !esPorContrato ? '<th style="width:36px;text-align:center;" title="Incluir/excluir">✓</th>' : '';
+  const colChk    = !esPorContrato ? '<th style="width:36px;text-align:center;" title="Incluir/excluir"><span class="ui-icon sm" data-ui-icon="checkCircle"></span></th>' : '';
   const colCorte  = (!esPorContrato && mesCortePeriodo) ? '<th class="right">Deuda hasta corte</th>' : '';
   const colMotivo = !esPorContrato ? '<th>Motivo</th>' : '';
 
@@ -20068,7 +20127,7 @@ function _renderAumentoPctPreview() {
     <div class="muted" style="font-size:11px;margin-top:10px;line-height:1.5;">
       ${esPorContrato
         ? 'Solo se modifica <strong>este contrato</strong>. Las cuotas pagadas no se tocan.'
-        : 'Solo se modifican los contratos marcados (✓). Las cuotas pagadas no se tocan. No se tocan recibos históricos ni pagos.'}
+        : 'Solo se modifican los contratos marcados. Las cuotas pagadas no se tocan. No se tocan recibos históricos ni pagos.'}
     </div>`;
 
   const container = $('aumentoPctPreviewContainer');
@@ -20197,7 +20256,7 @@ function _mostrarResultadoAumento({ okContratos, okCuotas, errores, porcentaje, 
   const colorBg   = todoOk ? 'rgba(22,163,74,.08)' : 'rgba(234,179,8,.08)';
   const colorBord = todoOk ? 'rgba(22,163,74,.22)' : 'rgba(234,179,8,.22)';
   const colorIcon = todoOk ? 'rgba(22,163,74,.15)' : 'rgba(234,179,8,.15)';
-  const icono     = todoOk ? '✓' : '⚠';
+  const icono     = todoOk ? '<span class="ui-icon lg" data-ui-icon="checkCircle"></span>' : '<span class="ui-icon lg" data-ui-icon="alertTriangle"></span>';
   const titulo    = todoOk ? 'Aumento aplicado correctamente' : 'Aumento aplicado con advertencias';
 
   let contratoLinea = '';
@@ -20668,7 +20727,7 @@ async function cargarHistorialSueldos(){
   <td>${p.empleados?.nombre || '-'}</td>
   <td>${p.periodo}</td>
   <td><strong>$ ${Number(p.monto||0).toLocaleString('es-AR')}</strong></td>
-  <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534">🟢 ${p.estado}</span></td>
+  <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534"><span class="ui-status-dot ok"></span>${p.estado}</span></td>
  </tr>`).join('');
 }
 
@@ -20720,7 +20779,7 @@ async function cargarEmpleados(){
         <td>${empProxEsc(empleadosPorId.get(String(p.empleado_id))?.nombre || ('Empleado #'+p.empleado_id))}</td>
         <td>${p.periodo||'-'}</td>
         <td>$ ${Number(p.monto||0).toLocaleString('es-AR')}</td>
-        <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534;">🟢 ${p.estado}</span></td>
+        <td><span style="padding:5px 10px;border-radius:999px;background:#dcfce7;color:#166534;"><span class="ui-status-dot ok"></span>${p.estado}</span></td>
       </tr>
     `).join('');
   }
@@ -20737,7 +20796,7 @@ async function cargarEmpleados(){
     body.innerHTML = `
       <tr>
         <td colspan="5" style="text-align:center;padding:30px;color:var(--muted)">
-          👥<br>
+          <span class="ui-icon xl" data-ui-icon="users"></span><br>
           Todavía no hay empleados registrados
         </td>
       </tr>`;
@@ -20751,19 +20810,19 @@ async function cargarEmpleados(){
       <td><strong>$ ${Number(e.salario_base || 0).toLocaleString('es-AR')}</strong></td>
       <td>
         <span style="padding:5px 10px;border-radius:999px;background:${e.activo ? '#dcfce7':'#fee2e2'};color:${e.activo?'#166534':'#991b1b'};">
-          ${e.activo ? '🟢 Activo':'🔴 Inactivo'}
+          ${e.activo ? '<span class="ui-status-dot ok"></span>Activo':'<span class="ui-status-dot bad"></span>Inactivo'}
         </span>
       </td>
       <td>
-        <button class="btn secondary" onclick="abrirFichaEmpleado('${e.id}')">👤 Detalle</button>
-        <button class="btn secondary" onclick='editarEmpleado(${JSON.stringify(e)})'>✏️ Editar</button>
-        <button class="btn secondary" onclick="abrirPagoEmpleado(${e.id})">💰 Registrar pago</button>
+        <button class="btn secondary" onclick="abrirFichaEmpleado('${e.id}')"><span class="ui-icon sm" data-ui-icon="user"></span>Detalle</button>
+        <button class="btn secondary" onclick='editarEmpleado(${JSON.stringify(e)})'><span class="ui-icon sm" data-ui-icon="pencil"></span>Editar</button>
+        <button class="btn secondary" onclick="abrirPagoEmpleado(${e.id})"><span class="ui-icon sm" data-ui-icon="wallet"></span>Registrar pago</button>
         ${
           e.activo
-          ? `<button class="btn secondary" onclick="desactivarEmpleado('${e.id}')">⛔ Baja</button>`
-          : `<button class="btn secondary" onclick="activarEmpleado('${e.id}')">🟢 Activar</button>`
+          ? `<button class="btn secondary" onclick="desactivarEmpleado('${e.id}')"><span class="ui-icon sm" data-ui-icon="userX"></span>Baja</button>`
+          : `<button class="btn secondary" onclick="activarEmpleado('${e.id}')"><span class="ui-icon sm" data-ui-icon="userCheck"></span>Activar</button>`
         }
-        <button class="btn secondary" onclick="eliminarEmpleado('${e.id}')">🗑️ Eliminar</button>
+        <button class="btn secondary" onclick="eliminarEmpleado('${e.id}')"><span class="ui-icon sm" data-ui-icon="trash"></span>Eliminar</button>
       </td>
     </tr>
   `).join('');
@@ -20876,7 +20935,7 @@ async function desactivarEmpleado(id){
 <div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
  <div style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:24px;padding:28px;width:100%;max-width:620px;box-shadow:0 20px 50px rgba(0,0,0,.18)">
   <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:20px">
-   <div><h2 style="margin:0 0 6px">💰 Registrar pago</h2><p id="pagoEmpleadoNombre" style="color:var(--muted);margin:0"></p></div>
+   <div><h2 class="ui-inline-title" style="margin:0 0 6px"><span class="ui-icon lg" data-ui-icon="wallet"></span>Registrar pago</h2><p id="pagoEmpleadoNombre" style="color:var(--muted);margin:0"></p></div>
    <button class="btn" onclick="cerrarPagoEmpleado()">Cerrar</button>
   </div>
   <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:14px">
@@ -20902,7 +20961,7 @@ async function desactivarEmpleado(id){
 <div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
  <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
   <div style="margin-bottom:22px">
-   <h2 style="margin:0;font-size:22px;color:#111827">✏️ Editar empleado</h2>
+   <h2 class="ui-inline-title" style="margin:0;font-size:22px;color:#111827"><span class="ui-icon lg" data-ui-icon="pencil"></span>Editar empleado</h2>
    <p style="margin:8px 0 0;color:#64748b;font-size:14px">Actualizá los datos del empleado seleccionado</p>
   </div>
 
@@ -21323,13 +21382,13 @@ function empProxFrecuenciaDetalle(cfg){
   return {titulo:nombres[f]||f||'Sin configurar',detalle:ds.length?('Día'+(ds.length>1?'s ':' ')+ds.join(' y ')):'Sin día'};
 }
 function empProxBadge(fecha,cfg){
-  if(!cfg||!fecha)return '<span class="emp-proximos-badge none">⚪ Sin configurar</span>';
+  if(!cfg||!fecha)return '<span class="emp-proximos-badge none"><span class="ui-status-dot muted"></span>Sin configurar</span>';
   const hoy=empProxStartOfDay(new Date());
   const dias=Math.round((fecha-hoy)/86400000);
-  if(dias===0)return '<span class="emp-proximos-badge hoy">🔴 Hoy</span>';
-  if(dias<=3)return `<span class="emp-proximos-badge cerca">🟠 En ${dias} día${dias===1?'':'s'}</span>`;
-  if(dias<=7)return `<span class="emp-proximos-badge cerca">🟡 En ${dias} días</span>`;
-  return '<span class="emp-proximos-badge ok">🔵 Programado</span>';
+  if(dias===0)return '<span class="emp-proximos-badge hoy"><span class="ui-status-dot bad"></span>Hoy</span>';
+  if(dias<=3)return `<span class="emp-proximos-badge cerca"><span class="ui-status-dot warn"></span>En ${dias} día${dias===1?'':'s'}</span>`;
+  if(dias<=7)return `<span class="emp-proximos-badge cerca"><span class="ui-status-dot warn"></span>En ${dias} días</span>`;
+  return '<span class="emp-proximos-badge ok"><span class="ui-status-dot info"></span>Programado</span>';
 }
 async function cargarProximosPagosEmpleados(empleados,pagos){
   const body=document.getElementById('empProximosPagosBody');
@@ -21390,7 +21449,7 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
         <div class="emp-liquidacion-item neto"><span>Neto estimado</span><strong>${empProxMoney(neto)}</strong></div>
       </div></td>
       <td>${empProxBadge(proxima,cfg)}</td>
-      <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')">👤 Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)},'${proxima?empProxDateIso(proxima):''}')">💰 Pagar</button></div></td>
+      <td><div class="emp-proximos-actions"><button class="btn secondary" onclick="abrirFichaEmpleado('${emp.id}')"><span class="ui-icon sm" data-ui-icon="user"></span>Detalle</button><button class="btn secondary" onclick="abrirPagoEmpleado(${Number(emp.id)},'${proxima?empProxDateIso(proxima):''}')"><span class="ui-icon sm" data-ui-icon="wallet"></span>Pagar</button></div></td>
     </tr>`;
   }).join('');
 }
