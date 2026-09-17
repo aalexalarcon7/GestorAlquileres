@@ -5338,6 +5338,243 @@ td:last-child{
 })();
 </script>
 
+
+<style id="uiRefinamientoFase3">
+  /* === Fase 3: navegación, encabezados y modales secundarios === */
+  .sb-section-label{
+    padding:8px 12px 3px;
+    color:var(--muted);
+    font-size:10px;
+    line-height:1;
+    font-weight:900;
+    letter-spacing:.12em;
+    text-transform:uppercase;
+    opacity:.78;
+    user-select:none;
+  }
+  .sb-section-label:not(:first-child){margin-top:5px}
+  body.nav-collapsed .sb-section-label{display:none!important}
+  .sb-item{position:relative;overflow:visible}
+  .sb-item.active::before{
+    content:"";
+    position:absolute;
+    left:-7px;
+    top:50%;
+    width:3px;
+    height:22px;
+    border-radius:999px;
+    background:currentColor;
+    transform:translateY(-50%);
+    opacity:.85;
+  }
+  body.nav-collapsed .sb-item.active::before{left:-5px}
+  .sb-item .sb-item-icon{flex:0 0 auto}
+
+  #topHeader{
+    min-height:58px!important;
+    padding:9px 12px!important;
+    margin-bottom:12px!important;
+    border-radius:16px!important;
+  }
+  #topHeader .top-left{width:100%;min-width:0}
+  #topHeader .search{position:relative;width:100%;min-width:0}
+  #topHeader .top-search-icon{
+    position:absolute;
+    left:14px;
+    top:50%;
+    transform:translateY(-50%);
+    width:17px;
+    height:17px;
+    display:grid;
+    place-items:center;
+    color:var(--muted);
+    pointer-events:none;
+    z-index:2;
+  }
+  #topHeader .top-search-icon svg{width:17px;height:17px;display:block}
+  #topHeader #globalSearch{
+    height:42px!important;
+    border-radius:11px!important;
+    padding:0 14px 0 40px!important;
+    box-shadow:none!important;
+  }
+  #topHeader .top-refresh-btn{
+    min-height:38px!important;
+    height:38px!important;
+    padding-inline:12px!important;
+    border-radius:10px!important;
+  }
+
+  .page-heading-copy{min-width:0}
+  .page-heading-sub{
+    margin:5px 0 0;
+    color:var(--muted);
+    font-size:13px;
+    line-height:1.35;
+  }
+  #viewActivos > .card:first-child > .row:first-child,
+  #viewEmpleados > .card:first-child > .row:first-child,
+  #viewImpuestos > .card:first-child > .row:first-child{
+    min-height:46px;
+  }
+  #viewActivos > .card:first-child > .row:first-child h2,
+  #viewEmpleados > .card:first-child h2,
+  #viewImpuestos > .card:first-child h2{
+    font-size:20px!important;
+    line-height:1.2!important;
+    letter-spacing:-.01em;
+  }
+  #viewEmpleados > .card:first-child p,
+  #viewImpuestos > .card:first-child p{margin-top:5px!important;font-size:13px!important}
+
+  .mobile-nav-item{position:relative}
+  .mobile-nav-item.active::after{
+    content:"";
+    position:absolute;
+    left:50%;
+    bottom:3px;
+    width:22px;
+    height:3px;
+    border-radius:999px;
+    background:currentColor;
+    transform:translateX(-50%);
+    opacity:.75;
+  }
+
+  /* Secondary modal system */
+  .ui-secondary-modal,
+  #modalMesBack,
+  #modalInqBack,
+  #modalAumentoPctBack,
+  #modalReciboBack{
+    backdrop-filter:blur(5px);
+    -webkit-backdrop-filter:blur(5px);
+  }
+  .ui-secondary-modal{padding:18px!important}
+  .ui-modal-panel{
+    width:100%!important;
+    max-height:calc(100vh - 36px)!important;
+    overflow:auto!important;
+    background:var(--card)!important;
+    color:var(--text)!important;
+    border:1px solid var(--border)!important;
+    border-radius:16px!important;
+    box-shadow:0 24px 60px rgba(15,23,42,.18)!important;
+    padding:22px!important;
+  }
+  [data-theme="dark"] .ui-modal-panel{box-shadow:0 28px 70px rgba(0,0,0,.42)!important}
+  .ui-modal-sm{max-width:440px!important}
+  .ui-modal-md{max-width:620px!important}
+  .ui-modal-lg{max-width:720px!important}
+  .ui-modal-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-start;
+    gap:16px;
+    margin:-22px -22px 18px;
+    padding:18px 22px 14px;
+    position:sticky;
+    top:-22px;
+    z-index:5;
+    background:var(--card);
+    border-bottom:1px solid var(--border);
+  }
+  .ui-modal-head h2{font-size:20px;line-height:1.25;letter-spacing:-.01em}
+  .ui-modal-sub{margin:5px 0 0;color:var(--muted);font-size:13px;line-height:1.4}
+  .ui-modal-close{min-height:34px!important;height:34px!important;padding-inline:11px!important;flex:0 0 auto}
+  .ui-modal-body{min-width:0}
+  .ui-modal-footer{
+    display:flex;
+    justify-content:flex-end;
+    align-items:center;
+    gap:9px;
+    position:sticky;
+    bottom:-22px;
+    z-index:5;
+    margin:18px -22px -22px;
+    padding:13px 22px 18px;
+    background:var(--card);
+    border-top:1px solid var(--border);
+  }
+  .ui-form-stack{display:grid;gap:13px}
+  .ui-field{display:grid;gap:6px;color:var(--muted);font-size:12px;font-weight:800}
+  .ui-field input,.ui-field select,.ui-field textarea{width:100%;color:var(--text);font-weight:500}
+
+  /* Existing secondary modals: same density and hierarchy without touching business logic */
+  #modalConfirmacionPago > .ui-modal-panel{padding:22px!important}
+  #modalConfirmacionPago h2{font-size:20px!important;margin:0 0 8px!important;color:var(--text)!important}
+  #modalConfirmacionPago p{color:var(--muted);line-height:1.5;margin:0 0 20px}
+  #modalConfirmacionPago > .ui-modal-panel > div:last-child{
+    margin:18px -22px -22px!important;
+    padding:13px 22px 18px!important;
+    border-top:1px solid var(--border);
+  }
+
+  #modalNuevoPago > .ui-modal-panel > div:first-child,
+  #modalPagoEmpleado > .ui-modal-panel > div:first-child{
+    position:sticky;
+    top:-22px;
+    z-index:4;
+    margin:-22px -22px 18px!important;
+    padding:18px 22px 14px!important;
+    background:var(--card)!important;
+    border-bottom:1px solid var(--border);
+  }
+  #modalNuevoPago > .ui-modal-panel > div:last-child,
+  #modalPagoEmpleado > .ui-modal-panel > div:last-child,
+  #modalEditarEmpleado > .ui-modal-panel > div:last-child,
+  #modalPagarObligacion > .ui-modal-panel > div:last-child{
+    position:sticky;
+    bottom:-22px;
+    z-index:4;
+    margin:18px -22px -22px!important;
+    padding:13px 22px 18px!important;
+    background:var(--card)!important;
+    border-top:1px solid var(--border);
+  }
+  #modalEditarEmpleado > .ui-modal-panel > div:first-child{
+    margin:-22px -22px 18px!important;
+    padding:18px 22px 14px!important;
+    border-bottom:1px solid var(--border);
+    background:var(--card)!important;
+  }
+  #modalEditarEmpleado h2,#modalEditarEmpleado p{color:inherit!important}
+  #modalEditarEmpleado h2{color:var(--text)!important;font-size:20px!important}
+  #modalEditarEmpleado p{color:var(--muted)!important;font-size:13px!important}
+  #modalEditarEmpleado label{color:var(--muted)!important}
+
+  #modalPagarObligacion > .ui-modal-panel > h2{
+    font-size:20px!important;
+    margin:0 0 12px!important;
+    color:var(--text)!important;
+  }
+  #modalPagarObligacion > .ui-modal-panel > div:nth-of-type(1){border:1px solid var(--border);background:var(--surface-soft)!important}
+  #modalPagarObligacion label[style*="background:#f0fdf4"]{background:var(--surface-soft)!important;border:1px solid var(--border)}
+  #npRecurrenciaInfo{background:var(--surface-soft)!important;border:1px solid var(--border)!important;color:var(--muted)!important}
+
+  #modalMesBack .modal,#modalInqBack .modal,#modalAumentoPctBack .modal{
+    border-radius:16px!important;
+    box-shadow:0 24px 60px rgba(15,23,42,.18)!important;
+    max-height:calc(100vh - 36px);
+    overflow:auto;
+  }
+  #modalReciboBack .recibo-preview{border-radius:16px!important;max-height:calc(100vh - 36px);overflow:auto}
+
+  @media(max-width:760px){
+    #topHeader{padding:8px!important}
+    #topHeader .top-refresh-btn{padding-inline:10px!important}
+    .ui-secondary-modal{padding:9px!important}
+    .ui-modal-panel{max-height:calc(100vh - 18px)!important;padding:18px!important;border-radius:14px!important}
+    .ui-modal-head{margin:-18px -18px 16px;padding:16px 18px 13px;top:-18px}
+    .ui-modal-footer{margin:16px -18px -18px;padding:12px 18px 16px;bottom:-18px}
+    #modalNuevoPago > .ui-modal-panel > div:first-child,
+    #modalPagoEmpleado > .ui-modal-panel > div:first-child{top:-18px;margin:-18px -18px 16px!important;padding:16px 18px 13px!important}
+    #modalNuevoPago > .ui-modal-panel > div:last-child,
+    #modalPagoEmpleado > .ui-modal-panel > div:last-child,
+    #modalEditarEmpleado > .ui-modal-panel > div:last-child,
+    #modalPagarObligacion > .ui-modal-panel > div:last-child{bottom:-18px;margin:16px -18px -18px!important;padding:12px 18px 16px!important}
+  }
+</style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -5370,15 +5607,18 @@ td:last-child{
         </div>
       </div>
       <nav class="sb-nav">
-        <button class="sb-item active" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon ui-icon" data-ui-icon="home"></span><span class="sb-item-label">Inicio</span></button>
-        <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon ui-icon" data-ui-icon="building"></span><span class="sb-item-label">Activos</span></button>
-        <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon ui-icon" data-ui-icon="folder"></span><span class="sb-item-label">Legajos</span></button>
-        <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon ui-icon" data-ui-icon="receipt"></span><span class="sb-item-label">Recibos internos</span></button>
-        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon ui-icon" data-ui-icon="calendar"></span><span class="sb-item-label">Impuestos y Pagos</span><span id="impuestosAlertBadge" style="display:none;margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#dc2626;color:white;font-size:12px;font-weight:800;align-items:center;justify-content:center;">0</span></button>
-        <button class="sb-item" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon ui-icon" data-ui-icon="users"></span><span class="sb-item-label">Empleados</span></button>
-        <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon ui-icon" data-ui-icon="chart"></span><span class="sb-item-label">Informes</span></button>
-        <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon ui-icon" data-ui-icon="wallet"></span><span class="sb-item-label">Balance</span></button>
-        
+        <div class="sb-section-label">Principal</div>
+        <button class="sb-item active" title="Inicio" aria-label="Inicio" data-route="inicio" onclick="setRoute('inicio')"><span class="sb-item-icon ui-icon" data-ui-icon="home"></span><span class="sb-item-label">Inicio</span></button>
+        <div class="sb-section-label">Gestión</div>
+        <button class="sb-item" title="Activos" aria-label="Activos" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon ui-icon" data-ui-icon="building"></span><span class="sb-item-label">Activos</span></button>
+        <button class="sb-item" title="Legajos" aria-label="Legajos" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon ui-icon" data-ui-icon="folder"></span><span class="sb-item-label">Legajos</span></button>
+        <button class="sb-item" title="Recibos internos" aria-label="Recibos internos" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon ui-icon" data-ui-icon="receipt"></span><span class="sb-item-label">Recibos internos</span></button>
+        <div class="sb-section-label">Administración</div>
+        <button class="sb-item" title="Impuestos y Pagos" aria-label="Impuestos y Pagos" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon ui-icon" data-ui-icon="calendar"></span><span class="sb-item-label">Impuestos y Pagos</span><span id="impuestosAlertBadge" style="display:none;margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#dc2626;color:white;font-size:12px;font-weight:800;align-items:center;justify-content:center;">0</span></button>
+        <button class="sb-item" title="Empleados" aria-label="Empleados" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon ui-icon" data-ui-icon="users"></span><span class="sb-item-label">Empleados</span></button>
+        <div class="sb-section-label">Análisis</div>
+        <button class="sb-item" title="Informes" aria-label="Informes" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon ui-icon" data-ui-icon="chart"></span><span class="sb-item-label">Informes</span></button>
+        <button class="sb-item" title="Balance" aria-label="Balance" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon ui-icon" data-ui-icon="wallet"></span><span class="sb-item-label">Balance</span></button>
       </nav>
 
       <div class="sb-footer">
@@ -5397,7 +5637,7 @@ td:last-child{
       </button>
       <button class="mobile-nav-item" type="button" data-route="recibos" onclick="setRoute('recibos')">
         <span class="mobile-nav-icon ui-icon" data-ui-icon="receipt"></span>
-        <span class="mobile-nav-label">Recibos internos</span>
+        <span class="mobile-nav-label">Recibos</span>
       </button>
       <button class="mobile-nav-item" type="button" data-route="informes" onclick="setRoute('informes')">
         <span class="mobile-nav-icon ui-icon" data-ui-icon="chart"></span>
@@ -5414,11 +5654,12 @@ td:last-child{
         <div class="top-left">
           <button class="icon-btn nav-trigger" type="button" onclick="toggleSidebarNav()" aria-label="Abrir menú"><span class="ui-icon" data-ui-icon="menu"></span></button>
           <div class="search">
+            <span class="top-search-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="11" cy="11" r="6.5" stroke="currentColor" stroke-width="2"/><path d="m16 16 4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span>
             <input id="globalSearch" placeholder="Buscar unidad, código o inquilino..." oninput="globalSearch()" />
           </div>
         </div>
         <div class="top-actions">
-          <button class="btn" onclick="refreshAll()">Refrescar</button>
+          <button class="btn secondary top-refresh-btn" onclick="refreshAll()"><span class="ui-icon sm" data-ui-icon="refresh"></span>Refrescar</button>
         </div>
       </header>
 
@@ -5490,8 +5731,9 @@ td:last-child{
         <section id="viewActivos" style="display:none;">
           <div class="card">
             <div class="row" style="justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
-              <div>
+              <div class="page-heading-copy">
                 <h2 style="margin:0;">Activos</h2>
+                <p class="page-heading-sub">Gestión de unidades, contratos y estado de deuda.</p>
               </div>
               <div class="row" style="gap:8px;align-items:center;justify-content:flex-end;flex-wrap:wrap;">
                 <button class="btn primary" type="button" onclick="openInqModal('create')">Agregar locatario</button>
@@ -20835,13 +21077,13 @@ window.addEventListener('load',()=>{
 </script>
 
 
-<div id="modalConfirmacionPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10000;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:22px;padding:28px;width:min(420px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
+<div id="modalConfirmacionPago" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:10000;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:22px;padding:28px;width:min(420px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);" class="ui-modal-panel ui-modal-sm">
     <h2 id="confirmTitulo" style="margin-top:0;">Confirmar</h2>
     <p id="confirmTexto"></p>
     <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button onclick="resolverConfirmacion(false)">Cancelar</button>
-      <button onclick="resolverConfirmacion(true)" style="background:#111827;color:white;">Confirmar</button>
+      <button class="btn secondary" onclick="resolverConfirmacion(false)">Cancelar</button>
+      <button class="btn primary" onclick="resolverConfirmacion(true)">Confirmar</button>
     </div>
   </div>
 </div>
@@ -20861,8 +21103,8 @@ function resolverConfirmacion(valor){
 }
 </script>
 
-<div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:9999;align-items:center;justify-content:center;padding:18px;">
-  <div style="background:white;border-radius:22px;padding:26px;width:min(680px,96%);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.22);">
+<div id="modalNuevoPago" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:9999;align-items:center;justify-content:center;padding:18px;">
+  <div style="background:white;border-radius:22px;padding:26px;width:min(680px,96%);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.22);" class="ui-modal-panel ui-modal-lg">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;">
       <div><h2 id="npModalTitulo" style="margin:0;">Nueva obligación</h2><div class="muted" style="margin-top:5px;">Definí qué hay que pagar, cuándo vence y con cuánto tiempo querés recibir el aviso.</div></div>
       <button class="btn" onclick="cerrarNuevoPago()">Cerrar</button>
@@ -20883,8 +21125,8 @@ function resolverConfirmacion(valor){
   </div>
 </div>
 
-<div id="modalPagarObligacion" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:10001;align-items:center;justify-content:center;padding:18px;">
-  <div style="background:white;border-radius:22px;padding:26px;width:min(540px,96%);box-shadow:0 24px 70px rgba(0,0,0,.22);">
+<div id="modalPagarObligacion" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:10001;align-items:center;justify-content:center;padding:18px;">
+  <div style="background:white;border-radius:22px;padding:26px;width:min(540px,96%);box-shadow:0 24px 70px rgba(0,0,0,.22);" class="ui-modal-panel ui-modal-md">
     <h2 style="margin:0;">Registrar pago</h2>
     <div style="margin-top:10px;padding:14px;border-radius:14px;background:#f8fafc;"><strong id="mpConcepto">Obligación</strong><div id="mpDetalle" class="muted" style="margin-top:4px;"></div></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
@@ -20897,15 +21139,23 @@ function resolverConfirmacion(valor){
   </div>
 </div>
 
-<div id="modalNuevoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999;">
-  <div class="card" style="width:420px;max-width:90%;">
-    <h2 style="margin-top:0;">Nuevo empleado</h2>
-    <input id="empNombre" placeholder="Nombre completo" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="empCargo" placeholder="Cargo" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="empSalario" type="number" placeholder="Salario mensual" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="empFecha" type="date" style="width:100%;padding:12px;margin-bottom:10px;">
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button class="btn" onclick="cerrarNuevoEmpleado()">Cancelar</button>
+<div id="modalNuevoEmpleado" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999;">
+  <div class="card ui-modal-panel ui-modal-sm">
+    <div class="ui-modal-head">
+      <div>
+        <h2 style="margin:0;">Nuevo empleado</h2>
+        <p class="ui-modal-sub">Cargá los datos básicos para incorporarlo al registro.</p>
+      </div>
+      <button class="btn secondary ui-modal-close" type="button" onclick="cerrarNuevoEmpleado()">Cerrar</button>
+    </div>
+    <div class="ui-modal-body ui-form-stack">
+      <label class="ui-field"><span>Nombre completo</span><input id="empNombre" placeholder="Ej: Juan Pérez"></label>
+      <label class="ui-field"><span>Cargo</span><input id="empCargo" placeholder="Ej: Mantenimiento"></label>
+      <label class="ui-field"><span>Salario mensual</span><input id="empSalario" type="number" placeholder="Ej: 500000"></label>
+      <label class="ui-field"><span>Fecha de ingreso</span><input id="empFecha" type="date"></label>
+    </div>
+    <div class="ui-modal-footer">
+      <button class="btn secondary" onclick="cerrarNuevoEmpleado()">Cancelar</button>
       <button class="btn primary" onclick="guardarNuevoEmpleado()">Guardar empleado</button>
     </div>
   </div>
@@ -21142,8 +21392,8 @@ async function desactivarEmpleado(id){
 
 
 
-<div id="modalPagoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
- <div style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:24px;padding:28px;width:100%;max-width:620px;box-shadow:0 20px 50px rgba(0,0,0,.18)">
+<div id="modalPagoEmpleado" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:var(--card);color:var(--text);border:1px solid var(--border);border-radius:24px;padding:28px;width:100%;max-width:620px;box-shadow:0 20px 50px rgba(0,0,0,.18)" class="ui-modal-panel ui-modal-md">
   <div style="display:flex;justify-content:space-between;gap:14px;align-items:flex-start;margin-bottom:20px">
    <div><h2 class="ui-inline-title" style="margin:0 0 6px"><span class="ui-icon lg" data-ui-icon="wallet"></span>Registrar pago</h2><p id="pagoEmpleadoNombre" style="color:var(--muted);margin:0"></p></div>
    <button class="btn" onclick="cerrarPagoEmpleado()">Cerrar</button>
@@ -21168,8 +21418,8 @@ async function desactivarEmpleado(id){
  </div>
 </div>
 
-<div id="modalEditarEmpleado" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
- <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)">
+<div id="modalEditarEmpleado" class="ui-secondary-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);align-items:center;justify-content:center;z-index:9999;padding:20px">
+ <div style="background:#fff;border-radius:24px;padding:28px;width:100%;max-width:430px;box-shadow:0 20px 50px rgba(0,0,0,.15)" class="ui-modal-panel ui-modal-sm">
   <div style="margin-bottom:22px">
    <h2 class="ui-inline-title" style="margin:0;font-size:22px;color:#111827"><span class="ui-icon lg" data-ui-icon="pencil"></span>Editar empleado</h2>
    <p style="margin:8px 0 0;color:#64748b;font-size:14px">Actualizá los datos del empleado seleccionado</p>
