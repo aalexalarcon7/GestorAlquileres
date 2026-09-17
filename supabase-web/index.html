@@ -5511,22 +5511,22 @@ td:last-child{
 
   <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px;" class="imp-kpis">
     <div class="card" style="padding:18px;">
-      <div class="muted">🔴 Vencidos</div>
+      <div class="muted imp-kpi-label"><span class="imp-svg-icon danger"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 8v5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M12 16.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/></svg></span><span>Vencidos</span></div>
       <h2 id="impKpiVencidos" style="margin:8px 0 2px;">0</h2>
       <div class="muted">requieren atención</div>
     </div>
     <div class="card" style="padding:18px;">
-      <div class="muted">🟠 Vencen hoy</div>
+      <div class="muted imp-kpi-label"><span class="imp-svg-icon today"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="15" r="3" fill="currentColor" opacity=".22"/><path d="M12 13.7v1.6l1 .7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span>Vencen hoy</span></div>
       <h2 id="impKpiHoy" style="margin:8px 0 2px;">0</h2>
       <div class="muted">pagos del día</div>
     </div>
     <div class="card" style="padding:18px;">
-      <div class="muted">🟡 Próximos 7 días</div>
+      <div class="muted imp-kpi-label"><span class="imp-svg-icon warn"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="3" y="5" width="18" height="16" rx="3" stroke="currentColor" stroke-width="2"/><path d="M8 3v4M16 3v4M3 10h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Próximos 7 días</span></div>
       <h2 id="impKpiSemana" style="margin:8px 0 2px;">$0</h2>
       <div class="muted">importe programado</div>
     </div>
     <div class="card" style="padding:18px;">
-      <div class="muted">💰 Total pendiente</div>
+      <div class="muted imp-kpi-label"><span class="imp-svg-icon info"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a2 2 0 0 1 2 2v1H7a2 2 0 0 0 0 4h13v5a2 2 0 0 1-2 2H6.5A2.5 2.5 0 0 1 4 16.5v-9Z" stroke="currentColor" stroke-width="2"/><path d="M20 8H7a2 2 0 1 0 0 4h13V8Z" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="10" r="1" fill="currentColor"/></svg></span><span>Total pendiente</span></div>
       <h2 id="impKpiPendiente" style="margin:8px 0 2px;">$0</h2>
       <div class="muted">obligaciones sin pagar</div>
     </div>
@@ -5535,7 +5535,7 @@ td:last-child{
   <div class="card" style="margin-top:14px;border-left:4px solid #dc2626;" id="panelAlertasPagos">
     <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
       <div>
-        <h3 style="margin:0;">🔔 Alertas de pago</h3>
+        <h3 class="imp-section-title" style="margin:0;"><span class="imp-svg-icon danger"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M6 9a6 6 0 1 1 12 0c0 6 2 7 2 7H4s2-1 2-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 19a2 2 0 0 0 4 0" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Alertas de pago</span></h3>
         <div class="muted" style="margin-top:5px;">Vencidos, vencimientos de hoy y obligaciones dentro de su período de aviso.</div>
       </div>
       <span id="impAlertasConteo" class="badge b-bad">0 alertas</span>
@@ -5548,7 +5548,7 @@ td:last-child{
   <div class="card" style="margin-top:14px;" id="panelProximosVencimientos">
     <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
       <div>
-        <h3 style="margin:0;">Qué tengo que pagar</h3>
+        <h3 class="imp-section-title" style="margin:0;"><span class="imp-svg-icon info"><svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="6" y="4" width="12" height="17" rx="2" stroke="currentColor" stroke-width="2"/><path d="M9 4.5h6a1.5 1.5 0 0 0-1.5-1.5h-3A1.5 1.5 0 0 0 9 4.5Z" stroke="currentColor" stroke-width="2"/><path d="M9 10h6M9 14h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg></span><span>Qué tengo que pagar</span></h3>
         <div class="muted" style="margin-top:5px;">Próximas obligaciones ordenadas por vencimiento.</div>
       </div>
       <span class="muted" id="textoProximos">Sin pagos cargados</span>
@@ -5593,6 +5593,20 @@ td:last-child{
   </div>
 </section>
 <style>
+  #viewImpuestos .imp-kpi-label{display:flex;align-items:center;gap:8px;font-weight:700;color:var(--muted)}
+  #viewImpuestos .imp-section-title{display:flex;align-items:center;gap:10px}
+  #viewImpuestos .imp-svg-icon{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 18px}
+  #viewImpuestos .imp-svg-icon svg{width:18px;height:18px;display:block}
+  #viewImpuestos .imp-svg-icon.danger{color:#dc2626}
+  #viewImpuestos .imp-svg-icon.today{color:#ea580c}
+  #viewImpuestos .imp-svg-icon.warn{color:#d97706}
+  #viewImpuestos .imp-svg-icon.info{color:#0f172a}
+  #viewImpuestos .imp-status-dot{width:9px;height:9px;border-radius:999px;display:inline-block;margin-right:7px;box-shadow:0 0 0 3px rgba(255,255,255,.35) inset}
+  #viewImpuestos .imp-status-dot.ok{background:#22c55e}
+  #viewImpuestos .imp-status-dot.bad{background:#ef4444}
+  #viewImpuestos .imp-status-dot.today{background:#f97316}
+  #viewImpuestos .imp-status-dot.warn{background:#eab308}
+  #viewImpuestos .imp-status-dot.info{background:#94a3b8}
   @media (max-width:1100px){#viewImpuestos .imp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.imp-proximo-row{grid-template-columns:minmax(0,1fr) minmax(120px,.6fr) auto!important}.imp-proximo-monto{display:none!important}}
   @media (max-width:680px){#viewImpuestos .imp-kpis{grid-template-columns:1fr!important}.imp-proximo-row{grid-template-columns:1fr!important}.imp-proximo-row .btn{width:100%}}
 </style>
@@ -20302,11 +20316,11 @@ function impEstadoReal(x){
 }
 function impEstadoVisual(x){
   const e=impEstadoReal(x);
-  if(e==='PAGADO') return '<span class="badge b-ok">🟢 Pagado</span>';
-  if(e==='VENCIDO') return '<span class="badge b-bad">🔴 Vencido</span>';
-  if(e==='HOY') return '<span class="badge b-bad">🟠 Vence hoy</span>';
-  if(e==='ALERTA') return '<span class="badge b-warn">🟡 Próximo</span>';
-  return '<span class="badge b-info">⚪ Programado</span>';
+  if(e==='PAGADO') return '<span class="badge b-ok"><span class="imp-status-dot ok"></span>Pagado</span>'; 
+  if(e==='VENCIDO') return '<span class="badge b-bad"><span class="imp-status-dot bad"></span>Vencido</span>'; 
+  if(e==='HOY') return '<span class="badge b-bad"><span class="imp-status-dot today"></span>Vence hoy</span>'; 
+  if(e==='ALERTA') return '<span class="badge b-warn"><span class="imp-status-dot warn"></span>Próximo</span>'; 
+  return '<span class="badge b-info"><span class="imp-status-dot info"></span>Programado</span>'; 
 }
 function impTextoDias(x){
   const d=impDias(x.fecha_vencimiento);
@@ -20389,7 +20403,7 @@ function renderImpuestosDashboard(){
         <strong style="white-space:nowrap;">${fmtARS.format(Number(x.monto||0))}</strong>
         <button class="btn primary" onclick="marcarPagado('${x.id}')">Pagar</button>
       </div>`;
-    }).join(''):'<div style="padding:18px;text-align:center;color:var(--muted);">✅ No hay alertas pendientes.</div>';
+    }).join(''):'<div style="padding:18px;text-align:center;color:var(--muted);">No hay alertas pendientes.</div>';
   }
 
   const proximos=activos.filter(x=>impDias(x.fecha_vencimiento)>=0)
@@ -20430,9 +20444,9 @@ function renderImpuestosTabla(){
     <td class="right"><strong>${fmtARS.format(Number(x.monto||0))}</strong>${x.monto_pagado!=null?`<div class="muted">Pagado ${fmtARS.format(Number(x.monto_pagado||0))}</div>`:''}</td>
     <td>${impEstadoVisual(x)}</td>
     <td class="center" style="white-space:nowrap;">
-      <button class="btn" onclick="editarPago('${x.id}')" title="Editar">✏️</button>
-      ${String(x.estado||'').toUpperCase()!=='PAGADO'?`<button class="btn" onclick="marcarPagado('${x.id}')" title="Marcar pagado">✅</button>`:''}
-      <button class="btn" onclick="eliminarPago('${x.id}')" title="Eliminar">🗑️</button>
+      <button class="btn" onclick="editarPago('${x.id}')" title="Editar">Editar</button>
+      ${String(x.estado||'').toUpperCase()!=='PAGADO'?`<button class="btn" onclick="marcarPagado('${x.id}')" title="Marcar pagado">Pagar</button>`:''}
+      <button class="btn" onclick="eliminarPago('${x.id}')" title="Eliminar">Eliminar</button>
     </td>
   </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px;">No hay obligaciones para este filtro.</td></tr>';
 }
