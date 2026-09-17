@@ -500,23 +500,51 @@ async function guardarPagoEmpleado(){
     }
     .btn.ghost:hover{background:var(--hover);border-color:var(--border);color:var(--text)}
 
-    /* Las acciones dentro de tablas deben ser compactas y no competir con el contenido. */
+    /* Acciones compactas de tablas/listados: aspecto administrativo, menos "pastilla". */
     td .btn,
-    .tableWrap .btn{
-      min-height:34px;
-      padding:7px 10px;
-      border-radius:9px;
+    .tableWrap .btn,
+    #listaProximos .btn,
+    #impAlertasLista .btn{
+      min-height:30px;
+      height:30px;
+      padding:0 10px;
+      border-radius:7px;
       font-size:12px;
-      gap:6px;
+      font-weight:750;
+      line-height:1;
+      gap:5px;
+      box-shadow:none;
+      transform:none;
+    }
+    td .btn:hover,
+    .tableWrap .btn:hover,
+    #listaProximos .btn:hover,
+    #impAlertasLista .btn:hover{
+      transform:none;
       box-shadow:none;
     }
-    td .btn.primary:hover,.tableWrap .btn.primary:hover{transform:none}
+    td .btn .ui-icon,
+    .tableWrap .btn .ui-icon,
+    #listaProximos .btn .ui-icon,
+    #impAlertasLista .btn .ui-icon{
+      width:14px;
+      height:14px;
+      flex-basis:14px;
+    }
+    td .btn .ui-icon svg,
+    .tableWrap .btn .ui-icon svg,
+    #listaProximos .btn .ui-icon svg,
+    #impAlertasLista .btn .ui-icon svg{
+      width:14px;
+      height:14px;
+    }
 
     /* Acciones de documentos alineadas con el mismo lenguaje visual. */
     .docs-action-btn{
-      min-height:36px;
-      padding:0 12px;
-      border-radius:10px;
+      min-height:30px;
+      height:30px;
+      padding:0 10px;
+      border-radius:7px;
       border:1px solid var(--border);
       background:var(--card);
       color:var(--text);
