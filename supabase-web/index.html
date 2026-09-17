@@ -21904,5 +21904,212 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
   }
 </style>
 
+
+<style id="uiRefinementPhase2_20260917">
+  /* ===== Fase 2: tablas, estados vacíos, formularios y tipografía ===== */
+
+  /* Tipografía y ritmo visual */
+  main h1, main h2, main h3{
+    color:var(--text);
+    letter-spacing:-.018em;
+    line-height:1.18;
+  }
+  main h2{font-size:20px;}
+  main h3{font-size:15px;}
+  main .muted{
+    line-height:1.4;
+  }
+  main strong,
+  main table,
+  main .kpi .value{
+    font-variant-numeric:tabular-nums;
+  }
+
+  /* Formularios: misma altura, labels más claros y ayuda menos ruidosa */
+  main label,
+  .modal label{
+    font-size:11px !important;
+    font-weight:800 !important;
+    line-height:1.2;
+    letter-spacing:.025em;
+  }
+  main input:not([type="checkbox"]):not([type="radio"]),
+  main select,
+  .modal input:not([type="checkbox"]):not([type="radio"]),
+  .modal select{
+    min-height:38px;
+    padding:8px 11px !important;
+    font-size:13px;
+  }
+  main textarea,
+  .modal textarea{
+    padding:10px 11px !important;
+    font-size:13px;
+    line-height:1.45;
+  }
+  main input::placeholder,
+  main textarea::placeholder,
+  .modal input::placeholder,
+  .modal textarea::placeholder{
+    opacity:.72;
+  }
+
+  /* Focus accesible y consistente */
+  .btn:focus-visible,
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible{
+    outline:2px solid rgba(59,130,246,.42) !important;
+    outline-offset:2px;
+  }
+
+  /* Tablas: densidad administrativa y lectura más rápida */
+  main .tableWrap,
+  main .table-wrap,
+  main .docs-table-wrap,
+  main .recibos-table-wrap{
+    overflow:auto;
+    border:1px solid var(--panel-border, var(--border));
+    border-radius:11px !important;
+  }
+  main table{
+    font-variant-numeric:tabular-nums;
+  }
+  main table thead th{
+    height:34px;
+    vertical-align:middle;
+    white-space:nowrap;
+    text-transform:uppercase;
+    font-size:9.5px !important;
+    letter-spacing:.085em !important;
+  }
+  main table tbody td{
+    vertical-align:middle;
+    line-height:1.3;
+  }
+  main table tbody tr{
+    height:46px;
+  }
+  main table td .muted{
+    font-size:11px;
+    margin-top:2px;
+  }
+  main table td.right,
+  main table th.right{
+    text-align:right !important;
+  }
+  main table td.center,
+  main table th.center{
+    text-align:center !important;
+  }
+  main table tbody tr:focus-within td{
+    background:var(--row-hover) !important;
+  }
+
+  /* Estados vacíos: compactos, sin grandes superficies en blanco */
+  main table tbody tr:only-child td[colspan]{
+    padding:20px 16px !important;
+    height:auto !important;
+    color:var(--muted) !important;
+    font-size:12px !important;
+    font-weight:650;
+    text-align:center !important;
+  }
+  .recibos-empty,
+  .docs-empty,
+  .emp-proximos-empty,
+  .empty{
+    padding:18px !important;
+    min-height:0 !important;
+    border-radius:10px !important;
+    font-size:12px !important;
+    line-height:1.4;
+  }
+  #panelAlertasPagos:has(#impAlertasLista > div:only-child),
+  #panelProximosVencimientos:has(#listaProximos > div:only-child){
+    min-height:0 !important;
+  }
+
+  /* Cards de resumen: menos alto y mejor uso horizontal */
+  #viewEmpleados > .emp-dashboard-grid .card,
+  #viewImpuestos .imp-kpis .card,
+  .kpis .kpi{
+    min-height:0 !important;
+  }
+  #viewImpuestos .imp-kpis .card{
+    padding:14px 16px !important;
+  }
+  #viewImpuestos .imp-kpis h2{
+    margin:6px 0 1px !important;
+    line-height:1.1;
+  }
+
+  /* Cabeceras de pantalla más consistentes */
+  #viewActivos > .card:first-child,
+  #viewEmpleados > .card:first-child,
+  #viewImpuestos > .card:first-child{
+    padding:14px 16px !important;
+  }
+  #viewActivos > .card:first-child h2,
+  #viewEmpleados > .card:first-child h2,
+  #viewImpuestos > .card:first-child h2{
+    margin:0;
+  }
+
+  /* Badges: dato, no botón */
+  main .badge{
+    min-height:24px;
+    padding:4px 9px !important;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    line-height:1;
+    font-size:10.5px !important;
+    font-weight:800 !important;
+  }
+
+  /* Scrollbars discretos para tablas y modales */
+  main .tableWrap::-webkit-scrollbar,
+  main .table-wrap::-webkit-scrollbar,
+  main .docs-table-wrap::-webkit-scrollbar,
+  main .recibos-table-wrap::-webkit-scrollbar,
+  .modal::-webkit-scrollbar{
+    width:9px;
+    height:9px;
+  }
+  main .tableWrap::-webkit-scrollbar-thumb,
+  main .table-wrap::-webkit-scrollbar-thumb,
+  main .docs-table-wrap::-webkit-scrollbar-thumb,
+  main .recibos-table-wrap::-webkit-scrollbar-thumb,
+  .modal::-webkit-scrollbar-thumb{
+    background:#cbd5e1;
+    border-radius:999px;
+    border:2px solid transparent;
+    background-clip:padding-box;
+  }
+  [data-theme="dark"] main .tableWrap::-webkit-scrollbar-thumb,
+  [data-theme="dark"] main .table-wrap::-webkit-scrollbar-thumb,
+  [data-theme="dark"] main .docs-table-wrap::-webkit-scrollbar-thumb,
+  [data-theme="dark"] main .recibos-table-wrap::-webkit-scrollbar-thumb,
+  [data-theme="dark"] .modal::-webkit-scrollbar-thumb{
+    background:#475569;
+    border:2px solid transparent;
+    background-clip:padding-box;
+  }
+
+  /* Responsive: conservar lectura sin inflar la interfaz */
+  @media (max-width:760px){
+    main table thead th{font-size:9px !important;}
+    main table tbody tr{height:44px;}
+    main input:not([type="checkbox"]):not([type="radio"]),
+    main select,
+    .modal input:not([type="checkbox"]):not([type="radio"]),
+    .modal select{min-height:40px;}
+  }
+</style>
+
 </body>
 </html>
