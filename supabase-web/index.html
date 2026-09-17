@@ -5109,7 +5109,7 @@ td:last-child{
         <button class="sb-item" data-route="activos" onclick="setRoute('activos')"><span class="sb-item-icon">🏢</span><span class="sb-item-label">Activos</span></button>
         <button class="sb-item" data-route="documentos" onclick="setRoute('documentos')"><span class="sb-item-icon">📂</span><span class="sb-item-label">Legajos</span></button>
         <button class="sb-item" data-route="recibos" onclick="setRoute('recibos')"><span class="sb-item-icon">🧾</span><span class="sb-item-label">Recibos internos</span></button>
-        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon">📅</span><span class="sb-item-label">Impuestos y Pagos</span></button>
+        <button class="sb-item" data-route="impuestos" onclick="setRoute('impuestos')"><span class="sb-item-icon">📅</span><span class="sb-item-label">Impuestos y Pagos</span><span id="impuestosAlertBadge" style="display:none;margin-left:auto;min-width:24px;height:24px;padding:0 7px;border-radius:999px;background:#dc2626;color:white;font-size:12px;font-weight:800;align-items:center;justify-content:center;">0</span></button>
         <button class="sb-item" data-route="empleados" onclick="setRoute('empleados')"><span class="sb-item-icon">👥</span><span class="sb-item-label">Empleados</span></button>
         <button class="sb-item" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon">📊</span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon">💰</span><span class="sb-item-label">Balance</span></button>
@@ -5499,69 +5499,103 @@ td:last-child{
       <div>
         <h2 style="margin:0;">Impuestos y Pagos</h2>
         <p style="color:var(--muted); margin:8px 0 0;">
-          Organizá vencimientos, impuestos y obligaciones administrativas.
+          Organizador de obligaciones, vencimientos y pagos administrativos.
         </p>
       </div>
-      <button class="btn primary" onclick="abrirNuevoPago()">+ Nuevo pago</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+        <button class="btn" onclick="cargarImpuestosPagos()">↻ Actualizar</button>
+        <button class="btn primary" onclick="abrirNuevoPago()">+ Nueva obligación</button>
+      </div>
     </div>
   </div>
 
-  <div class="stats-grid" style="margin-top:14px;">
-    <div class="card">
-      <div class="muted">📄 Pendientes</div>
-      <h2 style="margin:8px 0;">0</h2>
-      <div class="muted">pagos por realizar</div>
-    </div>
-    <div class="card">
-      <div class="muted">⏰ Próximos vencimientos</div>
-      <h2 style="margin:8px 0;">$0</h2>
-      <div class="muted">próximos 30 días</div>
-    </div>
-    <div class="card">
-      <div class="muted">⚠️ Vencidos</div>
-      <h2 style="margin:8px 0;">0</h2>
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px;" class="imp-kpis">
+    <div class="card" style="padding:18px;">
+      <div class="muted">🔴 Vencidos</div>
+      <h2 id="impKpiVencidos" style="margin:8px 0 2px;">0</h2>
       <div class="muted">requieren atención</div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div class="muted">🟠 Vencen hoy</div>
+      <h2 id="impKpiHoy" style="margin:8px 0 2px;">0</h2>
+      <div class="muted">pagos del día</div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div class="muted">🟡 Próximos 7 días</div>
+      <h2 id="impKpiSemana" style="margin:8px 0 2px;">$0</h2>
+      <div class="muted">importe programado</div>
+    </div>
+    <div class="card" style="padding:18px;">
+      <div class="muted">💰 Total pendiente</div>
+      <h2 id="impKpiPendiente" style="margin:8px 0 2px;">$0</h2>
+      <div class="muted">obligaciones sin pagar</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px;border-left:4px solid #dc2626;" id="panelAlertasPagos">
+    <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
+      <div>
+        <h3 style="margin:0;">🔔 Alertas de pago</h3>
+        <div class="muted" style="margin-top:5px;">Vencidos, vencimientos de hoy y obligaciones dentro de su período de aviso.</div>
+      </div>
+      <span id="impAlertasConteo" class="badge b-bad">0 alertas</span>
+    </div>
+    <div id="impAlertasLista" style="margin-top:14px;">
+      <div style="padding:18px;text-align:center;color:var(--muted);">No hay alertas pendientes.</div>
     </div>
   </div>
 
   <div class="card" style="margin-top:14px;" id="panelProximosVencimientos">
-    <div class="row" style="justify-content:space-between;">
-      <h3 style="margin:0;">Próximos vencimientos</h3>
+    <div class="row" style="justify-content:space-between;align-items:center;gap:12px;">
+      <div>
+        <h3 style="margin:0;">Qué tengo que pagar</h3>
+        <div class="muted" style="margin-top:5px;">Próximas obligaciones ordenadas por vencimiento.</div>
+      </div>
       <span class="muted" id="textoProximos">Sin pagos cargados</span>
     </div>
-    <div id="listaProximos" style="margin-top:16px;">
-      <div style="padding:24px;text-align:center;color:var(--muted);">
-        Todavía no hay obligaciones registradas.
-      </div>
-    </div>
+    <div id="listaProximos" style="margin-top:12px;"></div>
   </div>
 
   <div class="card" style="margin-top:14px;">
-    <h3 style="margin-top:0;">Obligaciones registradas</h3>
-    <div style="overflow:auto;">
-      <table>
+    <div class="row" style="justify-content:space-between;align-items:end;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h3 style="margin:0;">Obligaciones registradas</h3>
+        <div class="muted" id="impTablaConteo" style="margin-top:5px;">0 registros</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <input id="impBuscar" placeholder="Buscar concepto u organismo..." oninput="renderImpuestosTabla()" style="min-width:230px;">
+        <select id="impFiltroEstado" onchange="renderImpuestosTabla()">
+          <option value="PENDIENTES">Pendientes</option>
+          <option value="TODOS">Todos</option>
+          <option value="PAGADO">Pagados</option>
+          <option value="VENCIDO">Vencidos</option>
+        </select>
+      </div>
+    </div>
+    <div style="overflow:auto;margin-top:12px;">
+      <table style="width:100%;min-width:1040px;">
         <thead>
           <tr>
             <th>Concepto</th>
-            <th>Categoría</th>
-            <th>Frecuencia</th>
+            <th>Organismo</th>
             <th>Vencimiento</th>
-            <th>Monto</th>
+            <th>Frecuencia</th>
+            <th class="right">Monto</th>
             <th>Estado</th>
-            <th>Acciones</th>
+            <th class="center">Acciones</th>
           </tr>
         </thead>
-        <tbody>
-          <tr>
-            <td colspan="6" style="text-align:center; color:var(--muted);">
-              Sin obligaciones registradas
-            </td>
-          </tr>
+        <tbody id="impObligacionesBody">
+          <tr><td colspan="7" style="text-align:center;color:var(--muted);">Sin obligaciones registradas</td></tr>
         </tbody>
       </table>
     </div>
   </div>
 </section>
+<style>
+  @media (max-width:1100px){#viewImpuestos .imp-kpis{grid-template-columns:repeat(2,minmax(0,1fr))!important}.imp-proximo-row{grid-template-columns:minmax(0,1fr) minmax(120px,.6fr) auto!important}.imp-proximo-monto{display:none!important}}
+  @media (max-width:680px){#viewImpuestos .imp-kpis{grid-template-columns:1fr!important}.imp-proximo-row{grid-template-columns:1fr!important}.imp-proximo-row .btn{width:100%}}
+</style>
 </main>
   </div>
 <!-- MODAL COBRAR -->
@@ -20230,185 +20264,298 @@ init();
 </script>
 
 <script>
+let impuestosPagosCache=[];
+let pagoEditandoId=null;
+let pagoMarcandoId=null;
+
+function impEsc(v){
+  if(typeof escapeHtml==='function') return escapeHtml(String(v??''));
+  return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));
+}
+function impHoy(){
+  const d=new Date();
+  const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function impDate(fecha){
+  if(!fecha) return null;
+  const d=new Date(`${String(fecha).slice(0,10)}T12:00:00`);
+  return Number.isNaN(d.getTime())?null:d;
+}
+function impDias(fecha,desde=impHoy()){
+  const a=impDate(desde),b=impDate(fecha);
+  if(!a||!b) return 999999;
+  return Math.round((b-a)/86400000);
+}
+function impFmtFecha(fecha){
+  const d=impDate(fecha);
+  return d?d.toLocaleDateString('es-AR'):'—';
+}
+function impEstadoReal(x){
+  if(String(x.estado||'').toUpperCase()==='PAGADO') return 'PAGADO';
+  const dias=impDias(x.fecha_vencimiento);
+  if(dias<0) return 'VENCIDO';
+  if(dias===0) return 'HOY';
+  const aviso=Math.max(0,Number(x.recordatorio_dias??5));
+  if(dias<=aviso) return 'ALERTA';
+  return 'PENDIENTE';
+}
+function impEstadoVisual(x){
+  const e=impEstadoReal(x);
+  if(e==='PAGADO') return '<span class="badge b-ok">🟢 Pagado</span>';
+  if(e==='VENCIDO') return '<span class="badge b-bad">🔴 Vencido</span>';
+  if(e==='HOY') return '<span class="badge b-bad">🟠 Vence hoy</span>';
+  if(e==='ALERTA') return '<span class="badge b-warn">🟡 Próximo</span>';
+  return '<span class="badge b-info">⚪ Programado</span>';
+}
+function impTextoDias(x){
+  const d=impDias(x.fecha_vencimiento);
+  if(d<0) return `${Math.abs(d)} día${Math.abs(d)===1?'':'s'} vencido`;
+  if(d===0) return 'Vence hoy';
+  if(d===1) return 'Vence mañana';
+  return `Vence en ${d} días`;
+}
+function impMesesPeriodicidad(p){
+  return ({MENSUAL:1,BIMESTRAL:2,TRIMESTRAL:3,SEMESTRAL:6,ANUAL:12})[String(p||'').toUpperCase()]||0;
+}
+function impSiguienteFecha(fecha,periodicidad,intervaloDias){
+  const base=impDate(fecha); if(!base) return null;
+  const p=String(periodicidad||'UNICO').toUpperCase();
+  if(p==='SEMANAL') base.setDate(base.getDate()+7);
+  else if(p==='QUINCENAL') base.setDate(base.getDate()+15);
+  else if(p==='PERSONALIZADO') base.setDate(base.getDate()+Math.max(1,Number(intervaloDias||1)));
+  else {
+    const meses=impMesesPeriodicidad(p);
+    if(!meses) return null;
+    const dia=base.getDate();
+    base.setDate(1); base.setMonth(base.getMonth()+meses);
+    const ultimo=new Date(base.getFullYear(),base.getMonth()+1,0).getDate();
+    base.setDate(Math.min(dia,ultimo));
+  }
+  const y=base.getFullYear(),m=String(base.getMonth()+1).padStart(2,'0'),d=String(base.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+function impEsRecurrente(x){
+  return Boolean(x.recurrencia_activa) && String(x.periodicidad||'UNICO').toUpperCase()!=='UNICO';
+}
+function impSerieId(x){
+  return x.serie_id || (window.crypto?.randomUUID ? window.crypto.randomUUID() : `serie_${Date.now()}_${Math.random().toString(36).slice(2,8)}`);
+}
+
 async function cargarImpuestosPagos(){
   try{
-    const { data, error } = await sb
-      .from('recordatorios_pagos')
-      .select('*')
-      .order('fecha_vencimiento', { ascending:true });
-
+    const {data,error}=await sb.from('recordatorios_pagos').select('*').order('fecha_vencimiento',{ascending:true});
     if(error) throw error;
-
-    const items = data || [];
-    const hoy = new Date();
-    const limite = new Date();
-    limite.setDate(hoy.getDate()+30);
-
-    const pendientes = items.filter(x => x.estado === 'PENDIENTE').length;
-    const vencidos = items.filter(x => x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy)).length;
-    const proximos = items
-      .filter(x => new Date(x.fecha_vencimiento) >= hoy && new Date(x.fecha_vencimiento) <= limite)
-      .reduce((a,b)=>a+Number(b.monto||0),0);
-
-    const cards = document.querySelectorAll('#viewImpuestos .stats-grid .card h2');
-    if(cards[0]) cards[0].textContent = pendientes;
-    if(cards[1]) cards[1].textContent = fmtARS.format(proximos);
-    if(cards[2]) cards[2].textContent = vencidos;
-
-    
-    const proximosLista=document.getElementById('listaProximos');
-    const proximosTexto=document.getElementById('textoProximos');
-    const proximosItems=items.filter(x=>{
-      const f=new Date(x.fecha_vencimiento);
-      return x.estado!=='PAGADO' && f>=hoy && f<=limite;
-    }).sort((a,b)=>new Date(a.fecha_vencimiento)-new Date(b.fecha_vencimiento));
-
-    if(proximosTexto) proximosTexto.textContent=proximosItems.length ? `${proximosItems.length} obligaciones` : 'Sin pagos próximos';
-
-    if(proximosLista){
-      proximosLista.innerHTML=proximosItems.length ? proximosItems.map(x=>`
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid rgba(0,0,0,.06);">
-          <div>
-            <strong>${escapeHtml(x.titulo||'')}</strong>
-            <div class="muted">${escapeHtml(x.categoria||'')} · ${x.fecha_vencimiento||''}</div>
-          </div>
-          <strong>${fmtARS.format(Number(x.monto||0))}</strong>
-        </div>
-      `).join('') : `<div style="padding:24px;text-align:center;color:var(--muted);">No hay vencimientos próximos.</div>`;
-    }
-
-const table = document.querySelector('#viewImpuestos table tbody');
-    if(table){
-      table.innerHTML = items.length ? items.map(x=>{
-        const vencido = x.estado === 'VENCIDO' || (x.estado === 'PENDIENTE' && new Date(x.fecha_vencimiento) < hoy);
-        const estado = x.estado === 'PAGADO'
-          ? '🟢 Pagado'
-          : vencido
-            ? '🔴 Vencido'
-            : '🟡 Pendiente';
-        return `
-        <tr>
-          <td>${escapeHtml(x.titulo || '')}</td>
-          <td>${escapeHtml(x.categoria || '')}</td>
-          <td>${escapeHtml(x.periodicidad || 'Único')}</td>
-          <td>${x.fecha_vencimiento || ''}</td>
-          <td class="right">${fmtARS.format(Number(x.monto||0))}</td>
-          <td>${estado}</td>
-          <td>
-            <button class="btn" onclick="editarPago('${x.id}')">✏️</button>
-            <button class="btn" onclick="marcarPagado('${x.id}')">✅</button>
-            <button class="btn" onclick="eliminarPago('${x.id}')">🗑️</button>
-          </td>
-        </tr>`;
-      }).join('') : `
-        <tr>
-          <td colspan="7" style="text-align:center;color:var(--muted);">Sin obligaciones registradas</td>
-        </tr>`;
-    }
+    impuestosPagosCache=data||[];
+    renderImpuestosDashboard();
+    renderImpuestosTabla();
   }catch(e){
-    console.error('[Impuestos]', e);
+    console.error('[Impuestos]',e);
+    const body=document.getElementById('impObligacionesBody');
+    if(body) body.innerHTML='<tr><td colspan="7" style="text-align:center;color:#b91c1c;padding:24px;">No se pudieron cargar las obligaciones.</td></tr>';
   }
 }
 
-function abrirNuevoPago(){
-  const m=document.getElementById('modalNuevoPago');
-  if(m) m.style.display='flex';
+function renderImpuestosDashboard(){
+  const items=impuestosPagosCache||[];
+  const activos=items.filter(x=>String(x.estado||'').toUpperCase()!=='PAGADO');
+  const vencidos=activos.filter(x=>impEstadoReal(x)==='VENCIDO');
+  const hoy=activos.filter(x=>impEstadoReal(x)==='HOY');
+  const semana=activos.filter(x=>{const d=impDias(x.fecha_vencimiento);return d>=0&&d<=7;});
+  const totalPend=activos.reduce((s,x)=>s+Number(x.monto||0),0);
+  const totalSemana=semana.reduce((s,x)=>s+Number(x.monto||0),0);
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.textContent=v;};
+  set('impKpiVencidos',vencidos.length);
+  set('impKpiHoy',hoy.length);
+  set('impKpiSemana',fmtARS.format(totalSemana));
+  set('impKpiPendiente',fmtARS.format(totalPend));
+
+  const alertas=activos.filter(x=>['VENCIDO','HOY','ALERTA'].includes(impEstadoReal(x)))
+    .sort((a,b)=>String(a.fecha_vencimiento||'').localeCompare(String(b.fecha_vencimiento||'')));
+  const badge=document.getElementById('impuestosAlertBadge');
+  if(badge){
+    badge.textContent=alertas.length;
+    badge.style.display=alertas.length?'inline-flex':'none';
+  }
+  set('impAlertasConteo',`${alertas.length} alerta${alertas.length===1?'':'s'}`);
+  const lista=document.getElementById('impAlertasLista');
+  if(lista){
+    lista.innerHTML=alertas.length?alertas.slice(0,8).map(x=>{
+      const est=impEstadoReal(x);
+      const color=est==='VENCIDO'?'#b91c1c':est==='HOY'?'#c2410c':'#a16207';
+      const bg=est==='VENCIDO'?'#fef2f2':est==='HOY'?'#fff7ed':'#fffbeb';
+      return `<div style="display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 14px;margin-top:8px;border-radius:14px;background:${bg};border:1px solid ${color}22;">
+        <div style="min-width:0;"><strong>${impEsc(x.titulo||'Obligación')}</strong><div class="muted" style="margin-top:3px;">${impEsc(x.organismo||x.categoria||'Sin organismo')} · ${impTextoDias(x)}</div></div>
+        <strong style="white-space:nowrap;">${fmtARS.format(Number(x.monto||0))}</strong>
+        <button class="btn primary" onclick="marcarPagado('${x.id}')">Pagar</button>
+      </div>`;
+    }).join(''):'<div style="padding:18px;text-align:center;color:var(--muted);">✅ No hay alertas pendientes.</div>';
+  }
+
+  const proximos=activos.filter(x=>impDias(x.fecha_vencimiento)>=0)
+    .sort((a,b)=>String(a.fecha_vencimiento||'').localeCompare(String(b.fecha_vencimiento||'')))
+    .slice(0,8);
+  set('textoProximos',proximos.length?`${proximos.length} próximas obligaciones`:'Sin pagos próximos');
+  const prox=document.getElementById('listaProximos');
+  if(prox){
+    prox.innerHTML=proximos.length?proximos.map(x=>`<div class="imp-proximo-row" style="display:grid;grid-template-columns:minmax(210px,1.5fr) minmax(130px,.8fr) minmax(130px,.8fr) auto;gap:16px;align-items:center;padding:13px 2px;border-bottom:1px solid rgba(0,0,0,.07);">
+      <div><strong>${impEsc(x.titulo||'')}</strong><div class="muted" style="margin-top:3px;">${impEsc(x.organismo||x.categoria||'')} · ${impTextoDias(x)}</div></div>
+      <div><div class="muted">Vencimiento</div><strong>${impFmtFecha(x.fecha_vencimiento)}</strong></div>
+      <div class="imp-proximo-monto" style="text-align:right;"><div class="muted">Importe</div><strong>${fmtARS.format(Number(x.monto||0))}</strong></div>
+      <button class="btn primary" onclick="marcarPagado('${x.id}')">Pagar</button>
+    </div>`).join(''):'<div style="padding:24px;text-align:center;color:var(--muted);">No hay obligaciones próximas.</div>';
+  }
 }
-function cerrarNuevoPago(){
-  const m=document.getElementById('modalNuevoPago');
-  if(m) m.style.display='none';
+
+function renderImpuestosTabla(){
+  const body=document.getElementById('impObligacionesBody'); if(!body)return;
+  const q=(document.getElementById('impBuscar')?.value||'').trim().toLowerCase();
+  const filtro=document.getElementById('impFiltroEstado')?.value||'PENDIENTES';
+  let rows=[...(impuestosPagosCache||[])];
+  if(q) rows=rows.filter(x=>`${x.titulo||''} ${x.organismo||''} ${x.categoria||''} ${x.descripcion||''}`.toLowerCase().includes(q));
+  if(filtro==='PENDIENTES') rows=rows.filter(x=>String(x.estado||'').toUpperCase()!=='PAGADO');
+  else if(filtro==='PAGADO') rows=rows.filter(x=>String(x.estado||'').toUpperCase()==='PAGADO');
+  else if(filtro==='VENCIDO') rows=rows.filter(x=>impEstadoReal(x)==='VENCIDO');
+  rows.sort((a,b)=>{
+    const pa=String(a.estado||'').toUpperCase()==='PAGADO'?1:0,pb=String(b.estado||'').toUpperCase()==='PAGADO'?1:0;
+    if(pa!==pb)return pa-pb;
+    return String(a.fecha_vencimiento||'').localeCompare(String(b.fecha_vencimiento||''));
+  });
+  const c=document.getElementById('impTablaConteo');if(c)c.textContent=`${rows.length} registro${rows.length===1?'':'s'}`;
+  body.innerHTML=rows.length?rows.map(x=>`<tr>
+    <td><strong>${impEsc(x.titulo||'')}</strong><div class="muted" style="margin-top:3px;">${impEsc(x.categoria||'')}</div></td>
+    <td>${impEsc(x.organismo||'—')}</td>
+    <td><strong>${impFmtFecha(x.fecha_vencimiento)}</strong><div class="muted">${String(x.estado||'').toUpperCase()==='PAGADO'?(x.fecha_pago?`Pagado ${impFmtFecha(x.fecha_pago)}`:'Pagado'):impTextoDias(x)}</div></td>
+    <td>${impEsc(x.periodicidad||'UNICO')}${impEsRecurrente(x)?'<div class="muted">↻ Recurrente</div>':''}</td>
+    <td class="right"><strong>${fmtARS.format(Number(x.monto||0))}</strong>${x.monto_pagado!=null?`<div class="muted">Pagado ${fmtARS.format(Number(x.monto_pagado||0))}</div>`:''}</td>
+    <td>${impEstadoVisual(x)}</td>
+    <td class="center" style="white-space:nowrap;">
+      <button class="btn" onclick="editarPago('${x.id}')" title="Editar">✏️</button>
+      ${String(x.estado||'').toUpperCase()!=='PAGADO'?`<button class="btn" onclick="marcarPagado('${x.id}')" title="Marcar pagado">✅</button>`:''}
+      <button class="btn" onclick="eliminarPago('${x.id}')" title="Eliminar">🗑️</button>
+    </td>
+  </tr>`).join(''):'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px;">No hay obligaciones para este filtro.</td></tr>';
+}
+
+function abrirNuevoPago(){
+  pagoEditandoId=null;
+  const titulo=document.getElementById('npModalTitulo');if(titulo)titulo.textContent='Nueva obligación';
+  ['npTitulo','npOrganismo','npCategoria','npMonto','npFecha','npDesc'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const per=document.getElementById('npPeriodicidad');if(per)per.value='UNICO';
+  const aviso=document.getElementById('npAviso');if(aviso)aviso.value=5;
+  const intervalo=document.getElementById('npIntervalo');if(intervalo)intervalo.value='';
+  onNpPeriodicidadChange();
+  const m=document.getElementById('modalNuevoPago');if(m)m.style.display='flex';
+}
+function cerrarNuevoPago(){const m=document.getElementById('modalNuevoPago');if(m)m.style.display='none';pagoEditandoId=null;}
+function onNpPeriodicidadChange(){
+  const p=document.getElementById('npPeriodicidad')?.value||'UNICO';
+  const wrap=document.getElementById('npIntervaloWrap');if(wrap)wrap.style.display=p==='PERSONALIZADO'?'block':'none';
+  const info=document.getElementById('npRecurrenciaInfo');
+  if(info) info.textContent=p==='UNICO'?'Se registrará una sola obligación.':'Al marcarla como pagada, el sistema preparará automáticamente el próximo vencimiento.';
 }
 async function guardarNuevoPago(){
   try{
     const titulo=document.getElementById('npTitulo').value.trim();
+    const organismo=document.getElementById('npOrganismo').value.trim();
     const categoria=document.getElementById('npCategoria').value.trim();
     const fecha=document.getElementById('npFecha').value;
     const monto=Number(document.getElementById('npMonto').value||0);
-
-    if(!titulo || !categoria || !fecha){
-      alert('Completá concepto, categoría y vencimiento');
-      return;
-    }
-
+    const periodicidad=document.getElementById('npPeriodicidad').value||'UNICO';
+    const intervalo=periodicidad==='PERSONALIZADO'?Number(document.getElementById('npIntervalo').value||0):null;
+    if(!titulo||!fecha){alert('Completá concepto y vencimiento');return;}
+    if(!Number.isFinite(monto)||monto<0){alert('Ingresá un monto válido');return;}
+    if(periodicidad==='PERSONALIZADO'&&(!intervalo||intervalo<1)){alert('Indicá cada cuántos días se repite');return;}
     const payload={
-      titulo,
-      categoria,
-      descripcion: document.getElementById('npDesc').value.trim(),
-      monto,
-      fecha_vencimiento: fecha,
-      estado:'PENDIENTE',
-      periodicidad: document.getElementById('npPeriodicidad').value || 'UNICO',
-      recordatorio_dias: Number(document.getElementById('npAviso').value || 5)
+      titulo,organismo:organismo||null,categoria:categoria||'OTRO',descripcion:document.getElementById('npDesc').value.trim()||null,
+      monto,fecha_vencimiento:fecha,periodicidad,recordatorio_dias:Math.max(0,Number(document.getElementById('npAviso').value||0)),
+      recurrencia_activa:periodicidad!=='UNICO',intervalo_dias:intervalo,estado:'PENDIENTE'
     };
-
-    const {error}=await sb.from('recordatorios_pagos').insert(payload);
-    if(error) throw error;
-
-    cerrarNuevoPago();
-
-    ['npTitulo','npCategoria','npMonto','npFecha','npDesc'].forEach(id=>{
-      const el=document.getElementById(id);
-      if(el) el.value='';
-    });
-    document.getElementById('npAviso').value=5;
-    document.getElementById('npPeriodicidad').value='UNICO';
-
-    await cargarImpuestosPagos();
-  }catch(e){
-    console.error('[Nuevo pago]',e);
-    alert('No se pudo guardar el pago');
-  }
-}
-
-</script>
-
-
-<script>
-async function marcarPagado(id){
-  if(!await mostrarConfirmacion('Confirmar pago','¿Marcar esta obligación como pagada?')) return;
-  const {error}=await sb.from('recordatorios_pagos')
-    .update({estado:'PAGADO',fecha_pago:new Date().toISOString().slice(0,10)})
-    .eq('id',id);
-  if(error){console.error(error);alert('No se pudo actualizar');return;}
-  cargarImpuestosPagos();
-}
-
-let pagoEditandoId=null;
-
-function abrirEditarPago(id){
-  pagoEditandoId=id;
-  sb.from('recordatorios_pagos').select('*').eq('id',id).single().then(({data,error})=>{
-    if(error){alert('No se pudo cargar');return;}
-    document.getElementById('epTitulo').value=data.titulo||'';
-    document.getElementById('epMonto').value=data.monto||0;
-    document.getElementById('modalEditarPago').style.display='flex';
-  });
-}
-
-function cerrarEditarPago(){
-  document.getElementById('modalEditarPago').style.display='none';
-  pagoEditandoId=null;
-}
-
-async function guardarEditarPago(){
-  const titulo=document.getElementById('epTitulo').value.trim();
-  const monto=Number(document.getElementById('epMonto').value||0);
-  const {error}=await sb.from('recordatorios_pagos').update({titulo,monto}).eq('id',pagoEditandoId);
-  if(error){alert('No se pudo editar');return;}
-  cerrarEditarPago();
-  cargarImpuestosPagos();
-}
-
-async function eliminarPago(id){
-  if(!await mostrarConfirmacion('Eliminar obligación','¿Seguro que querés eliminar esta obligación?')) return;
-  const {error}=await sb.from('recordatorios_pagos').delete().eq('id',id);
-  if(error){console.error(error);alert('No se pudo eliminar');return;}
-  cargarImpuestosPagos();
+    let error;
+    if(pagoEditandoId){({error}=await sb.from('recordatorios_pagos').update(payload).eq('id',pagoEditandoId));}
+    else {({error}=await sb.from('recordatorios_pagos').insert(payload));}
+    if(error)throw error;
+    cerrarNuevoPago();await cargarImpuestosPagos();
+  }catch(e){console.error('[Guardar obligación]',e);alert(`No se pudo guardar: ${e.message||e}`);}
 }
 
 async function editarPago(id){
-  abrirEditarPago(id);
+  const x=(impuestosPagosCache||[]).find(r=>String(r.id)===String(id));
+  if(!x){alert('No se encontró la obligación');return;}
+  pagoEditandoId=id;
+  document.getElementById('npModalTitulo').textContent='Editar obligación';
+  document.getElementById('npTitulo').value=x.titulo||'';
+  document.getElementById('npOrganismo').value=x.organismo||'';
+  document.getElementById('npCategoria').value=x.categoria||'';
+  document.getElementById('npMonto').value=x.monto??'';
+  document.getElementById('npFecha').value=String(x.fecha_vencimiento||'').slice(0,10);
+  document.getElementById('npPeriodicidad').value=x.periodicidad||'UNICO';
+  document.getElementById('npAviso').value=x.recordatorio_dias??5;
+  document.getElementById('npIntervalo').value=x.intervalo_dias??'';
+  document.getElementById('npDesc').value=x.descripcion||'';
+  onNpPeriodicidadChange();
+  document.getElementById('modalNuevoPago').style.display='flex';
 }
+
+function marcarPagado(id){
+  const x=(impuestosPagosCache||[]).find(r=>String(r.id)===String(id));if(!x)return;
+  pagoMarcandoId=id;
+  document.getElementById('mpConcepto').textContent=x.titulo||'Obligación';
+  document.getElementById('mpDetalle').textContent=`${x.organismo||x.categoria||'Sin organismo'} · vencimiento ${impFmtFecha(x.fecha_vencimiento)}`;
+  document.getElementById('mpFecha').value=impHoy();
+  document.getElementById('mpMonto').value=Number(x.monto||0);
+  document.getElementById('mpMedio').value='TRANSFERENCIA';
+  document.getElementById('mpCrearGasto').checked=true;
+  document.getElementById('modalPagarObligacion').style.display='flex';
+}
+function cerrarPagarObligacion(){document.getElementById('modalPagarObligacion').style.display='none';pagoMarcandoId=null;}
+async function generarSiguienteObligacion(x){
+  if(!impEsRecurrente(x))return;
+  const fecha=impSiguienteFecha(x.fecha_vencimiento,x.periodicidad,x.intervalo_dias);if(!fecha)return;
+  const existente=(impuestosPagosCache||[]).some(r=>String(r.titulo||'')===String(x.titulo||'')&&String(r.fecha_vencimiento||'').slice(0,10)===fecha);
+  if(existente)return;
+  const serie=impSerieId(x);
+  const payload={titulo:x.titulo,categoria:x.categoria||'OTRO',organismo:x.organismo||null,descripcion:x.descripcion||null,monto:Number(x.monto||0),fecha_vencimiento:fecha,estado:'PENDIENTE',periodicidad:x.periodicidad||'UNICO',recordatorio_dias:Number(x.recordatorio_dias??5),recurrencia_activa:true,intervalo_dias:x.intervalo_dias||null,serie_id:serie,generado_desde_id:String(x.id)};
+  const {error}=await sb.from('recordatorios_pagos').insert(payload);if(error)throw error;
+  if(!x.serie_id) await sb.from('recordatorios_pagos').update({serie_id:serie}).eq('id',x.id);
+}
+async function confirmarPagoObligacion(){
+  const x=(impuestosPagosCache||[]).find(r=>String(r.id)===String(pagoMarcandoId));if(!x)return;
+  const fecha=document.getElementById('mpFecha').value||impHoy();
+  const monto=Number(document.getElementById('mpMonto').value||0);
+  const medio=document.getElementById('mpMedio').value||'TRANSFERENCIA';
+  const crearGasto=document.getElementById('mpCrearGasto').checked;
+  if(!Number.isFinite(monto)||monto<0){alert('Monto inválido');return;}
+  const btn=document.getElementById('mpConfirmarBtn');if(btn){btn.disabled=true;btn.textContent='Guardando...';}
+  let gastoId=null;
+  try{
+    if(crearGasto){
+      gastoId=(window.crypto?.randomUUID?window.crypto.randomUUID():`g_${Date.now()}_${Math.random().toString(36).slice(2,9)}`);
+      const gasto={id:gastoId,numero:(typeof gastoNumero==='function'?gastoNumero({id:gastoId,fecha}):`GST-${fecha.replace(/-/g,'')}-${String(gastoId).slice(-5).toUpperCase()}`),fecha,categoria:'IMPUESTO',concepto:x.titulo||'Obligación',beneficiario:x.organismo||x.categoria||null,medio,monto,observaciones:`Generado desde Impuestos y Pagos. Vencimiento: ${x.fecha_vencimiento||'—'}`};
+      const {error:gErr}=await sb.from('gastos').insert(gasto);if(gErr)throw new Error(`No se pudo registrar el gasto: ${gErr.message}`);
+    }
+    const {error:uErr}=await sb.from('recordatorios_pagos').update({estado:'PAGADO',fecha_pago:fecha,monto_pagado:monto,medio_pago:medio,gasto_id:gastoId}).eq('id',x.id);
+    if(uErr){if(gastoId)await sb.from('gastos').delete().eq('id',gastoId);throw uErr;}
+    let recurrenciaError=null;
+    try{await generarSiguienteObligacion(x);}catch(rErr){recurrenciaError=rErr;console.error('[Próximo vencimiento]',rErr);}
+    cerrarPagarObligacion();
+    await cargarImpuestosPagos();
+    if(recurrenciaError) alert(`El pago quedó registrado, pero no se pudo generar el próximo vencimiento: ${recurrenciaError.message||recurrenciaError}`);
+  }catch(e){console.error('[Pago obligación]',e);alert(e.message||'No se pudo registrar el pago');}
+  finally{if(btn){btn.disabled=false;btn.textContent='Confirmar pago';}}
+}
+
+async function eliminarPago(id){
+  if(!await mostrarConfirmacion('Eliminar obligación','¿Seguro que querés eliminar esta obligación?'))return;
+  const {error}=await sb.from('recordatorios_pagos').delete().eq('id',id);
+  if(error){console.error(error);alert('No se pudo eliminar');return;}
+  await cargarImpuestosPagos();
+}
+
+window.addEventListener('load',()=>{
+  setTimeout(()=>{if(typeof sb!=='undefined')cargarImpuestosPagos().catch(()=>{});},1800);
+  setTimeout(()=>{if(typeof sb!=='undefined' && !(impuestosPagosCache||[]).length)cargarImpuestosPagos().catch(()=>{});},5500);
+});
 </script>
 
 
@@ -20438,43 +20585,41 @@ function resolverConfirmacion(valor){
 }
 </script>
 
-<div id="modalEditarPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:22px;padding:28px;width:min(520px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
-    <h2 style="margin-top:0;">Editar obligación</h2>
-    <input id="epTitulo" placeholder="Concepto" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="epMonto" type="number" placeholder="Monto" style="width:100%;padding:12px;margin-bottom:10px;">
-    <div style="display:flex;justify-content:flex-end;gap:10px;">
-      <button onclick="cerrarEditarPago()">Cancelar</button>
-      <button onclick="guardarEditarPago()">Guardar cambios</button>
+<div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:9999;align-items:center;justify-content:center;padding:18px;">
+  <div style="background:white;border-radius:22px;padding:26px;width:min(680px,96%);max-height:92vh;overflow:auto;box-shadow:0 24px 70px rgba(0,0,0,.22);">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px;">
+      <div><h2 id="npModalTitulo" style="margin:0;">Nueva obligación</h2><div class="muted" style="margin-top:5px;">Definí qué hay que pagar, cuándo vence y con cuánto tiempo querés recibir el aviso.</div></div>
+      <button class="btn" onclick="cerrarNuevoPago()">Cerrar</button>
     </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+      <label style="display:block;"><span class="muted">Concepto *</span><input id="npTitulo" placeholder="Ej: IVA, Autónomos, Tasa municipal" style="width:100%;margin-top:5px;"></label>
+      <label style="display:block;"><span class="muted">Organismo / proveedor</span><input id="npOrganismo" placeholder="Ej: ARCA, Rentas, Municipalidad" style="width:100%;margin-top:5px;"></label>
+      <label style="display:block;"><span class="muted">Categoría</span><input id="npCategoria" placeholder="Impuestos, servicios, profesional..." style="width:100%;margin-top:5px;"></label>
+      <label style="display:block;"><span class="muted">Monto estimado</span><input id="npMonto" type="number" min="0" step="0.01" placeholder="0" style="width:100%;margin-top:5px;"></label>
+      <label style="display:block;"><span class="muted">Vencimiento *</span><input id="npFecha" type="date" style="width:100%;margin-top:5px;"></label>
+      <label style="display:block;"><span class="muted">Avisar con anticipación</span><div style="display:flex;align-items:center;gap:8px;margin-top:5px;"><input id="npAviso" type="number" min="0" value="5" style="width:90px;"><span class="muted">días antes</span></div></label>
+      <label style="display:block;"><span class="muted">Frecuencia</span><select id="npPeriodicidad" onchange="onNpPeriodicidadChange()" style="width:100%;margin-top:5px;"><option value="UNICO">Una sola vez</option><option value="SEMANAL">Semanal</option><option value="QUINCENAL">Cada 15 días</option><option value="MENSUAL">Mensual</option><option value="BIMESTRAL">Bimestral</option><option value="TRIMESTRAL">Trimestral</option><option value="SEMESTRAL">Semestral</option><option value="ANUAL">Anual</option><option value="PERSONALIZADO">Personalizado</option></select></label>
+      <label id="npIntervaloWrap" style="display:none;"><span class="muted">Repetir cada</span><div style="display:flex;align-items:center;gap:8px;margin-top:5px;"><input id="npIntervalo" type="number" min="1" style="width:90px;"><span class="muted">días</span></div></label>
+    </div>
+    <label style="display:block;margin-top:12px;"><span class="muted">Descripción / observaciones</span><textarea id="npDesc" rows="3" placeholder="Datos útiles para recordar al momento de pagar..." style="width:100%;margin-top:5px;"></textarea></label>
+    <div id="npRecurrenciaInfo" style="margin-top:12px;padding:11px 13px;border-radius:12px;background:#f8fafc;color:#64748b;font-size:13px;">Se registrará una sola obligación.</div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px;"><button onclick="cerrarNuevoPago()" class="btn">Cancelar</button><button onclick="guardarNuevoPago()" class="btn primary">Guardar obligación</button></div>
   </div>
 </div>
 
-<div id="modalNuevoPago" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:white;border-radius:22px;padding:28px;width:min(520px,90%);box-shadow:0 20px 50px rgba(0,0,0,.2);">
-    <h2 style="margin-top:0;">Nuevo pago</h2>
-    <input id="npTitulo" placeholder="Concepto" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="npCategoria" placeholder="Categoría (IVA, Contadora, Autónomo...)" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="npMonto" type="number" placeholder="Monto" style="width:100%;padding:12px;margin-bottom:10px;">
-    <input id="npFecha" type="date" style="width:100%;padding:12px;margin-bottom:10px;">
-    <select id="npPeriodicidad" style="width:100%;padding:12px;margin-bottom:10px;">
-      <option value="UNICO">Único</option>
-      <option value="MENSUAL">Mensual</option>
-      <option value="BIMESTRAL">Bimestral</option>
-      <option value="TRIMESTRAL">Trimestral</option>
-      <option value="SEMESTRAL">Semestral</option>
-      <option value="ANUAL">Anual</option>
-    </select>
-    <input id="npAviso" type="number" value="5" placeholder="Avisar días antes" style="width:100%;padding:12px;margin-bottom:10px;">
-    <textarea id="npDesc" placeholder="Descripción" style="width:100%;padding:12px;margin-bottom:10px;"></textarea>
-    <div style="display:flex;gap:10px;justify-content:flex-end;">
-      <button onclick="cerrarNuevoPago()" class="btn">Cancelar</button>
-      <button onclick="guardarNuevoPago()" class="btn primary">Guardar</button>
+<div id="modalPagarObligacion" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.48);z-index:10001;align-items:center;justify-content:center;padding:18px;">
+  <div style="background:white;border-radius:22px;padding:26px;width:min(540px,96%);box-shadow:0 24px 70px rgba(0,0,0,.22);">
+    <h2 style="margin:0;">Registrar pago</h2>
+    <div style="margin-top:10px;padding:14px;border-radius:14px;background:#f8fafc;"><strong id="mpConcepto">Obligación</strong><div id="mpDetalle" class="muted" style="margin-top:4px;"></div></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;">
+      <label><span class="muted">Fecha de pago</span><input id="mpFecha" type="date" style="width:100%;margin-top:5px;"></label>
+      <label><span class="muted">Monto pagado</span><input id="mpMonto" type="number" min="0" step="0.01" style="width:100%;margin-top:5px;"></label>
+      <label style="grid-column:1/-1;"><span class="muted">Medio de pago</span><select id="mpMedio" style="width:100%;margin-top:5px;"><option value="TRANSFERENCIA">Transferencia</option><option value="EFECTIVO">Efectivo</option><option value="MERCADOPAGO">Mercado Pago</option><option value="TARJETA">Tarjeta</option><option value="OTRO">Otro</option></select></label>
     </div>
+    <label style="display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px;border-radius:12px;background:#f0fdf4;"><input id="mpCrearGasto" type="checkbox" checked style="margin-top:2px;"><span><strong>Registrar también en Gastos</strong><div class="muted" style="margin-top:3px;">Se creará un gasto categoría IMPUESTO por el importe efectivamente abonado.</div></span></label>
+    <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px;"><button class="btn" onclick="cerrarPagarObligacion()">Cancelar</button><button class="btn primary" id="mpConfirmarBtn" onclick="confirmarPagoObligacion()">Confirmar pago</button></div>
   </div>
 </div>
-
-
 
 <div id="modalNuevoEmpleado" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);align-items:center;justify-content:center;z-index:9999;">
   <div class="card" style="width:420px;max-width:90%;">
