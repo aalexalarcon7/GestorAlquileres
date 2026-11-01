@@ -1212,7 +1212,8 @@ td:last-child{
     body.role-trabajador .sb-item[data-route="balance"],
     body.role-trabajador .mobile-nav-item[data-route="documentos"],
     body.role-trabajador .mobile-nav-item[data-route="informes"],
-    body.role-trabajador .mobile-nav-item[data-route="balance"]{
+    body.role-trabajador .mobile-nav-item[data-route="balance"],
+    body.role-trabajador .mobile-nav-item[data-route="balance-real"]{
       display:none !important;
     }
 
@@ -5837,6 +5838,31 @@ td:last-child{
   }
 </style>
 
+<style id="ga-balance-real-v1">
+#viewBalance, #viewBalanceReal {width:100%;max-width:none;}
+.balance-live-section{margin-top:18px;padding:18px;border:1px solid var(--border);border-radius:18px;background:var(--surface, var(--card,#fff));min-width:0;}
+.balance-live-title{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:14px;}
+.balance-live-title h3{margin:0;font-size:17px;font-weight:800;}
+.balance-live-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;}
+.balance-live-kpi{border:1px solid var(--border);border-radius:12px;padding:16px;background:var(--surface2,rgba(127,127,127,.025));min-width:0;}
+.balance-live-kpi-strong{border-color:var(--primary,var(--border));background:var(--surface,transparent);}
+.balance-live-label{font-size:12px;letter-spacing:.01em;font-weight:750;color:var(--muted);}
+.balance-live-value{font-weight:850;font-size:clamp(18px,1.9vw,26px);line-height:1.3;margin:6px 0 8px;overflow-wrap:anywhere;font-variant-numeric:tabular-nums;}
+.balance-live-sub{font-size:11px;line-height:1.35;color:var(--muted);}
+.balance-live-breakdown{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:14px;font-size:12px;color:var(--muted);}
+.balance-live-breakdown strong{color:var(--text,var(--ink,inherit));font-weight:800;}
+.balance-live-table{width:100%;overflow-x:auto;}
+.balance-live-table .balance-table{width:100%;min-width:1400px;}
+.balance-live-table .balance-table td,.balance-live-table .balance-table th{white-space:nowrap;font-size:12px;padding:10px 9px;}
+.balance-live-table .balance-table td:first-child{position:sticky;left:0;background:var(--surface,#fff);z-index:1;}
+.balance-live-footnote{font-size:12px;line-height:1.6;color:var(--muted);margin:12px 0 0;}
+.balance-live-error{margin:18px 0;padding:20px;border-color:var(--danger,#b91c1c);}
+#viewBalance .balance-grid{margin-top:18px;}
+@media(max-width:1120px){.balance-live-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:650px){.balance-live-grid{grid-template-columns:1fr;}.balance-live-section{padding:12px;}.balance-live-value{font-size:22px;}}
+@media(max-width:1100px){.mobile-bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important;}.mobile-nav-label{font-size:9.5px!important;}}
+</style>
+
 </head>
 <body>
 <!-- SPLASH -->
@@ -5881,6 +5907,7 @@ td:last-child{
         <div class="sb-section-label">Análisis</div>
         <button class="sb-item" title="Informes" aria-label="Informes" data-route="informes" onclick="setRoute('informes')"><span class="sb-item-icon ui-icon" data-ui-icon="chart"></span><span class="sb-item-label">Informes</span></button>
         <button class="sb-item" title="Balance" aria-label="Balance" data-route="balance" onclick="setRoute('balance')"><span class="sb-item-icon ui-icon" data-ui-icon="wallet"></span><span class="sb-item-label">Balance</span></button>
+        <button class="sb-item" title="Balance real" aria-label="Balance real" data-route="balance-real" onclick="setRoute('balance-real')"><span class="sb-item-icon ui-icon" data-ui-icon="chart"></span><span class="sb-item-label">Balance real</span></button>
       </nav>
 
       <div class="sb-footer">
@@ -5908,6 +5935,10 @@ td:last-child{
       <button class="mobile-nav-item" type="button" data-route="balance" onclick="setRoute('balance')">
         <span class="mobile-nav-icon ui-icon" data-ui-icon="wallet"></span>
         <span class="mobile-nav-label">Balance</span>
+      </button>
+      <button class="mobile-nav-item" type="button" data-route="balance-real" onclick="setRoute('balance-real')">
+        <span class="mobile-nav-icon ui-icon" data-ui-icon="chart"></span>
+        <span class="mobile-nav-label">Balance real</span>
       </button>
     </nav>
 
@@ -6142,6 +6173,7 @@ td:last-child{
         <section id="viewRecibos" style="display:none;"></section>
         <section id="viewInformes" style="display:none;"></section>
         <section id="viewBalance" style="display:none;"></section>
+        <section id="viewBalanceReal" style="display:none;"></section>
         <section id="viewEmpleados" style="display:none;">
   <div class="card">
     <div class="row" style="justify-content:space-between;align-items:center;gap:16px;">
@@ -7242,7 +7274,7 @@ td:last-child{
           agregar mes y editar cuotas/impuestos/servicios.
         - Se mantienen ocultas acciones destructivas o administrativas generales.
       */
-      const blockedFn = /deleteActivoActual|toggleOcultarActivoActual|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage/i;
+      const blockedFn = /deleteActivoActual|toggleOcultarActivoActual|deleteGasto|deleteDoc|openGasto|saveGasto|renderInformesPage|renderBalancePage|renderBalanceRealPage/i;
       const blockedText = /Borrar activo|Ocultar activo|Restaurar activo|Eliminar gasto|Eliminar documento|Configuración|Auditoría|Reportes|Balance|Caja general/i;
 
       document.querySelectorAll('button, .btn, .linkBtn, .ec-btn-row').forEach(el => {
@@ -7357,7 +7389,7 @@ td:last-child{
     function loadCurrentRoute(){
       try {
         const saved = localStorage.getItem(ROUTE_STORAGE_KEY);
-        const allowed = new Set(['inicio','activos','documentos','recibos','deudores','informes','balance']);
+        const allowed = new Set(['inicio','activos','documentos','recibos','deudores','informes','balance','balance-real']);
         return allowed.has(saved) ? saved : 'inicio';
       } catch (e){
         return 'inicio';
@@ -7985,10 +8017,11 @@ td:last-child{
         documentos: 'Buscar contrato o archivo...',
         recibos: 'Buscar recibo, locatario o local...',
         informes: 'Buscar gastos, persona o categoría...',
-        balance: 'Buscar en balance...'
+        balance: 'Buscar en balance...',
+         'balance-real': 'Buscar en balance real...'
       };
 
-      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'informes', 'balance']);
+      const hideHeaderRoutes = new Set(['documentos', 'recibos', 'informes', 'balance', 'balance-real']);
       const shouldHideHeader = hideHeaderRoutes.has(route);
 
       document.body.classList.toggle('route-hide-top', shouldHideHeader);
@@ -8014,6 +8047,7 @@ td:last-child{
         recibos:'viewRecibos',
         informes:'viewInformes',
         balance:'viewBalance',
+        'balance-real':'viewBalanceReal',
         impuestos:'viewImpuestos',
         empleados:'viewEmpleados'
       };
@@ -8030,6 +8064,7 @@ td:last-child{
       if (r === 'recibos') renderRecibosPage();
       if (r === 'informes') renderInformesPage();
       if (r === 'balance') renderBalancePage();
+       if (r === 'balance-real') renderBalanceRealPage();
       if (r === 'impuestos') cargarImpuestosPagos();
       if (r === 'empleados') cargarEmpleados();
     }
@@ -9955,6 +9990,11 @@ async function renderCurrentRouteAfterWake(){
 
   if (currentRoute === 'balance' && typeof renderBalancePage === 'function') {
     await renderBalancePage();
+    return;
+  }
+
+  if (currentRoute === 'balance-real' && typeof renderBalanceRealPage === 'function') {
+    await renderBalanceRealPage();
     return;
   }
 
@@ -16064,647 +16104,267 @@ error = deleteResponse.error;
       balanceCharts = [];
     }
 
-    async function fetchBalanceData(year){
-  let balanceRows = [];
-  let balanceError = null;
+    // ================================================================
+    // BALANCE + BALANCE REAL | Lecturas consistentes con cuotas y caja
+    // Las cifras de cobranza (mes de cuota) NO se mezclan con caja (fecha).
+    // ================================================================
+    const BALANCE_REAL_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+    const balanceRealState = { year:null, month:null, monthManual:false, renderSeq:0 };
 
-  try {
-    const { data, error } = await sb.rpc('balance_operativo_anual', {
-      p_anio: Number(year)
-    });
-
-    if (error) throw error;
-
-    balanceRows = (data || []).map(row => ({
-      mes: Number(row.mes || 0),
-      mes_nombre: row.mes_nombre || BALANCE_MONTHS[Number(row.mes || 1) - 1],
-      facturacion: toNumber(row.facturacion),
-      recaudacion: toNumber(row.recaudacion),
-      gastos: toNumber(row.gastos),
-      ganancia: toNumber(row.ganancia),
-      saldo_acumulado: toNumber(row.saldo_acumulado)
-    }));
-  } catch (err) {
-    console.error('Error cargando balance operativo:', err);
-    balanceError = { message: err?.message || 'No se pudo calcular el balance operativo.' };
-    balanceRows = [];
-  }
-
-  // Adaptamos el resultado del RPC al formato que ya usa buildBalanceYearSummary().
-  // Así no hay que tocar toda la pantalla.
-  const cuotas = balanceRows.map(row => ({
-    anio: Number(year),
-    mes: row.mes,
-    monto_total: row.facturacion
-  }));
-
-  const pagos = balanceRows.map(row => ({
-    anio: Number(year),
-    mes: row.mes,
-    fecha_pago: `${year}-${String(row.mes).padStart(2, '0')}-01`,
-    monto: row.recaudacion,
-    monto_total: row.recaudacion
-  }));
-
-  const gastos = balanceRows.map(row => ({
-    fecha: `${year}-${String(row.mes).padStart(2, '0')}-01`,
-    monto: row.gastos
-  }));
-
-  return {
-    pagos,
-    gastos,
-    cuotas,
-    contratos: [],
-    pagosError: balanceError,
-    gastosError: null,
-    cuotasError: null,
-    contratosError: null
-  };
-}
-
-    function buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex = null, contratos = [], cuotas = []){
-      const facturacion = Array(12).fill(0);
-      const recaudacion = Array(12).fill(0);
-      const gastosMes = Array(12).fill(0);
-
-      const cuotasDelAnio = (cuotas || []).filter(cuota => Number(cuota?.anio) === Number(year));
-      if (cuotasDelAnio.length){
-        cuotasDelAnio.forEach(cuota => {
-          const mes = Number(cuota?.mes || 0);
-          const idx = mes - 1;
-          if (idx >= 0 && idx < 12) facturacion[idx] += Math.max(0, Number(cuota?.monto_total || 0));
-        });
-      } else {
-        // Fallback viejo: si por permisos no se puede leer la vista de cuotas, usa contratos.
-        (contratos || []).forEach(contrato => {
-          const monto = montoFacturacionContratoBalance(contrato);
-          if (!monto) return;
-          for (let idx = 0; idx < 12; idx++){
-            if (contratoAplicaMesBalance(contrato, year, idx)) facturacion[idx] += monto;
-          }
-        });
-      }
-
-      (pagos || []).forEach(item => {
-        const idx = balanceMonthIndexFromCobro(item);
-        if (idx >= 0 && idx < 12) recaudacion[idx] += Number(item.monto_total ?? item.monto ?? 0);
-      });
-
-      (gastos || []).forEach(item => {
-        const idx = monthIndexFromDate(item.fecha || item.created_at);
-        if (idx >= 0) gastosMes[idx] += Number(item.monto || 0);
-      });
-
-      const ganancia = recaudacion.map((value, idx) => value - gastosMes[idx]);
-      const saldo = [];
-      let acumulado = 0;
-      ganancia.forEach(value => {
-        acumulado += value;
-        saldo.push(acumulado);
-      });
-
-      const porcentajeCobrado = recaudacion.map((value, idx) => safePercent(value, facturacion[idx]));
-      const pendienteFacturacion = facturacion.map((value, idx) => Math.max(value - recaudacion[idx], 0));
-      const diferenciaFacturacion = recaudacion.map((value, idx) => value - facturacion[idx]);
-      const gastosSobreFact = facturacion.map((value, idx) => safePercent(gastosMes[idx], value));
-      const utilidadSobreFact = facturacion.map((value, idx) => safePercent(ganancia[idx], value));
-      const recaudacionSobreSaldo = recaudacion.map((value, idx) => safePercent(value, saldo[idx]));
-
+    function balanceDinero(n) { return fmtARS.format(Number(n) || 0); }
+    function balanceNumero(n) { return Number(n || 0); }
+    function balancePorcentaje(parte, total) {
+      return Number(total) > 0 ? (100 * Number(parte || 0) / Number(total)).toFixed(1) + '%' : '—';
+    }
+    function balanceYearOptions(sel) {
+      const actual = new Date().getFullYear();
+      return [...new Set([2025,2026,actual-1,actual,actual+1,Number(sel)])]
+        .filter(y=>Number.isInteger(y)&&y>=2020).sort((a,b)=>b-a)
+        .map(y=>`<option value="${y}"${y===Number(sel)?' selected':''}>${y}</option>`).join('');
+    }
+    function balanceMonthOptions(sel) {
+      return BALANCE_REAL_MESES.map((m,i)=>`<option value="${i}"${i===sel?' selected':''}>${m}</option>`).join('');
+    }
+    function balanceCard(label, value, sub, emphasis=false) {
+      return `<div class="balance-live-kpi${emphasis?' balance-live-kpi-strong':''}"><div class="balance-live-label">${label}</div>`+
+        `<div class="balance-live-value">${value}</div><div class="balance-live-sub">${sub}</div></div>`;
+    }
+    function balanceErrorBox(error) {
+      return `<div class="card balance-live-error" role="alert"><strong>No se pudo cargar el Balance.</strong>`+
+        `<div style="margin-top:8px;">${escapeHtml(String(error?.message || error || 'Error de consulta.'))}</div>`+
+        `<p>Primero ejecutá <code>01_balance_real_supabase.sql</code> en Supabase y después actualizá la página.</p>`+
+        `</div>`;
+    }
+    function balanceMonthlyRow(r) {
+      return `<tr><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
+        `<td class="right">${balanceDinero(r.facturacion)}</td>`+
+        `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
+        `<td class="right">${balanceDinero(r.pendiente_real)}</td>`+
+        `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
+        `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
+        `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
+        `<td class="right">${balanceDinero(r.flujo_neto)}</td>`+
+        `<td class="right">${balanceDinero(r.flujo_acumulado)}</td>`+
+        `<td class="center">${r.cuotas_pendientes + r.cuotas_parciales}</td>`+
+        `<td class="center">${r.cuotas_inconsistentes ? `<span title="Revisar cuotas con diferencia entre total, pagado y saldo" class="badge b-warn">${r.cuotas_inconsistentes}</span>` : '—'}</td></tr>`;
+    }
+    function balanceSum(rows,key){return rows.reduce((t,r)=>t+balanceNumero(r[key]),0);}
+    function balanceDefaultIndex(rows, year, manualIndex) {
+      if (Number.isInteger(manualIndex) && manualIndex >= 0 && manualIndex < 12) return manualIndex;
       const now = new Date();
-      const currentMonthIndex = now.getFullYear() === year ? now.getMonth() : 11;
-      const rawSelectedMonthIndex = Number.isInteger(Number(selectedMonthIndex)) ? Number(selectedMonthIndex) : currentMonthIndex;
-      const activeMonthIndex = Math.max(0, Math.min(11, rawSelectedMonthIndex));
-      const isCurrentRealMonth = now.getFullYear() === year && now.getMonth() === activeMonthIndex;
-      const currentMonthDays = isCurrentRealMonth ? now.getDate() : daysInMonth(year, activeMonthIndex);
-      const monthTotalDays = daysInMonth(year, activeMonthIndex);
-
-      const facturacionActual = facturacion[activeMonthIndex] || 0;
-      const recMesActual = recaudacion[activeMonthIndex] || 0;
-      const gastosActual = gastosMes[activeMonthIndex] || 0;
-      const gananciaActual = ganancia[activeMonthIndex] || 0;
-      const saldoActual = saldo[activeMonthIndex] || 0;
-      const porcentajeCobradoActual = porcentajeCobrado[activeMonthIndex] || 0;
-      const pendienteFacturacionActual = pendienteFacturacion[activeMonthIndex] || 0;
-      const diferenciaFacturacionActual = diferenciaFacturacion[activeMonthIndex] || 0;
-
-      const proyFactor = currentMonthDays > 0 ? (monthTotalDays / currentMonthDays) : 0;
-      const proyeccion = isCurrentRealMonth ? {
-        recaudacion: recMesActual * proyFactor,
-        gastos: gastosActual * proyFactor,
-        ganancia: gananciaActual * proyFactor
-      } : {
-        recaudacion: recMesActual,
-        gastos: gastosActual,
-        ganancia: gananciaActual
-      };
-
-      const rows = BALANCE_MONTHS.map((mes, idx) => ({
-        mes,
-        facturacion: facturacion[idx],
-        recaudacion: recaudacion[idx],
-        porcentajeCobrado: porcentajeCobrado[idx],
-        pendienteFacturacion: pendienteFacturacion[idx],
-        diferenciaFacturacion: diferenciaFacturacion[idx],
-        gastos: gastosMes[idx],
-        ganancia: ganancia[idx],
-        saldo: saldo[idx],
-        gastosSobreFact: gastosSobreFact[idx],
-        utilidadSobreFact: utilidadSobreFact[idx],
-        recaudacionSobreSaldo: recaudacionSobreSaldo[idx]
-      }));
-
-      return {
-        rows,
-        summary: {
-          facturacionActual,
-          recMesActual,
-          gastosActual,
-          gananciaActual,
-          saldoActual: gananciaActual,
-          saldoAcumuladoActual: saldoActual,
-          porcentajeCobradoActual,
-          pendienteFacturacionActual,
-          diferenciaFacturacionActual,
-          activeMonthIndex,
-          activeMonthName: BALANCE_MONTHS[activeMonthIndex],
-          proyeccion,
-          totalAnualFacturacion: facturacion.reduce((a,b)=>a+b,0),
-          totalAnualRecaudado: recaudacion.reduce((a,b)=>a+b,0),
-          totalAnualGastos: gastosMes.reduce((a,b)=>a+b,0),
-          totalAnualGanancia: ganancia.reduce((a,b)=>a+b,0)
-        }
-      };
+      const limite = Number(year) === now.getFullYear() ? now.getMonth() : 11;
+      const disponibles = rows.filter(r=>r.mes-1 <= limite &&
+        (r.facturacion!==0 || r.recaudacion_caja!==0 || r.gastos_registrados!==0));
+      return disponibles.length ? disponibles[disponibles.length-1].mes-1 : limite;
     }
-
-    function formatBalanceMoney(value){
-      return fmtARS.format(toNumber(value)).replace(',00', '');
+    async function fetchBalanceRealData(year) {
+      const { data, error } = await sb.rpc('balance_real_operativo_anual',{p_anio:Number(year)});
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length!==12 || data.some(r=>!Number.isInteger(Number(r.mes))))
+        throw new Error('La consulta no devolvió los 12 meses completos. No se mostrarán cifras incompletas.');
+      return data.map(r=>({
+        mes:Number(r.mes),mes_nombre:String(r.mes_nombre||BALANCE_REAL_MESES[Number(r.mes)-1]),
+        facturacion:balanceNumero(r.facturacion),cobrado_cuotas:balanceNumero(r.cobrado_cuotas),
+        pendiente_real:balanceNumero(r.pendiente_real),recaudacion_caja:balanceNumero(r.recaudacion_caja),
+        gastos_registrados:balanceNumero(r.gastos_registrados),flujo_neto:balanceNumero(r.flujo_neto),
+        flujo_acumulado:balanceNumero(r.flujo_acumulado),cuotas_pagadas:balanceNumero(r.cuotas_pagadas),
+        cuotas_parciales:balanceNumero(r.cuotas_parciales),cuotas_pendientes:balanceNumero(r.cuotas_pendientes),
+        cuotas_sin_cargo:balanceNumero(r.cuotas_sin_cargo),cuotas_inconsistentes:balanceNumero(r.cuotas_inconsistentes)
+      })).sort((a,b)=>a.mes-b.mes);
     }
-
-    function buildBalanceTableRows(rows){
-      return rows.map(row => `
-        <tr>
-          <td><b>${row.mes}</b></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.facturacion)}</span></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.recaudacion)}</span></td>
-          <td class="right"><span class="balance-pct">${row.porcentajeCobrado.toFixed(1)}%</span></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.pendienteFacturacion)}</span></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.gastos)}</span></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.ganancia)}</span></td>
-          <td class="right"><span class="balance-money">${formatBalanceMoney(row.saldo)}</span></td>
-          <td class="right"><span class="balance-pct">${row.gastosSobreFact.toFixed(1)}%</span></td>
-          <td class="right"><span class="balance-pct">${row.utilidadSobreFact.toFixed(1)}%</span></td>
-          <td class="right"><span class="balance-pct">${row.recaudacionSobreSaldo.toFixed(1)}%</span></td>
-        </tr>
-      `).join('');
+    function balanceLiveTable(rows){
+      return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
+        `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado cuotas</th>`+
+        `<th class="right">Pendiente real</th><th class="right">% cobrado</th>`+
+        `<th class="right">Cobros caja</th><th class="right">Gastos cargados</th>`+
+        `<th class="right">Flujo neto</th><th class="right">Flujo acum.</th>`+
+        `<th class="center">Cuotas c/deuda</th><th class="center">Alertas</th></tr></thead>`+
+        `<tbody>${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
     }
-
-    function renderBalanceCharts(rows){
-  if (typeof Chart === 'undefined') return;
-
-  destroyBalanceCharts();
-
-  const labels = rows.map(r => r.mes);
-
-  const moneyTooltip = (context) => {
-    const value = Number(context.raw || 0);
-    return `${context.dataset.label}: ${fmtARS.format(value)}`;
-  };
-
-  const percentTooltip = (context) => {
-    const value = Number(context.raw || 0);
-    return `${context.dataset.label}: ${value.toFixed(2)}%`;
-  };
-
-  const moneyAxis = {
-    ticks: {
-      callback: (value) => fmtARS.format(Number(value || 0)).replace(',00', '')
-    }
-  };
-
-  const percentAxis = {
-    beginAtZero: true,
-    suggestedMax: 100,
-    ticks: {
-      callback: (value) => `${value}%`
-    }
-  };
-
-  const mk = (id, config) => {
-    const canvas = $(id);
-    if (!canvas) return;
-
-    const chart = new Chart(canvas.getContext('2d'), config);
-    balanceCharts.push(chart);
-  };
-
-  mk('balChartFactRec', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Facturación proyectada',
-          data: rows.map(r => Number(toNumber(r.facturacion).toFixed(2))),
-          borderWidth: 1
-        },
-        {
-          label: 'Recaudación',
-          data: rows.map(r => Number(toNumber(r.recaudacion).toFixed(2))),
-          borderWidth: 1
-        },
-        {
-          label: 'Pendiente',
-          data: rows.map(r => Number(toNumber(r.pendienteFacturacion).toFixed(2))),
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top'
-        },
-        tooltip: {
-          callbacks: {
-            label: moneyTooltip
-          }
-        }
-      },
-      scales: {
-        y: moneyAxis
+    function balanceChartConfigs(rows) {
+      if (typeof Chart === 'undefined') return;
+      destroyBalanceCharts();
+      const nombres=rows.map(r=>r.mes_nombre.slice(0,3));
+      const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},
+        tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${balanceDinero(c.raw)}`}}}};
+      const graphs=[
+        ['balChartFactRec','bar',[['Facturado','facturacion'],['Cobrado de cuotas','cobrado_cuotas']]],
+        ['balChartCobradoFact','bar',[['Pendiente real','pendiente_real']]],
+        ['balChartResultadoMes','bar',[['Cobros de caja','recaudacion_caja'],['Gastos registrados','gastos_registrados']]],
+        ['balChartSaldoAcumulado','line',[['Flujo neto acumulado','flujo_acumulado']]]
+      ];
+      for(const [id,type,series] of graphs){
+        const canvas=$(id);
+        if(!canvas)continue;
+        balanceCharts.push(new Chart(canvas.getContext('2d'), {type,
+          data:{labels:nombres,datasets:series.map(([label,key])=>({label,data:rows.map(r=>r[key]),borderWidth:2,tension:.16}))},
+          options:base}));
       }
     }
-  });
-
-  mk('balChartCobradoFact', {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Cobrado / facturación',
-          data: rows.map(r => Number(toNumber(r.porcentajeCobrado).toFixed(2))),
-          tension: .28,
-          fill: false,
-          borderWidth: 2,
-          pointRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          callbacks: {
-            label: percentTooltip
-          }
-        }
-      },
-      scales: {
-        y: percentAxis
-      }
-    }
-  });
-
-  mk('balChartResultadoMes', {
-    type: 'bar',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Recaudación',
-          data: rows.map(r => Number(toNumber(r.recaudacion).toFixed(2))),
-          borderWidth: 1
-        },
-        {
-          label: 'Gastos',
-          data: rows.map(r => Number(toNumber(r.gastos).toFixed(2))),
-          borderWidth: 1
-        },
-        {
-          label: 'Ganancia',
-          data: rows.map(r => Number(toNumber(r.ganancia).toFixed(2))),
-          borderWidth: 1
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: true,
-          position: 'top'
-        },
-        tooltip: {
-          callbacks: {
-            label: moneyTooltip
-          }
-        }
-      },
-      scales: {
-        y: moneyAxis
-      }
-    }
-  });
-
-  mk('balChartSaldoAcumulado', {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        {
-          label: 'Saldo acumulado',
-          data: rows.map(r => Number(toNumber(r.saldo).toFixed(2))),
-          tension: .28,
-          fill: false,
-          borderWidth: 2,
-          pointRadius: 4
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      interaction: {
-        mode: 'index',
-        intersect: false
-      },
-      plugins: {
-        legend: {
-          display: false
-        },
-        tooltip: {
-          callbacks: {
-            label: moneyTooltip
-          }
-        }
-      },
-      scales: {
-        y: moneyAxis
-      }
-    }
-  });
-}
-
     function handleBalanceSearchInput(){
-      balancePageState.query = $('balanceSearch')?.value || '';
-      renderBalancePage();
+      balancePageState.query=$('balanceSearch')?.value||'';
+      const q=balancePageState.query.trim().toLowerCase();
+      document.querySelectorAll('#balanceBody tr').forEach(tr=>{
+        tr.style.display = !q || tr.cells?.[0]?.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
     }
-
     function handleBalanceMonthChange(){
-      const monthValue = Number($('balanceMonth')?.value);
-      balancePageState.month = Number.isInteger(monthValue) ? Math.max(0, Math.min(11, monthValue)) : new Date().getMonth();
-      balancePageState.monthManual = true;
+      balancePageState.month=Number($('balanceMonth')?.value??new Date().getMonth());
+      balancePageState.monthManual=true;
       renderBalancePage();
     }
-
-    async function renderBalancePage(){
-      const el = $('viewBalance');
-      if (!el) return;
-
-      const now = new Date();
-      const currentYear = now.getFullYear();
-      const renderSeq = (balancePageState.renderSeq || 0) + 1;
-      balancePageState.renderSeq = renderSeq;
-      balancePageState.query = $('balanceSearch')?.value || balancePageState.query || '';
-      const selectedYear = Number($('balanceYear')?.value || balancePageState.year || currentYear);
-      balancePageState.year = selectedYear;
-      const rawSelectedMonth = $('balanceMonth')?.value;
-      const selectedMonth = rawSelectedMonth !== undefined && rawSelectedMonth !== null
-        ? Number(rawSelectedMonth)
-        : (balancePageState.month ?? now.getMonth());
-      balancePageState.month = Number.isInteger(Number(selectedMonth)) ? Math.max(0, Math.min(11, Number(selectedMonth))) : now.getMonth();
-      const yearOptions = [currentYear - 1, currentYear, currentYear + 1]
-        .map(year => `<option value="${year}">${year}</option>`)
-        .join('');
-      const monthOptions = BALANCE_MONTHS
-        .map((month, idx) => `<option value="${idx}">${month}</option>`)
-        .join('');
-
-      el.innerHTML = `
-        <div class="section-hero balance">
-          <div class="section-hero-grid">
-            <div>
-              <div class="section-hero-main">
-                <div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>
-                <div>
-                  <h2 class="section-hero-title">Balance</h2>
-                </div>
-              </div>
-              <div class="section-hero-toolbar balance">
-                <input id="balanceSearch" placeholder="Buscar en balance..." value="${escapeHtml(balancePageState.query || '')}" oninput="handleBalanceSearchInput()">
-                <select id="balanceMonth" style="width:180px" onchange="handleBalanceMonthChange()">
-                  ${monthOptions}
-                </select>
-                <select id="balanceYear" style="width:140px">
-                  ${yearOptions}
-                </select>
-                <button class="btn primary" onclick="renderBalancePage()">Actualizar</button>
-              </div>
-            </div>
-          </div>
-          <div class="toast" id="balanceMsg" style="margin-top:14px;"></div>
-        </div>
-
-        <div class="card balance-card-compact">
-          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:17px;">Resumen del mes seleccionado</h3>
-            <span class="badge b-info" id="balSelectedMonthBadge">${BALANCE_MONTHS[balancePageState.month]} ${selectedYear}</span>
-          </div>
-          <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Recaudación bruta</div><div class="value" id="balKpiRecaudacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiRecaudacionSub">Todo lo cobrado en el mes elegido</div></div>
-            <div class="kpi"><div class="label">Gastos</div><div class="value" id="balKpiGastos">${fmtARS.format(0)}</div><div class="muted" id="balKpiGastosSub">Egresos cargados en el mes elegido</div></div>
-            <div class="kpi"><div class="label">Ganancia</div><div class="value" id="balKpiGanancia">${fmtARS.format(0)}</div><div class="muted" id="balKpiGananciaSub">Recaudación - gastos</div></div>
-            <div class="kpi"><div class="label">Saldo del mes</div><div class="value" id="balKpiSaldo">${fmtARS.format(0)}</div><div class="muted" id="balKpiSaldoSub">Recaudación - gastos del mes</div></div>
-          </div>
-        </div>
-
-        <div class="card balance-card-compact">
-          <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px;">
-            <h3 style="margin:0;font-size:17px;">Facturación proyectada</h3>
-            <span class="badge b-info" id="balFacturacionBadge">Según contratos activos</span>
-          </div>
-          <div class="kpis balance-kpis-centered">
-            <div class="kpi"><div class="label">Fact. proyectada</div><div class="value" id="balKpiFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiFacturacionSub">Alquiler + impuesto del mes</div></div>
-            <div class="kpi"><div class="label">Cobrado / fact.</div><div class="value" id="balKpiPctCobrado">0.00%</div><div class="muted" id="balKpiPctCobradoSub">Porcentaje cubierto</div></div>
-            <div class="kpi"><div class="label">Pendiente</div><div class="value" id="balKpiPendienteFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiPendienteFacturacionSub">Facturación - cobrado</div></div>
-            <div class="kpi"><div class="label">Diferencia</div><div class="value" id="balKpiDiferenciaFacturacion">${fmtARS.format(0)}</div><div class="muted" id="balKpiDiferenciaFacturacionSub">Cobrado - facturación</div></div>
-          </div>
-        </div>
-
-        <div class="card balance-card-compact">
-          <div class="row" style="justify-content:space-between;align-items:end;">
-            <div>
-              <h3 style="margin:0;font-size:17px;">Proyección mensual</h3>
-              <div class="muted"></div>
-            </div>
-          </div>
-          <div class="kpis balance-kpis-centered" style="margin-top:12px;">
-            <div class="kpi"><div class="label">Proy. recaudación</div><div class="value" id="balProjRecaudacion">${fmtARS.format(0)}</div></div>
-            <div class="kpi"><div class="label">Proy. gastos</div><div class="value" id="balProjGastos">${fmtARS.format(0)}</div></div>
-            <div class="kpi"><div class="label">Proy. ganancia</div><div class="value" id="balProjGanancia">${fmtARS.format(0)}</div></div>
-            <div class="kpi"><div class="label">Totales anuales</div><div class="value" id="balAnnualResult">${fmtARS.format(0)}</div><div class="muted" id="balAnnualSub">Sin datos</div></div>
-          </div>
-        </div>
-
-        <div class="card balance-detail-card">
-          <div class="row" style="justify-content:space-between;align-items:end;">
-            <div>
-              <h3 style="margin:0;font-size:17px;">Detalle mensual</h3>
-            </div>
-          </div>
-          <div class="tableWrap" style="margin-top:12px;">
-            <table class="balance-table">
-              <colgroup>
-                <col style="width:7%">
-                <col style="width:12%">
-                <col style="width:11%">
-                <col style="width:7%">
-                <col style="width:11%">
-                <col style="width:9%">
-                <col style="width:10%">
-                <col style="width:10%">
-                <col style="width:7%">
-                <col style="width:8%">
-                <col style="width:8%">
-              </colgroup>
-              <thead>
-                <tr>
-                  <th>Mes</th>
-                  <th class="right">Fact. proyectada</th>
-                  <th class="right">Recaudación</th>
-                  <th class="right">Cobrado %</th>
-                  <th class="right">Pendiente</th>
-                  <th class="right">Gastos</th>
-                  <th class="right">Ganancia</th>
-                  <th class="right">Saldo</th>
-                  <th class="right">Gtos/Fact</th>
-                  <th class="right">Util/Fact</th>
-                  <th class="right">Rec/Saldo</th>
-                </tr>
-              </thead>
-              <tbody id="balanceBody"></tbody>
-            </table>
-          </div>
-          <div class="balance-table-note"></div>
-        </div>
-
-        <div class="balance-grid">
-  <div class="card balance-chart-card">
-    <h3 style="margin-top:0;">Facturación vs recaudación</h3>
-    <canvas id="balChartFactRec"></canvas>
-  </div>
-
-  <div class="card balance-chart-card">
-    <h3 style="margin-top:0;">Cobrado sobre facturación</h3>
-    <canvas id="balChartCobradoFact"></canvas>
-  </div>
-
-  <div class="card balance-chart-card">
-    <h3 style="margin-top:0;">Resultado mensual</h3>
-    <canvas id="balChartResultadoMes"></canvas>
-  </div>
-
-  <div class="card balance-chart-card">
-    <h3 style="margin-top:0;">Saldo acumulado</h3>
-    <canvas id="balChartSaldoAcumulado"></canvas>
-  </div>
-</div>
-      `;
-
-      const yearInput = $('balanceYear');
-      const monthInput = $('balanceMonth');
-      if (yearInput && !yearInput.dataset.bound){
-        yearInput.addEventListener('change', () => {
-          balancePageState.year = Number(yearInput.value || currentYear);
-          balancePageState.monthManual = false;
-          renderBalancePage();
-        });
-        yearInput.dataset.bound = '1';
+    async function renderBalancePage() {
+      const el=$('viewBalance'); if(!el)return;
+      const now=new Date();
+      const year=Number($('balanceYear')?.value||balancePageState.year||now.getFullYear());
+      const raw=$('balanceMonth')?.value;
+      const chosen=balancePageState.monthManual ? (raw!==undefined&&raw!==null?Number(raw):balancePageState.month) : null;
+      balancePageState.year=year;
+      const seq=++balancePageState.renderSeq;
+      el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
+        `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
+        `<h2 class="section-hero-title">Balance</h2></div>`+
+        `<p class="muted">Caja registrada y cobranza de cuotas, presentadas por separado.</p>`+
+        `<div class="section-hero-toolbar balance">`+
+        `<input id="balanceSearch" placeholder="Filtrar meses en la tabla" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()">`+
+        `<select id="balanceMonth" onchange="handleBalanceMonthChange()"></select>`+
+        `<select id="balanceYear" onchange="balancePageState.year=Number(this.value);balancePageState.monthManual=false;renderBalancePage()">${balanceYearOptions(year)}</select>`+
+        `<button class="btn primary" onclick="renderBalancePage()">Actualizar</button>`+
+        `<button class="btn" onclick="setRoute('balance-real')">Ver Balance real</button>`+
+        `</div></div></div></div><div id="balanceLiveContent" class="muted" style="padding:18px 0">Consultando datos...</div>`;
+      try{
+        const rows=await fetchBalanceRealData(year);
+        if(seq!==balancePageState.renderSeq)return;
+        const monthIdx=balanceDefaultIndex(rows,year,chosen);
+        balancePageState.month=monthIdx;
+        $('balanceMonth').innerHTML=balanceMonthOptions(monthIdx);
+        const m=rows[monthIdx];
+        const nombre=`${m.mes_nombre} ${year}`;
+        const anomal=balanceSum(rows,'cuotas_inconsistentes');
+        $('balanceLiveContent').innerHTML=`
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Movimientos de caja · ${nombre}</h3>`+
+          `<span class="badge b-info">Fecha efectiva del cobro</span></div>`+
+          `<div class="balance-live-grid">`+
+          balanceCard('Cobros recibidos',balanceDinero(m.recaudacion_caja),'Recibos por fecha de pago')+
+          balanceCard('Gastos registrados',balanceDinero(m.gastos_registrados),'Solo gastos cargados en el sistema')+
+          balanceCard('Flujo neto registrado',balanceDinero(m.flujo_neto),'Cobros recibidos − gastos cargados',true)+
+          balanceCard('Flujo neto acumulado',balanceDinero(m.flujo_acumulado),'Desde enero del año elegido; no es saldo bancario')+
+          `</div></div>
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas de ${nombre}</h3><span class="badge b-info">Período de la deuda</span></div>`+
+          `<div class="balance-live-grid">`+
+          balanceCard('Facturado en cuotas',balanceDinero(m.facturacion),'Alquiler + impuesto + servicio incluidos')+
+          balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Incluye pagos hechos en otros meses')+
+          balanceCard('Pendiente real',balanceDinero(m.pendiente_real),'Suma de saldos pendientes de este período',true)+
+          balanceCard('Cumplimiento de cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
+            `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
+          `</div></div>
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Detalle del año ${year}</h3>`+
+          `<span class="muted">${anomal ? `${anomal} cuotas con diferencia para auditar`:'Sin diferencias detectadas entre total, pagado y saldo'}</span></div>`+
+          balanceLiveTable(rows)+`</div>`+
+          `<div class="balance-grid">`+
+          `<div class="card balance-chart-card"><h3>Facturación y cobrado de cuotas</h3><canvas id="balChartFactRec"></canvas></div>`+
+          `<div class="card balance-chart-card"><h3>Deuda pendiente de cada período</h3><canvas id="balChartCobradoFact"></canvas></div>`+
+          `<div class="card balance-chart-card"><h3>Cobros de caja y gastos cargados</h3><canvas id="balChartResultadoMes"></canvas></div>`+
+          `<div class="card balance-chart-card"><h3>Flujo neto acumulado registrado</h3><canvas id="balChartSaldoAcumulado"></canvas></div>`+
+          `</div><p class="balance-live-footnote">Los cobros de caja se agrupan por fecha de pago, aunque cancelen meses anteriores. `+
+          `Lo cobrado de cuotas y su pendiente se agrupan por período. Un gasto sin registrar no está incluido: `+
+          `el flujo neto no equivale a utilidad contable ni a dinero disponible. Los montos son registros del sistema.</p>`;
+        handleBalanceSearchInput();
+        balanceChartConfigs(rows);
+      }catch(e){
+        if(seq!==balancePageState.renderSeq)return;
+        destroyBalanceCharts();
+        $('balanceLiveContent').innerHTML=balanceErrorBox(e);
       }
-      if (yearInput) yearInput.value = String(selectedYear);
-      if (monthInput) monthInput.value = String(balancePageState.month);
+    }
 
-      const year = Number(yearInput?.value || currentYear);
-      let selectedMonthIndex = Number(monthInput?.value ?? balancePageState.month ?? now.getMonth());
-      const { pagos, gastos, contratos, cuotas, pagosError, gastosError, cuotasError, contratosError } = await fetchBalanceData(year);
-      if (renderSeq !== balancePageState.renderSeq) return;
-
-      if (!balancePageState.monthManual && !hasBalanceMovementsInMonth(pagos, gastos, selectedMonthIndex)){
-        selectedMonthIndex = findLastBalanceMonthWithData(pagos, gastos, selectedMonthIndex);
-        balancePageState.month = selectedMonthIndex;
-        if (monthInput) monthInput.value = String(selectedMonthIndex);
+    function handleBalanceRealMonthChange(){
+      balanceRealState.month=Number($('balanceRealMonth')?.value??new Date().getMonth());
+      balanceRealState.monthManual=true;renderBalanceRealPage();
+    }
+    async function renderBalanceRealPage(){
+      const el=$('viewBalanceReal');if(!el)return;
+      const now=new Date();
+      const year=Number($('balanceRealYear')?.value||balanceRealState.year||now.getFullYear());
+      const raw=$('balanceRealMonth')?.value;
+      const chosen=balanceRealState.monthManual ? (raw!==undefined&&raw!==null?Number(raw):balanceRealState.month) : null;
+      balanceRealState.year=year;
+      const seq=++balanceRealState.renderSeq;
+      el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
+        `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
+        `<h2 class="section-hero-title">Balance real</h2></div>`+
+        `<p class="muted">Cartera pendiente vigente, cumplimiento de cuotas y caja efectivamente registrada.</p>`+
+        `<div class="section-hero-toolbar balance"><select id="balanceRealMonth" onchange="handleBalanceRealMonthChange()"></select>`+
+        `<select id="balanceRealYear" onchange="balanceRealState.year=Number(this.value);balanceRealState.monthManual=false;renderBalanceRealPage()">${balanceYearOptions(year)}</select>`+
+        `<button class="btn primary" onclick="renderBalanceRealPage()">Actualizar</button>`+
+        `<button class="btn" onclick="setRoute('balance')">Ver Balance</button>`+
+        `</div></div></div></div><div id="balanceRealContent" class="muted" style="padding:18px 0">Consultando datos...</div>`;
+      try{
+        const [rows,carteraRespuesta]=await Promise.all([
+          fetchBalanceRealData(year),sb.rpc('balance_real_cartera_actual')
+        ]);
+        if(seq!==balanceRealState.renderSeq)return;
+        if(carteraRespuesta.error)throw carteraRespuesta.error;
+        const c=Array.isArray(carteraRespuesta.data)?carteraRespuesta.data[0]:carteraRespuesta.data;
+        if(!c)throw new Error('No se recibió información de cartera activa.');
+        const monthIdx=balanceDefaultIndex(rows,year,chosen);
+        balanceRealState.month=monthIdx;
+        $('balanceRealMonth').innerHTML=balanceMonthOptions(monthIdx);
+        const m=rows[monthIdx];
+        const nombre=`${m.mes_nombre} ${year}`;
+        const totalAnual=balanceSum(rows,'facturacion');
+        const pagadoAnual=balanceSum(rows,'cobrado_cuotas');
+        const saldoAnual=balanceSum(rows,'pendiente_real');
+        const cajaAnual=balanceSum(rows,'recaudacion_caja');
+        const gastosAnual=balanceSum(rows,'gastos_registrados');
+        const anom=balanceSum(rows,'cuotas_inconsistentes');
+        $('balanceRealContent').innerHTML=`
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Deuda de activos vigentes · al día de hoy</h3>`+
+          `<span class="badge b-info">Todos los períodos</span></div>`+
+          `<div class="balance-live-grid">`+
+          balanceCard('Deuda total de activos visibles',balanceDinero(c.deuda_activos_visibles),'Solo contratos ACTIVO y no ocultos',true)+
+          balanceCard('Deuda vencida',balanceDinero(c.deuda_vencida_visibles),'Vencimiento anterior a hoy')+
+          balanceCard('Deuda no vencida',balanceDinero(c.deuda_no_vencida_visibles),'Cuotas con vencimiento hoy o posterior')+
+          balanceCard('Contratos con deuda',String(c.contratos_visibles_con_deuda||0),`${c.cuotas_visibles_con_deuda||0} cuotas pendientes`)+
+          `</div><div class="balance-live-breakdown">`+
+          `<span>Saldo 2025: <strong>${balanceDinero(c.deuda_visibles_2025)}</strong></span>`+
+          `<span>Saldo 2026: <strong>${balanceDinero(c.deuda_visibles_2026)}</strong></span>`+
+          `<span>Contratos ocultos: <strong>${balanceDinero(c.deuda_contratos_ocultos)}</strong></span>`+
+          `<span>Contratos inactivos / sin contrato: <strong>${balanceDinero(c.deuda_contratos_inactivos)}</strong></span>`+
+          `</div><p class="balance-live-footnote">Ocultos e inactivos se informan aparte y no se suman a la deuda activa visible. `+
+          `Una deuda considerada incobrable requiere su clasificación específica: aquí no se elimina ni se da por cobrada.</p></div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Cobranza real de ${nombre}</h3><span class="badge b-info">Cuotas del período</span></div>`+
+          `<div class="balance-live-grid">`+
+          balanceCard('Facturado',balanceDinero(m.facturacion),'Total de las cuotas del período')+
+          balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Independiente del día del pago')+
+          balanceCard('Pendiente del período',balanceDinero(m.pendiente_real),'Suma de saldos de cuotas',true)+
+          balanceCard('Cobrado / facturado',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
+            `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
+          `</div></div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Dinero registrado en caja · ${nombre}</h3>`+
+          `<span class="badge b-info">Fecha de cobro</span></div>`+
+          `<div class="balance-live-grid">`+
+          balanceCard('Ingresos recibidos',balanceDinero(m.recaudacion_caja),'Incluye deuda de otros períodos')+
+          balanceCard('Gastos registrados',balanceDinero(m.gastos_registrados),'No incluye gastos no cargados')+
+          balanceCard('Flujo neto registrado',balanceDinero(m.flujo_neto),'No representa ganancia contable',true)+
+          balanceCard('Flujo acumulado del año',balanceDinero(m.flujo_acumulado),'No representa efectivo disponible')+
+          `</div></div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Acumulados del año ${year}</h3>`+
+          `<span class="muted">No confundir con la cartera activa total</span></div>`+
+          `<div class="balance-live-breakdown">`+
+          `<span>Facturado: <strong>${balanceDinero(totalAnual)}</strong></span>`+
+          `<span>Aplicado a cuotas: <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
+          `<span>Saldo de cuotas: <strong>${balanceDinero(saldoAnual)}</strong></span>`+
+          `<span>Cobros por fecha: <strong>${balanceDinero(cajaAnual)}</strong></span>`+
+          `<span>Gastos cargados: <strong>${balanceDinero(gastosAnual)}</strong></span>`+
+          `</div>${anom?`<p class="balance-live-footnote">Atención: ${anom} cuotas del año presentan diferencias entre total, pago y saldo; revisar en Activos.</p>`:''}`+
+          `${balanceLiveTable(rows)}</div>`+
+          `<p class="balance-live-footnote">Balance real significa importes basados en las cuotas, recibos y gastos registrados. `+
+          `Sin conciliación bancaria, caja inicial, movimientos externos y gastos completos, no se puede determinar el saldo físico o bancario disponible.</p>`;
+      }catch(e){
+        if(seq!==balanceRealState.renderSeq)return;
+        $('balanceRealContent').innerHTML=balanceErrorBox(e);
       }
-
-      let { rows, summary } = buildBalanceYearSummary(year, pagos, gastos, selectedMonthIndex, contratos, cuotas);
-      const balanceQuery = String(balancePageState.query || '').trim().toLowerCase();
-      if (balanceQuery){
-        rows = rows.filter(row => String(row.mes || '').toLowerCase().includes(balanceQuery));
-      }
-
-      const selectedMonthLabel = `${summary.activeMonthName} ${year}`;
-      if ($('balSelectedMonthBadge')) $('balSelectedMonthBadge').textContent = selectedMonthLabel;
-      if ($('balKpiRecaudacion')) $('balKpiRecaudacion').textContent = fmtARS.format(summary.recMesActual);
-      if ($('balKpiGastos')) $('balKpiGastos').textContent = fmtARS.format(summary.gastosActual);
-      if ($('balKpiGanancia')) $('balKpiGanancia').textContent = fmtARS.format(summary.gananciaActual);
-      if ($('balKpiSaldo')) $('balKpiSaldo').textContent = fmtARS.format(summary.saldoActual);
-      if ($('balKpiRecaudacionSub')) $('balKpiRecaudacionSub').textContent = `Cobros registrados en ${selectedMonthLabel}`;
-      if ($('balKpiGastosSub')) $('balKpiGastosSub').textContent = `Gastos registrados en ${selectedMonthLabel}`;
-      if ($('balKpiGananciaSub')) $('balKpiGananciaSub').textContent = `Resultado de ${selectedMonthLabel}`;
-      if ($('balKpiSaldoSub')) $('balKpiSaldoSub').textContent = `Saldo propio de ${selectedMonthLabel}`;
-      if ($('balKpiFacturacion')) $('balKpiFacturacion').textContent = fmtARS.format(summary.facturacionActual);
-      if ($('balKpiPctCobrado')) $('balKpiPctCobrado').textContent = `${summary.porcentajeCobradoActual.toFixed(2)}%`;
-      if ($('balKpiPendienteFacturacion')) $('balKpiPendienteFacturacion').textContent = fmtARS.format(summary.pendienteFacturacionActual);
-      if ($('balKpiDiferenciaFacturacion')) $('balKpiDiferenciaFacturacion').textContent = fmtARS.format(summary.diferenciaFacturacionActual);
-      if ($('balKpiFacturacionSub')) $('balKpiFacturacionSub').textContent = `Alquiler + impuesto proyectado en ${selectedMonthLabel}`;
-      if ($('balKpiPctCobradoSub')) $('balKpiPctCobradoSub').textContent = `Cobrado sobre facturación de ${selectedMonthLabel}`;
-      if ($('balKpiPendienteFacturacionSub')) $('balKpiPendienteFacturacionSub').textContent = `Pendiente estimado de ${selectedMonthLabel}`;
-      if ($('balKpiDiferenciaFacturacionSub')) $('balKpiDiferenciaFacturacionSub').textContent = summary.diferenciaFacturacionActual >= 0 ? 'Cobrado por encima de la proyección' : 'Falta cobrar contra la proyección';
-      if ($('balFacturacionBadge')) $('balFacturacionBadge').textContent = `Facturación ${selectedMonthLabel}`;
-
-      if ($('balProjRecaudacion')) $('balProjRecaudacion').textContent = fmtARS.format(summary.proyeccion.recaudacion);
-      if ($('balProjGastos')) $('balProjGastos').textContent = fmtARS.format(summary.proyeccion.gastos);
-      if ($('balProjGanancia')) $('balProjGanancia').textContent = fmtARS.format(summary.proyeccion.ganancia);
-      if ($('balAnnualResult')) $('balAnnualResult').textContent = fmtARS.format(summary.totalAnualGanancia);
-      if ($('balAnnualSub')) $('balAnnualSub').textContent = `Facturación ${fmtARS.format(summary.totalAnualFacturacion)} · Recaudado ${fmtARS.format(summary.totalAnualRecaudado)} · Gastos ${fmtARS.format(summary.totalAnualGastos)}`;
-
-      if ($('balanceBody')) $('balanceBody').innerHTML = buildBalanceTableRows(rows);
-
-      const messages = [];
-      if (!hasBalanceMovementsInMonth(pagos, gastos, summary.activeMonthIndex)){
-        messages.push(`No hay cobros ni gastos registrados en ${selectedMonthLabel}.`);
-      }
-      if (pagosError) messages.push(`Pagos: ${pagosError.message}`);
-      if (!summary.facturacionActual){
-        messages.push(`No hay cuotas/facturación cargada para ${selectedMonthLabel}.`);
-      }
-      if (gastosError) messages.push(`Gastos: ${gastosError.message}`);
-      if (cuotasError) messages.push(`Cuotas: ${cuotasError.message}`);
-      if (contratosError && !(cuotas || []).length) messages.push(`Contratos: ${contratosError.message}`);
-      if ($('balanceMsg')) $('balanceMsg').textContent = messages.join(' | ');
-
-      renderBalanceCharts(rows);
     }
 
 
