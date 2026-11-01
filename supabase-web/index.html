@@ -8312,6 +8312,46 @@ td:last-child{
       }
     }
 
+    // Activos: cargar TODAS las cuotas desde mayo de 2026, sin el corte
+    // predeterminado de 1.000 filas que puede ocultar saldos en el listado.
+    // Mantener una ordenacion estable para la paginacion de PostgREST.
+    async function fetchDetalleMensualActivosCompleto(){
+      const pageSize = 400;
+      const maxRows = 20000;
+      const rows = [];
+      let expectedCount = null;
+
+      for (let offset = 0; offset < maxRows; offset += pageSize){
+        const { data, error, count } = await sb
+          .from('vw_detalle_mensual_operativo')
+          .select(
+            'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado',
+            { count: 'exact' }
+          )
+          .eq('anio', 2026)
+          .gte('mes', 5)
+          .order('contrato_id', { ascending: true })
+          .order('mes', { ascending: true })
+          .order('local_id', { ascending: true })
+          .range(offset, offset + pageSize - 1);
+
+        if (error) throw new Error('Error leyendo cuotas completas de Activos: ' + error.message);
+        if (expectedCount === null && count !== null && count !== undefined && Number.isFinite(Number(count))) expectedCount = Number(count);
+
+        const batch = Array.isArray(data) ? data : [];
+        rows.push(...batch);
+        if (batch.length < pageSize) break;
+      }
+
+      if (expectedCount !== null && rows.length !== expectedCount){
+        throw new Error(`La carga de cuotas de Activos esta incompleta: ${rows.length} de ${expectedCount} registros.`);
+      }
+      if (rows.length >= maxRows){
+        throw new Error('La carga de cuotas de Activos alcanzo el limite de seguridad; no se usaran saldos parciales.');
+      }
+      return rows;
+    }
+
     function debtSortKeyFromYearMonth(anio, mes){
       const y = Number(anio || 0);
       const m = Number(mes || 0);
@@ -8532,7 +8572,7 @@ td:last-child{
       const [estado2025Rows, estado2026Rows, detalleMesActualRows, impuestosActualesMap] = await Promise.all([
         fetchSupabaseRowsSafe('vw_estado_2025_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2025,cuotas_con_deuda,meses_deuda,deuda_total'),
         fetchSupabaseRowsSafe('vw_estado_2026_hasta_abril_por_locatario', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,estado_2026_hasta_abril,meses_con_deuda,meses_deuda_texto,deuda_hasta_abril,costo_ene_abr,pagado_ene_abr'),
-        fetchSupabaseRowsSafe('vw_detalle_mensual_operativo', 'contrato_id,local_id,inquilino_id,codigo_local,nombre_inquilino,anio,mes,monto_total,monto_pagado,saldo,estado'),
+        fetchDetalleMensualActivosCompleto(),
         fetchImpuestosOperativosPeriodo(ymActualEstado.year, ymActualEstado.month)
       ]);
 
@@ -9742,13 +9782,11 @@ if (aplicacionesDirectas.length) {
       // para que VENCE PRONTO no figure con $0.
       if (!(ym.year === 2026 && ym.month > 4)) return 0;
 
-      const saldoCrudo = toNumber(row?.deuda_mes_actual_cruda ?? row?.saldo_mes_actual_crudo);
-      const impuestoAplicado = toNumber(row?.impuesto_mes_actual ?? row?.impuesto_actual);
-      if (saldoCrudo > 0 || impuestoAplicado > 0) {
-        return round2(Math.max(0, saldoCrudo - impuestoAplicado));
-      }
-
-      return round2(Math.max(0, toNumber(row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0)));
+      // saldo de cuotas_operativas YA incluye alquiler, impuesto y servicio
+      // pendientes. No restar el impuesto otra vez.
+      return round2(Math.max(0, toNumber(
+        row?.deuda_mes_actual_cruda ?? row?.deuda_mes_actual ?? row?.saldo_mes_actual ?? 0
+      )));
     }
 
     function getDisplayedCurrentMonthDebtFromRows(row, cuotasRows=[]){
@@ -9763,16 +9801,17 @@ if (aplicacionesDirectas.length) {
       });
 
       if (currentRow) {
-  if (Number.isFinite(Number(currentRow?.saldo_alquiler))) {
-    return round2(Math.max(0, toNumber(currentRow.saldo_alquiler)));
+  // Preferir siempre el saldo TOTAL (incluye impuesto y servicio).
+  if (Number.isFinite(Number(currentRow?.saldo_con_impuesto))) {
+    return round2(Math.max(0, toNumber(currentRow.saldo_con_impuesto)));
   }
 
   if (Number.isFinite(Number(currentRow?.saldo))) {
     return round2(Math.max(0, toNumber(currentRow.saldo)));
   }
 
-  if (Number.isFinite(Number(currentRow?.saldo_con_impuesto))) {
-    return round2(Math.max(0, toNumber(currentRow.saldo_con_impuesto)));
+  if (Number.isFinite(Number(currentRow?.saldo_alquiler))) {
+    return round2(Math.max(0, toNumber(currentRow.saldo_alquiler)));
   }
 
   const totalBase = toNumber(currentRow?.total ?? currentRow?.monto_total);
@@ -10032,12 +10071,20 @@ window.addEventListener('online', () => {
       await refreshContratosActivos();
       // refreshInquilinosSinContrato, refreshActivosReconstruidosData y las vistas de resumen
       // de Inicio son todas independientes entre sí; se ejecutan en paralelo.
-      const [, , resumen2025, resumen2026] = await Promise.all([
-        refreshInquilinosSinContrato(),
-        refreshActivosReconstruidosData(),
-        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
-        fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
-      ]);
+      let resumen2025, resumen2026;
+      try {
+        [, , resumen2025, resumen2026] = await Promise.all([
+          refreshInquilinosSinContrato(),
+          refreshActivosReconstruidosData(),
+          fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2025', '*'),
+          fetchSupabaseRowsSafe('vw_resumen_estado_cuenta_2026_abril', '*')
+        ]);
+      } catch (error) {
+        console.error('[Activos] No se pudo verificar el estado completo de las cuotas:', error);
+        const aviso = $('unitsMsg');
+        if (aviso) aviso.textContent = 'No se pudieron verificar todas las cuotas. Los estados y saldos no se actualizaron; recarga la pagina. ' + (error?.message || error);
+        return;
+      }
 
       const baseRows = (contratosActivos || [])
         .map(c => {
