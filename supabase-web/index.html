@@ -6357,22 +6357,13 @@ td:last-child{
 /* Pequeños ajustes específicos del Balance común (11 columnas y filtro anual). */
 #viewBalance .balance-live-table .balance-table{min-width:1210px;}
 #viewBalance .balance-live-title{min-width:0;}
-#viewBalance .balance-heading-tools{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0;}
-#viewBalance .balance-month-filter{
-  min-height:32px;height:32px;width:174px;max-width:100%;
-  font-size:12px;border:1px solid var(--br-hairline);
-  background:var(--card,#fff);border-radius:9px;padding:5px 10px;color:var(--br-ink);
-}
 #viewBalance .balance-audit-count{font-size:11px;font-weight:700;color:#925a12;white-space:nowrap;}
 #viewBalance .balance-live-footnote{font-size:11px;line-height:1.5;color:var(--br-secondary);margin:11px 2px;}
 #viewBalance .balance-chart-card h3{font-size:14px !important;font-weight:800 !important;}
-[data-theme="dark"] #viewBalance .balance-month-filter{background:#172131;color:var(--br-ink);}
 [data-theme="dark"] #viewBalance .balance-audit-count{color:#fbbf24;}
 @media(max-width:680px){
  #viewBalance .section-hero-toolbar.balance{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}
  #viewBalance .section-hero-toolbar.balance .btn{font-size:12px;min-width:0;padding:8px 9px;}
- #viewBalance .balance-heading-tools{width:100%;}
- #viewBalance .balance-month-filter{width:100%;}
 }
 
 </style>
@@ -7849,7 +7840,7 @@ td:last-child{
     let reciboActual = null;
     let reciboActualAplicaciones = null; // aplicaciones reales del recibo abierto (Etapa 5)
     let recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
-    let balancePageState = { query:'', month:null, year:null, monthManual:false, renderSeq:0 };
+    let balancePageState = { month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
     let activosReconstruidosLoadError = '';
@@ -17025,13 +17016,6 @@ error = deleteResponse.error;
           scales:makeAxis(true)}
       }));
     }
-    function handleBalanceSearchInput(){
-      balancePageState.query=$('balanceSearch')?.value||'';
-      const q=balancePageState.query.trim().toLowerCase();
-      document.querySelectorAll('#balanceBody tr').forEach(tr=>{
-        tr.style.display = !q || tr.cells?.[0]?.textContent.toLowerCase().includes(q) ? '' : 'none';
-      });
-    }
     function handleBalanceMonthChange(){
       balancePageState.month=Number($('balanceMonth')?.value??new Date().getMonth());
       balancePageState.monthManual=true;
@@ -17075,7 +17059,7 @@ error = deleteResponse.error;
           balanceCard('Acumulado del año',balanceDinero(m.flujo_acumulado),'')+
           `</div></div>`+
           `<div class="balance-live-section balance-live-annual"><div class="balance-live-title"><h3>Caja anual · ${year}</h3>`+
-          `<div class="balance-heading-tools"><input id="balanceSearch" class="balance-month-filter" type="search" placeholder="Buscar mes" aria-label="Filtrar meses de caja" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()"></div></div>`+
+          `</div>`+
           `<div class="balance-live-breakdown">`+
           `<span>Ingresos <strong>${balanceDinero(cobrosAnuales)}</strong></span>`+
           `<span>Gastos <strong>${balanceDinero(gastosAnuales)}</strong></span>`+
@@ -17085,7 +17069,6 @@ error = deleteResponse.error;
           `<div class="card balance-chart-card"><h3>Ingresos y gastos por mes</h3><canvas id="balChartResultadoMes"></canvas></div>`+
           `<div class="card balance-chart-card"><h3>Flujo neto acumulado</h3><canvas id="balChartSaldoAcumulado"></canvas></div>`+
           `</div><p class="balance-live-footnote">Los gastos son los registrados en el sistema. El flujo neto no representa necesariamente ganancia ni saldo bancario.</p>`;
-        handleBalanceSearchInput();
         balanceChartConfigs(rows);
       }catch(e){
         if(seq!==balancePageState.renderSeq)return;
