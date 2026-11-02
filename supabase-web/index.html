@@ -6021,6 +6021,14 @@ td:last-child{
   #viewBalanceReal .balance-live-value{font-size:19px;white-space:normal;overflow-wrap:anywhere;}
 }
 @media(max-width:390px){#viewBalanceReal .balance-live-grid{grid-template-columns:1fr;}}
+
+/* Vistas financieras separadas: ambas comparten estética, no indicadores. */
+#viewBalance .balance-live-table .balance-table{min-width:650px;}
+#viewBalanceReal .balance-live-table .balance-table{min-width:880px;}
+#viewBalance .balance-grid-caja{grid-template-columns:repeat(2,minmax(0,1fr));}
+#viewBalance .balance-view-context,
+#viewBalanceReal .balance-view-context{margin:6px 0 0;color:var(--br-secondary,#64748b);font-size:12px;line-height:1.4;}
+@media(max-width:1050px){#viewBalance .balance-grid-caja{grid-template-columns:1fr;}}
 </style>
 
 
@@ -16617,28 +16625,38 @@ error = deleteResponse.error;
         `<p>Primero ejecutá <code>01_balance_real_supabase.sql</code> en Supabase y después actualizá la página.</p>`+
         `</div>`;
     }
+    // BALANCE: caja por fecha efectiva de cobro (sin mezclar cuotas del período).
     function balanceMonthlyRow(r) {
       const selected = Number(r.mes) === Number(balancePageState.month) + 1;
       return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
-        `<td class="right">${balanceDinero(r.facturacion)}</td>`+
-        `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
-        `<td class="right">${balanceDinero(r.pendiente_cobrable)}</td>`+
-        `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
         `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
         `<td class="right">${balanceDinero(r.flujo_neto)}</td>`+
-        `<td class="right">${balanceDinero(r.flujo_acumulado)}</td>`+
-        `<td class="center">${r.cuotas_pendientes + r.cuotas_parciales}</td>`+
-        `<td class="center">${r.cuotas_inconsistentes ? `<span title="Revisar cuotas con diferencia entre total, pagado y saldo" class="badge b-warn">${r.cuotas_inconsistentes}</span>` : '—'}</td></tr>`;
+        `<td class="right">${balanceDinero(r.flujo_acumulado)}</td></tr>`;
     }
     function balanceSum(rows,key){return rows.reduce((t,r)=>t+balanceNumero(r[key]),0);}
-    function balanceDefaultIndex(rows, year, manualIndex) {
+    function balanceDefaultIndex(rows, year, manualIndex, keys) {
       if (Number.isInteger(manualIndex) && manualIndex >= 0 && manualIndex < 12) return manualIndex;
       const now = new Date();
       const limite = Number(year) === now.getFullYear() ? now.getMonth() : 11;
-      const disponibles = rows.filter(r=>r.mes-1 <= limite &&
-        (r.facturacion!==0 || r.recaudacion_caja!==0 || r.gastos_registrados!==0));
-      return disponibles.length ? disponibles[disponibles.length-1].mes-1 : limite;
+      const disponibles = rows.filter(r => Number(r.mes)-1 <= limite &&
+        keys.some(key => balanceNumero(r[key]) !== 0));
+      return disponibles.length ? Number(disponibles[disponibles.length-1].mes)-1 : limite;
+    }
+
+    // El Balance de caja no depende de las clasificaciones de incobrables.
+    async function fetchBalanceCashData(year) {
+      const { data, error } = await sb.rpc('balance_real_operativo_anual', { p_anio:Number(year) });
+      if (error) throw error;
+      if (!Array.isArray(data) || data.length!==12 || data.some(r=>!Number.isInteger(Number(r.mes))))
+        throw new Error('La consulta de caja no devolvió los 12 meses completos.');
+      return data.map(r=>({
+        mes:Number(r.mes), mes_nombre:String(r.mes_nombre||BALANCE_REAL_MESES[Number(r.mes)-1]),
+        recaudacion_caja:balanceNumero(r.recaudacion_caja),
+        gastos_registrados:balanceNumero(r.gastos_registrados),
+        flujo_neto:balanceNumero(r.flujo_neto),
+        flujo_acumulado:balanceNumero(r.flujo_acumulado)
+      })).sort((a,b)=>a.mes-b.mes);
     }
     async function fetchBalanceRealData(year) {
       const [{ data, error },clasificados] = await Promise.all([
@@ -16666,23 +16684,19 @@ error = deleteResponse.error;
     }
     function balanceLiveTable(rows){
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
-        `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
-        `<th class="right">Por cobrar</th><th class="right">%</th>`+
-        `<th class="right">Ingresos</th><th class="right">Gastos</th>`+
-        `<th class="right">Neto</th><th class="right">Acumulado</th>`+
-        `<th class="center">Cuotas</th><th class="center">Control</th></tr></thead>`+
-        `<tbody>${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
+        `<th>Mes</th><th class="right">Ingresos</th><th class="right">Gastos</th>`+
+        `<th class="right">Flujo neto</th><th class="right">Acumulado</th>`+
+        `</tr></thead><tbody id="balanceBody">${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
     }
+    // BALANCE REAL: solo facturación, pagos aplicados y deuda por período.
     function balanceRealMonthlyRow(r) {
       const selected = Number(r.mes) === Number(balanceRealState.month) + 1;
       return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
         `<td class="right">${balanceDinero(r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
-        `<td class="right">${balanceDinero(r.pendiente_cobrable)}</td><td class="right">${balanceDinero(r.incobrable)}</td>`+
+        `<td class="right">${balanceDinero(r.pendiente_cobrable)}</td>`+
+        `<td class="right">${balanceDinero(r.incobrable)}</td>`+
         `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
-        `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
-        `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
-        `<td class="right">${balanceDinero(r.flujo_neto)}</td>`+
         `<td class="center">${r.cuotas_pendientes+r.cuotas_parciales}</td>`+
         `<td class="center">${r.cuotas_inconsistentes ? `<span title="Cuotas a revisar" class="badge b-warn">${r.cuotas_inconsistentes}</span>` : '—'}</td></tr>`;
     }
@@ -16690,8 +16704,7 @@ error = deleteResponse.error;
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
         `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
         `<th class="right">Por cobrar</th><th class="right">Incobrable</th><th class="right">%</th>`+
-        `<th class="right">Ingresos caja</th><th class="right">Gastos</th>`+
-        `<th class="right">Neto</th><th class="center">Cuotas</th><th class="center">Control</th>`+
+        `<th class="center">Cuotas c/deuda</th><th class="center">Control</th>`+
         `</tr></thead><tbody>${rows.map(balanceRealMonthlyRow).join('')}</tbody></table></div>`;
     }
     function balanceChartConfigs(rows) {
@@ -16701,10 +16714,8 @@ error = deleteResponse.error;
       const base={responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom'},
         tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${balanceDinero(c.raw)}`}}}};
       const graphs=[
-        ['balChartFactRec','bar',[['Facturado','facturacion'],['Cobrado de cuotas','cobrado_cuotas']]],
-        ['balChartCobradoFact','bar',[['Pendiente por cobrar','pendiente_cobrable']]],
-        ['balChartResultadoMes','bar',[['Cobros de caja','recaudacion_caja'],['Gastos registrados','gastos_registrados']]],
-        ['balChartSaldoAcumulado','line',[['Flujo neto acumulado','flujo_acumulado']]]
+        ['balChartResultadoMes','bar',[['Ingresos','recaudacion_caja'],['Gastos','gastos_registrados']]],
+        ['balChartSaldoAcumulado','line',[['Flujo acumulado','flujo_acumulado']]]
       ];
       for(const [id,type,series] of graphs){
         const canvas=$(id);
@@ -16737,47 +16748,43 @@ error = deleteResponse.error;
       el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
         `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
         `<h2 class="section-hero-title">Balance</h2></div>`+
+        `<p class="balance-view-context">Ingresos y gastos según su fecha de registro.</p>`+
         `<div class="section-hero-toolbar balance">`+
-        `<select id="balanceMonth" onchange="handleBalanceMonthChange()"></select>`+
-        `<select id="balanceYear" onchange="balancePageState.year=Number(this.value);balancePageState.monthManual=false;renderBalancePage()">${balanceYearOptions(year)}</select>`+
+        `<select id="balanceMonth" onchange="handleBalanceMonthChange()" aria-label="Mes de caja"></select>`+
+        `<select id="balanceYear" onchange="balancePageState.year=Number(this.value);balancePageState.monthManual=false;renderBalancePage()" aria-label="Año de caja">${balanceYearOptions(year)}</select>`+
         `<button class="btn primary" onclick="renderBalancePage()">Actualizar</button>`+
         `<button class="btn" onclick="setRoute('balance-real')">Ver Balance real</button>`+
         `</div></div></div></div><div id="balanceLiveContent" style="padding:12px 0">Consultando datos...</div>`;
       try{
-        const rows=await fetchBalanceRealData(year);
+        const rows=await fetchBalanceCashData(year);
         if(seq!==balancePageState.renderSeq)return;
-        const monthIdx=balanceDefaultIndex(rows,year,chosen);
+        const monthIdx=balanceDefaultIndex(rows,year,chosen,['recaudacion_caja','gastos_registrados']);
         balancePageState.month=monthIdx;
         $('balanceMonth').innerHTML=balanceMonthOptions(monthIdx);
         const m=rows[monthIdx];
         const nombre=`${m.mes_nombre} ${year}`;
-        const anomal=balanceSum(rows,'cuotas_inconsistentes');
+        const cobrosAnuales=balanceSum(rows,'recaudacion_caja');
+        const gastosAnuales=balanceSum(rows,'gastos_registrados');
+        const netoAnual=balanceSum(rows,'flujo_neto');
         $('balanceLiveContent').innerHTML=`
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Caja · ${nombre}</h3></div>`+
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Movimientos de caja · ${nombre}</h3><span class="badge b-info">Fecha del cobro</span></div>`+
           `<div class="balance-live-grid">`+
-          balanceCard('Cobros recibidos',balanceDinero(m.recaudacion_caja),'Recibos por fecha de pago')+
-          balanceCard('Gastos registrados',balanceDinero(m.gastos_registrados),'Solo gastos cargados en el sistema')+
-          balanceCard('Flujo neto registrado',balanceDinero(m.flujo_neto),'Cobros recibidos − gastos cargados',true)+
-          balanceCard('Flujo neto acumulado',balanceDinero(m.flujo_acumulado),'Desde enero del año elegido; no es saldo bancario')+
-          `</div></div>
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas · ${nombre}</h3></div>`+
-          `<div class="balance-live-grid">`+
-          balanceCard('Facturado en cuotas',balanceDinero(m.facturacion),'Alquiler + impuesto + servicio incluidos')+
-          balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Incluye pagos hechos en otros meses')+
-          balanceCard('Por cobrar',balanceDinero(m.pendiente_cobrable),'Excluye cuotas clasificadas incobrables',true)+
-          balanceCard('Cumplimiento de cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
-            `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
-          `</div><div class="balance-live-breakdown"><span>Incobrables del período <strong>${balanceDinero(m.incobrable)}</strong></span></div></div>
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Detalle anual · ${year}</h3>`+
-          `<div class="balance-heading-tools"><input id="balanceSearch" class="balance-month-filter" type="search" placeholder="Buscar mes" aria-label="Filtrar meses de la tabla" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()">`+
-          `${anomal ? `<span class="balance-audit-count">${anomal} cuotas para revisar</span>` : ''}</div></div>`+
-          balanceLiveTable(rows)+`</div>`+
-          `<div class="balance-grid">`+
-          `<div class="card balance-chart-card"><h3>Facturación y cobrado de cuotas</h3><canvas id="balChartFactRec"></canvas></div>`+
-          `<div class="card balance-chart-card"><h3>Deuda pendiente de cada período</h3><canvas id="balChartCobradoFact"></canvas></div>`+
-          `<div class="card balance-chart-card"><h3>Cobros de caja y gastos cargados</h3><canvas id="balChartResultadoMes"></canvas></div>`+
-          `<div class="card balance-chart-card"><h3>Flujo neto acumulado registrado</h3><canvas id="balChartSaldoAcumulado"></canvas></div>`+
-          `</div><p class="balance-live-footnote">Caja: ingresos por fecha de cobro. Cuotas: pagos aplicados al período. El neto refleja solo los gastos registrados; no es utilidad contable.</p>`;
+          balanceCard('Ingresos',balanceDinero(m.recaudacion_caja),'')+
+          balanceCard('Gastos',balanceDinero(m.gastos_registrados),'')+
+          balanceCard('Flujo neto',balanceDinero(m.flujo_neto),'',true)+
+          balanceCard('Acumulado del año',balanceDinero(m.flujo_acumulado),'')+
+          `</div></div>`+
+          `<div class="balance-live-section balance-live-annual"><div class="balance-live-title"><h3>Caja anual · ${year}</h3>`+
+          `<div class="balance-heading-tools"><input id="balanceSearch" class="balance-month-filter" type="search" placeholder="Buscar mes" aria-label="Filtrar meses de caja" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()"></div></div>`+
+          `<div class="balance-live-breakdown">`+
+          `<span>Ingresos <strong>${balanceDinero(cobrosAnuales)}</strong></span>`+
+          `<span>Gastos <strong>${balanceDinero(gastosAnuales)}</strong></span>`+
+          `<span>Neto <strong>${balanceDinero(netoAnual)}</strong></span>`+
+          `</div>`+balanceLiveTable(rows)+`</div>`+
+          `<div class="balance-grid balance-grid-caja">`+
+          `<div class="card balance-chart-card"><h3>Ingresos y gastos por mes</h3><canvas id="balChartResultadoMes"></canvas></div>`+
+          `<div class="card balance-chart-card"><h3>Flujo neto acumulado</h3><canvas id="balChartSaldoAcumulado"></canvas></div>`+
+          `</div><p class="balance-live-footnote">Los gastos son los registrados en el sistema. El flujo neto no representa necesariamente ganancia ni saldo bancario.</p>`;
         handleBalanceSearchInput();
         balanceChartConfigs(rows);
       }catch(e){
@@ -16802,9 +16809,9 @@ error = deleteResponse.error;
       el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
         `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
         `<h2 class="section-hero-title">Balance real</h2></div>`+
-        `<!-- Vista compacta de cartera y caja -->`+
-        `<div class="section-hero-toolbar balance"><select id="balanceRealMonth" onchange="handleBalanceRealMonthChange()"></select>`+
-        `<select id="balanceRealYear" onchange="balanceRealState.year=Number(this.value);balanceRealState.monthManual=false;renderBalanceRealPage()">${balanceYearOptions(year)}</select>`+
+        `<p class="balance-view-context">Cuotas, pagos aplicados y deuda por período.</p>`+
+        `<div class="section-hero-toolbar balance"><select id="balanceRealMonth" onchange="handleBalanceRealMonthChange()" aria-label="Mes de las cuotas"></select>`+
+        `<select id="balanceRealYear" onchange="balanceRealState.year=Number(this.value);balanceRealState.monthManual=false;renderBalanceRealPage()" aria-label="Año de las cuotas">${balanceYearOptions(year)}</select>`+
         `<button class="btn primary" onclick="renderBalanceRealPage()">Actualizar</button>`+
         `<button class="btn" onclick="setRoute('balance')">Ver Balance</button>`+
         `</div></div></div></div><div id="balanceRealContent" style="padding:12px 0">Consultando datos...</div>`;
@@ -16823,7 +16830,7 @@ error = deleteResponse.error;
         const c=Array.isArray(carteraActual.data)?carteraActual.data[0]:carteraActual.data;
         const cl=Array.isArray(clasifActual.data)?clasifActual.data[0]:clasifActual.data;
         if(!c||!cl)throw new Error('No se recibió información de cartera activa.');
-        const monthIdx=balanceDefaultIndex(rows,year,chosen);
+        const monthIdx=balanceDefaultIndex(rows,year,chosen,['facturacion','cobrado_cuotas','pendiente_cobrable','incobrable']);
         balanceRealState.month=monthIdx;
         $('balanceRealMonth').innerHTML=balanceMonthOptions(monthIdx);
         const m=rows[monthIdx];
@@ -16832,8 +16839,6 @@ error = deleteResponse.error;
         const pagadoAnual=balanceSum(rows,'cobrado_cuotas');
         const saldoAnual=balanceSum(rows,'pendiente_cobrable');
         const incAnual=balanceSum(rows,'incobrable');
-        const cajaAnual=balanceSum(rows,'recaudacion_caja');
-        const gastosAnual=balanceSum(rows,'gastos_registrados');
         const anom=balanceSum(rows,'cuotas_inconsistentes');
         $('balanceRealContent').innerHTML=`
           <div class="balance-live-section"><div class="balance-live-title"><h3>Deuda actual de activos</h3>`+
@@ -16858,22 +16863,12 @@ error = deleteResponse.error;
           balanceCard('Cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
             `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
           `</div><div class="balance-live-breakdown"><span>Incobrable del mes <strong>${balanceDinero(m.incobrable)}</strong></span></div></div>`+
-          `<div class="balance-live-section"><div class="balance-live-title"><h3>Caja · ${nombre}</h3>`+
-          `</div>`+
-          `<div class="balance-live-grid">`+
-          balanceCard('Ingresos',balanceDinero(m.recaudacion_caja),'')+
-          balanceCard('Gastos',balanceDinero(m.gastos_registrados),'')+
-          balanceCard('Neto registrado',balanceDinero(m.flujo_neto),'',true)+
-          balanceCard('Acumulado anual',balanceDinero(m.flujo_acumulado),'')+
-          `</div></div>`+
           `<div class="balance-live-section balance-live-annual"><div class="balance-live-title"><h3>Resumen anual · ${year}</h3></div>`+
           `<div class="balance-live-breakdown">`+
           `<span>Facturado <strong>${balanceDinero(totalAnual)}</strong></span>`+
           `<span>Cobrado <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
           `<span>Por cobrar <strong>${balanceDinero(saldoAnual)}</strong></span>`+
           `<span>Incobrable <strong>${balanceDinero(incAnual)}</strong></span>`+
-          `<span>Ingresos <strong>${balanceDinero(cajaAnual)}</strong></span>`+
-          `<span>Gastos <strong>${balanceDinero(gastosAnual)}</strong></span>`+
           `</div>${anom?`<p class="balance-live-note balance-live-note-alert">${anom} cuota(s) con importes a revisar en Activos.</p>`:''}`+
           `${balanceRealTable(rows)}</div>`+
           `<div class="balance-live-section"><div class="balance-live-title"><h3>Meses incobrables</h3>`+
@@ -16886,7 +16881,7 @@ error = deleteResponse.error;
               `<td>${escapeHtml(q.tipo_contrato||'—')}</td></tr>`).join('')+
             `</tbody></table></div>`:'<span class="muted">No hay cuotas clasificadas como incobrables.</span>')+
           `</div>`+
-          `<p class="balance-live-note">Caja: cobros por fecha. Cuotas: pagos aplicados al período. El neto registrado no equivale al saldo bancario ni a la utilidad contable.</p>`;
+          `<p class="balance-live-note">El cobrado se asigna al mes de la cuota, aunque el pago se haya recibido en otra fecha. Los incobrables se informan por separado.</p>`;
       }catch(e){
         if(seq!==balanceRealState.renderSeq)return;
         $('balanceRealContent').innerHTML=balanceErrorBox(e);
