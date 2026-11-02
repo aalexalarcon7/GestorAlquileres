@@ -6111,6 +6111,31 @@ td:last-child{
 #viewBalanceReal .balance-view-context{margin:6px 0 0;color:var(--br-secondary,#64748b);font-size:12px;line-height:1.4;}
 @media(max-width:1050px){#viewBalance .balance-grid-caja{grid-template-columns:1fr;}}
 
+
+/* Balance real: detalle auditable de cuotas con importes descuadrados. */
+#viewBalanceReal .balance-anomalias{margin:10px 0 12px;border:1px solid #f5cb7b;border-radius:10px;background:#fffbeb;overflow:hidden;color:#854d0e;}
+#viewBalanceReal .balance-anomalias summary{cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 13px;font-weight:700;list-style:none;}
+#viewBalanceReal .balance-anomalias summary::-webkit-details-marker{display:none;}
+#viewBalanceReal .balance-anomalias summary::after{content:'Ver cuotas';font-size:12px;text-decoration:underline;text-underline-offset:3px;white-space:nowrap;}
+#viewBalanceReal .balance-anomalias[open] summary::after{content:'Ocultar';}
+#viewBalanceReal .balance-anomalias summary:focus-visible{outline:2px solid #c47e00;outline-offset:-3px;}
+#viewBalanceReal .balance-anomalias-body{padding:0 12px 12px;color:var(--br-ink,#0f172a);}
+#viewBalanceReal .balance-anomalias-desc{font-size:12px;line-height:1.5;margin:0 0 10px;color:var(--br-secondary,#64748b);}
+#viewBalanceReal .balance-anomalias .tableWrap{margin:0;}
+#viewBalanceReal .balance-anomalias table{width:100%;min-width:810px;border-collapse:collapse;}
+#viewBalanceReal .balance-anomalias th{padding:10px;font-size:11px;text-align:left;background:rgba(245,158,11,.09);}
+#viewBalanceReal .balance-anomalias td{padding:10px;border-top:1px solid rgba(120,90,40,.16);font-size:12px;vertical-align:middle;}
+#viewBalanceReal .balance-anomalias td.right,#viewBalanceReal .balance-anomalias th.right{text-align:right;}
+#viewBalanceReal .balance-anomalias .btn{min-height:32px;padding:5px 9px;font-size:12px;}
+#viewBalanceReal .balance-anomalias .balance-anomalias-diferencia{color:#b45309;font-weight:800;}
+#viewBalanceReal .balance-anomalias-month{border:0;background:none;color:#a16207;text-decoration:underline;cursor:pointer;font:inherit;font-weight:700;padding:3px 6px;border-radius:5px;}
+#viewBalanceReal .balance-anomalias-month:focus-visible{outline:2px solid currentColor;}
+#viewBalanceReal .balance-anomalias tr.is-target td{background:rgba(245,158,11,.13);}
+[data-theme="dark"] #viewBalanceReal .balance-anomalias{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.38);color:#fcd34d;}
+[data-theme="dark"] #viewBalanceReal .balance-anomalias .balance-anomalias-diferencia{color:#fbbf24;}
+[data-theme="dark"] #viewBalanceReal .balance-anomalias-month{color:#fbbf24;}
+[data-theme="dark"] #viewBalanceReal .balance-anomalias td{border-color:rgba(245,158,11,.19);}
+
 /* Balance real: gráficos de cuotas (aislados de los gráficos de caja). */
 #viewBalanceReal .balance-grid-real{
   display:grid;
@@ -16843,6 +16868,77 @@ error = deleteResponse.error;
         `<th class="right">Flujo neto</th><th class="right">Acumulado</th>`+
         `</tr></thead><tbody id="balanceBody">${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
     }
+    // Las anomalías deben usar la MISMA regla de deduplicación que
+    // balance_real_operativo_anual: última fila (mayor id) por contrato/año/mes.
+    // Solo lectura. Nunca corregimos saldos, recibos ni cuotas desde este panel.
+    async function fetchBalanceRealInconsistencias(year, months){
+      if(!Array.isArray(months)||!months.length)return [];
+      const pageSize=500, ultimo=new Map();
+      let offset=0;
+      while(true){
+        const {data,error}=await sb.from('cuotas_operativas')
+          .select('id,contrato_id,anio,mes,codigo_local,nombre_inquilino,monto_total,monto_pagado,saldo,estado')
+          .eq('anio',Number(year)).in('mes',months)
+          .order('id',{ascending:false}).range(offset,offset+pageSize-1);
+        if(error)throw error;
+        const batch=Array.isArray(data)?data:[];
+        for(const q of batch){
+          const key=`${q.contrato_id}|${q.anio}|${q.mes}`;
+          if(!ultimo.has(key))ultimo.set(key,q);
+        }
+        if(batch.length<pageSize)break;
+        offset+=pageSize;
+        if(offset>=20000)throw new Error('Hay demasiadas cuotas para mostrar un detalle completo.');
+      }
+      return [...ultimo.values()].filter(q=>Math.abs(balanceNumero(q.monto_total)-balanceNumero(q.monto_pagado)-balanceNumero(q.saldo))>0.01)
+        .map(q=>({...q,diferencia:balanceNumero(q.monto_total)-balanceNumero(q.monto_pagado)-balanceNumero(q.saldo)}))
+        .sort((a,b)=>Number(a.mes)-Number(b.mes)||String(a.codigo_local||'').localeCompare(String(b.codigo_local||'')));
+    }
+    function balanceRealAnomaliaRows(items){
+      return items.map(q=>{
+        const month=Number(q.mes),year=Number(q.anio),contrato=Number(q.contrato_id);
+        const periodo=String(month).padStart(2,'0')+'/'+String(year);
+        const valido=Number.isSafeInteger(contrato)&&contrato>0;
+        return `<tr data-anomalia-mes="${month}"><td>${escapeHtml(q.codigo_local||'—')}</td>`+
+          `<td>${escapeHtml(q.nombre_inquilino||'—')}</td><td>${escapeHtml(periodo)}</td>`+
+          `<td class="right">${balanceDinero(q.monto_total)}</td>`+
+          `<td class="right">${balanceDinero(q.monto_pagado)}</td>`+
+          `<td class="right">${balanceDinero(q.saldo)}</td>`+
+          `<td class="right balance-anomalias-diferencia">${balanceDinero(q.diferencia)}</td>`+
+          `<td>${valido?`<button type="button" class="btn" onclick="openActiveDetailByContrato(${contrato})">Ver en Activos</button>`:'—'}</td></tr>`;
+      }).join('');
+    }
+    function balanceRealMostrarInconsistencias(mes){
+      const detalle=$('balanceRealAnomalias');
+      if(!detalle)return;
+      detalle.open=true;
+      detalle.scrollIntoView({behavior:'smooth',block:'center'});
+      const fil=Number(mes);
+      detalle.querySelectorAll('tr[data-anomalia-mes]').forEach(row=>{
+        row.classList.toggle('is-target',Number(row.dataset.anomaliaMes)===fil);
+      });
+    }
+    async function renderBalanceRealInconsistencias(year,rows,seq){
+      const destino=$('balanceRealAnomaliasContenido');
+      if(!destino)return;
+      const meses=rows.filter(r=>r.cuotas_inconsistentes>0).map(r=>Number(r.mes));
+      const esperado=balanceSum(rows,'cuotas_inconsistentes');
+      try{
+        const items=await fetchBalanceRealInconsistencias(year,meses);
+        if(seq!==balanceRealState.renderSeq||!$('balanceRealAnomaliasContenido'))return;
+        if(items.length!==esperado){
+          destino.innerHTML=`<p role="status" class="balance-anomalias-desc">Se detectaron ${esperado} cuotas en el resumen, pero el detalle accesible contiene ${items.length}. Revisá permisos de consulta o actualizá la página. No se modificaron datos.</p>`+
+            (items.length?`<div class="tableWrap"><table><thead><tr><th>Local</th><th>Inquilino</th><th>Mes</th><th class="right">Total</th><th class="right">Pagado</th><th class="right">Saldo</th><th class="right">Diferencia</th><th>Acción</th></tr></thead><tbody>${balanceRealAnomaliaRows(items)}</tbody></table></div>`:'');
+          return;
+        }
+        destino.innerHTML=`<p class="balance-anomalias-desc">La diferencia es Total − Pagado − Saldo. Una cifra negativa indica pagado mayor que lo registrado como total. Revisá el origen del cobro antes de editar importes.</p>`+
+          `<div class="tableWrap"><table><thead><tr><th>Local</th><th>Inquilino</th><th>Mes</th><th class="right">Total</th><th class="right">Pagado</th><th class="right">Saldo</th><th class="right">Diferencia</th><th>Acción</th></tr></thead><tbody>${balanceRealAnomaliaRows(items)}</tbody></table></div>`;
+      }catch(err){
+        if(seq!==balanceRealState.renderSeq||!$('balanceRealAnomaliasContenido'))return;
+        destino.innerHTML=`<p class="balance-anomalias-desc" role="alert">No se pudo consultar el detalle de las cuotas: ${escapeHtml(String(err?.message||err))}. El resumen permanece visible y no se modificaron registros.</p>`;
+      }
+    }
+
     // BALANCE REAL: solo facturación, pagos aplicados y deuda por período.
     function balanceRealMonthlyRow(r) {
       const selected = Number(r.mes) === Number(balanceRealState.month) + 1;
@@ -16853,7 +16949,7 @@ error = deleteResponse.error;
         `<td class="right">${balanceDinero(r.incobrable)}</td>`+
         `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
         `<td class="center">${r.cuotas_pendientes+r.cuotas_parciales}</td>`+
-        `<td class="center">${r.cuotas_inconsistentes ? `<span title="Cuotas a revisar" class="badge b-warn">${r.cuotas_inconsistentes}</span>` : '—'}</td></tr>`;
+        `<td class="center">${r.cuotas_inconsistentes ? `<button type="button" title="Ver cuotas a revisar de ${escapeHtml(r.mes_nombre)}" class="balance-anomalias-month" onclick="balanceRealMostrarInconsistencias(${Number(r.mes)})" aria-label="Ver ${r.cuotas_inconsistentes} cuotas con diferencias en ${escapeHtml(r.mes_nombre)}">${r.cuotas_inconsistentes}</button>` : '—'}</td></tr>`;
     }
     function balanceRealTable(rows) {
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
@@ -17074,7 +17170,7 @@ error = deleteResponse.error;
           `<span>Cobrado <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
           `<span>Por cobrar <strong>${balanceDinero(saldoAnual)}</strong></span>`+
           `<span>Incobrable <strong>${balanceDinero(incAnual)}</strong></span>`+
-          `</div>${anom?`<p class="balance-live-note balance-live-note-alert">${anom} cuota(s) con importes a revisar en Activos.</p>`:''}`+
+          `</div>${anom?`<details id="balanceRealAnomalias" class="balance-anomalias"><summary>${anom} cuota(s) con importes a revisar · Identificar cuotas</summary><div class="balance-anomalias-body" id="balanceRealAnomaliasContenido" aria-live="polite"><p class="balance-anomalias-desc">Consultando cuotas...</p></div></details>`:''}`+
           `${balanceRealTable(rows)}</div>`+
           `<div class="balance-grid balance-grid-real" aria-label="Gráficos anuales de Balance real">`+
           `<section class="card balance-chart-card" aria-label="Facturación versus cobranza">`+
@@ -17096,6 +17192,7 @@ error = deleteResponse.error;
           `</div>`+
           `<p class="balance-live-note">El cobrado se asigna al mes de la cuota, aunque el pago se haya recibido en otra fecha. Los incobrables se informan por separado.</p>`;
         renderBalanceRealCharts(rows);
+        if(anom>0)await renderBalanceRealInconsistencias(year,rows,seq);
       }catch(e){
         if(seq!==balanceRealState.renderSeq)return;
         destroyBalanceRealCharts();
