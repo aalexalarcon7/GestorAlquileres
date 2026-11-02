@@ -5861,6 +5861,166 @@ td:last-child{
 @media(max-width:1120px){.balance-live-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 @media(max-width:650px){.balance-live-grid{grid-template-columns:1fr;}.balance-live-section{padding:12px;}.balance-live-value{font-size:22px;}}
 @media(max-width:1100px){.mobile-bottom-nav{grid-template-columns:repeat(6,minmax(0,1fr))!important;}.mobile-nav-label{font-size:9.5px!important;}}
+
+/* Balance real · refinamiento visual v2. Sólo afecta esta sección. */
+#viewBalanceReal{
+  --br-ink:#111827;
+  --br-secondary:#475569;
+  --br-hairline:rgba(15,23,42,.10);
+}
+#viewBalanceReal #balanceRealContent{color:var(--br-ink);padding:0 !important;}
+#viewBalanceReal .section-hero{
+  padding:17px 21px;
+  border-radius:17px;
+  margin-bottom:10px;
+}
+#viewBalanceReal .section-hero-grid{display:block;}
+#viewBalanceReal .section-hero-main{gap:12px;align-items:center;}
+#viewBalanceReal .section-hero-icon{height:44px;width:44px;border-radius:13px;}
+#viewBalanceReal .section-hero-title{font-size:21px;letter-spacing:-.025em;}
+#viewBalanceReal .section-hero-toolbar.balance{
+  display:grid;
+  grid-template-columns:minmax(140px,210px) 110px auto auto;
+  gap:8px;
+  width:max-content;
+  max-width:100%;
+  margin-top:13px;
+}
+#viewBalanceReal .section-hero-toolbar.balance .btn{min-height:38px;padding:8px 15px;}
+#viewBalanceReal .balance-live-section{
+  margin-top:10px;
+  padding:15px 16px;
+  border:1px solid var(--br-hairline);
+  border-radius:15px;
+  background:var(--card,#fff);
+  box-shadow:none;
+}
+#viewBalanceReal .balance-live-title{margin-bottom:11px;gap:8px;}
+#viewBalanceReal .balance-live-title h3{font-size:14px;font-weight:800;letter-spacing:-.018em;color:var(--br-ink);}
+#viewBalanceReal .balance-live-grid{gap:9px;}
+#viewBalanceReal .balance-live-kpi{
+  padding:12px 14px;
+  min-height:92px;
+  border:1px solid var(--br-hairline);
+  background:transparent;
+  border-radius:11px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+#viewBalanceReal .balance-live-kpi-strong{
+  background:rgba(15,23,42,.028);
+  border-color:rgba(15,23,42,.18);
+}
+#viewBalanceReal .balance-live-label{
+  font-size:11px;
+  font-weight:700;
+  color:var(--br-secondary);
+  letter-spacing:0;
+  line-height:1.35;
+}
+#viewBalanceReal .balance-live-value{
+  font-size:clamp(19px,1.55vw,24px);
+  line-height:1.16;
+  margin:7px 0 0;
+  font-weight:850;
+  color:var(--br-ink) !important;
+  letter-spacing:-.035em;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+#viewBalanceReal .balance-live-sub{display:none;}
+#viewBalanceReal .balance-live-breakdown{
+  margin-top:11px;
+  gap:7px 18px;
+  font-size:11px;
+  line-height:1.4;
+  color:var(--br-secondary);
+}
+#viewBalanceReal .balance-live-breakdown strong{font-size:11px;color:var(--br-ink);font-weight:800;}
+#viewBalanceReal .balance-live-table{
+  border:1px solid var(--br-hairline);
+  border-radius:11px;
+  margin-top:9px;
+  box-shadow:none;
+  background:var(--card,#fff);
+}
+#viewBalanceReal .balance-live-table .balance-table{min-width:1030px;width:100%;border-spacing:0;border-collapse:separate;}
+#viewBalanceReal .balance-live-table .balance-table th{
+  padding:10px 9px;
+  font-size:10px;
+  letter-spacing:.025em;
+  font-weight:750;
+  color:var(--br-secondary);
+  background:#f6f8fb;
+  border-bottom:1px solid var(--br-hairline);
+  text-transform:none;
+}
+#viewBalanceReal .balance-live-table .balance-table td{
+  padding:10px 9px;
+  font-size:11.5px;
+  font-weight:650;
+  color:var(--br-ink) !important;
+  background:var(--card,#fff);
+  border-bottom:1px solid rgba(15,23,42,.055);
+}
+#viewBalanceReal .balance-live-table .balance-table tbody tr:last-child td{border-bottom:0;}
+#viewBalanceReal .balance-live-table .balance-table tbody tr:nth-child(even) td{background:#f8fafc;}
+#viewBalanceReal .balance-live-table .balance-table tbody tr.is-selected td{background:#edf2f7;}
+#viewBalanceReal .balance-live-table .balance-table th:first-child,
+#viewBalanceReal .balance-live-table .balance-table td:first-child{
+  text-align:left;
+  min-width:95px;
+  font-weight:800;
+  color:var(--br-ink) !important;
+  z-index:2;
+}
+#viewBalanceReal .balance-live-table .balance-table th:last-child,
+#viewBalanceReal .balance-live-table .balance-table td:last-child{
+  position:static !important;
+  box-shadow:none !important;
+  min-width:54px;
+}
+#viewBalanceReal .balance-live-annual{margin-top:0;}
+#viewBalanceReal .balance-live-note{
+  font-size:11px;
+  line-height:1.45;
+  color:var(--br-secondary);
+  margin:10px 1px 1px;
+}
+#viewBalanceReal .balance-live-note-alert{
+  color:#854d0e;
+  background:#fffbeb;
+  border:1px solid #fde68a;
+  border-radius:8px;
+  padding:7px 10px;
+  margin-bottom:10px;
+}
+[data-theme="dark"] #viewBalanceReal{
+  --br-ink:#f1f5f9;
+  --br-secondary:#a5b4c8;
+  --br-hairline:rgba(255,255,255,.11);
+}
+[data-theme="dark"] #viewBalanceReal .balance-live-kpi-strong{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.22);}
+[data-theme="dark"] #viewBalanceReal .balance-live-table .balance-table th{background:#1a2535;}
+[data-theme="dark"] #viewBalanceReal .balance-live-table .balance-table td{background:#121a27;border-bottom-color:rgba(255,255,255,.07);}
+[data-theme="dark"] #viewBalanceReal .balance-live-table .balance-table tbody tr:nth-child(even) td{background:#172131;}
+[data-theme="dark"] #viewBalanceReal .balance-live-table .balance-table tbody tr.is-selected td{background:#243249;}
+[data-theme="dark"] #viewBalanceReal .balance-live-note-alert{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.25);color:#fbbf24;}
+@media(max-width:1050px){
+  #viewBalanceReal .balance-live-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:680px){
+  #viewBalanceReal .section-hero{padding:14px;}
+  #viewBalanceReal .section-hero-toolbar.balance{grid-template-columns:minmax(0,1fr) 100px;width:100%;}
+  #viewBalanceReal .section-hero-toolbar.balance .btn{width:100%;}
+  #viewBalanceReal .balance-live-section{padding:12px;}
+  #viewBalanceReal .balance-live-grid{gap:8px;}
+  #viewBalanceReal .balance-live-kpi{padding:11px;min-height:86px;}
+  #viewBalanceReal .balance-live-value{font-size:19px;white-space:normal;overflow-wrap:anywhere;}
+}
+@media(max-width:390px){#viewBalanceReal .balance-live-grid{grid-template-columns:1fr;}}
 </style>
 
 </head>
@@ -16181,6 +16341,27 @@ error = deleteResponse.error;
         `<th class="center">Cuotas c/deuda</th><th class="center">Alertas</th></tr></thead>`+
         `<tbody>${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
     }
+    function balanceRealMonthlyRow(r) {
+      const selected = Number(r.mes) === Number(balanceRealState.month) + 1;
+      return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
+        `<td class="right">${balanceDinero(r.facturacion)}</td>`+
+        `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
+        `<td class="right">${balanceDinero(r.pendiente_real)}</td>`+
+        `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
+        `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
+        `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
+        `<td class="right">${balanceDinero(r.flujo_neto)}</td>`+
+        `<td class="center">${r.cuotas_pendientes+r.cuotas_parciales}</td>`+
+        `<td class="center">${r.cuotas_inconsistentes ? `<span title="Cuotas a revisar" class="badge b-warn">${r.cuotas_inconsistentes}</span>` : '—'}</td></tr>`;
+    }
+    function balanceRealTable(rows) {
+      return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
+        `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
+        `<th class="right">Pendiente</th><th class="right">%</th>`+
+        `<th class="right">Ingresos caja</th><th class="right">Gastos</th>`+
+        `<th class="right">Neto</th><th class="center">Cuotas</th><th class="center">Control</th>`+
+        `</tr></thead><tbody>${rows.map(balanceRealMonthlyRow).join('')}</tbody></table></div>`;
+    }
     function balanceChartConfigs(rows) {
       if (typeof Chart === 'undefined') return;
       destroyBalanceCharts();
@@ -16293,12 +16474,12 @@ error = deleteResponse.error;
       el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
         `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
         `<h2 class="section-hero-title">Balance real</h2></div>`+
-        `<p class="muted">Cartera pendiente vigente, cumplimiento de cuotas y caja efectivamente registrada.</p>`+
+        `<!-- Vista compacta de cartera y caja -->`+
         `<div class="section-hero-toolbar balance"><select id="balanceRealMonth" onchange="handleBalanceRealMonthChange()"></select>`+
         `<select id="balanceRealYear" onchange="balanceRealState.year=Number(this.value);balanceRealState.monthManual=false;renderBalanceRealPage()">${balanceYearOptions(year)}</select>`+
         `<button class="btn primary" onclick="renderBalanceRealPage()">Actualizar</button>`+
         `<button class="btn" onclick="setRoute('balance')">Ver Balance</button>`+
-        `</div></div></div></div><div id="balanceRealContent" class="muted" style="padding:18px 0">Consultando datos...</div>`;
+        `</div></div></div></div><div id="balanceRealContent" style="padding:12px 0">Consultando datos...</div>`;
       try{
         const [rows,carteraRespuesta]=await Promise.all([
           fetchBalanceRealData(year),sb.rpc('balance_real_cartera_actual')
@@ -16319,48 +16500,45 @@ error = deleteResponse.error;
         const gastosAnual=balanceSum(rows,'gastos_registrados');
         const anom=balanceSum(rows,'cuotas_inconsistentes');
         $('balanceRealContent').innerHTML=`
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Deuda de activos vigentes · al día de hoy</h3>`+
-          `<span class="badge b-info">Todos los períodos</span></div>`+
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Deuda actual de activos</h3>`+
+          `<span class="badge b-info">Cartera vigente</span></div>`+
           `<div class="balance-live-grid">`+
-          balanceCard('Deuda total de activos visibles',balanceDinero(c.deuda_activos_visibles),'Solo contratos ACTIVO y no ocultos',true)+
-          balanceCard('Deuda vencida',balanceDinero(c.deuda_vencida_visibles),'Vencimiento anterior a hoy')+
-          balanceCard('Deuda no vencida',balanceDinero(c.deuda_no_vencida_visibles),'Cuotas con vencimiento hoy o posterior')+
-          balanceCard('Contratos con deuda',String(c.contratos_visibles_con_deuda||0),`${c.cuotas_visibles_con_deuda||0} cuotas pendientes`)+
+          balanceCard('Deuda visible',balanceDinero(c.deuda_activos_visibles),'',true)+
+          balanceCard('Vencida',balanceDinero(c.deuda_vencida_visibles),'')+
+          balanceCard('Por vencer',balanceDinero(c.deuda_no_vencida_visibles),'')+
+          balanceCard('Activos con deuda',String(c.contratos_visibles_con_deuda||0),`${c.cuotas_visibles_con_deuda||0} cuotas pendientes`)+
           `</div><div class="balance-live-breakdown">`+
-          `<span>Saldo 2025: <strong>${balanceDinero(c.deuda_visibles_2025)}</strong></span>`+
-          `<span>Saldo 2026: <strong>${balanceDinero(c.deuda_visibles_2026)}</strong></span>`+
-          `<span>Contratos ocultos: <strong>${balanceDinero(c.deuda_contratos_ocultos)}</strong></span>`+
-          `<span>Contratos inactivos / sin contrato: <strong>${balanceDinero(c.deuda_contratos_inactivos)}</strong></span>`+
-          `</div><p class="balance-live-footnote">Ocultos e inactivos se informan aparte y no se suman a la deuda activa visible. `+
-          `Una deuda considerada incobrable requiere su clasificación específica: aquí no se elimina ni se da por cobrada.</p></div>`+
-          `<div class="balance-live-section"><div class="balance-live-title"><h3>Cobranza real de ${nombre}</h3><span class="badge b-info">Cuotas del período</span></div>`+
+          `<span>2025 <strong>${balanceDinero(c.deuda_visibles_2025)}</strong></span>`+
+          `<span>2026 <strong>${balanceDinero(c.deuda_visibles_2026)}</strong></span>`+
+          `<span>Ocultos <strong>${balanceDinero(c.deuda_contratos_ocultos)}</strong></span>`+
+          `<span>Inactivos <strong>${balanceDinero(c.deuda_contratos_inactivos)}</strong></span>`+
+          `</div></div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas · ${nombre}</h3></div>`+
           `<div class="balance-live-grid">`+
-          balanceCard('Facturado',balanceDinero(m.facturacion),'Total de las cuotas del período')+
-          balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Independiente del día del pago')+
-          balanceCard('Pendiente del período',balanceDinero(m.pendiente_real),'Suma de saldos de cuotas',true)+
-          balanceCard('Cobrado / facturado',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
+          balanceCard('Facturado',balanceDinero(m.facturacion),'')+
+          balanceCard('Cobrado',balanceDinero(m.cobrado_cuotas),'')+
+          balanceCard('Pendiente',balanceDinero(m.pendiente_real),'',true)+
+          balanceCard('Cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
             `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
           `</div></div>`+
-          `<div class="balance-live-section"><div class="balance-live-title"><h3>Dinero registrado en caja · ${nombre}</h3>`+
-          `<span class="badge b-info">Fecha de cobro</span></div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Caja · ${nombre}</h3>`+
+          `</div>`+
           `<div class="balance-live-grid">`+
-          balanceCard('Ingresos recibidos',balanceDinero(m.recaudacion_caja),'Incluye deuda de otros períodos')+
-          balanceCard('Gastos registrados',balanceDinero(m.gastos_registrados),'No incluye gastos no cargados')+
-          balanceCard('Flujo neto registrado',balanceDinero(m.flujo_neto),'No representa ganancia contable',true)+
-          balanceCard('Flujo acumulado del año',balanceDinero(m.flujo_acumulado),'No representa efectivo disponible')+
+          balanceCard('Ingresos',balanceDinero(m.recaudacion_caja),'')+
+          balanceCard('Gastos',balanceDinero(m.gastos_registrados),'')+
+          balanceCard('Neto registrado',balanceDinero(m.flujo_neto),'',true)+
+          balanceCard('Acumulado anual',balanceDinero(m.flujo_acumulado),'')+
           `</div></div>`+
-          `<div class="balance-live-section"><div class="balance-live-title"><h3>Acumulados del año ${year}</h3>`+
-          `<span class="muted">No confundir con la cartera activa total</span></div>`+
+          `<div class="balance-live-section balance-live-annual"><div class="balance-live-title"><h3>Resumen anual · ${year}</h3></div>`+
           `<div class="balance-live-breakdown">`+
-          `<span>Facturado: <strong>${balanceDinero(totalAnual)}</strong></span>`+
-          `<span>Aplicado a cuotas: <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
-          `<span>Saldo de cuotas: <strong>${balanceDinero(saldoAnual)}</strong></span>`+
-          `<span>Cobros por fecha: <strong>${balanceDinero(cajaAnual)}</strong></span>`+
-          `<span>Gastos cargados: <strong>${balanceDinero(gastosAnual)}</strong></span>`+
-          `</div>${anom?`<p class="balance-live-footnote">Atención: ${anom} cuotas del año presentan diferencias entre total, pago y saldo; revisar en Activos.</p>`:''}`+
-          `${balanceLiveTable(rows)}</div>`+
-          `<p class="balance-live-footnote">Balance real significa importes basados en las cuotas, recibos y gastos registrados. `+
-          `Sin conciliación bancaria, caja inicial, movimientos externos y gastos completos, no se puede determinar el saldo físico o bancario disponible.</p>`;
+          `<span>Facturado <strong>${balanceDinero(totalAnual)}</strong></span>`+
+          `<span>Cobrado <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
+          `<span>Pendiente <strong>${balanceDinero(saldoAnual)}</strong></span>`+
+          `<span>Ingresos <strong>${balanceDinero(cajaAnual)}</strong></span>`+
+          `<span>Gastos <strong>${balanceDinero(gastosAnual)}</strong></span>`+
+          `</div>${anom?`<p class="balance-live-note balance-live-note-alert">${anom} cuota(s) con importes a revisar en Activos.</p>`:''}`+
+          `${balanceRealTable(rows)}</div>`+
+          `<p class="balance-live-note">Caja: cobros por fecha. Cuotas: pagos aplicados al período. El neto registrado no equivale al saldo bancario ni a la utilidad contable.</p>`;
       }catch(e){
         if(seq!==balanceRealState.renderSeq)return;
         $('balanceRealContent').innerHTML=balanceErrorBox(e);
