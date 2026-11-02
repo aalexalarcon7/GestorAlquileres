@@ -6023,6 +6023,190 @@ td:last-child{
 @media(max-width:390px){#viewBalanceReal .balance-live-grid{grid-template-columns:1fr;}}
 </style>
 
+
+<style id="ga-balance-general-compact-v1">
+/* Balance general · igualación visual con Balance real (solo estilo). */
+#viewBalance{
+  --br-ink:#111827;
+  --br-secondary:#475569;
+  --br-hairline:rgba(15,23,42,.10);
+}
+#viewBalance #balanceLiveContent{color:var(--br-ink);padding:0 !important;}
+#viewBalance .section-hero{
+  padding:17px 21px;
+  border-radius:17px;
+  margin-bottom:10px;
+}
+#viewBalance .section-hero-grid{display:block;}
+#viewBalance .section-hero-main{gap:12px;align-items:center;}
+#viewBalance .section-hero-icon{height:44px;width:44px;border-radius:13px;}
+#viewBalance .section-hero-title{font-size:21px;letter-spacing:-.025em;}
+#viewBalance .section-hero-toolbar.balance{
+  display:grid;
+  grid-template-columns:minmax(140px,210px) 110px auto auto;
+  gap:8px;
+  width:max-content;
+  max-width:100%;
+  margin-top:13px;
+}
+#viewBalance .section-hero-toolbar.balance .btn{min-height:38px;padding:8px 15px;}
+#viewBalance .balance-live-section{
+  margin-top:10px;
+  padding:15px 16px;
+  border:1px solid var(--br-hairline);
+  border-radius:15px;
+  background:var(--card,#fff);
+  box-shadow:none;
+}
+#viewBalance .balance-live-title{margin-bottom:11px;gap:8px;}
+#viewBalance .balance-live-title h3{font-size:14px;font-weight:800;letter-spacing:-.018em;color:var(--br-ink);}
+#viewBalance .balance-live-grid{gap:9px;}
+#viewBalance .balance-live-kpi{
+  padding:12px 14px;
+  min-height:92px;
+  border:1px solid var(--br-hairline);
+  background:transparent;
+  border-radius:11px;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+#viewBalance .balance-live-kpi-strong{
+  background:rgba(15,23,42,.028);
+  border-color:rgba(15,23,42,.18);
+}
+#viewBalance .balance-live-label{
+  font-size:11px;
+  font-weight:700;
+  color:var(--br-secondary);
+  letter-spacing:0;
+  line-height:1.35;
+}
+#viewBalance .balance-live-value{
+  font-size:clamp(19px,1.55vw,24px);
+  line-height:1.16;
+  margin:7px 0 0;
+  font-weight:850;
+  color:var(--br-ink) !important;
+  letter-spacing:-.035em;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+#viewBalance .balance-live-sub{display:none;}
+#viewBalance .balance-live-breakdown{
+  margin-top:11px;
+  gap:7px 18px;
+  font-size:11px;
+  line-height:1.4;
+  color:var(--br-secondary);
+}
+#viewBalance .balance-live-breakdown strong{font-size:11px;color:var(--br-ink);font-weight:800;}
+#viewBalance .balance-live-table{
+  border:1px solid var(--br-hairline);
+  border-radius:11px;
+  margin-top:9px;
+  box-shadow:none;
+  background:var(--card,#fff);
+}
+#viewBalance .balance-live-table .balance-table{min-width:1030px;width:100%;border-spacing:0;border-collapse:separate;}
+#viewBalance .balance-live-table .balance-table th{
+  padding:10px 9px;
+  font-size:10px;
+  letter-spacing:.025em;
+  font-weight:750;
+  color:var(--br-secondary);
+  background:#f6f8fb;
+  border-bottom:1px solid var(--br-hairline);
+  text-transform:none;
+}
+#viewBalance .balance-live-table .balance-table td{
+  padding:10px 9px;
+  font-size:11.5px;
+  font-weight:650;
+  color:var(--br-ink) !important;
+  background:var(--card,#fff);
+  border-bottom:1px solid rgba(15,23,42,.055);
+}
+#viewBalance .balance-live-table .balance-table tbody tr:last-child td{border-bottom:0;}
+#viewBalance .balance-live-table .balance-table tbody tr:nth-child(even) td{background:#f8fafc;}
+#viewBalance .balance-live-table .balance-table tbody tr.is-selected td{background:#edf2f7;}
+#viewBalance .balance-live-table .balance-table th:first-child,
+#viewBalance .balance-live-table .balance-table td:first-child{
+  text-align:left;
+  min-width:95px;
+  font-weight:800;
+  color:var(--br-ink) !important;
+  z-index:2;
+}
+#viewBalance .balance-live-table .balance-table th:last-child,
+#viewBalance .balance-live-table .balance-table td:last-child{
+  position:static !important;
+  box-shadow:none !important;
+  min-width:54px;
+}
+#viewBalance .balance-live-annual{margin-top:0;}
+#viewBalance .balance-live-note{
+  font-size:11px;
+  line-height:1.45;
+  color:var(--br-secondary);
+  margin:10px 1px 1px;
+}
+#viewBalance .balance-live-note-alert{
+  color:#854d0e;
+  background:#fffbeb;
+  border:1px solid #fde68a;
+  border-radius:8px;
+  padding:7px 10px;
+  margin-bottom:10px;
+}
+[data-theme="dark"] #viewBalance{
+  --br-ink:#f1f5f9;
+  --br-secondary:#a5b4c8;
+  --br-hairline:rgba(255,255,255,.11);
+}
+[data-theme="dark"] #viewBalance .balance-live-kpi-strong{background:rgba(255,255,255,.035);border-color:rgba(255,255,255,.22);}
+[data-theme="dark"] #viewBalance .balance-live-table .balance-table th{background:#1a2535;}
+[data-theme="dark"] #viewBalance .balance-live-table .balance-table td{background:#121a27;border-bottom-color:rgba(255,255,255,.07);}
+[data-theme="dark"] #viewBalance .balance-live-table .balance-table tbody tr:nth-child(even) td{background:#172131;}
+[data-theme="dark"] #viewBalance .balance-live-table .balance-table tbody tr.is-selected td{background:#243249;}
+[data-theme="dark"] #viewBalance .balance-live-note-alert{background:rgba(245,158,11,.10);border-color:rgba(245,158,11,.25);color:#fbbf24;}
+@media(max-width:1050px){
+  #viewBalance .balance-live-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media(max-width:680px){
+  #viewBalance .section-hero{padding:14px;}
+  #viewBalance .section-hero-toolbar.balance{grid-template-columns:minmax(0,1fr) 100px;width:100%;}
+  #viewBalance .section-hero-toolbar.balance .btn{width:100%;}
+  #viewBalance .balance-live-section{padding:12px;}
+  #viewBalance .balance-live-grid{gap:8px;}
+  #viewBalance .balance-live-kpi{padding:11px;min-height:86px;}
+  #viewBalance .balance-live-value{font-size:19px;white-space:normal;overflow-wrap:anywhere;}
+}
+@media(max-width:390px){#viewBalance .balance-live-grid{grid-template-columns:1fr;}}
+
+/* Pequeños ajustes específicos del Balance común (11 columnas y filtro anual). */
+#viewBalance .balance-live-table .balance-table{min-width:1210px;}
+#viewBalance .balance-live-title{min-width:0;}
+#viewBalance .balance-heading-tools{display:flex;align-items:center;flex-wrap:wrap;gap:9px;min-width:0;}
+#viewBalance .balance-month-filter{
+  min-height:32px;height:32px;width:174px;max-width:100%;
+  font-size:12px;border:1px solid var(--br-hairline);
+  background:var(--card,#fff);border-radius:9px;padding:5px 10px;color:var(--br-ink);
+}
+#viewBalance .balance-audit-count{font-size:11px;font-weight:700;color:#925a12;white-space:nowrap;}
+#viewBalance .balance-live-footnote{font-size:11px;line-height:1.5;color:var(--br-secondary);margin:11px 2px;}
+#viewBalance .balance-chart-card h3{font-size:14px !important;font-weight:800 !important;}
+[data-theme="dark"] #viewBalance .balance-month-filter{background:#172131;color:var(--br-ink);}
+[data-theme="dark"] #viewBalance .balance-audit-count{color:#fbbf24;}
+@media(max-width:680px){
+ #viewBalance .section-hero-toolbar.balance{grid-template-columns:repeat(2,minmax(0,1fr));width:100%;}
+ #viewBalance .section-hero-toolbar.balance .btn{font-size:12px;min-width:0;padding:8px 9px;}
+ #viewBalance .balance-heading-tools{width:100%;}
+ #viewBalance .balance-month-filter{width:100%;}
+}
+
+</style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -16296,7 +16480,8 @@ error = deleteResponse.error;
         `</div>`;
     }
     function balanceMonthlyRow(r) {
-      return `<tr><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
+      const selected = Number(r.mes) === Number(balancePageState.month) + 1;
+      return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
         `<td class="right">${balanceDinero(r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
         `<td class="right">${balanceDinero(r.pendiente_real)}</td>`+
@@ -16334,11 +16519,11 @@ error = deleteResponse.error;
     }
     function balanceLiveTable(rows){
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
-        `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado cuotas</th>`+
-        `<th class="right">Pendiente real</th><th class="right">% cobrado</th>`+
-        `<th class="right">Cobros caja</th><th class="right">Gastos cargados</th>`+
-        `<th class="right">Flujo neto</th><th class="right">Flujo acum.</th>`+
-        `<th class="center">Cuotas c/deuda</th><th class="center">Alertas</th></tr></thead>`+
+        `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
+        `<th class="right">Pendiente</th><th class="right">%</th>`+
+        `<th class="right">Ingresos</th><th class="right">Gastos</th>`+
+        `<th class="right">Neto</th><th class="right">Acumulado</th>`+
+        `<th class="center">Cuotas</th><th class="center">Control</th></tr></thead>`+
         `<tbody>${rows.map(balanceMonthlyRow).join('')}</tbody></table></div>`;
     }
     function balanceRealMonthlyRow(r) {
@@ -16405,14 +16590,12 @@ error = deleteResponse.error;
       el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
         `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
         `<h2 class="section-hero-title">Balance</h2></div>`+
-        `<p class="muted">Caja registrada y cobranza de cuotas, presentadas por separado.</p>`+
         `<div class="section-hero-toolbar balance">`+
-        `<input id="balanceSearch" placeholder="Filtrar meses en la tabla" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()">`+
         `<select id="balanceMonth" onchange="handleBalanceMonthChange()"></select>`+
         `<select id="balanceYear" onchange="balancePageState.year=Number(this.value);balancePageState.monthManual=false;renderBalancePage()">${balanceYearOptions(year)}</select>`+
         `<button class="btn primary" onclick="renderBalancePage()">Actualizar</button>`+
         `<button class="btn" onclick="setRoute('balance-real')">Ver Balance real</button>`+
-        `</div></div></div></div><div id="balanceLiveContent" class="muted" style="padding:18px 0">Consultando datos...</div>`;
+        `</div></div></div></div><div id="balanceLiveContent" style="padding:12px 0">Consultando datos...</div>`;
       try{
         const rows=await fetchBalanceRealData(year);
         if(seq!==balancePageState.renderSeq)return;
@@ -16423,15 +16606,14 @@ error = deleteResponse.error;
         const nombre=`${m.mes_nombre} ${year}`;
         const anomal=balanceSum(rows,'cuotas_inconsistentes');
         $('balanceLiveContent').innerHTML=`
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Movimientos de caja · ${nombre}</h3>`+
-          `<span class="badge b-info">Fecha efectiva del cobro</span></div>`+
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Caja · ${nombre}</h3></div>`+
           `<div class="balance-live-grid">`+
           balanceCard('Cobros recibidos',balanceDinero(m.recaudacion_caja),'Recibos por fecha de pago')+
           balanceCard('Gastos registrados',balanceDinero(m.gastos_registrados),'Solo gastos cargados en el sistema')+
           balanceCard('Flujo neto registrado',balanceDinero(m.flujo_neto),'Cobros recibidos − gastos cargados',true)+
           balanceCard('Flujo neto acumulado',balanceDinero(m.flujo_acumulado),'Desde enero del año elegido; no es saldo bancario')+
           `</div></div>
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas de ${nombre}</h3><span class="badge b-info">Período de la deuda</span></div>`+
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas · ${nombre}</h3></div>`+
           `<div class="balance-live-grid">`+
           balanceCard('Facturado en cuotas',balanceDinero(m.facturacion),'Alquiler + impuesto + servicio incluidos')+
           balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Incluye pagos hechos en otros meses')+
@@ -16439,17 +16621,16 @@ error = deleteResponse.error;
           balanceCard('Cumplimiento de cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
             `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
           `</div></div>
-          <div class="balance-live-section"><div class="balance-live-title"><h3>Detalle del año ${year}</h3>`+
-          `<span class="muted">${anomal ? `${anomal} cuotas con diferencia para auditar`:'Sin diferencias detectadas entre total, pagado y saldo'}</span></div>`+
+          <div class="balance-live-section"><div class="balance-live-title"><h3>Detalle anual · ${year}</h3>`+
+          `<div class="balance-heading-tools"><input id="balanceSearch" class="balance-month-filter" type="search" placeholder="Buscar mes" aria-label="Filtrar meses de la tabla" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()">`+
+          `${anomal ? `<span class="balance-audit-count">${anomal} cuotas para revisar</span>` : ''}</div></div>`+
           balanceLiveTable(rows)+`</div>`+
           `<div class="balance-grid">`+
           `<div class="card balance-chart-card"><h3>Facturación y cobrado de cuotas</h3><canvas id="balChartFactRec"></canvas></div>`+
           `<div class="card balance-chart-card"><h3>Deuda pendiente de cada período</h3><canvas id="balChartCobradoFact"></canvas></div>`+
           `<div class="card balance-chart-card"><h3>Cobros de caja y gastos cargados</h3><canvas id="balChartResultadoMes"></canvas></div>`+
           `<div class="card balance-chart-card"><h3>Flujo neto acumulado registrado</h3><canvas id="balChartSaldoAcumulado"></canvas></div>`+
-          `</div><p class="balance-live-footnote">Los cobros de caja se agrupan por fecha de pago, aunque cancelen meses anteriores. `+
-          `Lo cobrado de cuotas y su pendiente se agrupan por período. Un gasto sin registrar no está incluido: `+
-          `el flujo neto no equivale a utilidad contable ni a dinero disponible. Los montos son registros del sistema.</p>`;
+          `</div><p class="balance-live-footnote">Caja: ingresos por fecha de cobro. Cuotas: pagos aplicados al período. El neto refleja solo los gastos registrados; no es utilidad contable.</p>`;
         handleBalanceSearchInput();
         balanceChartConfigs(rows);
       }catch(e){
