@@ -6029,6 +6029,61 @@ td:last-child{
 #viewBalance .balance-view-context,
 #viewBalanceReal .balance-view-context{margin:6px 0 0;color:var(--br-secondary,#64748b);font-size:12px;line-height:1.4;}
 @media(max-width:1050px){#viewBalance .balance-grid-caja{grid-template-columns:1fr;}}
+
+/* Balance real: gráficos de cuotas (aislados de los gráficos de caja). */
+#viewBalanceReal .balance-grid-real{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:16px;
+  width:100%;
+  margin:12px 0 0;
+}
+#viewBalanceReal .balance-grid-real .balance-chart-card{
+  min-width:0;
+  width:100%;
+  height:348px;
+  min-height:348px;
+  padding:17px 18px;
+  border:1px solid var(--br-hairline);
+  border-radius:15px;
+  background:var(--card,#fff);
+  box-shadow:none;
+  overflow:hidden;
+  margin:0;
+}
+#viewBalanceReal .balance-grid-real .balance-chart-card h3{
+  margin:0 0 8px;
+  color:var(--br-ink);
+  font-size:14px;
+  line-height:1.4;
+  font-weight:800;
+}
+#viewBalanceReal .balance-grid-real .balance-chart-card p{
+  margin:0 0 12px;
+  color:var(--br-secondary);
+  font-size:11px;
+  line-height:1.35;
+}
+#viewBalanceReal .balance-grid-real .balance-chart-canvas{
+  position:relative;
+  width:100%;
+  height:258px;
+  min-height:0;
+}
+#viewBalanceReal .balance-grid-real canvas{
+  display:block;
+  width:100% !important;
+  height:100% !important;
+  max-height:none !important;
+}
+@media(max-width:1050px){
+  #viewBalanceReal .balance-grid-real{grid-template-columns:1fr;}
+}
+@media(max-width:680px){
+  #viewBalanceReal .balance-grid-real{gap:10px;}
+  #viewBalanceReal .balance-grid-real .balance-chart-card{padding:13px;height:320px;min-height:320px;}
+  #viewBalanceReal .balance-grid-real .balance-chart-canvas{height:225px;}
+}
 </style>
 
 
@@ -15995,6 +16050,7 @@ error = deleteResponse.error;
     let gastoEditId = null;
     let informesLoadError = '';
     let balanceCharts = [];
+    let balanceRealCharts = [];
 
     function legacyGastosRows(){
       try{
@@ -16593,6 +16649,12 @@ error = deleteResponse.error;
       });
       balanceCharts = [];
     }
+    function destroyBalanceRealCharts(){
+      balanceRealCharts.forEach(ch => {
+        try { ch.destroy(); } catch (e){}
+      });
+      balanceRealCharts = [];
+    }
 
     // ================================================================
     // BALANCE + BALANCE REAL | Lecturas consistentes con cuotas y caja
@@ -16725,6 +16787,55 @@ error = deleteResponse.error;
           options:base}));
       }
     }
+    // Cuotas del período: no confundir con ingresos por fecha de pago del Balance de caja.
+    function renderBalanceRealCharts(rows){
+      destroyBalanceRealCharts();
+      if (typeof Chart === 'undefined') {
+        const aviso = $('balanceRealGraficosAviso');
+        if (aviso) aviso.textContent = 'No se pudo cargar la biblioteca de gráficos. La tabla mantiene los datos disponibles.';
+        return;
+      }
+      const factCanvas = $('balRealChartFactCob');
+      const pctCanvas = $('balRealChartPorcentaje');
+      if (!factCanvas || !pctCanvas) return;
+      const nombres = rows.map(r => String(r.mes_nombre).slice(0,3));
+      const facturado = rows.map(r => balanceNumero(r.facturacion));
+      const cobrado = rows.map(r => balanceNumero(r.cobrado_cuotas));
+      // Sin facturación no hay denominador válido. No se grafica un 0% ficticio.
+      const porcentajes = rows.map(r => balanceNumero(r.facturacion) > 0
+        ? (100 * balanceNumero(r.cobrado_cuotas) / balanceNumero(r.facturacion)) : null);
+      const dark = !!document.querySelector('[data-theme="dark"]');
+      const tinta = dark ? '#dbe4ef' : '#475569';
+      const cuadricula = dark ? 'rgba(226,232,240,.12)' : 'rgba(51,65,85,.10)';
+      const ticks = {color:tinta,maxRotation:0,autoSkip:true};
+      const legend = {position:'bottom',labels:{color:tinta,usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:15}};
+      const pesos = value => balanceDinero(value);
+      const porcentaje = value => Number(value).toLocaleString('es-AR',{maximumFractionDigits:1,minimumFractionDigits:1})+'%';
+      const makeAxis = (pct=false) => ({
+        x:{ticks,grid:{display:false},border:{display:false}},
+        y:{beginAtZero:true,ticks:{color:tinta,callback:value=>pct?`${value}%`:new Intl.NumberFormat('es-AR',{notation:'compact',maximumFractionDigits:1}).format(value)},
+          grid:{color:cuadricula},border:{display:false},...(pct?{suggestedMax:100}:{})}
+      });
+      balanceRealCharts.push(new Chart(factCanvas.getContext('2d'),{
+        type:'bar',
+        data:{labels:nombres,datasets:[
+          {label:'Facturado',data:facturado,backgroundColor:'#3b82f6',borderRadius:5,maxBarThickness:27},
+          {label:'Cobrado',data:cobrado,backgroundColor:'#16a34a',borderRadius:5,maxBarThickness:27}
+        ]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend,tooltip:{callbacks:{label:ctx=>`${ctx.dataset.label}: ${pesos(ctx.parsed.y)}`}}},
+          scales:makeAxis()}
+      }));
+      balanceRealCharts.push(new Chart(pctCanvas.getContext('2d'),{
+        type:'line',
+        data:{labels:nombres,datasets:[{label:'Cobranza',data:porcentajes,borderColor:'#2563eb',
+          backgroundColor:'rgba(37,99,235,.11)',pointBackgroundColor:'#2563eb',pointRadius:4,
+          pointHoverRadius:6,borderWidth:2.5,tension:.2,spanGaps:false,fill:true}]},
+        options:{responsive:true,maintainAspectRatio:false,animation:false,
+          plugins:{legend,tooltip:{callbacks:{label:ctx=>ctx.parsed.y===null?'Sin facturación':`Cobranza: ${porcentaje(ctx.parsed.y)}`}}},
+          scales:makeAxis(true)}
+      }));
+    }
     function handleBalanceSearchInput(){
       balancePageState.query=$('balanceSearch')?.value||'';
       const q=balancePageState.query.trim().toLowerCase();
@@ -16806,6 +16917,7 @@ error = deleteResponse.error;
       const chosen=balanceRealState.monthManual ? (raw!==undefined&&raw!==null?Number(raw):balanceRealState.month) : null;
       balanceRealState.year=year;
       const seq=++balanceRealState.renderSeq;
+      destroyBalanceRealCharts();
       el.innerHTML=`<div class="section-hero balance"><div class="section-hero-grid"><div>`+
         `<div class="section-hero-main"><div class="section-hero-icon"><span class="ui-icon" data-ui-icon="wallet"></span></div>`+
         `<h2 class="section-hero-title">Balance real</h2></div>`+
@@ -16871,6 +16983,14 @@ error = deleteResponse.error;
           `<span>Incobrable <strong>${balanceDinero(incAnual)}</strong></span>`+
           `</div>${anom?`<p class="balance-live-note balance-live-note-alert">${anom} cuota(s) con importes a revisar en Activos.</p>`:''}`+
           `${balanceRealTable(rows)}</div>`+
+          `<div class="balance-grid balance-grid-real" aria-label="Gráficos anuales de Balance real">`+
+          `<section class="card balance-chart-card" aria-label="Facturación versus cobranza">`+
+          `<h3>Facturación vs cobranza</h3><p>Importes de cuotas por mes, no ingresos de caja.</p>`+
+          `<div class="balance-chart-canvas"><canvas id="balRealChartFactCob" role="img" aria-label="Comparación mensual de cuotas facturadas y cobradas"></canvas></div></section>`+
+          `<section class="card balance-chart-card" aria-label="Porcentaje de cobranza">`+
+          `<h3>% de cobranza</h3><p>Cobrado / facturado por mes · sin facturación, sin porcentaje.</p>`+
+          `<div class="balance-chart-canvas"><canvas id="balRealChartPorcentaje" role="img" aria-label="Porcentaje mensual de cuotas cobradas sobre lo facturado"></canvas></div></section>`+
+          `</div><p id="balanceRealGraficosAviso" class="balance-live-note" aria-live="polite"></p>`+
           `<div class="balance-live-section"><div class="balance-live-title"><h3>Meses incobrables</h3>`+
           `<span class="muted">${cl.cuotas_incobrables_total||0} clasificados</span></div>`+
           (gaLista.length?`<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
@@ -16882,8 +17002,10 @@ error = deleteResponse.error;
             `</tbody></table></div>`:'<span class="muted">No hay cuotas clasificadas como incobrables.</span>')+
           `</div>`+
           `<p class="balance-live-note">El cobrado se asigna al mes de la cuota, aunque el pago se haya recibido en otra fecha. Los incobrables se informan por separado.</p>`;
+        renderBalanceRealCharts(rows);
       }catch(e){
         if(seq!==balanceRealState.renderSeq)return;
+        destroyBalanceRealCharts();
         $('balanceRealContent').innerHTML=balanceErrorBox(e);
       }
     }
