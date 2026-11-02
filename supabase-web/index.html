@@ -6207,6 +6207,12 @@ td:last-child{
 }
 
 </style>
+<style>
+/* Incobrables: dos acciones compactas en detalle; nunca se colorea como pagado. */
+.ga-inc-actions{display:flex;align-items:center;justify-content:center;gap:5px;flex-wrap:wrap;}
+.ga-inc-btn{border-color:#fed7aa!important;color:#9a3412!important;}
+.ga-inc-btn.active{border-color:#93c5fd!important;color:#1d4ed8!important;}
+</style>
 </head>
 <body>
 <!-- SPLASH -->
@@ -7063,7 +7069,7 @@ td:last-child{
       <div class="row cobro-comp-header" style="justify-content:space-between;align-items:flex-start;gap:12px;">
         <div>
           <h3 style="margin:0;">Cobro por componentes <span style="font-size:13px;font-weight:500;background:#dbeafe;color:#1d4ed8;padding:2px 8px;border-radius:10px;margin-left:6px;">Beta</span></h3>
-          <div class="muted" style="font-size:12px;margin-top:3px;">Imputá alquiler, impuesto y servicio por separado. Siempre con vista previa antes de guardar.</div>
+          <div class="muted" style="font-size:12px;margin-top:3px;">Distribuí el cobro entre los meses elegidos. El Balance real aplica cada importe a su cuota; los incobrables no se pueden cobrar.</div>
         </div>
         <button class="btn" onclick="closeCobroComp()">Cerrar</button>
       </div>
@@ -8280,6 +8286,12 @@ td:last-child{
     }
 
     function getReconstructedDebtStatus(row){
+  if (Number.isFinite(row?._gaDeudaReal)) {
+    if(row._gaVencidaReal>0.009)return {key:'ATRASADO',label:'ATRASADO',className:'b-bad'};
+    if(row._gaDeudaReal>0.009)return {key:'VENCE_PRONTO',label:'PENDIENTE',className:'b-warn'};
+    if(row._gaIncobrable>0.009)return {key:'INCOBRABLE',label:'INCOBRABLE',className:'b-info'};
+    return {key:'AL_DIA',label:'AL DÍA',className:'b-ok'};
+  }
   const tolerance = 1;
 
   const arrastre2025 = toNumber(row?.deuda_arrastre_2025);
@@ -10016,7 +10028,7 @@ if (aplicacionesDirectas.length) {
       }
 
       rows.forEach(x => {
-        const estado = x.estado_detalle || x.estado || '—';
+        const estado = x._gaIncobrable ? 'INCOBRABLE' : (x.estado_detalle || x.estado || '—');
         let cls = 'b-info';
         if (String(estado).includes('ATRASAD')) cls = 'b-bad';
         else if (String(estado).includes('SIN PAGO') || String(estado).includes('PENDIENTE')) cls = 'b-bad';
@@ -10047,7 +10059,7 @@ if (aplicacionesDirectas.length) {
               ? toNumber(x.saldo)
               : round2(Math.max(0, totalDisplay - pagadoDisplay));
 
-        const diasAtraso = Number(x.dias_atraso || 0);
+        const diasAtraso = x._gaIncobrable ? 0 : Number(x.dias_atraso || 0);
         const diasCell = diasAtraso > 0
           ? `<span style="color:var(--bad);font-weight:900;">${diasAtraso}d</span>`
           : `<span class="muted">—</span>`;
@@ -10139,7 +10151,7 @@ if (aplicacionesDirectas.length) {
           ${_detalleShowServicio ? `<td class="right">${servicioCell}</td>` : ''}
           <td class="right">${fmtARS.format(saldoDisplay)}</td>
           <td class="center">
-            <span class="badge ${cls}">${estado}</span>${
+            <span class="badge ${cls}" ${x._gaIncobrable?`title="${escapeAttr(x._gaIncobrableMotivo)}"`:''}>${estado}</span>${
               x._modo_componentes
                 ? ' <span class="ui-icon sm" data-ui-icon="zap" title="Saldos calculados desde columnas de componentes (Etapa 2B)" style="color:#2563eb;cursor:default;"></span>'
                 : x._componentes_incompletos
@@ -10148,7 +10160,7 @@ if (aplicacionesDirectas.length) {
             }
           </td>
           <td class="center">${diasCell}</td>
-          <td class="center">${x.id ? `<button class="ec-btn-row" onclick="openEditarCuota(${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)})" title="Editar componentes de esta cuota"><span class="ui-icon sm" data-ui-icon="pencil"></span>Editar</button>` : ''}</td>
+          <td class="center">${x.id ? `<div class="ga-inc-actions"><button class="ec-btn-row" onclick="openEditarCuota(${Number(x.id)},${Number(x.contrato_id)},${Number(x.anio)},${Number(x.mes)})" title="Editar componentes de esta cuota"><span class="ui-icon sm" data-ui-icon="pencil"></span>Editar</button>${isJefe() && (x._gaIncobrable || saldoDisplay>0.009) ? `<button class="ec-btn-row ga-inc-btn${x._gaIncobrable?' active':''}" onclick="gaCambiarIncobrable(${Number(x.id)},${x._gaIncobrable?'false':'true'})" title="${x._gaIncobrable?'Rehabilitar cuota':'Clasificar cuota como incobrable'}">${x._gaIncobrable?'Rehabilitar':'Incobrable'}</button>` : ''}</div>` : ''}</td>
         `;
         tb.appendChild(tr);
       });
@@ -10207,16 +10219,19 @@ if (aplicacionesDirectas.length) {
     }
 
     function getDisplayedDebtTotal(row){
+      if(Number.isFinite(row?._gaDeudaReal))return round2(Math.max(0,row._gaDeudaReal));
       const base = toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
       return round2(base + getDisplayedCurrentMonthDebt(row));
     }
 
     function getDisplayedDebtTotalForDetalle(row, cuotasRows=[]){
+      if(Number.isFinite(row?._gaDeudaReal))return round2(Math.max(0,row._gaDeudaReal));
       const base = toNumber(row?.deuda_total_2025_2026 ?? row?.deuda_total ?? 0);
       return round2(base + getDisplayedCurrentMonthDebtFromRows(row, cuotasRows));
     }
 
     function getDisplayedMonthsOwed(row){
+      if(Number.isInteger(row?._gaMesesReales))return row._gaMesesReales;
       const base = Number(row?.meses_adeudados || 0);
       return base + (getDisplayedCurrentMonthDebt(row) > 0 ? 1 : 0);
     }
@@ -10449,6 +10464,108 @@ window.addEventListener('online', () => {
 });
 
 
+    // ==============================================================
+    // CUOTAS INCOBRABLES · clasificación administrativa, sin borrar deuda
+    // La cuota histórica se conserva; la deuda cobrable se calcula aparte.
+    // ==============================================================
+    let gaIncobrablesDetalle = new Map();
+
+    async function gaConsultarIncobrables(contratoId = null) {
+      const params = ['cuota_id','contrato_id','motivo','registrado_at'].join(',');
+      const result = [];
+      const pageSize = 600;
+      for (let start=0;start<50000;start+=pageSize) {
+        let q = sb.from('cuotas_incobrables').select(params).order('cuota_id').range(start,start+pageSize-1);
+        if (contratoId !== null) q=q.eq('contrato_id',Number(contratoId));
+        const {data,error}=await q;
+        if (error) throw error;
+        result.push(...(data||[]));
+        if (!data || data.length<pageSize) return result;
+      }
+      throw new Error('La lista de incobrables excede el límite de lectura seguro.');
+    }
+
+    async function gaFetchCuotasCompletas() {
+      const pageSize=400;
+      const rows=[];
+      let expected=null;
+      for(let offset=0;offset<50000;offset+=pageSize){
+        const {data,error,count}=await sb.from('cuotas_operativas')
+          .select('id,contrato_id,anio,mes,saldo,vencimiento',{count:'exact'})
+          .order('id',{ascending:true}).range(offset,offset+pageSize-1);
+        if(error)throw new Error('No se pudieron leer todas las cuotas: '+error.message);
+        if(expected===null && count!==null && count!==undefined)expected=Number(count);
+        const batch=data||[];
+        rows.push(...batch);
+        if(batch.length<pageSize){
+          if(expected!==null && rows.length!==expected)
+            throw new Error('Lectura parcial de cuotas: '+rows.length+' de '+expected);
+          return rows;
+        }
+      }
+      throw new Error('Demasiadas cuotas; se evitó mostrar saldos incompletos.');
+    }
+
+    async function gaObtenerResumenPorContrato() {
+      const [cuotas,clasificadas] = await Promise.all([
+        gaFetchCuotasCompletas(),
+        gaConsultarIncobrables()
+      ]);
+      const incSet=new Set(clasificadas.map(x=>Number(x.cuota_id)));
+      const latest=new Map();
+      for(const q of cuotas){
+        const key=`${q.contrato_id}-${q.anio}-${q.mes}`;
+        if(!latest.has(key) || Number(q.id)>Number(latest.get(key).id))latest.set(key,q);
+      }
+      const result=new Map();
+      const nowKey=Number(today().slice(0,4))*100+Number(today().slice(5,7));
+      for (const q of latest.values()) {
+        const key=Number(q.anio)*100+Number(q.mes);
+        if(key>nowKey)continue;
+        const saldo=Math.max(0,Number(q.saldo||0));
+        if(saldo<=0.009)continue;
+        const id=String(q.contrato_id);
+        const item=result.get(id)||{cobrable:0,incobrable:0,meses:0,meses2025:0,meses2026:0,
+          saldo2025:0,saldo2026:0,vencida:0};
+        if(incSet.has(Number(q.id))){item.incobrable+=saldo;result.set(id,item);continue;}
+        item.cobrable+=saldo;item.meses++;
+        if(Number(q.anio)===2025){item.saldo2025+=saldo;item.meses2025++;}
+        if(Number(q.anio)===2026){item.saldo2026+=saldo;item.meses2026++;}
+        const c=contratosActivos.find(c=>Number(c.id)===Number(q.contrato_id));
+        const diaVto=Math.max(1,Math.min(31,Number(c?.dia_vencimiento)||10));
+        const ultimoDia=new Date(Number(q.anio),Number(q.mes),0).getDate();
+        const due=String(q.vencimiento||`${q.anio}-${String(q.mes).padStart(2,'0')}-${String(Math.min(diaVto,ultimoDia)).padStart(2,'0')}`).slice(0,10);
+        if(due<today())item.vencida+=saldo;
+        result.set(id,item);
+      }
+      return result;
+    }
+
+    async function gaCambiarIncobrable(cuotaId,marcar) {
+      if(!requireJefe('Clasificar cuotas incobrables'))return;
+      const fila=(detalleCuotasActuales||[]).find(r=>Number(r.id)===Number(cuotaId));
+      if(!fila)return alert('No se encontró la cuota seleccionada.');
+      const periodo=String(fila.periodo||`${fila.mes}/${fila.anio}`);
+      const texto=marcar
+        ? `Marcar ${periodo} como INCOBRABLE. Se conservarán el saldo y los recibos, pero dejará de contar como deuda por cobrar y no podrá cobrarse hasta rehabilitarla.\n\nMotivo (obligatorio):`
+        : `Rehabilitar ${periodo} como deuda cobrable. No se registrará ningún pago.\n\nMotivo (obligatorio):`;
+      const motivo=window.prompt(texto);
+      if(motivo===null)return;
+      if(motivo.trim().length<5)return alert('Escribí un motivo de al menos 5 caracteres.');
+      if(!window.confirm(`¿Confirmás ${marcar?'marcar INCORBRABLE':'REHABILITAR'} ${periodo}?`))return;
+      try {
+        const {data,error}=await sb.rpc('ga_cambiar_incobrable',{
+          p_cuota_id:Number(cuotaId),p_marcar:!!marcar,p_motivo:motivo.trim()
+        });
+        if(error)throw error;
+        if(!data?.ok)throw new Error(data?.mensaje||'No se confirmó el cambio.');
+        await refreshUnidades();
+        const refreshed=unidades.find(x=>String(x.contrato_id)===String(fila.contrato_id));
+        if(refreshed){selected=refreshed;await loadDetalle(refreshed);}
+        if($('detalleMsg'))$('detalleMsg').textContent=marcar?'Cuota clasificada como incobrable.':'Cuota rehabilitada para cobro.';
+      }catch(e){console.error('[Incobrables]',e);alert(e?.message||'No se pudo actualizar la clasificación.');}
+    }
+
     async function refreshUnidades(){
       $('unitsMsg').textContent = '';
       // refreshContratosActivos debe ir primero: refreshInquilinosSinContrato lee contratosActivos.
@@ -10500,8 +10617,21 @@ window.addEventListener('online', () => {
         })
         .filter(r => !isSinAsignarName(r.inquilino_nombre));
 
+      // La deuda exigible se basa en cuotas reales por contrato y excluye únicamente
+      // los saldos CLASIFICADOS incobrables. La deuda histórica no se borra.
+      const gaEstado=await gaObtenerResumenPorContrato();
       unidades = baseRows
         .map(applyReconstructedDebtToUnit)
+        .map(row=>{
+          const x=gaEstado.get(String(row.contrato_id))||{cobrable:0,incobrable:0,meses:0,meses2025:0,meses2026:0,
+            saldo2025:0,saldo2026:0,vencida:0};
+          return {...row,_gaDeudaReal:x.cobrable,_gaIncobrable:x.incobrable,
+            _gaMesesReales:x.meses,_gaVencidaReal:x.vencida,
+            deuda_total:x.cobrable,deuda_atrasada:x.vencida,
+            deuda_total_2025_2026:x.cobrable,deuda_2026:x.saldo2026,
+            deuda_arrastre_2025:x.saldo2025,meses_adeudados:x.meses,
+            meses_deuda_2025:x.meses2025,meses_con_deuda_2026:x.meses2026};
+        })
         .sort((a,b) => getDisplayedDebtTotal(b) - getDisplayedDebtTotal(a) || String(a.local_codigo || '').localeCompare(String(b.local_codigo || '')));
 
       proximoVencimientoMap = {};
@@ -11378,6 +11508,14 @@ const fuentesImpuesto = [
 
 const rowsConImpuesto = applyImpuestosToDebtRows(rows || [], fuentesImpuesto);
 
+        const marcas=await gaConsultarIncobrables(r?.contrato_id);
+        if(seq!==detalleLoadSeq)return;
+        gaIncobrablesDetalle=new Map(marcas.map(x=>[Number(x.cuota_id),x]));
+        (rowsConImpuesto||[]).forEach(x=>{
+          const clasificada=gaIncobrablesDetalle.get(Number(x.id));
+          x._gaIncobrable=!!clasificada;
+          x._gaIncobrableMotivo=clasificada?.motivo||'';
+        });
         detalleCuotasActuales = rowsConImpuesto || [];
         renderDetalleInfo(r, rowsConImpuesto || []);
         renderDetalleDebtRows(rowsConImpuesto || []);
@@ -16484,7 +16622,7 @@ error = deleteResponse.error;
       return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
         `<td class="right">${balanceDinero(r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
-        `<td class="right">${balanceDinero(r.pendiente_real)}</td>`+
+        `<td class="right">${balanceDinero(r.pendiente_cobrable)}</td>`+
         `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
         `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
@@ -16503,14 +16641,23 @@ error = deleteResponse.error;
       return disponibles.length ? disponibles[disponibles.length-1].mes-1 : limite;
     }
     async function fetchBalanceRealData(year) {
-      const { data, error } = await sb.rpc('balance_real_operativo_anual',{p_anio:Number(year)});
+      const [{ data, error },clasificados] = await Promise.all([
+        sb.rpc('balance_real_operativo_anual',{p_anio:Number(year)}),
+        sb.rpc('ga_balance_incobrables_anual',{p_anio:Number(year)})
+      ]);
       if (error) throw error;
+      if (clasificados.error)throw clasificados.error;
+      const incPorMes=new Map((clasificados.data||[]).map(x=>[Number(x.mes),x]));
       if (!Array.isArray(data) || data.length!==12 || data.some(r=>!Number.isInteger(Number(r.mes))))
         throw new Error('La consulta no devolvió los 12 meses completos. No se mostrarán cifras incompletas.');
       return data.map(r=>({
         mes:Number(r.mes),mes_nombre:String(r.mes_nombre||BALANCE_REAL_MESES[Number(r.mes)-1]),
         facturacion:balanceNumero(r.facturacion),cobrado_cuotas:balanceNumero(r.cobrado_cuotas),
-        pendiente_real:balanceNumero(r.pendiente_real),recaudacion_caja:balanceNumero(r.recaudacion_caja),
+        pendiente_real:balanceNumero(r.pendiente_real),
+        pendiente_cobrable:balanceNumero(incPorMes.get(Number(r.mes))?.por_cobrar),
+        incobrable:balanceNumero(incPorMes.get(Number(r.mes))?.incobrable),
+        cuotas_incobrables:balanceNumero(incPorMes.get(Number(r.mes))?.cuotas_incobrables),
+        recaudacion_caja:balanceNumero(r.recaudacion_caja),
         gastos_registrados:balanceNumero(r.gastos_registrados),flujo_neto:balanceNumero(r.flujo_neto),
         flujo_acumulado:balanceNumero(r.flujo_acumulado),cuotas_pagadas:balanceNumero(r.cuotas_pagadas),
         cuotas_parciales:balanceNumero(r.cuotas_parciales),cuotas_pendientes:balanceNumero(r.cuotas_pendientes),
@@ -16520,7 +16667,7 @@ error = deleteResponse.error;
     function balanceLiveTable(rows){
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
         `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
-        `<th class="right">Pendiente</th><th class="right">%</th>`+
+        `<th class="right">Por cobrar</th><th class="right">%</th>`+
         `<th class="right">Ingresos</th><th class="right">Gastos</th>`+
         `<th class="right">Neto</th><th class="right">Acumulado</th>`+
         `<th class="center">Cuotas</th><th class="center">Control</th></tr></thead>`+
@@ -16531,7 +16678,7 @@ error = deleteResponse.error;
       return `<tr${selected?' class="is-selected"':''}><td><strong>${escapeHtml(r.mes_nombre)}</strong></td>`+
         `<td class="right">${balanceDinero(r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.cobrado_cuotas)}</td>`+
-        `<td class="right">${balanceDinero(r.pendiente_real)}</td>`+
+        `<td class="right">${balanceDinero(r.pendiente_cobrable)}</td><td class="right">${balanceDinero(r.incobrable)}</td>`+
         `<td class="right">${balancePorcentaje(r.cobrado_cuotas,r.facturacion)}</td>`+
         `<td class="right">${balanceDinero(r.recaudacion_caja)}</td>`+
         `<td class="right">${balanceDinero(r.gastos_registrados)}</td>`+
@@ -16542,7 +16689,7 @@ error = deleteResponse.error;
     function balanceRealTable(rows) {
       return `<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
         `<th>Mes</th><th class="right">Facturado</th><th class="right">Cobrado</th>`+
-        `<th class="right">Pendiente</th><th class="right">%</th>`+
+        `<th class="right">Por cobrar</th><th class="right">Incobrable</th><th class="right">%</th>`+
         `<th class="right">Ingresos caja</th><th class="right">Gastos</th>`+
         `<th class="right">Neto</th><th class="center">Cuotas</th><th class="center">Control</th>`+
         `</tr></thead><tbody>${rows.map(balanceRealMonthlyRow).join('')}</tbody></table></div>`;
@@ -16555,7 +16702,7 @@ error = deleteResponse.error;
         tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${balanceDinero(c.raw)}`}}}};
       const graphs=[
         ['balChartFactRec','bar',[['Facturado','facturacion'],['Cobrado de cuotas','cobrado_cuotas']]],
-        ['balChartCobradoFact','bar',[['Pendiente real','pendiente_real']]],
+        ['balChartCobradoFact','bar',[['Pendiente por cobrar','pendiente_cobrable']]],
         ['balChartResultadoMes','bar',[['Cobros de caja','recaudacion_caja'],['Gastos registrados','gastos_registrados']]],
         ['balChartSaldoAcumulado','line',[['Flujo neto acumulado','flujo_acumulado']]]
       ];
@@ -16617,10 +16764,10 @@ error = deleteResponse.error;
           `<div class="balance-live-grid">`+
           balanceCard('Facturado en cuotas',balanceDinero(m.facturacion),'Alquiler + impuesto + servicio incluidos')+
           balanceCard('Cobrado de estas cuotas',balanceDinero(m.cobrado_cuotas),'Incluye pagos hechos en otros meses')+
-          balanceCard('Pendiente real',balanceDinero(m.pendiente_real),'Suma de saldos pendientes de este período',true)+
+          balanceCard('Por cobrar',balanceDinero(m.pendiente_cobrable),'Excluye cuotas clasificadas incobrables',true)+
           balanceCard('Cumplimiento de cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
             `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
-          `</div></div>
+          `</div><div class="balance-live-breakdown"><span>Incobrables del período <strong>${balanceDinero(m.incobrable)}</strong></span></div></div>
           <div class="balance-live-section"><div class="balance-live-title"><h3>Detalle anual · ${year}</h3>`+
           `<div class="balance-heading-tools"><input id="balanceSearch" class="balance-month-filter" type="search" placeholder="Buscar mes" aria-label="Filtrar meses de la tabla" value="${escapeHtml(balancePageState.query||'')}" oninput="handleBalanceSearchInput()">`+
           `${anomal ? `<span class="balance-audit-count">${anomal} cuotas para revisar</span>` : ''}</div></div>`+
@@ -16662,13 +16809,20 @@ error = deleteResponse.error;
         `<button class="btn" onclick="setRoute('balance')">Ver Balance</button>`+
         `</div></div></div></div><div id="balanceRealContent" style="padding:12px 0">Consultando datos...</div>`;
       try{
-        const [rows,carteraRespuesta]=await Promise.all([
-          fetchBalanceRealData(year),sb.rpc('balance_real_cartera_actual')
+        const [rows,carteraRespuesta,incListaRespuesta]=await Promise.all([
+          fetchBalanceRealData(year),Promise.all([
+            sb.rpc('balance_real_cartera_actual'),sb.rpc('ga_balance_cartera_incobrables')
+          ]),sb.rpc('ga_listar_incobrables')
         ]);
         if(seq!==balanceRealState.renderSeq)return;
-        if(carteraRespuesta.error)throw carteraRespuesta.error;
-        const c=Array.isArray(carteraRespuesta.data)?carteraRespuesta.data[0]:carteraRespuesta.data;
-        if(!c)throw new Error('No se recibió información de cartera activa.');
+        const [carteraActual,clasifActual]=carteraRespuesta;
+        if(carteraActual.error)throw carteraActual.error;
+        if(clasifActual.error)throw clasifActual.error;
+        if(incListaRespuesta.error)throw incListaRespuesta.error;
+        const gaLista=Array.isArray(incListaRespuesta.data)?incListaRespuesta.data:[];
+        const c=Array.isArray(carteraActual.data)?carteraActual.data[0]:carteraActual.data;
+        const cl=Array.isArray(clasifActual.data)?clasifActual.data[0]:clasifActual.data;
+        if(!c||!cl)throw new Error('No se recibió información de cartera activa.');
         const monthIdx=balanceDefaultIndex(rows,year,chosen);
         balanceRealState.month=monthIdx;
         $('balanceRealMonth').innerHTML=balanceMonthOptions(monthIdx);
@@ -16676,7 +16830,8 @@ error = deleteResponse.error;
         const nombre=`${m.mes_nombre} ${year}`;
         const totalAnual=balanceSum(rows,'facturacion');
         const pagadoAnual=balanceSum(rows,'cobrado_cuotas');
-        const saldoAnual=balanceSum(rows,'pendiente_real');
+        const saldoAnual=balanceSum(rows,'pendiente_cobrable');
+        const incAnual=balanceSum(rows,'incobrable');
         const cajaAnual=balanceSum(rows,'recaudacion_caja');
         const gastosAnual=balanceSum(rows,'gastos_registrados');
         const anom=balanceSum(rows,'cuotas_inconsistentes');
@@ -16684,24 +16839,25 @@ error = deleteResponse.error;
           <div class="balance-live-section"><div class="balance-live-title"><h3>Deuda actual de activos</h3>`+
           `<span class="badge b-info">Cartera vigente</span></div>`+
           `<div class="balance-live-grid">`+
-          balanceCard('Deuda visible',balanceDinero(c.deuda_activos_visibles),'',true)+
-          balanceCard('Vencida',balanceDinero(c.deuda_vencida_visibles),'')+
-          balanceCard('Por vencer',balanceDinero(c.deuda_no_vencida_visibles),'')+
-          balanceCard('Activos con deuda',String(c.contratos_visibles_con_deuda||0),`${c.cuotas_visibles_con_deuda||0} cuotas pendientes`)+
+          balanceCard('Por cobrar',balanceDinero(cl.deuda_cobrable_visible),'',true)+
+          balanceCard('Vencida',balanceDinero(cl.deuda_cobrable_vencida_visible),'')+
+          balanceCard('Incobrable',balanceDinero(cl.deuda_incobrable_visible),'No se considera cobrada')+
+          balanceCard('Activos con deuda',String(cl.activos_cobrables_con_deuda||0),'Con saldo por cobrar')+
           `</div><div class="balance-live-breakdown">`+
-          `<span>2025 <strong>${balanceDinero(c.deuda_visibles_2025)}</strong></span>`+
-          `<span>2026 <strong>${balanceDinero(c.deuda_visibles_2026)}</strong></span>`+
+          `<span>2025 <strong>${balanceDinero(cl.deuda_cobrable_2025_visible)}</strong></span>`+
+          `<span>2026 <strong>${balanceDinero(cl.deuda_cobrable_2026_visible)}</strong></span>`+
           `<span>Ocultos <strong>${balanceDinero(c.deuda_contratos_ocultos)}</strong></span>`+
           `<span>Inactivos <strong>${balanceDinero(c.deuda_contratos_inactivos)}</strong></span>`+
+          `<span>Incobrables totales <strong>${balanceDinero(cl.deuda_incobrable_total)}</strong></span>`+
           `</div></div>`+
           `<div class="balance-live-section"><div class="balance-live-title"><h3>Cuotas · ${nombre}</h3></div>`+
           `<div class="balance-live-grid">`+
           balanceCard('Facturado',balanceDinero(m.facturacion),'')+
           balanceCard('Cobrado',balanceDinero(m.cobrado_cuotas),'')+
-          balanceCard('Pendiente',balanceDinero(m.pendiente_real),'',true)+
+          balanceCard('Por cobrar',balanceDinero(m.pendiente_cobrable),'',true)+
           balanceCard('Cobranza',balancePorcentaje(m.cobrado_cuotas,m.facturacion),
             `${m.cuotas_pagadas} pagadas · ${m.cuotas_parciales} parciales · ${m.cuotas_pendientes} pendientes`)+
-          `</div></div>`+
+          `</div><div class="balance-live-breakdown"><span>Incobrable del mes <strong>${balanceDinero(m.incobrable)}</strong></span></div></div>`+
           `<div class="balance-live-section"><div class="balance-live-title"><h3>Caja · ${nombre}</h3>`+
           `</div>`+
           `<div class="balance-live-grid">`+
@@ -16714,11 +16870,22 @@ error = deleteResponse.error;
           `<div class="balance-live-breakdown">`+
           `<span>Facturado <strong>${balanceDinero(totalAnual)}</strong></span>`+
           `<span>Cobrado <strong>${balanceDinero(pagadoAnual)}</strong></span>`+
-          `<span>Pendiente <strong>${balanceDinero(saldoAnual)}</strong></span>`+
+          `<span>Por cobrar <strong>${balanceDinero(saldoAnual)}</strong></span>`+
+          `<span>Incobrable <strong>${balanceDinero(incAnual)}</strong></span>`+
           `<span>Ingresos <strong>${balanceDinero(cajaAnual)}</strong></span>`+
           `<span>Gastos <strong>${balanceDinero(gastosAnual)}</strong></span>`+
           `</div>${anom?`<p class="balance-live-note balance-live-note-alert">${anom} cuota(s) con importes a revisar en Activos.</p>`:''}`+
           `${balanceRealTable(rows)}</div>`+
+          `<div class="balance-live-section"><div class="balance-live-title"><h3>Meses incobrables</h3>`+
+          `<span class="muted">${cl.cuotas_incobrables_total||0} clasificados</span></div>`+
+          (gaLista.length?`<div class="tableWrap balance-live-table"><table class="balance-table"><thead><tr>`+
+            `<th>Local</th><th>Inquilino</th><th>Período</th><th class="right">Saldo</th><th>Motivo</th><th>Tipo</th></tr></thead><tbody>`+
+            gaLista.map(q=>`<tr><td>${escapeHtml(q.local_codigo||'—')}</td>`+
+              `<td>${escapeHtml(q.inquilino||'—')}</td><td>${escapeHtml(q.periodo||'—')}</td>`+
+              `<td class="right">${balanceDinero(q.saldo)}</td><td>${escapeHtml(q.motivo||'—')}</td>`+
+              `<td>${escapeHtml(q.tipo_contrato||'—')}</td></tr>`).join('')+
+            `</tbody></table></div>`:'<span class="muted">No hay cuotas clasificadas como incobrables.</span>')+
+          `</div>`+
           `<p class="balance-live-note">Caja: cobros por fecha. Cuotas: pagos aplicados al período. El neto registrado no equivale al saldo bancario ni a la utilidad contable.</p>`;
       }catch(e){
         if(seq!==balanceRealState.renderSeq)return;
@@ -18735,8 +18902,10 @@ function syncCobroAlquilerDesdePeriodo(){
           .order('anio', { ascending: true })
           .order('mes',  { ascending: true });
         if (error) { console.warn('[CobroComp] error cuotas:', error.message); return []; }
-        // Solo cuotas con saldo pendiente en algún componente
-        return (data || []).filter(c => {
+        const marcas = await gaConsultarIncobrables(id);
+        const excluidas = new Set(marcas.map(x=>Number(x.cuota_id)));
+        // Las cuotas incobrables siguen visibles en el detalle, pero no son cobrables.
+        return (data || []).filter(c => !excluidas.has(Number(c.id))).filter(c => {
           const sA = c.saldo_alquiler != null ? toNumber(c.saldo_alquiler) : toNumber(c.saldo);
           return sA > 0.009 || toNumber(c.saldo_impuesto) > 0.009 || toNumber(c.saldo_servicio) > 0.009;
         });
@@ -20446,6 +20615,7 @@ exposeGlobalFunction('recalcEditarImpuesto',        typeof recalcEditarImpuesto 
 exposeGlobalFunction('vistaPreviewEditarImpuesto',  typeof vistaPreviewEditarImpuesto  !== 'undefined' ? vistaPreviewEditarImpuesto  : null);
 exposeGlobalFunction('confirmarEditarImpuesto',     typeof confirmarEditarImpuesto     !== 'undefined' ? confirmarEditarImpuesto     : null);
 // Editar cuota por componentes (Etapa 7B)
+exposeGlobalFunction('gaCambiarIncobrable', typeof gaCambiarIncobrable !== 'undefined' ? gaCambiarIncobrable : null);
 exposeGlobalFunction('openEditarCuota',                typeof openEditarCuota                !== 'undefined' ? openEditarCuota                : null);
 exposeGlobalFunction('closeEditarCuota',               typeof closeEditarCuota               !== 'undefined' ? closeEditarCuota               : null);
 exposeGlobalFunction('recalcEditarCuota',              typeof recalcEditarCuota              !== 'undefined' ? recalcEditarCuota              : null);
