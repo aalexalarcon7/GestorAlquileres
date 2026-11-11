@@ -3085,6 +3085,35 @@ td:last-child{
       color:var(--text);
       white-space:nowrap;
     }
+
+.recibos-pagination{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:12px;
+  padding:15px 3px 4px;
+  color:var(--text);
+}
+.recibos-page-summary{font-weight:750;color:var(--muted);font-size:13px}
+.recibos-page-controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.recibos-page-controls .btn{min-width:42px;min-height:38px;padding:7px 12px}
+.recibos-page-controls .btn:disabled{opacity:.45;cursor:not-allowed}
+.recibos-page-select-label,.recibos-page-total{font-size:13px;color:var(--muted)}
+.recibos-page-controls select{
+  min-width:62px;
+  min-height:38px;
+  padding:6px 10px;
+  border:1px solid var(--border);
+  border-radius:9px;
+  background:var(--surface);
+  color:var(--text);
+}
+@media(max-width:720px){
+  .recibos-pagination{justify-content:center;text-align:center}
+  .recibos-page-controls{justify-content:center}
+  .recibos-page-controls .btn{padding:7px 9px}
+}
     .recibos-table table{min-width:1420px}
     .recibos-cell-title{
       font-weight:900;
@@ -7863,6 +7892,10 @@ td:last-child{
     let reciboActual = null;
     let reciboActualAplicaciones = null; // aplicaciones reales del recibo abierto (Etapa 5)
     let recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
+    // Rendimiento: solamente 30 filas del historial se renderizan en cada pantalla.
+    // Los filtros, la búsqueda y los KPIs siguen usando el historial completo.
+    const RECIBOS_HISTORY_PAGE_SIZE = 30;
+    let recibosHistoryPage = 1;
     let balancePageState = { month:null, year:null, monthManual:false, renderSeq:0 };
     let proximoVencimientoMap = {};
     let activosReconstruidosMap = new Map();
@@ -14322,6 +14355,7 @@ setTimeout(() => {
         query: '',
         month: ''
       };
+      recibosHistoryPage = 1;
       setRoute('recibos');
     }
 
@@ -15387,7 +15421,54 @@ function getReceiptKpiMonthKey(item) {
       return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
     }
 
-function updateRecibosHistoryFromState(){
+
+// Paginación de PRESENTACIÓN: conserva todos los recibos para búsqueda,
+// PDFs, contactos, totales e historial; nunca cambia datos ni cobros.
+function paginateRecibosHistory(rows){
+  const allRows = Array.isArray(rows) ? rows : [];
+  const total = allRows.length;
+  const totalPages = Math.max(1, Math.ceil(total / RECIBOS_HISTORY_PAGE_SIZE));
+  recibosHistoryPage = Math.min(totalPages, Math.max(1, Math.trunc(Number(recibosHistoryPage) || 1)));
+  const offset = (recibosHistoryPage - 1) * RECIBOS_HISTORY_PAGE_SIZE;
+  return {
+    rows: allRows.slice(offset, offset + RECIBOS_HISTORY_PAGE_SIZE),
+    total,
+    totalPages,
+    page: recibosHistoryPage,
+    from: total ? offset + 1 : 0,
+    to: Math.min(offset + RECIBOS_HISTORY_PAGE_SIZE, total)
+  };
+}
+
+function renderRecibosPagination(paging){
+  if (!paging || paging.total === 0) {
+    return '<span class="recibos-page-summary">No hay recibos con los filtros actuales.</span>';
+  }
+  const options = Array.from({ length: paging.totalPages }, (_, idx) => {
+    const page = idx + 1;
+    return `<option value="${page}" ${page === paging.page ? 'selected' : ''}>${page}</option>`;
+  }).join('');
+  return `
+    <span class="recibos-page-summary">Mostrando ${paging.from}–${paging.to} de ${paging.total} recibos</span>
+    <div class="recibos-page-controls">
+      <button type="button" class="btn" onclick="setRecibosHistoryPage(1)" ${paging.page <= 1 ? 'disabled' : ''} aria-label="Primera página">«</button>
+      <button type="button" class="btn" onclick="setRecibosHistoryPage(${paging.page - 1})" ${paging.page <= 1 ? 'disabled' : ''}>Anterior</button>
+      <label class="recibos-page-select-label" for="recibosPageJump">Página</label>
+      <select id="recibosPageJump" aria-label="Ir a la página de recibos" onchange="setRecibosHistoryPage(this.value)">${options}</select>
+      <span class="recibos-page-total">de ${paging.totalPages}</span>
+      <button type="button" class="btn" onclick="setRecibosHistoryPage(${paging.page + 1})" ${paging.page >= paging.totalPages ? 'disabled' : ''}>Siguiente</button>
+      <button type="button" class="btn" onclick="setRecibosHistoryPage(${paging.totalPages})" ${paging.page >= paging.totalPages ? 'disabled' : ''} aria-label="Última página">»</button>
+    </div>`;
+}
+
+function setRecibosHistoryPage(page){
+  if (!Number.isFinite(Number(page))) return;
+  recibosHistoryPage = Number(page);
+  // Solo actualizamos tabla + contador + paginador; no repetimos llamadas a Supabase.
+  updateRecibosHistoryFromState({ updateKpis: false });
+}
+
+function updateRecibosHistoryFromState({ updateKpis = true } = {}){
   const body = $('recibosBody');
   if (!body) return;
 
@@ -15395,14 +15476,19 @@ function updateRecibosHistoryFromState(){
   applyRecibosPageFilters(recibosInternosCache || [])
 );
 
-  body.innerHTML = renderRecibosHistoryRows(filteredRows);
+  const paging = paginateRecibosHistory(filteredRows);
+  body.innerHTML = renderRecibosHistoryRows(paging.rows);
 
-  const count =
-    $('recibosCountPill') ||
-    document.querySelector('.recibos-count-pill');
+  const pagination = $('recibosPagination');
+  if (pagination) pagination.innerHTML = renderRecibosPagination(paging);
 
-  if (count) {
-    count.textContent = `${filteredRows.length} visibles`;
+  const count = $('recibosCountPill') || document.querySelector('.recibos-count-pill');
+  if (count) count.textContent = `${filteredRows.length} resultados`;
+
+  // Navegar de página no recalcula KPIs: los KPIs siempre corresponden al historial completo.
+  if (!updateKpis) {
+    if (typeof closeReciboFloatingMenu === 'function') closeReciboFloatingMenu();
+    return;
   }
 
   // Recalcular KPI "Recibos del mes" al cambiar filtro de mes.
@@ -15431,6 +15517,7 @@ function updateRecibosFiltersFromUI(){
   recibosPageState.query = $('recibosSearch')?.value || '';
   recibosPageState.local = $('recibosLocalFilter')?.value || 'TODOS';
   recibosPageState.month = $('recibosMonthFilter')?.value || '';
+  recibosHistoryPage = 1; // Nuevo filtro: siempre volver a la primera página.
 
   clearTimeout(recibosFilterTimer);
 
@@ -15470,6 +15557,7 @@ function updateRecibosFiltersFromUI(){
 
     function clearRecibosFilters(){
   recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
+  recibosHistoryPage = 1;
 
   if ($('recibosSearch')) $('recibosSearch').value = '';
   if ($('recibosLocalFilter')) $('recibosLocalFilter').value = 'TODOS';
@@ -15667,6 +15755,7 @@ function updateRecibosFiltersFromUI(){
       // mostramos todo (sin anulados) para no "perder" el recibo recién generado.
       if (!filteredRows.length && allValidRows.length && !String(recibosPageState.contratoId || '').trim()){
         recibosPageState = { query:'', local:'TODOS', month:'', contratoId:'' };
+        recibosHistoryPage = 1;
         filteredRows = sortRecibosByNewestFirst(allValidRows);
       }
 
@@ -15692,6 +15781,8 @@ function updateRecibosFiltersFromUI(){
         delMesMonto:    delMesParaKPI.reduce((acc, r) => acc + reciboMonto(r), 0),
         ultimoNumero:   allValidRows[0]?.numero_recibo || '—'
       };
+
+      const paging = paginateRecibosHistory(filteredRows);
 
       const ultimo =
         allValidRows.find(item => String(item.numero_recibo || '') === String(summary.ultimoNumero || '')) ||
@@ -15770,7 +15861,7 @@ function updateRecibosFiltersFromUI(){
                 </div>
               </div>
               <div class="recibos-toolbar-actions">
-                <span id="recibosCountPill" class="recibos-count-pill">${filteredRows.length} visibles</span>
+                <span id="recibosCountPill" class="recibos-count-pill">${filteredRows.length} resultados</span>
                 <button class="btn" onclick="clearRecibosFilters()">Limpiar filtros</button>
               </div>
             </div>
@@ -15791,9 +15882,10 @@ function updateRecibosFiltersFromUI(){
                     <th class="center">Acciones</th>
                   </tr>
                 </thead>
-                <tbody id="recibosBody">${renderRecibosHistoryRows(filteredRows)}</tbody>
+                <tbody id="recibosBody">${renderRecibosHistoryRows(paging.rows)}</tbody>
               </table>
             </div>
+            <div id="recibosPagination" class="recibos-pagination" role="navigation" aria-label="Paginación de recibos" aria-live="polite">${renderRecibosPagination(paging)}</div>
           </div>
 
         </div>
@@ -17625,6 +17717,7 @@ error = deleteResponse.error;
       const unidad = unidades.find(x => String(x.contrato_id) === String(contratoId));
       if (unidad?.local_codigo){
         recibosPageState = { ...recibosPageState, local: String(unidad.local_codigo), query: '', month: '' };
+        recibosHistoryPage = 1;
       }
       setRoute('recibos');
     }
