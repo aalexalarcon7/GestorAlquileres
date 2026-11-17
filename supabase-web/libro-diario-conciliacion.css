@@ -73,3 +73,20 @@
 @media(max-width:680px){#ldcRoot{padding:14px}#ldcRoot .ldc-header{flex-direction:column}#ldcRoot .ldc-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}#ldcRoot .ldc-kpi{padding:12px}#ldcRoot .ldc-kpi>strong{font-size:16px}#ldcRoot .ldc-toolbar{align-items:stretch}#ldcRoot .ldc-field,#ldcRoot .ldc-field select{width:100%}#ldcRoot .ldc-period-text{padding:0}#ldcRoot .ldc-closure-values b{font-size:12px}#ldcRoot .ldc-expense-row{grid-template-columns:minmax(0,1fr) 48px 115px;gap:5px;font-size:10px}}
 #ldcRoot .ldc-details>summary{justify-content:flex-start}
 #ldcRoot .ldc-details>summary>small{margin-left:auto}
+
+/* v2: gráfico con salida de emergencia para libros sin movimientos en el mes elegido. */
+#ldcRoot .ldc-fallback{padding:10px 13px;margin:0 0 14px;color:#80591b;background:#fffbeb;border:1px solid #f5d895;border-radius:10px;line-height:1.55;font-size:12px}
+#ldcRoot .ldc-fallback[hidden]{display:none!important}
+/* v2: el histórico ya importado queda compacto, sin formulario duplicado a la vista. */
+#viewLibroDiario #ldhRoot.ldh-has-data{background:#fff;padding:14px 17px;margin:10px 0 18px;border-color:#e0e7f0}
+#viewLibroDiario #ldhRoot .ldh-compact-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto}
+#viewLibroDiario #ldhRoot .ldh-compact-actions[hidden]{display:none!important}
+#viewLibroDiario #ldhRoot.ldh-has-data .ldh-header{margin-bottom:4px;flex-wrap:wrap}
+#viewLibroDiario #ldhRoot.ldh-has-data .ldh-note{display:none!important}
+#viewLibroDiario #ldhRoot.ldh-has-data .ldh-import{display:none!important}
+#viewLibroDiario #ldhRoot.ldh-has-data.ldh-upload-open .ldh-import{display:flex!important}
+#viewLibroDiario #ldhRoot.ldh-has-data .ldh-feedback:not(.ldh-error){display:none!important}
+#viewLibroDiario #ldhRoot.ldh-has-data .ldh-source{margin:10px 0 0;background:#f7f9fd;padding:10px 12px}
+#viewLibroDiario #ldhRoot.ldh-has-data #ldhViewer{display:none!important}
+#viewLibroDiario #ldhRoot.ldh-has-data.ldh-viewer-open #ldhViewer{display:block!important;margin-top:14px;border-top:1px solid #edf1f6;padding-top:10px}
+@media (max-width:680px){#viewLibroDiario #ldhRoot .ldh-compact-actions{width:100%;margin-left:0}#viewLibroDiario #ldhRoot .ldh-compact-actions button{flex:1}}

@@ -78,6 +78,7 @@
         <span class="ldc-period-text" id="ldcRange" aria-live="polite"></span>
         <button type="button" class="ld-btn" id="ldcReload">↻ Recargar histórico</button>
       </div>
+      <div id="ldcFallback" class="ldc-fallback" role="status" hidden></div>
       <p id="ldcError" class="ldc-error" role="alert" hidden></p>
       <div class="ldc-kpis" id="ldcKpis" aria-live="polite">
         <div class="ldc-kpi"><span>Entradas registradas</span><strong id="ldcIn">—</strong><small>Del libro y período seleccionados</small></div>
@@ -222,13 +223,20 @@
     return [...months.values()].sort((a,b)=>a.periodo.localeCompare(b.periodo));
   }
 
-  function displayPeriod(rows,r,book) {
+  function displayPeriod(rows,r,book,usingFallbackFrom=null) {
     if(!$('ldcRoot') || !viewState.cache)return;
     const currency=book==='USD'?'USD':'ARS';
     const count=sum(rows,'movimientos');
     const totalIn=sum(rows,'entradas'),totalOut=sum(rows,'salidas');
     const inherited=sum(rows,'fecha_heredada'),diff=sum(rows,'diferencias'),potential=sum(rows,'posibles_traspasos');
-    $('ldcRange').textContent=`${dayText(r.start)} — ${dayText(r.end)} · ${sourceName[book]}`;
+    $('ldcRange').textContent=`${dayText(r.start)} — ${dayText(r.end)} · ${sourceName[book]}${usingFallbackFrom ? ' · Último histórico disponible' : ''}`;
+    const fallbackNotice=$('ldcFallback');
+    if(fallbackNotice){
+      fallbackNotice.hidden=!usingFallbackFrom;
+      if(usingFallbackFrom){
+        fallbackNotice.textContent=`El libro ${sourceName[book]} no tiene movimientos entre ${dayText(usingFallbackFrom.start)} y ${dayText(usingFallbackFrom.end)}. Se muestran los meses históricos más recientes (${dayText(r.start)} a ${dayText(r.end)}), sin modificar el filtro principal ni los saldos operativos.`;
+      }else fallbackNotice.textContent='';
+    }
     $('ldcIn').textContent=rows.length?fmt(totalIn,currency):'—';
     $('ldcOut').textContent=rows.length?fmt(totalOut,currency):'—';
     $('ldcDelta').textContent=rows.length?fmt(totalIn-totalOut,currency):'—';
@@ -272,8 +280,27 @@
     const r=range();
     if(!r){error('El intervalo de fechas no es válido. Revisá los filtros de período.');return;}
     error('');
-    const monthly=viewState.cache.monthly.filter(x=>groupMatches(x.segmento,selected)&&x.periodo>=r.start.slice(0,7)+'-01'&&x.periodo<=r.end.slice(0,7)+'-01');
-    let rows=monthly;
+    const allMonths=viewState.cache.monthly
+      .filter(x=>groupMatches(x.segmento,selected))
+      .sort((a,b)=>a.periodo.localeCompare(b.periodo));
+    let rows=allMonths.filter(x=>x.periodo>=r.start.slice(0,7)+'-01'&&x.periodo<=r.end.slice(0,7)+'-01');
+    let shownRange=r, fallbackFrom=null;
+    // Cada libro tiene un cierre distinto. Si el filtro global no contiene
+    // movimientos, NO usar ceros ni fingir que el saldo es actual:
+    // mostrar el tramo HISTORICO del libro y etiquetarlo explícitamente.
+    // Intervalos personalizados se respetan exactamente, sin sustituir fechas.
+    if(!r.customized && !rows.length && allMonths.length){
+      const earliest=allMonths[0].periodo;
+      const latest=allMonths[allMonths.length-1].periodo;
+      const [y,m]=latest.split('-').map(Number);
+      const d=new Date(y,m-12,1); // último mes incluido + 11 anteriores
+      const candidate=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+      const start=candidate>earliest?candidate:earliest;
+      const end=`${y}-${String(m).padStart(2,'0')}-${lastDayOfMonth(y,m)}`;
+      shownRange={start,end,customized:false};
+      rows=allMonths.filter(x=>x.periodo>=start&&x.periodo<=latest);
+      fallbackFrom=r;
+    }
     const needDays=r.customized && (!r.start.endsWith('-01') || Number(r.end.slice(-2))!==lastDayOfMonth(Number(r.end.slice(0,4)),Number(r.end.slice(5,7))));
     if(needDays){
       $('ldcRange').textContent='Consultando intervalo personalizado exacto…';
@@ -281,8 +308,56 @@
       catch(e){if(seq===viewState.sequence)resetForError('No se pudieron cargar las fechas personalizadas: '+(e?.message||'error'));return;}
     }
     if(seq!==viewState.sequence||!rows)return;
-    displayPeriod(rows,r,selected);
+    displayPeriod(rows,shownRange,selected,fallbackFrom);
   }
+
+  // Compactar el módulo histórico YA IMPORTADO, sin borrar registros.
+  // Se conserva el importador original, accesible al pulsar "Importar otro".
+  function upgradeHistoricViewer() {
+    const root=$('ldhRoot');
+    if(!root)return;
+    if(!root.querySelector('#ldhCompactActions')){
+      const header=root.querySelector('.ldh-header');
+      if(!header)return;
+      const actions=document.createElement('div');
+      actions.id='ldhCompactActions';
+      actions.className='ldh-compact-actions';
+      actions.innerHTML='<button type="button" class="ld-btn" id="ldhOpenViewer">Consultar hojas</button><button type="button" class="ld-btn" id="ldhOpenUpload">Importar otro archivo</button>';
+      header.appendChild(actions);
+      $('ldhOpenViewer')?.addEventListener('click',()=>{
+        const opened=root.classList.toggle('ldh-viewer-open');
+        $('ldhOpenViewer').textContent=opened?'Ocultar hojas':'Consultar hojas';
+      });
+      $('ldhOpenUpload')?.addEventListener('click',()=>{
+        const opened=root.classList.toggle('ldh-upload-open');
+        $('ldhOpenUpload').textContent=opened?'Cerrar importador':'Importar otro archivo';
+        if(opened){root.querySelector('#ldhFile')?.focus({preventScroll:true});}
+      });
+      const saved=root.querySelector('#ldhSaved');
+      if(saved){
+        const watchSaved=new MutationObserver(()=>syncHistoricViewer(root));
+        watchSaved.observe(saved,{childList:true,subtree:false});
+      }
+    }
+    syncHistoricViewer(root);
+  }
+  function syncHistoricViewer(root){
+    const imported=!!root.querySelector('#ldhSaved .ldh-source');
+    root.classList.toggle('ldh-has-data',imported);
+    const actions=$('ldhCompactActions');
+    if(actions) actions.hidden=!imported;
+    if(!imported){root.classList.remove('ldh-viewer-open');}
+  }
+  // El botón de importación existente tiene un listener propio de captura.
+  // La captura de document ocurre antes, para desplegar el selector oculto.
+  document.addEventListener('click', e=>{
+    if(!e.target.closest?.('#ldImportInfo'))return;
+    const root=$('ldhRoot');
+    if(root?.classList.contains('ldh-has-data')){
+      root.classList.add('ldh-upload-open');
+      const b=$('ldhOpenUpload');if(b)b.textContent='Cerrar importador';
+    }
+  },true);
 
   function mount() {
     const view=$('viewLibroDiario');
@@ -294,6 +369,9 @@
     const view=$('viewLibroDiario');
     if(view){
       new MutationObserver(mount).observe(view,{childList:true});
+      const historicObserver=new MutationObserver(upgradeHistoricViewer);
+      historicObserver.observe(view,{childList:true,subtree:true});
+      upgradeHistoricViewer();
       mount();
       return;
     }
