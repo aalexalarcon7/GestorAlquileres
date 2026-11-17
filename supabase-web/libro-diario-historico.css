@@ -1,0 +1,23 @@
+/* Extensión de archivo histórico, no modifica las pantallas operativas. */
+.ldh-root{margin:8px 0 18px;border:1px solid #d5e4f2;border-radius:12px;background:#f8fbfe;padding:16px 17px}
+.ldh-header{align-items:center;gap:12px}
+.ldh-pill{display:inline-flex;align-items:center;border-radius:99px;background:#fffbeb;color:#92400e;border:1px solid #fcd34d;padding:6px 10px;font-size:11px;font-weight:750;white-space:nowrap}
+.ldh-note{background:#f8fafc;border:1px solid #dce5f1;border-radius:10px;padding:13px 16px;color:#475569;font-size:12px;line-height:1.6;margin:14px 0}
+.ldh-import{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:10px 0}
+.ldh-file-label{font-size:12px;font-weight:700;color:#334155}
+.ldh-import input[type=file]{max-width:340px;font-size:12px}
+.ldh-feedback{font-size:12px;margin:10px 0;color:#2563eb}
+.ldh-feedback.ldh-error{color:#b91c1c}
+.ldh-source{border:1px solid #cbd5e1;border-radius:11px;background:#f8fafc;padding:13px;margin:14px 0;color:#334155;font-size:12px;display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.ldh-filters{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:8px 0 14px}
+.ldh-filters label{display:flex;flex-direction:column;gap:6px;font-size:11px;font-weight:650;color:#475569;min-width:170px;flex:1}
+.ldh-filters input,.ldh-filters select{width:100%;min-height:38px;border:1px solid #dbe3ef;border-radius:9px;background:#fff;padding:8px 10px;color:#14233b;font-size:12px}
+.ldh-table{min-width:720px}
+.ldh-table td{vertical-align:top;font-size:12px;line-height:1.55}
+.ldh-cells{max-width:900px}
+.ldh-cells span{display:inline-block;border:1px solid #e2e8f0;background:#f8fafc;border-radius:6px;padding:3px 7px;margin:2px;overflow-wrap:anywhere}
+.ldh-block{display:block}
+@media(max-width:650px){.ldh-import{align-items:stretch;flex-direction:column}.ldh-import input[type=file]{max-width:100%}.ldh-source{line-height:1.5}}
+
+#viewLibroDiario .ldh-root[hidden]{display:none!important}
+#viewLibroDiario .ldh-root .ldh-header{margin-bottom:8px}
