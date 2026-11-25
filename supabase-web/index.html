@@ -8049,17 +8049,43 @@ td:last-child{
     }
 
 
+    // GA_ROUTE_STABILITY_V1: route is scoped to the signed-in user and browser tab.
     function saveCurrentRoute(value){
-      try { localStorage.setItem(ROUTE_STORAGE_KEY, String(value || 'inicio')); } catch (e){}
+      if (!user?.id) return;
+      const key = ROUTE_STORAGE_KEY + ':' + user.id;
+      try { sessionStorage.setItem(key, String(value || getDefaultRouteForRole())); } catch (_) {}
+      try { localStorage.setItem(key, String(value || getDefaultRouteForRole())); localStorage.removeItem(ROUTE_STORAGE_KEY); } catch (_) {}
     }
 
     function loadCurrentRoute(){
-      try {
-        const saved = localStorage.getItem(ROUTE_STORAGE_KEY);
-        const allowed = new Set(['inicio','activos','documentos','recibos','deudores','informes','balance','balance-real']);
-        return allowed.has(saved) ? saved : 'inicio';
-      } catch (e){
-        return 'inicio';
+      const fallback = getDefaultRouteForRole();
+      if (!user?.id) return fallback;
+      const key = ROUTE_STORAGE_KEY + ':' + user.id;
+      let saved = null;
+      try { saved = sessionStorage.getItem(key); } catch (_) {}
+      try { saved = saved || localStorage.getItem(key) || localStorage.getItem(ROUTE_STORAGE_KEY); } catch (_) {}
+      const allowed = new Set(['inicio','activos','documentos','recibos','informes','balance','balance-real','impuestos','empleados','libro-diario']);
+      return allowed.has(saved) && canAccessRouteByRole(saved) ? saved : fallback;
+    }
+
+    function gaClearSavedRoute(uid){
+      if (!uid) return;
+      try { sessionStorage.removeItem(ROUTE_STORAGE_KEY + ':' + uid); } catch (_) {}
+      try { localStorage.removeItem(ROUTE_STORAGE_KEY + ':' + uid); localStorage.removeItem(ROUTE_STORAGE_KEY); } catch (_) {}
+    }
+
+    async function gaRestoreSavedRoute(){
+      const uid = user?.id;
+      const previous = route;
+      let target = loadCurrentRoute();
+      if (target === 'libro-diario') {
+        const allowed = typeof window.gaLibroDiarioCanRestore === 'function' && await window.gaLibroDiarioCanRestore();
+        if (user?.id !== uid || route !== previous || authRecoveryMode) return;
+        if (!allowed) target = getDefaultRouteForRole();
+      }
+      if (uid && user?.id === uid && !authRecoveryMode) {
+        setRoute(target);
+        if (target !== 'libro-diario' && typeof window.gaLibroDiarioCanRestore === 'function') void window.gaLibroDiarioCanRestore();
       }
     }
 
@@ -8853,10 +8879,13 @@ td:last-child{
         showPasswordRecoveryMode(false);
         setLoginMessage('Contraseña actualizada. Ya podés seguir usando el sistema.', 'success');
         const { data } = await sb.auth.getSession();
-        user = data.session?.user || user;
+        user = data.session?.user || null;
+        if (user) await loadCurrentUserRole(); else resetCurrentUserRole();
+        gaActiveSessionUid = user?.id || null;
         toggle(!!user, user);
         if (user){
-          setRoute('inicio');
+          setRoute(getDefaultRouteForRole());
+          if (typeof window.gaLibroDiarioCanRestore === 'function') void window.gaLibroDiarioCanRestore();
           await refreshAll();
         }
       } catch (e){
@@ -8868,6 +8897,7 @@ td:last-child{
       authRecoveryMode = false;
       toggleForgotPassword(false);
       showPasswordRecoveryMode(false);
+      gaClearSavedRoute(user?.id);
       await sb.auth.signOut();
     }
 
@@ -10635,118 +10665,48 @@ function globalSearch(){
 let gaTabHiddenAt = 0;
 let gaTabRecovering = false;
 let gaLastTabRecoveryAt = 0;
-let gaLastFullRefreshAt = 0;            // timestamp del último refreshAll() por recovery
-
-const GA_REFRESH_TTL_MS = 30_000;         // no relanzar refreshAll si hubo uno en < 30s
 const GA_TAB_HIDDEN_THRESHOLD_MS = 5_000; // ignorar pausas de pestaña menores a 5s
 
 function isGaModalOpen(){
-  const modalIds = [
-    // 'modalBack' eliminado (Etapa 13C): modal cobro legacy removido
-    'modalActivoBack',
-    'reciboModalBack',
-    'agregarMesModalBack',
-    'pagoModalBack'
-  ];
-
-  return modalIds.some(id => {
-    const el = $(id);
-    if (!el) return false;
+  return Array.from(document.querySelectorAll('.modalBack,.ui-secondary-modal,.ga-ranking-modal-back,.ld-modal-backdrop,[role="dialog"],[aria-modal="true"],dialog[open]')).some(el => {
     const styles = window.getComputedStyle(el);
-    return styles.display !== 'none' && styles.visibility !== 'hidden' && styles.opacity !== '0';
+    return !el.hidden && el.getClientRects().length > 0 && styles.display !== 'none' && styles.visibility !== 'hidden' && styles.opacity !== '0';
   });
 }
 
 async function renderCurrentRouteAfterWake(){
-  const currentRoute = route || loadCurrentRoute?.() || 'inicio';
-
-  if (currentRoute === 'recibos' && typeof renderRecibosPage === 'function') {
-    await renderRecibosPage();
-    return;
-  }
-
-  if (currentRoute === 'balance' && typeof renderBalancePage === 'function') {
-    await renderBalancePage();
-    return;
-  }
-
-  if (currentRoute === 'balance-real' && typeof renderBalanceRealPage === 'function') {
-    await renderBalanceRealPage();
-    return;
-  }
-
-  if (currentRoute === 'documentos' && typeof renderDocumentosPage === 'function') {
-    await renderDocumentosPage();
-    return;
-  }
-
-  if (currentRoute === 'informes' && typeof renderInformesPage === 'function') {
-    await renderInformesPage();
-    return;
-  }
-
-  if (currentRoute === 'activos' && typeof renderUnidades === 'function') {
-    renderUnidades();
-    return;
-  }
-
-  if (typeof renderInicio === 'function') {
-    renderInicio();
-  }
+  // Never remount a visible route on focus. In-memory filters, pagination and
+  // open forms remain intact. Explicit Refrescar remains available.
+  if (!user || authRecoveryMode || isGaModalOpen()) return;
+  const visible = Array.from(document.querySelectorAll('#app section[id^="view"]')).some(el => el.getClientRects().length > 0);
+  if (!visible) await gaRestoreSavedRoute();
 }
 
 async function recoverAppAfterTabWake(reason = 'tab-wake'){
-  if (gaTabRecovering) return;
+  if (gaTabRecovering || authRecoveryMode) return;
   if (document.visibilityState && document.visibilityState !== 'visible') return;
-
-  // Evita doble ejecución por focus + visibilitychange al mismo tiempo.
   const now = Date.now();
   if (now - gaLastTabRecoveryAt < 2500) return;
   gaLastTabRecoveryAt = now;
-
   gaTabRecovering = true;
-
   try {
-    // Cerrar menú flotante si quedó abierto.
-    if (typeof closeReciboFloatingMenu === 'function') {
-      closeReciboFloatingMenu();
-    }
-
-    // Confirmar sesión actual.
-    const { data } = await sb.auth.getSession();
-    user = data?.session?.user || null;
-
-    if (!user) {
-      toggle(false, user);
+    const { data, error } = await sb.auth.getSession();
+    if (error) throw error;
+    const session = data?.session;
+    if (!session?.user) {
+      if (user) gaQueueAuthEvent('SIGNED_OUT', null);
       return;
     }
-
-    toggle(true, user);
-
-    // Si ya hubo un refreshAll reciente, no relanzamos 8+ queries a Supabase.
-    // Los datos en memoria son suficientemente frescos.
-    if (now - gaLastFullRefreshAt < GA_REFRESH_TTL_MS) {
-      console.info('[GA] Recovery liviano (datos frescos < 30s):', reason);
+    if (session.user.id !== user?.id || session.user.id !== gaActiveSessionUid) {
+      gaQueueAuthEvent('SIGNED_IN', session);
       return;
     }
-
-    console.info('[GA] Recuperando app al volver a la pestaña:', reason);
-
-    // Refrescar datos base y registrar el timestamp.
-    await refreshAll();
-    gaLastFullRefreshAt = Date.now();
-
-    // Si no hay modal abierto, re-renderizamos la ruta actual.
-    // Si hay modal abierto, no lo tocamos para no borrar datos que el usuario esté cargando.
-    if (!isGaModalOpen()) {
-      await renderCurrentRouteAfterWake();
-    }
-
+    if (authRecoveryMode || document.visibilityState === 'hidden') return;
+    user = session.user;
+    await renderCurrentRouteAfterWake();
   } catch (err) {
-    console.warn('[GA] No se pudo recuperar la app al volver de otra pestaña:', err);
-  } finally {
-    gaTabRecovering = false;
-  }
+    console.warn('[GA] No se pudo revalidar la sesion:', reason, err);
+  } finally { gaTabRecovering = false; }
 }
 
 document.addEventListener('visibilitychange', () => {
@@ -18548,6 +18508,62 @@ error = deleteResponse.error;
       console.error('Unhandled promise rejection:', event?.reason || event);
     });
 
+    let gaActiveSessionUid = null;
+    let gaAuthQueue = Promise.resolve();
+    let gaAuthRevision = 0;
+    function gaQueueAuthEvent(event, session){
+      if (event === 'INITIAL_SESSION') return;
+      if (event === 'PASSWORD_RECOVERY') {
+        ++gaAuthRevision;
+        gaActiveSessionUid = null;
+        user = session?.user || null;
+        showPasswordRecoveryMode(true);
+        toggle(false, user);
+        return;
+      }
+      if (authRecoveryMode && session?.user) return;
+      // Supabase may emit SIGNED_IN again when a tab regains focus. Avoid
+      // calling Supabase inside its auth callback or rebuilding the current view.
+      if (!authRecoveryMode && event !== 'PASSWORD_RECOVERY' && session?.user?.id && session.user.id === gaActiveSessionUid && session.user.id === user?.id) {
+        user = session.user;
+        return;
+      }
+      const revision = ++gaAuthRevision;
+      const previousUid = gaActiveSessionUid || user?.id;
+      if (event === 'SIGNED_OUT') { gaClearSavedRoute(previousUid); gaActiveSessionUid = null; user = null; }
+      if (event === 'SIGNED_OUT' || (session?.user?.id && session.user.id !== gaActiveSessionUid)) toggle(false, null);
+      setTimeout(() => {
+        gaAuthQueue = gaAuthQueue.catch(() => {}).then(async () => {
+          if (revision !== gaAuthRevision) return;
+          if (authRecoveryMode && session?.user) return;
+          const next = session?.user || null;
+          if (!next) {
+            gaClearSavedRoute(previousUid);
+            gaActiveSessionUid = null;
+            user = null;
+            authRecoveryMode = false;
+            resetCurrentUserRole();
+            toggle(false, null);
+            return;
+          }
+          // An event can be superseded while waiting in the queue.
+          const check = await sb.auth.getSession();
+          if (revision !== gaAuthRevision || check.error || check.data?.session?.user?.id !== next.id) return;
+          if (gaActiveSessionUid === next.id && user?.id === next.id) { toggle(true, user); return; }
+          user = check.data.session.user;
+          await loadCurrentUserRole();
+          if (revision !== gaAuthRevision || user?.id !== next.id) return;
+          gaActiveSessionUid = user.id;
+          toggle(true, user);
+          applyRoleUI();
+          setRememberedEmail(user.email || ($('email')?.value || ''), true);
+          try { localStorage.setItem(LOGIN_REMEMBER_KEY, user.email || ''); } catch (_) {}
+          await gaRestoreSavedRoute();
+          if (revision === gaAuthRevision && user?.id === next.id) await refreshAll();
+        }).catch(err => console.warn('[GA] Evento de sesion:', err));
+      }, 0);
+    }
+
     async function init(){
       // Cache busting reforzado: la limpieza fuerte se ejecuta al inicio del HTML.
       // Acá solo dejamos trazabilidad y una segunda barrera para caches de datos.
@@ -18582,33 +18598,14 @@ error = deleteResponse.error;
       const { data } = await sb.auth.getSession();
       user = data.session?.user || null;
       if (user) await loadCurrentUserRole(); else resetCurrentUserRole();
+      gaActiveSessionUid = user?.id || null;
+      sb.auth.onAuthStateChange(gaQueueAuthEvent);
       toggle(!!user, user);
       applyRoleUI();
       if (user){
-        setRoute(loadCurrentRoute());
+        await gaRestoreSavedRoute();
         await refreshAll();
       }
-      sb.auth.onAuthStateChange(async (event, session) => {
-        // getSession() ya resolvió el primer estado; no volver a cargar todo.
-        if (event === 'INITIAL_SESSION') return;
-        if (event === 'PASSWORD_RECOVERY') {
-          user = session?.user || null;
-          showPasswordRecoveryMode(true);
-          toggle(false, user);
-          return;
-        }
-        authRecoveryMode = false;
-        user = session?.user || null;
-        if (user) await loadCurrentUserRole(); else resetCurrentUserRole();
-        toggle(!!user, user);
-        applyRoleUI();
-        if (user){
-          setRememberedEmail(user.email || ($('email')?.value || ''), true);
-          try{ localStorage.setItem(LOGIN_REMEMBER_KEY, user.email || ($('email')?.value || '')); } catch (e){}
-          setRoute(loadCurrentRoute());
-          await refreshAll();
-        }
-      });
 
       setTimeout(hideSplash, 900);
     }
@@ -21997,6 +21994,7 @@ exposeGlobalFunction('aplicarAumentoPct', aplicarAumentoPct);
 exposeGlobalFunction('recargarTrasAumento', recargarTrasAumento);
 exposeGlobalFunction('cerrarYAbrirAumentoPct', cerrarYAbrirAumentoPct);
 
+function gaStartApplication(){
 init().catch((err) => {
   console.error('[GestorAlquileres] No se pudo completar el inicio:', err);
   try {
@@ -22016,6 +22014,9 @@ init().catch((err) => {
     if (splash) splash.remove();
   }
 });
+}
+if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', gaStartApplication, {once:true});
+else gaStartApplication();
   
 </script>
 
@@ -23679,7 +23680,7 @@ async function cargarProximosPagosEmpleados(empleados,pagos){
   }
 </style>
 
-  <script src="./libro-diario.js?v=20261125-5"></script>
+  <script src="./libro-diario.js?v=20261125-nav1"></script>
   <script src="./libro-diario-historico.js?v=20261117-3"></script>
   <script src="./libro-diario-conciliacion.js?v=20261125-4"></script>
 </body>

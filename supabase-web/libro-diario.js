@@ -35,7 +35,8 @@
       view.style.display='none';
       return oldSetRoute.call(this,next);
     }
-    if(!access()){console.warn('[Libro Diario] Acceso denegado.');return oldSetRoute.call(this,'inicio');}
+    if(!access()){console.warn('[Libro Diario] Acceso denegado.');return oldSetRoute.call(this,getDefaultRouteForRole());}
+    if(route==='libro-diario'&&view.style.display==='block'&&byId('ldNewMove'))return;
     route='libro-diario';
     document.querySelectorAll('#app > section[id^="view"]').forEach(el=>el.style.display='none');
     view.style.display='block';
@@ -46,17 +47,48 @@
     renderScaffold();
     refreshData();
   };
-  async function refreshPermission(){
-    try{
-      const r=await sb.auth.getUser();const u=r.data?.user;
-      if(!u){data.uid=null;data.granted=false;data.ready=true;updateNav();if(view.style.display==='block')oldSetRoute('inicio');return;}
-      const {data:entry,error}=await sb.from('libro_diario_accesos').select('user_id').eq('user_id',u.id).eq('habilitado',true).maybeSingle();
-      data.uid=u.id;data.granted=!error&&!!entry;data.ready=true;updateNav();
-      if(!access()&&view.style.display==='block'){view.style.display='none';oldSetRoute('inicio');}
-    }catch(e){data.granted=false;data.uid=null;data.ready=true;updateNav();console.warn('[Libro Diario] Permiso no disponible',e?.message||e);}
+  let permissionRequest=null;
+  let permissionEpoch=0;
+  function resetPrivateView(){
+    permissionEpoch++;
+    data.uid=null;data.granted=false;data.ready=false;
+    data.accounts=[];data.moves=[];data.history=[];data.historyError=null;data.editing=null;data.loading=false;
+    view.style.display='none';view.replaceChildren();updateNav();
   }
-  sb.auth.onAuthStateChange(()=>{setTimeout(refreshPermission,0);});
-  refreshPermission();
+  async function refreshPermission(){
+    const uid=currentUserId();
+    if(!uid)return false;
+    if(permissionRequest?.uid===uid&&permissionRequest.epoch===permissionEpoch)return permissionRequest.promise;
+    const epoch=permissionEpoch;
+    const promise=(async()=>{
+      try{
+        const r=await sb.auth.getUser();
+        if(r.error)throw r.error;
+        if(epoch!==permissionEpoch||currentUserId()!==uid)return false;
+        if(r.data?.user?.id!==uid){resetPrivateView();if(route==='libro-diario')oldSetRoute(getDefaultRouteForRole());return false;}
+        const {data:entry,error}=await sb.from('libro_diario_accesos').select('user_id').eq('user_id',uid).eq('habilitado',true).maybeSingle();
+        if(error)throw error;
+        if(epoch!==permissionEpoch||currentUserId()!==uid)return false;
+        data.uid=uid;data.granted=!!entry;data.ready=true;updateNav();
+        if(!access()&&route==='libro-diario'){resetPrivateView();oldSetRoute(getDefaultRouteForRole());}
+        return access();
+      }catch(e){
+        // A transient network error does not revoke a previously verified permission.
+        // Actual reads/writes remain protected by RLS; a different user is never accepted.
+        console.warn('[Libro Diario] Permiso no disponible',e?.message||e);
+        return epoch===permissionEpoch&&access();
+      }
+    })();
+    permissionRequest={uid,epoch,promise};
+    try{return await promise;}finally{if(permissionRequest?.promise===promise)permissionRequest=null;}
+  }
+  window.gaLibroDiarioCanRestore=refreshPermission;
+  sb.auth.onAuthStateChange((event,session)=>{
+    if(event==='SIGNED_OUT'||event==='PASSWORD_RECOVERY'||(data.uid&&session?.user?.id!==data.uid)){resetPrivateView();return;}
+    setTimeout(()=>refreshPermission(),0);
+  });
+  // The host init loads the role before restoring any private route.
+  document.addEventListener('DOMContentLoaded',()=>setTimeout(refreshPermission,0),{once:true});
 
   function getRange(){
     const period=byId('ldPeriod')?.value||'bimestral';
@@ -138,24 +170,26 @@
     if(!access()||data.loading||!byId('ldBalance'))return;
     const {start,end}=getRange();
     if(start>end){showError('La fecha inicial no puede ser posterior a la final.');return;}
+    const loadEpoch=permissionEpoch,uid=data.uid;
     data.loading=true;showError('');byId('ldDates').textContent=`${fmtDay(start)} — ${fmtDay(end)}`;
     try{
       const {data:accounts,error}=await sb.from('libro_diario_cuentas').select('id,user_id,nombre,tipo,moneda,saldo_inicial,fecha_saldo_inicial,activa').eq('activa',true).order('nombre');
       if(error)throw error;
-      const uid=data.uid;
+      if(loadEpoch!==permissionEpoch||!access()||data.uid!==uid)return;
       const [moves,history]=await Promise.all([fetchEveryMove(end),fetchHistory(start,end,uid).then(rows=>({rows,error:null})).catch(error=>({rows:[],error}))]);
-      if(!access()||data.uid!==uid||!byId('ldBalance'))return;
+      if(loadEpoch!==permissionEpoch||!access()||data.uid!==uid||!byId('ldBalance'))return;
       const latest=getRange();if(latest.start!==start||latest.end!==end){setTimeout(refreshData,0);return;}
       data.accounts=accounts||[];data.moves=moves;data.history=history.rows;data.historyError=history.error;data.page=1;
       drawAll();
     }catch(err){
+      if(loadEpoch!==permissionEpoch||!access()||data.uid!==uid)return;
       console.error('[Libro Diario] Error de carga:',err);
       data.accounts=[];data.moves=[];data.history=[];data.historyError=err;
       if(byId('ldHistChart'))byId('ldHistChart').textContent='No disponible';
       ['ldBalance','ldIncome','ldExpense','ldUsd'].forEach(id=>{if(byId(id))byId(id).textContent='No disponible';});
       if(byId('ldRows'))byId('ldRows').innerHTML='<tr><td colspan="7" class="ld-empty">No se pudo cargar el Libro Diario.</td></tr>';
       showError('Error de consulta: '+(err?.message||'No disponible')+'. No se muestran ceros para datos incompletos.');
-    }finally{data.loading=false;}
+    }finally{if(loadEpoch===permissionEpoch)data.loading=false;}
   }
   const accountsById=()=>new Map(data.accounts.map(a=>[a.id,a]));
   function calculateBalance(acc,end){
