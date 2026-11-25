@@ -1,0 +1,33 @@
+/* GA_UI_UNIFICADA_V1 - scoped to existing views; no sidebar, modal or table changes. */
+#app{--ga-u-border: #dce3eb;--ga-u-panel:#fff;--ga-u-ink:#172338;--ga-u-muted:#62748a;--ga-u-gap:12px;}
+#app .ga-u-head{display:flex!important;align-items:center!important;justify-content:flex-start!important;gap:14px!important;flex-wrap:nowrap!important;min-height:100px!important;padding:16px 20px!important;margin:0 0 12px!important;background:var(--ga-u-panel)!important;background-image:none!important;border:1px solid var(--ga-u-border)!important;border-radius:14px!important;box-shadow:none!important;box-sizing:border-box!important;}
+#app .ga-u-head::before,#app .ga-u-head::after,#app .ga-u-legacy::before,#app .ga-u-legacy::after{content:none!important;display:none!important;}
+#app .ga-u-icon{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border:1px solid var(--ga-u-border);border-radius:11px;background:#eff3f8;color:var(--ga-u-ink);}
+#app .ga-u-icon svg{width:22px;height:22px;display:block;}
+#app .ga-u-copy{flex:1 1 auto;min-width:0;display:flex!important;flex-direction:column;gap:4px;}
+#app .ga-u-head .ga-u-title{font-size:22px!important;line-height:1.2!important;letter-spacing:-.025em!important;font-weight:800!important;color:var(--ga-u-ink)!important;margin:0!important;padding:0!important;}
+#app .ga-u-head .ga-u-sub{font-size:12px!important;line-height:1.45!important;color:var(--ga-u-muted)!important;margin:0!important;white-space:normal!important;}
+#app .ga-u-head .ga-u-actions,#app .ga-u-head .ga-u-actions > .row{display:flex!important;align-items:center!important;justify-content:flex-end!important;gap:8px!important;flex-wrap:wrap!important;min-width:0!important;width:auto!important;max-width:100%!important;}
+#app .ga-u-head .ga-u-actions button:not([style*="display:none"]):not([style*="display: none"]){min-height:38px!important;padding:8px 14px!important;border-radius:10px!important;font-size:12px!important;white-space:normal!important;line-height:1.3!important;width:auto!important;}
+#app .ga-u-head .ld-eyebrow{font-size:10px!important;line-height:1.2!important;letter-spacing:.06em!important;margin:0!important;}
+#app .ga-u-legacy{display:block!important;background:none!important;border:0!important;box-shadow:none!important;padding:0!important;margin:0 0 12px!important;overflow:visible!important;}
+#app .ga-u-legacy .ga-u-filters{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:wrap!important;margin:0 0 12px!important;padding:12px 16px!important;background:var(--ga-u-panel)!important;border:1px solid var(--ga-u-border)!important;border-radius:14px!important;width:100%!important;box-sizing:border-box!important;max-width:none!important;}
+#app .ga-u-filters input:not([type="month"]),#app .ga-u-filters select{flex:1 1 160px!important;min-width:0!important;width:auto!important;}
+#app .ga-u-filters input[type="month"]{flex:0 1 165px!important;min-width:0!important;width:auto!important;}
+#app .ga-u-filters button{flex:0 0 auto!important;width:auto!important;min-height:36px!important;}
+#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid){display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:12px!important;margin-top:0!important;}
+#app #viewDocumentos .ga-u-metrics{grid-template-columns:repeat(3,minmax(0,1fr))!important;}
+#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid)>:is(.section-mini-stat,.ld-kpi,.card,.kpi,.balance-live-kpi){display:flex!important;flex-direction:column!important;align-items:flex-start!important;justify-content:center!important;gap:6px!important;min-width:0!important;min-height:106px!important;padding:14px 16px!important;margin:0!important;border:1px solid var(--ga-u-border)!important;border-radius:12px!important;background:var(--ga-u-panel)!important;box-shadow:none!important;box-sizing:border-box!important;}
+#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid) :is(.label,.ld-kpi-label,.imp-kpi-label,h3,.balance-live-label){font-size:12px!important;font-weight:700!important;line-height:1.3!important;text-transform:none!important;letter-spacing:0!important;color:var(--ga-u-muted)!important;margin:0!important;}
+#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid) :is(.value,strong,h2,.balance-live-value){position:static!important;float:none!important;font-size:clamp(18px,1.55vw,24px)!important;font-weight:800!important;line-height:1.18!important;letter-spacing:-.03em!important;margin:0!important;white-space:normal!important;overflow:visible!important;overflow-wrap:anywhere!important;max-width:100%!important;}
+#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid) :is(.sub,.muted,.ld-muted,.balance-live-sub){font-size:11px!important;line-height:1.4!important;margin:0!important;white-space:normal!important;overflow-wrap:anywhere!important;}
+#app #viewLibroDiario .ld-kpi-icon{display:none!important;}
+#app #viewEmpleados > .cards-grid > .card > span{font-size:11px!important;line-height:1.4!important;}
+#app #viewEmpleados > .cards-grid{margin-bottom:12px!important;}
+#topHeader.ga-u-compact-top .search{display:none!important;}
+@media(min-width:901px){#topHeader.ga-u-compact-top{display:none!important;}}
+@media(max-width:1050px){#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid){grid-template-columns:repeat(2,minmax(0,1fr))!important;}}
+@media(max-width:600px){#app .ga-u-head{flex-wrap:wrap!important;padding:14px!important;gap:10px!important;min-height:0!important;}#app .ga-u-head .ga-u-copy{flex:1 1 calc(100% - 54px)!important;}#app .ga-u-head .ga-u-actions{flex:1 1 100%!important;justify-content:flex-start!important;}#app .ga-u-head .ga-u-title{font-size:20px!important;}#app .ga-u-filters>*{max-width:100%!important;}#app #viewDocumentos .ga-u-metrics{grid-template-columns:repeat(2,minmax(0,1fr))!important;}#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid)>*{padding:12px!important;min-height:94px!important;}}
+@media(max-width:355px){#app :is(.ga-u-metrics,.ld-kpis,.imp-kpis,#viewEmpleados > .cards-grid,#viewInicio .kpis,#viewInformes .kpis,.balance-live-grid),#app #viewDocumentos .ga-u-metrics{grid-template-columns:1fr!important;}}
+
+#app .ga-u-head .ga-u-actions > :is(.primary,.ld-primary){order:1;}
