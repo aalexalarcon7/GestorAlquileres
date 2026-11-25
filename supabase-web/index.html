@@ -1287,6 +1287,8 @@ td:last-child{
   
 
     /* ===== Roles Jefe / Trabajador ===== */
+    /* GA_LEGAJOS_OCULTO_V1: temporal, sin eliminar el modulo */
+    .sb-item[data-route="documentos"], .mobile-nav-item[data-route="documentos"] { display:none !important; }
     body.role-trabajador .sb-item[data-route="inicio"],
     body.role-trabajador .sb-item[data-route="documentos"],
     body.role-trabajador .sb-item[data-route="informes"],
@@ -7869,6 +7871,7 @@ td:last-child{
     }
 
     function canAccessRouteByRole(r){
+      if (String(r || '') === 'documentos') return false; // GA_LEGAJOS_RUTA_OCULTA
       if (!isTrabajador()) return true;
       return TRABAJADOR_ROUTES.has(String(r || ''));
     }
@@ -7915,7 +7918,7 @@ td:last-child{
 
       document.querySelectorAll('.sb-item, .mobile-nav-item').forEach(btn => {
         const r = btn.dataset.route;
-        const visible = !isTrabajador() || TRABAJADOR_ROUTES.has(r);
+        const visible = r !== 'documentos' && (!isTrabajador() || TRABAJADOR_ROUTES.has(r));
         btn.style.display = visible ? '' : 'none';
       });
 
