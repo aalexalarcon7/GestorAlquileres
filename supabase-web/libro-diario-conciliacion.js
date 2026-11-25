@@ -10,7 +10,7 @@
   const safe = (x) => String(x == null ? '' : x).replace(/[&<>"']/g, ch => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
   }[ch]));
-  const n = value => Number.isFinite(Number(value)) ? Number(value) : null;
+  const n = value => value != null && value !== '' && Number.isFinite(Number(value)) ? Number(value) : null;
   const sum = (arr, field) => arr.reduce((total, row) => total + (n(row[field]) ?? 0), 0);
   const fmt = (x, currency = 'ARS') => x == null ? '—' : new Intl.NumberFormat('es-AR', {
     style: 'currency', currency, maximumFractionDigits: 2, minimumFractionDigits: 2
@@ -62,15 +62,16 @@
   function scaffold() {
     const root=document.createElement('section');
     root.id='ldcRoot'; root.className='ld-card ldc-root';
-    root.setAttribute('aria-label','Conciliación del histórico de Libro Diario');
+    root.setAttribute('aria-label','Balance general e histórico de Libro Diario');
     root.innerHTML=`
       <header class="ldc-header">
-        <div><span class="ldc-eyebrow">ARCHIVO HISTÓRICO · SUPABASE</span>
-          <h2>Balance histórico y conciliación</h2>
-          <p>Consultá los registros del Excel sin mezclarlos con tus cuentas y movimientos actuales.</p>
-        </div><span class="ldc-tag">En revisión · No contabilizado</span>
+        <div><span class="ldc-eyebrow">LIBRO DIARIO · EXCEL</span>
+          <h2>Balance general e histórico</h2>
+          <p>Consultá el último balance general, los saldos por libro y los movimientos por período.</p>
+        </div><span class="ldc-tag">Datos del Excel</span>
       </header>
-      <div class="ldc-explain"><strong>Información histórica.</strong> Las entradas y salidas incluyen posibles traspasos y fechas heredadas del Excel. No son necesariamente ingresos y gastos finales. Los cierres corresponden a fechas distintas y <strong>no se suman entre cuentas</strong>.</div>
+      <div class="ldc-subcard ldc-snapshot"><div class="ldc-cardtitle"><h3>Último balance general</h3><span id="ldcSnapshotDate">NOVDIC</span></div><div id="ldcSnapshot" aria-live="polite">Cargando balance…</div></div>
+      <p class="ldc-explain">Las entradas y salidas de cada libro pueden incluir traspasos y fechas heredadas. El balance general, los libros históricos y las cuentas operativas son referencias distintas: no se suman entre sí.</p>
       <div class="ldc-toolbar">
         <label class="ldc-field">Consultar libro
           <select id="ldcBook"><option value="GARUPA">GARUPA · ARS</option><option value="JARDIN">JARDIN · ARS</option><option value="USD">Dólares efectivo · USD</option></select>
@@ -84,7 +85,7 @@
         <div class="ldc-kpi"><span>Entradas registradas</span><strong id="ldcIn">—</strong><small>Del libro y período seleccionados</small></div>
         <div class="ldc-kpi"><span>Salidas registradas</span><strong id="ldcOut">—</strong><small>Pueden incluir traspasos</small></div>
         <div class="ldc-kpi"><span>Variación registrada</span><strong id="ldcDelta">—</strong><small>No es ganancia neta</small></div>
-        <div class="ldc-kpi"><span>Movimientos revisados</span><strong id="ldcCount">—</strong><small id="ldcCountsNote">Filas del Excel</small></div>
+        <div class="ldc-kpi"><span>Movimientos registrados</span><strong id="ldcCount">—</strong><small id="ldcCountsNote">Filas del Excel</small></div>
       </div>
       <div class="ldc-grid">
         <div class="ldc-subcard"><div class="ldc-cardtitle"><h3>Evolución histórica</h3><span id="ldcChartNote">Entradas y salidas por mes</span></div><div class="ldc-chart" id="ldcChart"><div class="ldc-empty">Cargando datos…</div></div>
@@ -93,12 +94,7 @@
         </div>
         <div class="ldc-subcard"><div class="ldc-cardtitle"><h3>Últimos cierres del Excel</h3><span>Cortes históricos, no saldos de hoy</span></div><div id="ldcClosures"><div class="ldc-empty">Cargando cierres…</div></div></div>
       </div>
-      <details class="ldc-details" id="ldcReview" open>
-        <summary><span>Casos para revisar</span><small id="ldcReviewCount">Cargando…</small></summary>
-        <p>Clasificá los casos con la información que tengas. Guardar una categoría u observación no cambia los importes, el Excel ni los balances. Las referencias de fechas son las del histórico.</p>
-        <div id="ldcReviewList" aria-live="polite"></div>
-      </details>
-      <details class="ldc-details" id="ldcExpenses"><summary><span>Gastos de hojas bimestrales sin conciliar</span><small>Consultar clasificación original</small></summary>
+      <details class="ldc-details" id="ldcExpenses"><summary><span>Gastos históricos por rubro</span><small>Consulta del Excel</small></summary>
         <p>Importes extraídos de otras hojas del Excel. Pueden superponerse con los libros fechados; no se agregan al balance.</p>
         <div id="ldcExpenseList"></div>
       </details>
@@ -122,6 +118,7 @@
     if($('ldcChart'))$('ldcChart').innerHTML='<div class="ldc-empty">No fue posible cargar los datos de conciliación.</div>';
     if($('ldcClosures'))$('ldcClosures').innerHTML='<div class="ldc-empty">No disponible</div>';
     if($('ldcExpenseList'))$('ldcExpenseList').innerHTML='No disponible';
+    if($('ldcSnapshot'))$('ldcSnapshot').textContent='No disponible';
     error(message);
   }
 
@@ -144,19 +141,20 @@
       await ensureOwner();
       if(!viewState.cache || force){
         const reqs=[
-          sb.from('libro_diario_conciliacion_cierres').select('segmento,moneda,desde,hasta,movimientos,filas_descuadradas,posibles_traspasos,saldo_final_excel,saldo_final_reconstruido,diferencia_final,estado_cierre').order('segmento'),
+          sb.from('libro_diario_conciliacion_cierres').select('fuente_id,segmento,moneda,desde,hasta,movimientos,saldo_final_excel').order('segmento'),
           sb.from('libro_diario_conciliacion_mensual').select('segmento,moneda,periodo,movimientos,fecha_heredada,diferencias,posibles_traspasos,entradas,salidas,variacion_caja_no_conciliada').order('periodo'),
-          sb.from('libro_diario_conciliacion_gastos_resumen').select('rubro_preliminar,importes_identificados,importes_sin_detalle,suma_sin_conciliar')
+          sb.from('libro_diario_conciliacion_gastos_resumen').select('rubro_preliminar,importes_identificados,importes_sin_detalle,suma_sin_conciliar'),
+          sb.from('libro_diario_balance_general_actual').select('fecha,fila,concepto,saldo_ars,saldo_usd').order('fila')
         ];
         const results=await Promise.all(reqs);
-        for(let i=0;i<results.length;i++)if(results[i].error)throw new Error(['Cierres','Movimientos mensuales','Gastos'][i]+': '+results[i].error.message);
-        viewState.cache={closures:results[0].data||[],monthly:results[1].data||[],expenses:results[2].data||[]};
+        for(let i=0;i<results.length;i++)if(results[i].error)throw new Error(['Cierres','Movimientos mensuales','Gastos','Balance general'][i]+': '+results[i].error.message);
+        viewState.cache={closures:results[0].data||[],monthly:results[1].data||[],expenses:results[2].data||[],snapshot:results[3].data||[],sourceId:results[0].data?.[0]?.fuente_id};
         if(!viewState.cache.closures.length)throw new Error('No aparecen cierres históricos autorizados en Supabase.');
       }
       updatePeriod();
       renderClosures();
       renderExpenses();
-      await loadReviewCases();
+      renderSnapshot();
     } catch(e) {
       viewState.cache=null;
       console.error('[Libro Diario conciliación]',e);
@@ -172,59 +170,23 @@
       {label:'JARDIN',row:closures.find(x=>x.segmento==='JARDIN')},
       {label:'USD efectivo',row:closures.find(x=>x.segmento==='USD')}
     ];
-    const primerTramo=closures.find(x=>x.segmento==='GARUPA_A');
-    const saldoPrimerTramo=primerTramo?fmt(n(primerTramo.saldo_final_excel),'ARS'):'no disponible';
     root.innerHTML=toShow.map(({label,row})=> {
       if(!row) return `<div class="ldc-closure"><div><strong>${safe(label)}</strong><small>Sin cierre registrado</small></div><b>—</b></div>`;
-      const diff=n(row.diferencia_final),isOk=row.estado_cierre==='CIERRE_CUADRA' && Math.abs(diff||0)<=0.01;
-      return `<div class="ldc-closure ${isOk?'ldc-ok':'ldc-attention'}">
-        <div><strong>${safe(label)}</strong><small>Último corte: ${dayText(row.hasta)} · ${number(row.movimientos||0)} movimientos</small>
-          <span class="ldc-closure-state">${isOk?'Cierre cuadra':'Pendiente de conciliar'}</span></div>
-        <div class="ldc-closure-values"><b>${fmt(n(row.saldo_final_excel),row.moneda)}</b>
-        ${isOk?'':`<small>Diferencia: ${fmt(diff,row.moneda)}</small>`}</div>
-      </div>`;
-    }).join('')+`<p class="ldc-closure-foot">GARUPA incluye un tramo anterior (2024) con cierre de ${safe(saldoPrimerTramo)} que no se suma nuevamente. Estos cierres no equivalen a disponibilidad bancaria actual.</p>`;
+      return `<div class="ldc-closure"><div><strong>${safe(label)}</strong><small>Última fecha anotada: ${dayText(row.hasta)}</small></div><div class="ldc-closure-values"><b>${fmt(n(row.saldo_final_excel),row.moneda)}</b></div></div>`;
+    }).join('')+`<p class="ldc-closure-foot">Saldos del Excel actualizado. JARDIN tiene movimientos nuevos sin fecha propia. USD corresponde a su último registro histórico; no es el saldo en dólares del balance general.</p>`;
   }
 
-  const reviewLabels={TRANSFERENCIA:'Transferencia',AJUSTE:'Ajuste',GASTO:'Gasto',INGRESO:'Ingreso',OTRO:'Otro',PENDIENTE:'Pendiente de identificar'};
-  async function loadReviewCases(){
-    const list=$('ldcReviewList'),count=$('ldcReviewCount');
-    if(!list || !count)return;
-    try{
-      const owner=await ensureOwner();
-      const res=await sb.from('libro_diario_casos_revision').select('id,libro,referencia,fecha_referencial,importe,moneda,evidencia,categoria_sugerida,categoria,observacion,revisado').eq('user_id',owner).order('fecha_referencial').order('codigo');
-      if(res.error)throw res.error;
-      if(!list.isConnected || viewState.userId!==owner)return;
-      const rows=res.data||[];
-      count.textContent=`${rows.filter(r=>r.revisado).length} de ${rows.length} revisados`;
-      if(!rows.length){list.textContent='No hay casos registrados.';return;}
-      list.innerHTML=rows.map((r,i)=>`<article class="ldc-review-case" data-case="${i}">
-        <div class="ldc-review-top"><div><strong>${safe(r.libro)} · ${safe(r.referencia)}</strong><small>${safe(dayText(r.fecha_referencial))} · Sugerencia: ${safe(reviewLabels[r.categoria_sugerida]||r.categoria_sugerida)}</small></div><div><strong>${safe(fmt(r.importe,r.moneda))}</strong><small class="ldc-review-status">${r.revisado?'Revisado':'Por revisar'}</small></div></div>
-        <p class="ldc-evidence">${safe(r.evidencia)}</p>
-        <div class="ldc-review-fields"><label>Categoría<select class="ldc-review-category">${Object.entries(reviewLabels).map(([k,v])=>`<option value="${k}"${r.categoria===k?' selected':''}>${safe(v)}</option>`).join('')}</select></label><label>Observación<textarea class="ldc-review-note" maxlength="2000" rows="2">${safe(r.observacion)}</textarea></label></div>
-        <div class="ldc-review-actions"><label><input type="checkbox" class="ldc-review-checked"${r.revisado?' checked':''}> Marcar como revisado</label><button type="button" class="ld-btn ldc-review-save">Guardar cambios</button><span class="ldc-review-message" role="status"></span></div>
-      </article>`).join('');
-      list.querySelectorAll('[data-case]').forEach(el=>{
-        const row=rows[Number(el.dataset.case)];const button=el.querySelector('.ldc-review-save'), msg=el.querySelector('.ldc-review-message');
-        button.addEventListener('click',async()=>{
-          const cat=el.querySelector('.ldc-review-category'),note=el.querySelector('.ldc-review-note'),checked=el.querySelector('.ldc-review-checked');
-          const changes={categoria:cat.value,observacion:note.value,revisado:checked.checked};
-          if(!Object.prototype.hasOwnProperty.call(reviewLabels,changes.categoria))return;
-          button.disabled=cat.disabled=note.disabled=checked.disabled=true;msg.textContent='Guardando…';
-          try{
-            if(await ensureOwner()!==owner)throw new Error('La sesión cambió. Volvé a cargar el módulo.');
-            const result=await sb.from('libro_diario_casos_revision').update(changes).eq('id',row.id).eq('user_id',owner).select('id').single();
-            if(result.error||!result.data)throw result.error||new Error('No se confirmó el guardado.');
-            if(!el.isConnected || viewState.userId!==owner)return;
-            Object.assign(row,changes);
-            count.textContent=`${rows.filter(r=>r.revisado).length} de ${rows.length} revisados`;
-            el.querySelector('.ldc-review-status').textContent=row.revisado?'Revisado':'Por revisar';
-            msg.textContent='Cambios guardados.';
-          }catch(e){msg.textContent='No se guardó: '+(e?.message||'error');}
-          finally{button.disabled=cat.disabled=note.disabled=checked.disabled=false;}
-        });
-      });
-    }catch(e){list.textContent='No se pudieron cargar los casos: '+(e?.message||'error');count.textContent='No disponible';}
+  function renderSnapshot(){
+    const root=$('ldcSnapshot');if(!root||!viewState.cache)return;
+    const rows=viewState.cache.snapshot,total=rows.find(r=>r.fila===82);
+    if(!total){root.textContent='No hay un balance general publicado para esta versión.';return;}
+    $('ldcSnapshotDate').textContent='NOVDIC · '+dayText(total.fecha);
+    const accounts=rows.filter(r=>r.fila>=69&&r.fila<=80),extra=rows.filter(r=>r.fila>=85);
+    const table=(list)=>`<div class="ldc-table-scroll"><table class="ldc-snapshot-table"><thead><tr><th>Concepto</th><th>ARS</th><th>USD</th></tr></thead><tbody>${list.map(r=>`<tr><td>${safe(r.concepto)}</td><td>${fmt(n(r.saldo_ars),'ARS')}</td><td>${fmt(n(r.saldo_usd),'USD')}</td></tr>`).join('')}</tbody></table></div>`;
+    root.innerHTML=`<div class="ldc-snapshot-kpis"><div class="ldc-kpi"><span>Total en pesos según Excel</span><strong>${fmt(n(total.saldo_ars),'ARS')}</strong></div><div class="ldc-kpi"><span>Total en dólares según Excel</span><strong>${fmt(n(total.saldo_usd),'USD')}</strong></div></div>
+      ${table(accounts)}
+      <details class="ldc-details"><summary><span>Otras referencias en dólares</span><small>Fuera del total anterior</small></summary>${table(extra)}</details>
+      <p class="ldc-closure-foot">Foto del balance general del Excel, no disponibilidad bancaria verificada. Los saldos por libro se muestran aparte; las partidas de inversiones y envíos no se suman al total informado.</p>`;
   }
 
   function renderExpenses(){
@@ -239,7 +201,7 @@
     }
     const labels={BANCOS:'Bancos',EFECTIVO:'Efectivo',MERCADO_PAGO:'Mercado Pago',SALADITA:'Saladita (solo referencia histórica)',VTV:'VTV (solo referencia histórica)'};
     if(!groups.size){el.innerHTML='<div class="ldc-empty">Todavía no hay gastos históricos clasificados.</div>';return;}
-    el.innerHTML=`<div class="ldc-expense-table"><div class="ldc-expense-row ldc-expense-head"><span>Rubro histórico</span><span>Partidas</span><span>Importe sin conciliar</span></div>${[...groups].sort((a,b)=>b[1].count-a[1].count).map(([key,g])=>`<div class="ldc-expense-row"><span>${safe(labels[key]||key)}<small>${number(g.missing)} sin detalle individual</small></span><span>${number(g.count)}</span><strong>${fmt(g.total)}</strong></div>`).join('')}</div>`;
+    el.innerHTML=`<div class="ldc-expense-table"><div class="ldc-expense-row ldc-expense-head"><span>Rubro histórico</span><span>Partidas</span><span>Importe extraído</span></div>${[...groups].sort((a,b)=>b[1].count-a[1].count).map(([key,g])=>`<div class="ldc-expense-row"><span>${safe(labels[key]||key)}<small>${number(g.missing)} sin detalle individual</small></span><span>${number(g.count)}</span><strong>${fmt(g.total)}</strong></div>`).join('')}</div>`;
   }
 
   async function fetchCustomDaily(start,end,book,sequence) {
@@ -248,7 +210,7 @@
     for(let i=0;i<ceiling/limit;i++){
       const resp=await sb.from('libro_diario_conciliacion_lineas')
         .select('fecha_referencial,segmento,entrada,salida,tipo_fecha,estado_conciliacion,clasificacion_preliminar')
-        .in('segmento',segments).eq('tipo_registro','MOVIMIENTO')
+        .eq('fuente_id',viewState.cache.sourceId).in('segmento',segments).eq('tipo_registro','MOVIMIENTO')
         .gte('fecha_referencial',start).lte('fecha_referencial',end)
         .order('id',{ascending:true}).range(i*limit,i*limit+limit-1);
       if(resp.error)throw resp.error;
@@ -288,7 +250,7 @@
     $('ldcOut').textContent=rows.length?fmt(totalOut,currency):'—';
     $('ldcDelta').textContent=rows.length?fmt(totalIn-totalOut,currency):'—';
     $('ldcCount').textContent=rows.length?number(count):'—';
-    $('ldcCountsNote').textContent=rows.length?`${number(diff)} diferencias · ${number(inherited)} fechas heredadas · ${number(potential)} posibles traspasos`:'Sin movimientos en el período seleccionado';
+    $('ldcCountsNote').textContent=rows.length?`${number(inherited)} fechas heredadas del Excel`:'Sin movimientos en el período seleccionado';
     const periods=monthsBetween(r.start,r.end);
     // GARUPA_A y GARUPA_B se solapan en junio de 2024: acumular ambos en el mismo mes.
     const rowsMap=new Map();
@@ -431,6 +393,6 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});
   else attach();
   sb.auth.onAuthStateChange((event)=>{
-    if(event==='SIGNED_OUT'){viewState.cache=null;viewState.userId=null;viewState.sequence++;if($('ldcReviewList'))$('ldcReviewList').textContent='';if($('ldcReviewCount'))$('ldcReviewCount').textContent='';}
+    if(event==='SIGNED_OUT'){viewState.cache=null;viewState.userId=null;viewState.sequence++;$('ldcRoot')?.remove();}
   });
 })();
