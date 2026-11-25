@@ -1,4 +1,4 @@
-/* Libro Diario: tablero histórico de conciliación. CONSULTAS DE SOLO LECTURA.
+/* Libro Diario: tablero histórico y edición de etiquetas de revisión.
  * No escribe en libro_diario_cuentas, libro_diario_movimientos ni tablas de alquileres.
  * Usa security_invoker views que respetan las políticas RLS de las tablas privadas.
  */
@@ -93,6 +93,11 @@
         </div>
         <div class="ldc-subcard"><div class="ldc-cardtitle"><h3>Últimos cierres del Excel</h3><span>Cortes históricos, no saldos de hoy</span></div><div id="ldcClosures"><div class="ldc-empty">Cargando cierres…</div></div></div>
       </div>
+      <details class="ldc-details" id="ldcReview" open>
+        <summary><span>Casos para revisar</span><small id="ldcReviewCount">Cargando…</small></summary>
+        <p>Clasificá los casos con la información que tengas. Guardar una categoría u observación no cambia los importes, el Excel ni los balances. Las referencias de fechas son las del histórico.</p>
+        <div id="ldcReviewList" aria-live="polite"></div>
+      </details>
       <details class="ldc-details" id="ldcExpenses"><summary><span>Gastos de hojas bimestrales sin conciliar</span><small>Consultar clasificación original</small></summary>
         <p>Importes extraídos de otras hojas del Excel. Pueden superponerse con los libros fechados; no se agregan al balance.</p>
         <div id="ldcExpenseList"></div>
@@ -151,6 +156,7 @@
       updatePeriod();
       renderClosures();
       renderExpenses();
+      await loadReviewCases();
     } catch(e) {
       viewState.cache=null;
       console.error('[Libro Diario conciliación]',e);
@@ -178,6 +184,47 @@
         ${isOk?'':`<small>Diferencia: ${fmt(diff,row.moneda)}</small>`}</div>
       </div>`;
     }).join('')+`<p class="ldc-closure-foot">GARUPA incluye un tramo anterior (2024) con cierre de ${safe(saldoPrimerTramo)} que no se suma nuevamente. Estos cierres no equivalen a disponibilidad bancaria actual.</p>`;
+  }
+
+  const reviewLabels={TRANSFERENCIA:'Transferencia',AJUSTE:'Ajuste',GASTO:'Gasto',INGRESO:'Ingreso',OTRO:'Otro',PENDIENTE:'Pendiente de identificar'};
+  async function loadReviewCases(){
+    const list=$('ldcReviewList'),count=$('ldcReviewCount');
+    if(!list || !count)return;
+    try{
+      const owner=await ensureOwner();
+      const res=await sb.from('libro_diario_casos_revision').select('id,libro,referencia,fecha_referencial,importe,moneda,evidencia,categoria_sugerida,categoria,observacion,revisado').eq('user_id',owner).order('fecha_referencial').order('codigo');
+      if(res.error)throw res.error;
+      if(!list.isConnected || viewState.userId!==owner)return;
+      const rows=res.data||[];
+      count.textContent=`${rows.filter(r=>r.revisado).length} de ${rows.length} revisados`;
+      if(!rows.length){list.textContent='No hay casos registrados.';return;}
+      list.innerHTML=rows.map((r,i)=>`<article class="ldc-review-case" data-case="${i}">
+        <div class="ldc-review-top"><div><strong>${safe(r.libro)} · ${safe(r.referencia)}</strong><small>${safe(dayText(r.fecha_referencial))} · Sugerencia: ${safe(reviewLabels[r.categoria_sugerida]||r.categoria_sugerida)}</small></div><div><strong>${safe(fmt(r.importe,r.moneda))}</strong><small class="ldc-review-status">${r.revisado?'Revisado':'Por revisar'}</small></div></div>
+        <p class="ldc-evidence">${safe(r.evidencia)}</p>
+        <div class="ldc-review-fields"><label>Categoría<select class="ldc-review-category">${Object.entries(reviewLabels).map(([k,v])=>`<option value="${k}"${r.categoria===k?' selected':''}>${safe(v)}</option>`).join('')}</select></label><label>Observación<textarea class="ldc-review-note" maxlength="2000" rows="2">${safe(r.observacion)}</textarea></label></div>
+        <div class="ldc-review-actions"><label><input type="checkbox" class="ldc-review-checked"${r.revisado?' checked':''}> Marcar como revisado</label><button type="button" class="ld-btn ldc-review-save">Guardar cambios</button><span class="ldc-review-message" role="status"></span></div>
+      </article>`).join('');
+      list.querySelectorAll('[data-case]').forEach(el=>{
+        const row=rows[Number(el.dataset.case)];const button=el.querySelector('.ldc-review-save'), msg=el.querySelector('.ldc-review-message');
+        button.addEventListener('click',async()=>{
+          const cat=el.querySelector('.ldc-review-category'),note=el.querySelector('.ldc-review-note'),checked=el.querySelector('.ldc-review-checked');
+          const changes={categoria:cat.value,observacion:note.value,revisado:checked.checked};
+          if(!Object.prototype.hasOwnProperty.call(reviewLabels,changes.categoria))return;
+          button.disabled=cat.disabled=note.disabled=checked.disabled=true;msg.textContent='Guardando…';
+          try{
+            if(await ensureOwner()!==owner)throw new Error('La sesión cambió. Volvé a cargar el módulo.');
+            const result=await sb.from('libro_diario_casos_revision').update(changes).eq('id',row.id).eq('user_id',owner).select('id').single();
+            if(result.error||!result.data)throw result.error||new Error('No se confirmó el guardado.');
+            if(!el.isConnected || viewState.userId!==owner)return;
+            Object.assign(row,changes);
+            count.textContent=`${rows.filter(r=>r.revisado).length} de ${rows.length} revisados`;
+            el.querySelector('.ldc-review-status').textContent=row.revisado?'Revisado':'Por revisar';
+            msg.textContent='Cambios guardados.';
+          }catch(e){msg.textContent='No se guardó: '+(e?.message||'error');}
+          finally{button.disabled=cat.disabled=note.disabled=checked.disabled=false;}
+        });
+      });
+    }catch(e){list.textContent='No se pudieron cargar los casos: '+(e?.message||'error');count.textContent='No disponible';}
   }
 
   function renderExpenses(){
@@ -384,6 +431,6 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',attach,{once:true});
   else attach();
   sb.auth.onAuthStateChange((event)=>{
-    if(event==='SIGNED_OUT'){viewState.cache=null;viewState.userId=null;viewState.sequence++;}
+    if(event==='SIGNED_OUT'){viewState.cache=null;viewState.userId=null;viewState.sequence++;if($('ldcReviewList'))$('ldcReviewList').textContent='';if($('ldcReviewCount'))$('ldcReviewCount').textContent='';}
   });
 })();

@@ -90,3 +90,18 @@
 #viewLibroDiario #ldhRoot.ldh-has-data #ldhViewer{display:none!important}
 #viewLibroDiario #ldhRoot.ldh-has-data.ldh-viewer-open #ldhViewer{display:block!important;margin-top:14px;border-top:1px solid #edf1f6;padding-top:10px}
 @media (max-width:680px){#viewLibroDiario #ldhRoot .ldh-compact-actions{width:100%;margin-left:0}#viewLibroDiario #ldhRoot .ldh-compact-actions button{flex:1}}
+
+/* Casos editables: alcance limitado al panel de conciliación. */
+#ldcRoot .ldc-review-case{padding:14px;border:1px solid #e1e8f1;border-radius:10px;margin:10px 0;background:#fff}
+#ldcRoot .ldc-review-top{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-variant-numeric:tabular-nums}
+#ldcRoot .ldc-review-top small{display:block;color:#61738b;font-size:11px;margin-top:4px}
+#ldcRoot .ldc-evidence{font-size:12px;line-height:1.5;color:#50647d;margin:10px 0}
+#ldcRoot .ldc-review-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);gap:12px}
+#ldcRoot .ldc-review-fields label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:#4b607a;font-weight:650;min-width:0}
+#ldcRoot .ldc-review-fields select,#ldcRoot .ldc-review-fields textarea{width:100%;min-width:0;padding:9px;border:1px solid #d9e2ed;border-radius:8px;background:#fff;color:#16233c;font:inherit;box-sizing:border-box}
+#ldcRoot .ldc-review-fields textarea{resize:vertical;min-height:58px}
+#ldcRoot .ldc-review-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px;font-size:12px}
+#ldcRoot .ldc-review-actions label{display:flex;align-items:center;gap:6px}
+#ldcRoot .ldc-review-actions .ldc-review-save{margin-left:auto}
+#ldcRoot .ldc-review-message{color:#486681;overflow-wrap:anywhere}
+@media(max-width:650px){#ldcRoot .ldc-review-fields{grid-template-columns:1fr}#ldcRoot .ldc-review-actions .ldc-review-save{margin-left:0}}
