@@ -2,7 +2,7 @@
 (function(){
   'use strict';
   if (typeof sb === 'undefined' || typeof window.setRoute !== 'function') { console.warn('[Libro Diario] Frontend incompatible'); return; }
-  const data={uid:null,granted:false,ready:false,accounts:[],moves:[],loading:false,page:1,editing:null};
+  const data={uid:null,granted:false,ready:false,accounts:[],moves:[],loading:false,page:1,editing:null,history:[],historyError:null};
   const byId=id=>document.getElementById(id);
   const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=(n,c='ARS')=>new Intl.NumberFormat('es-AR',{style:'currency',currency:c,minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0);
@@ -79,11 +79,14 @@
       <div id="ldCustom" class="ld-custom"><div class="ld-field"><label for="ldFrom">Desde</label><input id="ldFrom" type="date" value="${today}"></div><div class="ld-field"><label for="ldTo">Hasta</label><input id="ldTo" type="date" value="${today}"></div></div>
       <button class="ld-btn" type="button" id="ldRefresh">↻ Actualizar</button><span id="ldDates" class="ld-muted"></span></div>
       <div id="ldAlert" class="ld-alert" hidden></div>
-      <div class="ld-kpis"><div class="ld-kpi"><span class="ld-kpi-icon">▤</span><span class="ld-kpi-label">Saldo general · ARS</span><strong id="ldBalance">—</strong><div class="ld-muted">Saldo al cierre del período</div></div>
-      <div class="ld-kpi ld-in"><span class="ld-kpi-icon">↗</span><span class="ld-kpi-label">Ingresos · ARS</span><strong id="ldIncome">—</strong><div class="ld-muted">Excluye transferencias internas</div></div>
-      <div class="ld-kpi ld-out"><span class="ld-kpi-icon">↘</span><span class="ld-kpi-label">Gastos · ARS</span><strong id="ldExpense">—</strong><div class="ld-muted">Egresos del período</div></div>
+      <div class="ld-kpis"><div class="ld-kpi"><span class="ld-kpi-icon">▤</span><span class="ld-kpi-label">Saldo general · ARS</span><strong id="ldBalance">—</strong><div class="ld-muted">Saldo operativo al cierre del período</div></div>
+      <div class="ld-kpi ld-in"><span class="ld-kpi-icon">↗</span><span class="ld-kpi-label">Ingresos nuevos · ARS</span><strong id="ldIncome">—</strong><div class="ld-muted">Operativos desde la apertura; excluye traspasos</div></div>
+      <div class="ld-kpi ld-out"><span class="ld-kpi-icon">↘</span><span class="ld-kpi-label">Gastos nuevos · ARS</span><strong id="ldExpense">—</strong><div class="ld-muted">Egresos operativos del período</div></div>
       <div class="ld-kpi"><span class="ld-kpi-icon">＄</span><span class="ld-kpi-label">Saldo general · USD</span><strong id="ldUsd">—</strong><div class="ld-muted">Sin convertir a pesos</div></div></div>
-      <div class="ld-duo"><div class="ld-card"><div class="ld-card-title"><div><h2>Evolución del período</h2><div class="ld-muted">Ingresos y egresos mensuales · ARS</div></div></div><div class="ld-bars" id="ldChart"><div class="ld-empty">Preparando gráfico…</div></div><div class="ld-legend"><span><b></b>Ingresos</span><span><b class="eg"></b>Egresos</span></div></div>
+      <div class="ld-duo"><div class="ld-card"><div class="ld-card-title"><div><h2>Evolución del período</h2><div class="ld-muted">Movimientos nuevos · ARS (no incluye el Excel histórico)</div></div></div><div class="ld-bars" id="ldChart"><div class="ld-empty">Preparando gráfico…</div></div><div class="ld-legend"><span><b></b>Ingresos nuevos</span><span><b class="eg"></b>Gastos nuevos</span></div>
+      <div style="margin-top:20px;border-top:1px solid #e5eaf1;padding-top:16px"><div class="ld-card-title"><div><h2>Movimientos históricos del período</h2><div class="ld-muted">Entradas y salidas del Excel hasta el cierre del 25/11/2026. Pueden incluir traspasos.</div></div></div>
+      <div class="ld-field"><label for="ldHistBook">Libro histórico</label><select id="ldHistBook"><option value="GARUPA">GARUPA · ARS</option><option value="JARDIN">JARDIN · ARS</option><option value="USD">USD · histórico</option></select></div>
+      <div id="ldHistSummary" class="ld-muted" aria-live="polite" style="margin-top:10px"></div><div id="ldHistChart" class="ld-bars"><div class="ld-empty">Cargando histórico…</div></div><div class="ld-legend"><span><b></b>Entradas del Excel</span><span><b class="eg"></b>Salidas del Excel</span></div></div></div>
       <div class="ld-card"><div class="ld-card-title"><div><h2>Cuentas y saldos</h2><div class="ld-muted">Bancos, cajas, Mercado Pago, USD y plazos fijos</div></div></div><div id="ldAccounts"><div class="ld-empty">Preparando cuentas…</div></div></div></div>
       <div class="ld-card"><div class="ld-card-title"><div><h2>Movimientos del libro</h2><div class="ld-muted">Editarás operaciones sin perder el historial de auditoría</div></div><button type="button" class="ld-btn" id="ldImportInfo">ⓘ Importación histórica</button></div>
       <div class="ld-filters"><input id="ldQuery" placeholder="Buscar detalle o categoría…" aria-label="Buscar movimiento"><select id="ldAccountFilter" aria-label="Filtrar cuenta"><option value="">Todas las cuentas</option></select><select id="ldTypeFilter" aria-label="Filtrar tipo"><option value="">Todos los movimientos</option><option value="INGRESO">Ingresos</option><option value="EGRESO">Egresos</option><option value="TRANSFERENCIA">Transferencias</option></select></div>
@@ -94,6 +97,7 @@
     byId('ldNewMove').addEventListener('click',()=>openMoveForm());
     byId('ldImportInfo').addEventListener('click',()=>alert('El Excel histórico tiene 22 hojas con resúmenes, gastos y saldos que pueden superponerse. Se importará después de conciliar las filas, con fuente identificada y sin duplicados. Esta versión NO importa ni modifica el Excel.'));
     byId('ldRefresh').addEventListener('click',refreshData);
+    byId('ldHistBook').addEventListener('change',drawHistory);
     byId('ldPeriod').addEventListener('change',()=>{byId('ldCustom').classList.toggle('ld-visible',byId('ldPeriod').value==='personalizado');refreshData();});
     ['ldMonth','ldFrom','ldTo'].forEach(id=>byId(id).addEventListener('change',refreshData));
     ['ldQuery','ldAccountFilter','ldTypeFilter'].forEach(id=>byId(id).addEventListener(id==='ldQuery'?'input':'change',()=>{data.page=1;drawTable();}));
@@ -114,6 +118,22 @@
     }
     throw new Error('Superaste 50.000 movimientos. El panel no mostrará totales parciales: se requiere paginación de servidor.');
   }
+  // Los movimientos anteriores al corte se consultan exclusivamente como histórico.
+  async function fetchHistory(start,end,uid){
+    const until=end<'2026-11-25'?end:'2026-11-25';
+    if(start>until)return [];
+    const src=await sb.from('libro_diario_fuente_vigente').select('fuente_id').eq('user_id',uid).maybeSingle();
+    if(src.error)throw src.error;
+    if(!src.data)return [];
+    const out=[],size=750;
+    for(let i=0;i<40;i++){
+      const result=await sb.from('libro_diario_conciliacion_lineas').select('segmento,fecha_referencial,entrada,salida').eq('fuente_id',src.data.fuente_id).eq('user_id',uid).eq('tipo_registro','MOVIMIENTO').gte('fecha_referencial',start).lte('fecha_referencial',until).order('id',{ascending:true}).range(i*size,(i+1)*size-1);
+      if(result.error)throw result.error;
+      out.push(...(result.data||[]));
+      if((result.data||[]).length<size)return out;
+    }
+    throw new Error('El histórico excede el límite de consulta. Reducí el intervalo.');
+  }
   async function refreshData(){
     if(!access()||data.loading||!byId('ldBalance'))return;
     const {start,end}=getRange();
@@ -122,12 +142,16 @@
     try{
       const {data:accounts,error}=await sb.from('libro_diario_cuentas').select('id,user_id,nombre,tipo,moneda,saldo_inicial,fecha_saldo_inicial,activa').eq('activa',true).order('nombre');
       if(error)throw error;
-      const moves=await fetchEveryMove(end);
-      data.accounts=accounts||[];data.moves=moves;data.page=1;
+      const uid=data.uid;
+      const [moves,history]=await Promise.all([fetchEveryMove(end),fetchHistory(start,end,uid).then(rows=>({rows,error:null})).catch(error=>({rows:[],error}))]);
+      if(!access()||data.uid!==uid||!byId('ldBalance'))return;
+      const latest=getRange();if(latest.start!==start||latest.end!==end){setTimeout(refreshData,0);return;}
+      data.accounts=accounts||[];data.moves=moves;data.history=history.rows;data.historyError=history.error;data.page=1;
       drawAll();
     }catch(err){
       console.error('[Libro Diario] Error de carga:',err);
-      data.accounts=[];data.moves=[];
+      data.accounts=[];data.moves=[];data.history=[];data.historyError=err;
+      if(byId('ldHistChart'))byId('ldHistChart').textContent='No disponible';
       ['ldBalance','ldIncome','ldExpense','ldUsd'].forEach(id=>{if(byId(id))byId(id).textContent='No disponible';});
       if(byId('ldRows'))byId('ldRows').innerHTML='<tr><td colspan="7" class="ld-empty">No se pudo cargar el Libro Diario.</td></tr>';
       showError('Error de consulta: '+(err?.message||'No disponible')+'. No se muestran ceros para datos incompletos.');
@@ -135,6 +159,7 @@
   }
   const accountsById=()=>new Map(data.accounts.map(a=>[a.id,a]));
   function calculateBalance(acc,end){
+    if(end<acc.fecha_saldo_inicial)return null;
     let total=Number(acc.saldo_inicial)||0;
     for(const m of data.moves){if(m.fecha<acc.fecha_saldo_inicial||m.fecha>end)continue;
       const amount=Number(m.importe)||0;
@@ -147,21 +172,22 @@
     const {start,end}=getRange();
     const map=accountsById();
     let ars=0,usd=0,income=0,expense=0;
-    for(const acc of data.accounts){const balance=calculateBalance(acc,end);if(acc.moneda==='USD')usd+=balance;else ars+=balance;}
+    const opened=data.accounts.filter(a=>a.fecha_saldo_inicial<=end);
+    for(const acc of opened){const balance=calculateBalance(acc,end);if(acc.moneda==='USD')usd+=balance;else ars+=balance;}
     const periodMoves=data.moves.filter(m=>m.fecha>=start&&m.fecha<=end);
     for(const m of periodMoves){const acc=map.get(m.cuenta_id);if(!acc||acc.moneda!=='ARS')continue;
       if(m.tipo==='INGRESO')income+=Number(m.importe)||0;
       if(m.tipo==='EGRESO')expense+=Number(m.importe)||0;
     }
-    byId('ldBalance').textContent=money(ars);
+    byId('ldBalance').textContent=opened.some(a=>a.moneda==='ARS')?money(ars):'—';
     byId('ldIncome').textContent=money(income);
     byId('ldExpense').textContent=money(expense);
-    byId('ldUsd').textContent=money(usd,'USD');
-    byId('ldAccounts').innerHTML=data.accounts.length?data.accounts.map(a=>`<div class="ld-account"><div class="ld-account-icon">${a.tipo==='BANCO'?'▦':a.tipo==='EFECTIVO'?'▣':a.tipo==='PLAZO_FIJO'?'◷':'◈'}</div><div class="ld-account-name">${esc(a.nombre)}<small>${esc(a.tipo.replaceAll('_',' '))} · ${a.moneda}</small></div><div class="ld-account-value">${money(calculateBalance(a,end),a.moneda)}</div></div>`).join(''):'<div class="ld-empty">Todavía no hay cuentas cargadas. El histórico del Excel está pendiente de conciliación.</div>';
+    byId('ldUsd').textContent=opened.some(a=>a.moneda==='USD')?money(usd,'USD'):'—';
+    byId('ldAccounts').innerHTML=opened.length?opened.map(a=>`<div class="ld-account"><div class="ld-account-icon">${a.tipo==='BANCO'?'▦':a.tipo==='EFECTIVO'?'▣':a.tipo==='PLAZO_FIJO'?'◷':'◈'}</div><div class="ld-account-name">${esc(a.nombre)}<small>${esc(a.tipo.replaceAll('_',' '))} · ${a.moneda}</small></div><div class="ld-account-value">${money(calculateBalance(a,end),a.moneda)}</div></div>`).join(''):'<div class="ld-empty">No hay cuentas operativas abiertas al cierre de este período. Consultá los movimientos históricos para fechas anteriores.</div>';
     const sel=byId('ldAccountFilter'),selected=sel.value;
     sel.innerHTML='<option value="">Todas las cuentas</option>'+data.accounts.map(a=>`<option value="${esc(a.id)}">${esc(a.nombre)}</option>`).join('');
     if(data.accounts.some(a=>a.id===selected))sel.value=selected;
-    drawChart(start,end,periodMoves,map);drawTable();
+    drawChart(start,end,periodMoves,map);drawHistory();drawTable();
   }
   function drawChart(start,end,moves,map){
     const startD=parseDate(start),endD=parseDate(end),bucket=[];
@@ -172,8 +198,24 @@
       if(m.tipo==='INGRESO')b.i+=Number(m.importe)||0;
       if(m.tipo==='EGRESO')b.o+=Number(m.importe)||0;
     }
+    if(!bucket.some(x=>x.i||x.o)){byId('ldChart').innerHTML='<div class="ld-empty">Sin ingresos ni gastos operativos registrados en este período. El saldo de apertura no es un ingreso.</div>';return;}
     const max=Math.max(1,...bucket.flatMap(x=>[x.i,x.o]));
     byId('ldChart').innerHTML=bucket.map(x=>`<div class="ld-month" title="${esc(x.month)}: ingresos ${money(x.i)}, egresos ${money(x.o)}"><div class="ld-bar-pair"><div class="ld-bar" style="height:${x.i/max*100}%"></div><div class="ld-bar eg" style="height:${x.o/max*100}%"></div></div><span>${esc(x.month)}</span></div>`).join('')||'<div class="ld-empty">Sin meses en el período</div>';
+  }
+  function drawHistory(){
+    const target=byId('ldHistChart'),summary=byId('ldHistSummary');if(!target||!summary)return;
+    if(data.historyError){summary.textContent='No se pudo consultar el histórico. Los saldos operativos no se modificaron.';target.textContent='No disponible';return;}
+    const selected=byId('ldHistBook').value,currency=selected==='USD'?'USD':'ARS';
+    const rows=data.history.filter(x=>selected==='GARUPA'?['GARUPA_A','GARUPA_B'].includes(x.segmento):x.segmento===selected);
+    if(!rows.length){summary.textContent='Sin registros históricos para el libro y período elegidos.';target.innerHTML='<div class="ld-empty">Seleccioná otro libro o período. No se sustituyen fechas automáticamente.</div>';return;}
+    const byMonth=new Map();let totalIn=0,totalOut=0;
+    for(const row of rows){const key=row.fecha_referencial.slice(0,7),i=Number(row.entrada)||0,o=Number(row.salida)||0;const b=byMonth.get(key)||{i:0,o:0};b.i+=i;b.o+=o;byMonth.set(key,b);totalIn+=i;totalOut+=o;}
+    const {start,end}=getRange(),first=parseDate(start),last=parseDate(end);let d=new Date(first.getFullYear(),first.getMonth(),1),bucket=[];
+    while(d<=last&&bucket.length<120){const key=isoDate(d).slice(0,7);bucket.push({key,month:d.toLocaleDateString('es-AR',{month:'short',year:'2-digit'}),...byMonth.get(key)});d=new Date(d.getFullYear(),d.getMonth()+1,1);}
+    if(d<=last){summary.textContent='El intervalo supera 120 meses. Reducí el rango.';target.textContent='No disponible';return;}
+    summary.textContent=`${rows.length} registros · Entradas: ${money(totalIn,currency)} · Salidas: ${money(totalOut,currency)}. No se suman al saldo operativo.`;
+    const max=Math.max(1,...bucket.flatMap(b=>[b.i||0,b.o||0]));
+    target.innerHTML=bucket.map(b=>`<div class="ld-month" title="${esc(b.month)}: ${b.i==null?'sin registros':esc(money(b.i,currency)+' / '+money(b.o,currency))}"><div class="ld-bar-pair"><div class="ld-bar" style="height:${(b.i||0)/max*100}%"></div><div class="ld-bar eg" style="height:${(b.o||0)/max*100}%"></div></div><span>${esc(b.month)}</span></div>`).join('');
   }
   function drawTable(){
     if(!byId('ldRows'))return;
@@ -225,7 +267,7 @@
       <div class="ld-field"><label>Importe</label><input name="importe" type="number" min="0.01" step="0.01" required value="${existing?esc(existing.importe):''}" placeholder="0,00"></div>
       <div class="ld-field"><label>Categoría</label><input name="categoria" maxlength="100" required value="${esc(existing?.categoria||'General')}"></div>
       <div class="ld-field ld-full"><label>Detalle</label><input name="detalle" minlength="2" maxlength="500" required value="${esc(existing?.detalle||'')}" placeholder="Descripción del ingreso o gasto"></div>
-      <div class="ld-field ld-full"><small class="ld-muted">Las transferencias internas no cuentan como ingresos ni gastos. Cada edición queda registrada en auditoría.</small></div>
+      <div class="ld-field ld-full"><small class="ld-muted">Las cuentas importadas tienen apertura el 26/11/2026 (cierre Excel del 25/11). No cargues nuevamente movimientos ya incluidos. Las transferencias internas no cuentan como ingresos ni gastos. Cada edición queda registrada en auditoría.</small></div>
       <div class="ld-field ld-full"><div class="ld-modal-actions"><button type="button" data-close class="ld-btn">Cancelar</button><button type="submit" class="ld-btn ld-primary">${existing?'Guardar cambios':'Registrar movimiento'}</button></div></div></form>`);
     const form=byId('ldMoveForm'),type=byId('ldMoveType');
     type.value=existing?.tipo||'EGRESO';byId('ldMoveAccount').value=existing?.cuenta_id||data.accounts[0]?.id;
